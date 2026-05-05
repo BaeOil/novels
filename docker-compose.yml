@@ -1,0 +1,61 @@
+services:
+  db:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    container_name: novels_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - novels_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    restart: unless-stopped
+    networks:
+      - novels_network
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    container_name: novels_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    volumes:
+      - novels_pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT}:80"
+    restart: unless-stopped
+    depends_on:
+      - db
+    networks:
+      - novels_network
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - novels_network
+    restart: unless-stopped
+
+volumes:
+  novels_postgres_data:
+  novels_pgadmin_data:
+  minio_data:
+
+networks:
+  novels_network:
+    external: true
+    name: novels_network
+    driver: bridge
