@@ -1,0 +1,35 @@
+@import "tailwindcss"; 
+
+@import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --background-pink: #FCF5F7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* แก้ไขจุดนี้: ห้ามล็อค overflow hidden ที่ body */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--background-pink);
+  color: #4c0519; /* rose-950 */
+  font-family: 'Prompt', sans-serif;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ลบสไตล์แปลกๆ ที่อาจจะมากับ Vite */
+#root {
+  max-width: none !important;
+  text-align: left !important;
+}
