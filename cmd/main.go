@@ -2,69 +2,80 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 
-	_ "github.com/lib/pq"
+	"novel-be/config"
+	"novel-be/internal/db"
+	"novel-be/internal/routes"
+	"novel-be/internal/service"
+
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-
-	// เปลี่ยน "novel-be" เป็นชื่อ module ในไฟล์ go.mod ของหนูนะคะ
-	"novel-be/config"
-	"novel-be/internal/handlers"
 )
 
 func main() {
-	// 1. โหลดการตั้งค่าจาก config.go (Viper)
+
+	// -----------------------
+	// 1. Load Config
+	// -----------------------
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("❌ ไม่สามารถโหลด config ได้: %v", err)
+		log.Fatalf("❌ load config fail: %v", err)
 	}
 
-	// 2. เชื่อมต่อ Database โดยใช้ Connection String จาก config
-	db, err := sql.Open("postgres", cfg.GetConnectionString())
+	// -----------------------
+	// 2. Connect DB
+	// -----------------------
+	dbConn, err := db.Open(cfg)
 	if err != nil {
-		log.Fatalf("❌ เชื่อมต่อ Database ล้มเหลว: %v", err)
+		log.Fatalf("❌ DB connect fail: %v", err)
 	}
-	defer db.Close()
+	defer dbConn.Close()
 
-	// ตรวจสอบการเชื่อมต่อ (Ping)
-	if err := db.Ping(); err != nil {
-		log.Fatalf("❌ Database ไม่ตอบสนอง (Ping fail): %v", err)
+	if err := dbConn.Ping(); err != nil {
+		log.Fatalf("❌ DB ping fail: %v", err)
 	}
-	fmt.Println("✅ Connected to PostgreSQL successfully!")
+	fmt.Println("✅ DB Connected")
 
-	// 3. เชื่อมต่อ MinIO
+	// -----------------------
+	// 3. Connect MinIO
+	// -----------------------
 	minioClient, err := minio.New(cfg.MinIOEndpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.MinIOAccessKey, cfg.MinIOSecretKey, ""),
 		Secure: cfg.MinIOUseSSL,
 	})
 	if err != nil {
-		log.Fatalf("❌ เชื่อมต่อ MinIO ล้มเหลว: %v", err)
+		log.Fatalf("❌ MinIO connect fail: %v", err)
 	}
 
-	// ทดสอบการเชื่อมต่อ MinIO
 	_, err = minioClient.ListBuckets(context.Background())
 	if err != nil {
-		log.Fatalf("❌ MinIO ไม่ตอบสนอง: %v", err)
+		log.Fatalf("❌ MinIO ping fail: %v", err)
 	}
-	fmt.Println("✅ Connected to MinIO successfully!")
-	// เรียกใช้ฟังก์ชันจาก internal/handlers
-	http.HandleFunc("/novels", handlers.GetNovels(db))
-	http.HandleFunc("/scene", handlers.GetScene(db))
-	http.HandleFunc("/health", handlers.HealthCheck(db))
+	fmt.Println("✅ MinIO Connected")
 
-	// หน้าแรก (Root)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Welcome to Novel API! Try /novels or /scene?id=1")
-	})
+	// -----------------------
+	// 4. Services
+	// -----------------------
+	novelService := service.NewNovelService(dbConn)
+	sceneService := service.NewSceneService(dbConn)
+	flowService := service.NewFlowService(sceneService) // ✅ FIX
 
-	// 4. เริ่มต้นรัน Server
-	fmt.Printf("🚀 Server is running on port %s...\n", cfg.AppPort)
+	// -----------------------
+	// 5. Routes
+	// -----------------------
+
+	routes.RegisterRoutes(flowService, novelService, sceneService)
+
+	// -----------------------
+	// 6. Start Server
+	// -----------------------
+	fmt.Printf("🚀 Server running on port %s\n", cfg.AppPort)
+
 	err = http.ListenAndServe(":"+cfg.AppPort, nil)
 	if err != nil {
-		log.Fatalf("❌ ไม่สามารถเริ่มต้น Server ได้: %v", err)
+		log.Fatalf("❌ server start fail: %v", err)
 	}
 }

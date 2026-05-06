@@ -1,5 +1,3 @@
-// config.go
-
 package config
 
 import (
@@ -24,20 +22,25 @@ type Config struct {
 }
 
 func LoadConfig() (Config, error) {
-	// viper.SetEnvPrefix("POSTGRES")
+	// ✅ 1. สั่งให้ Viper ลองหาไฟล์ .env และอ่านค่ามา (ถ้ามี)
+	viper.SetConfigFile(".env")
+	_ = viper.ReadInConfig() // ใช้ _ รับ Error ไว้ เพราะถ้ารันใน Docker อาจจะไม่มีไฟล์นี้ ก็ปล่อยผ่านได้
+
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Set default values
+	// ✅ 2. เพิ่ม Default ให้ App Port ป้องกันเซิร์ฟเวอร์บึ้ม
+	viper.SetDefault("APP.PORT", "8080")
+
 	viper.SetDefault("POSTGRES.HOST", "localhost")
 	viper.SetDefault("POSTGRES.PORT", 5432)
 	viper.SetDefault("POSTGRES.USER", "postgres")
 	viper.SetDefault("POSTGRES.PASSWORD", "")
-	viper.SetDefault("POSTGRES.DBNAME", "bookstore")
+	viper.SetDefault("POSTGRES.DBNAME", "bookstore") // แอบเห็นว่าเป็น bookstore อาจจะอยากแก้เป็น novel นะ 😉
 	viper.SetDefault("POSTGRES.SSLMODE", "disable")
 
 	// MinIO defaults
-	viper.SetDefault("MINIO.ENDPOINT", "minio:9000")
+	viper.SetDefault("MINIO.ENDPOINT", "minio:9000") // เปลี่ยนเป็น localhost:9000 ถ้ารันนอก docker
 	viper.SetDefault("MINIO.ACCESS_KEY", "minioadmin")
 	viper.SetDefault("MINIO.SECRET_KEY", "minioadmin")
 	viper.SetDefault("MINIO.USE_SSL", false)
