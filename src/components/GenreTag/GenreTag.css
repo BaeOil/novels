@@ -1,0 +1,34 @@
+/* src/components/GenreTag/GenreTag.css */
+
+.genre-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: default;
+  transition: all 0.15s ease;
+}
+
+.genre-tag--primary {
+  background: var(--pink-50);
+  color: var(--pink-500);
+  border: 1px solid var(--pink-100);
+}
+
+.genre-tag--primary:hover {
+  background: var(--pink-100);
+}
+
+.genre-tag--outline {
+  background: transparent;
+  color: var(--gray-600);
+  border: 1px solid var(--gray-100);
+}
+
+.genre-tag--outline:hover {
+  border-color: var(--pink-300);
+  color: var(--pink-500);
+}

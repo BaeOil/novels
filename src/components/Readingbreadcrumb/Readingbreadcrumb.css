@@ -1,0 +1,86 @@
+/* src/components/ReadingBreadcrumb/ReadingBreadcrumb.css */
+.rbreadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+}
+
+.rbreadcrumb__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 24px;
+    border: 1.5px solid var(--gray-100);
+    background: var(--white);
+    font-family: 'Sarabun', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.rbreadcrumb__back:hover {
+    border-color: var(--pink-300);
+    color: var(--pink-500);
+    background: var(--pink-50);
+}
+
+.rbreadcrumb__path {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.rbreadcrumb__novel,
+.rbreadcrumb__chapter {
+    font-family: 'Sarabun', sans-serif;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rbreadcrumb__novel {
+    color: var(--gray-600);
+}
+
+.rbreadcrumb__path svg {
+    color: var(--gray-300);
+    flex-shrink: 0;
+}
+
+.rbreadcrumb__chapter {
+    color: var(--gray-300);
+}
+
+.rbreadcrumb__map {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 16px;
+    border-radius: 24px;
+    border: 1.5px solid var(--gray-100);
+    background: var(--white);
+    font-family: 'Sarabun', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.rbreadcrumb__map:hover {
+    border-color: var(--pink-300);
+    color: var(--pink-500);
+    background: var(--pink-50);
+}

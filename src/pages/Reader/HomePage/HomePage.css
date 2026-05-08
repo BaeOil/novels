@@ -1,0 +1,246 @@
+/* src/pages/Home/HomePage.css */
+
+.home {
+    min-height: 100vh;
+}
+
+/* ── Hero ── */
+.home__hero {
+    background: linear-gradient(170deg, var(--pink-50) 0%, var(--white) 60%);
+    border-bottom: 1px solid var(--pink-100);
+    padding: 56px 0 60px;
+    overflow: hidden;
+    position: relative;
+}
+
+.home__hero::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(240, 29, 145, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.home__hero-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 40px;
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 48px;
+    align-items: center;
+}
+
+.home__hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: white;
+    border: 1px solid var(--pink-100);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+.home__hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(34px, 4vw, 52px);
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.15;
+    margin-bottom: 14px;
+    letter-spacing: -0.5px;
+}
+
+.home__hero-title-accent {
+    color: var(--pink-500);
+    font-style: italic;
+}
+
+.home__hero-quote {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--pink-500);
+    margin-bottom: 16px;
+}
+
+.home__hero-desc {
+    font-size: 15px;
+    color: var(--gray-600);
+    line-height: 1.8;
+    max-width: 440px;
+    margin-bottom: 32px;
+}
+
+/* Floating books */
+.home__hero-right {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.home__books {
+    position: relative;
+    width: 360px;
+    height: 260px;
+}
+
+.home__book {
+    position: absolute;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 18px;
+    box-shadow: 0 16px 48px rgba(45, 27, 61, 0.15);
+    transition: transform 0.35s ease;
+}
+
+.home__book:hover {
+    transform: translateY(-6px) rotate(-2deg) !important;
+}
+
+.home__book--main {
+    width: 200px;
+    height: 240px;
+    z-index: 3;
+    top: 10px;
+    right: 40px;
+    transform: rotate(-2deg);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.home__book--back1 {
+    width: 178px;
+    height: 220px;
+    z-index: 2;
+    top: 30px;
+    right: 200px;
+    transform: rotate(-8deg);
+    opacity: 0.85;
+}
+
+.home__book--back2 {
+    width: 166px;
+    height: 210px;
+    z-index: 1;
+    top: 40px;
+    right: 20px;
+    transform: rotate(6deg);
+    opacity: 0.7;
+}
+
+.home__book-emoji {
+    font-size: 40px;
+}
+
+.home__book-emoji--main {
+    font-size: 28px;
+}
+
+.home__book-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    text-align: center;
+    line-height: 1.3;
+    letter-spacing: -0.3px;
+}
+
+/* ── Popular section ── */
+.home__section {
+    padding: 48px 0 64px;
+}
+
+.home__section-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 40px;
+}
+
+.home__section-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.home__section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.home__see-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pink-500);
+    cursor: pointer;
+    transition: gap 0.15s;
+    padding: 4px 0;
+}
+
+.home__see-all:hover {
+    gap: 8px;
+}
+
+/* Novel grid */
+.home__novel-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 18px;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+    .home__novel-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .home__hero-inner {
+        grid-template-columns: 1fr;
+    }
+
+    .home__hero-right {
+        display: none;
+    }
+
+    .home__novel-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .home__hero-inner {
+        padding: 0 20px;
+    }
+
+    .home__section-inner {
+        padding: 0 20px;
+    }
+
+    .home__novel-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

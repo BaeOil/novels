@@ -1,0 +1,53 @@
+/* src/components/NovelCoverCard/NovelCoverCard.css */
+
+.novel-cover-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 260px;
+  flex-shrink: 0;
+}
+
+/* Cover */
+.novel-cover-card__cover {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(45, 27, 61, 0.15);
+}
+
+.novel-cover-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.novel-cover-card__cover:hover .novel-cover-card__img {
+  transform: scale(1.03);
+}
+
+/* Placeholder (no image yet) */
+.novel-cover-card__placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(150deg, var(--pink-50) 0%, var(--pink-100) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--pink-100);
+}
+
+.novel-cover-card__emoji {
+  font-size: 72px;
+  filter: drop-shadow(0 4px 8px rgba(233, 30, 140, 0.2));
+}
+
+/* Stats 2x2 grid */
+.novel-cover-card__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}

@@ -1,5 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
+import Navbar from "./components/Navbar/Navbar";
+import NovelDetailPage from "./pages/Reader/NovelDetailPage/NovelDetailPage";
+import HomePage from "./pages/Reader/HomePage/HomePage";
+import './style/App.css';
 import './style/index.css';
 
 // สร้าง Component หลอกๆ ไว้ก่อนสำหรับหน้า Story เพื่อไม่ให้จอขาว
@@ -13,13 +17,19 @@ const StoryPlaceholder = () => (
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        {/* เพิ่มบรรทัดนี้เพื่อรองรับ Link จากหน้า Home */}
-        <Route path="/story" element={<StoryPlaceholder />} />
-      </Routes>
-    </Router>
+    <div className="app">
+      <Navbar />
+      <Router>
+        <Routes>
+
+          {/* <Route path="/" element={<Home />} /> */}
+          {/* เพิ่มบรรทัดนี้เพื่อรองรับ Link จากหน้า Home */}
+          <Route path="/story" element={<StoryPlaceholder />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/novel/:id" element={<NovelDetailPage />} />
+        </Routes>
+      </Router>
+    </div>
   );
 }
 

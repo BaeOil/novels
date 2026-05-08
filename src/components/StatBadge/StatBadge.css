@@ -1,0 +1,36 @@
+/* src/components/StatBadge/StatBadge.css */
+
+.stat-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  background: var(--white);
+  border: 1.5px solid var(--gray-100);
+  border-radius: 12px;
+  min-width: 90px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+  cursor: default;
+}
+
+.stat-badge:hover {
+  border-color: var(--pink-300);
+  transform: translateY(-1px);
+}
+
+.stat-badge__value {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--pink-500);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-badge__label {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 12px;
+  color: var(--gray-600);
+  white-space: nowrap;
+}
