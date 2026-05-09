@@ -1,16 +1,10 @@
-// src/pages/Home/HomePage.jsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import "./HomePage.css";
 import NovelCard from "../../../components/NovelCard/NovelCard";
 import { mockNovels } from "../../../data/mockData";
 
-// ──────────────────────────────────────────
-// TODO: แทนที่ mockNovels ด้วย API call:
-//   useEffect(() => {
-//     fetch('/api/novels?sort=popular&limit=10')
-//       .then(r => r.json()).then(setNovels)
-//   }, []);
-// ──────────────────────────────────────────
+// กำหนด URL ของ Backend
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const HERO_BOOK_BG = [
   "linear-gradient(150deg,#c8f7c5,#a8e6cf)",
@@ -19,18 +13,76 @@ const HERO_BOOK_BG = [
 ];
 
 const HomePage = ({ onNavigate }) => {
+  const [novels, setNovels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchNovels = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/novels`);
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(payload?.error || payload?.message || "ดึงข้อมูลนิยายไม่สำเร็จ");
+        }
+
+        // จัดการข้อมูลที่ได้จาก API (payload อาจจะเป็น { data: [...] } หรือ [...])
+        const dataList = payload?.data || payload || [];
+
+        const formattedNovels = dataList.map((data) => {
+          // ดึง mock data มาสำรองเผื่อบางฟิลด์ใน DB ยังไม่มีข้อมูล
+          const mockData = mockNovels.find(m => m.id === (data.novel_id || data.id)) || mockNovels[0];
+          
+          return {
+            id: data.novel_id || data.id,
+            title: data.title || "ไม่พบชื่อเรื่อง",
+            
+            // 🟢 จุดสำคัญ: แปลง Object [{name: "xxx"}] ให้เป็น String ["xxx"]
+            categories: data.categories && data.categories.length > 0
+              ? data.categories.map(cat => typeof cat === "object" ? cat.name : cat)
+              : mockData?.categories || ["ทั่วไป"],
+
+            coverImage: data.cover_image || null,
+            coverEmoji: data.cover_image ? "" : "📘",
+            author: {
+              displayName: data.author_name || data.pen_name || "ไม่ทราบผู้แต่ง",
+              avatarUrl: data.author_avatar || null,
+            },
+            synopsis: data.captions || data.introduction || "",
+            stats: {
+              views: data.views || 0,
+              paths: mockData?.stats?.paths || Math.floor(Math.random() * 10) + 1,
+              choicePoints: data.choice_points || mockData?.stats?.choicePoints || 0,
+              endings: mockData?.stats?.endings || 1,
+            },
+            isLiked: mockData?.isLiked || false,
+            isBookmarked: mockData?.isBookmarked || false,
+          };
+        });
+
+        setNovels(formattedNovels);
+      } catch (err) {
+        console.error("API Error:", err);
+        setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กำลังแสดงข้อมูลจำลอง");
+        setNovels(mockNovels);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNovels();
+  }, []);
+
   const handleReadNovel = (novelId) => {
-    // TODO: navigate to /novel/:id
     onNavigate("novel-detail", { novelId });
   };
 
   return (
     <div className="home">
-
       {/* ── Hero Section ── */}
       <section className="home__hero" aria-label="ส่วนแนะนำ">
         <div className="home__hero-inner">
-          {/* Left: text */}
           <div className="home__hero-left">
             <div className="home__hero-eyebrow">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -50,7 +102,6 @@ const HomePage = ({ onNavigate }) => {
             </p>
           </div>
 
-          {/* Right: floating books */}
           <div className="home__hero-right" aria-hidden="true">
             <div className="home__books">
               <div className="home__book home__book--back2" style={{ background: HERO_BOOK_BG[2] }}>
@@ -74,6 +125,7 @@ const HomePage = ({ onNavigate }) => {
           <div className="home__section-header">
             <div>
               <h2 id="popular-heading" className="home__section-title">นิยายยอดนิยม</h2>
+              {error && <span style={{ fontSize: "12px", color: "red", marginLeft: "10px" }}>({error})</span>}
             </div>
             <button className="home__see-all" aria-label="ดูนิยายทั้งหมด">
               ดูทั้งหมด
@@ -83,16 +135,28 @@ const HomePage = ({ onNavigate }) => {
             </button>
           </div>
 
-          <div className="home__novel-grid" role="list">
-            {mockNovels.map((novel) => (
-              <div role="listitem" key={novel.id}>
-                <NovelCard
-                  novel={novel}
-                  onClick={() => handleReadNovel(novel.id)}
-                />
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "#666" }}>
+              กำลังโหลดนิยาย...
+            </div>
+          ) : (
+            <div className="home__novel-grid" role="list">
+              {novels.length > 0 ? (
+                novels.map((novel) => (
+                  <div role="listitem" key={novel.id}>
+                    <NovelCard
+                      novel={novel}
+                      onClick={() => handleReadNovel(novel.id)}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: "2rem", color: "#888" }}>
+                  ยังไม่มีนิยายในระบบ
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
     </div>
