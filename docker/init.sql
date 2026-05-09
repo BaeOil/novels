@@ -184,3 +184,152 @@ CREATE TABLE notifications (
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ==========================================
+
+INSERT INTO categories (name) VALUES
+('แฟนตาซี'),
+('โรแมนติก'),
+('สืบสวน'),
+('สยองขวัญ'),
+('ไซไฟ'),
+('คอมเมดี้'),
+('ดราม่า'),
+('ผจญภัย');
+
+INSERT INTO users (username, email, password_hash, role, pic_profile) VALUES
+('admin_master', 'admin@novelverse.com', 'hashed_admin', 'admin', 'http://localhost:9000/novels-images/admin.jpg'),
+('jane_writer', 'jane@novelverse.com', 'hashed_jane', 'writer', 'http://localhost:9000/novels-images/jane.jpg'),
+('dark_john', 'john@novelverse.com', 'hashed_john', 'writer', 'http://localhost:9000/novels-images/john.jpg'),
+('alice_reader', 'alice@novelverse.com', 'hashed_alice', 'reader', 'http://localhost:9000/novels-images/alice.jpg'),
+('mike_reader', 'mike@novelverse.com', 'hashed_mike', 'reader', NULL);
+
+
+-- ==========================================
+-- LEVEL 2: ตารางที่ต้องอ้างอิง User
+-- ==========================================
+
+INSERT INTO writers (writer_id, user_id, name_lastname, pen_name, bio, email_writer, contact_info) VALUES
+(1, 2, 'Jane Doe', 'JaneTheAuthor', '<p>นักเขียนสายแฟนตาซี ✨</p>', 'contact_jane@novelverse.com', '{"twitter":"@janetheauthor"}'),
+(2, 3, 'John Smith', 'DarkMaster', '<p>นักเขียนสายสยอง 👁️</p>', 'contact_john@novelverse.com', '{"twitter":"@darkmaster"}');
+
+INSERT INTO follows (follower_id, following_id) VALUES
+(4,2),
+(5,2),
+(4,3);
+
+
+-- ==========================================
+-- LEVEL 3: ตารางที่ต้องอ้างอิง Writer & Category
+-- ==========================================
+
+INSERT INTO writer_categories (writer_id, category_id) VALUES
+(1,1),
+(1,2),
+(1,8),
+(2,3),
+(2,4);
+
+-- รวม Novels ทั้งหมดไว้ที่เดียวกัน (ID 1-4 จะเรียงกันพอดี)
+INSERT INTO novels (title, captions, introduction, cover_image, status, author_id, views) VALUES
+('แสงสุดท้ายแห่งเอลฟ์', 'เมื่อเอลฟ์ตัวสุดท้ายต้องกอบกู้โลก', '<p>โลกที่เวทมนตร์ใกล้ดับสูญ...</p>', 'http://localhost:9000/novels-images/elf_cover.jpg', 'published', 1, 2500),
+('คฤหาสน์ซ่อนเงา', 'อย่าเปิดประตูบานนั้น', '<p>คฤหาสน์ลึกลับบนเนินเขา</p>', 'http://localhost:9000/novels-images/house_cover.jpg', 'published', 2, 1800),
+('รักวุ่นวายยัยแฮกเกอร์', 'เจาะระบบหัวใจนายเย็นชา', '<p>ความรักของแฮกเกอร์สาว</p>', 'http://localhost:9000/novels-images/hacker_cover.jpg', 'draft', 1, 300),
+('สงครามจักรกลแห่งอนาคต', 'ไซไฟ แอคชัน และดราม่า', '<p>โลกอนาคตที่ AI ปกครองมนุษย์</p>', 'http://localhost:9000/novels-images/future-war.jpg', 'published', 2, 4200);
+
+-- รวม Novel Categories
+INSERT INTO novel_categories (novel_id, category_id) VALUES
+(1,1), (1,8), 
+(2,3), (2,4), 
+(3,2), (3,6),
+(4,5), (4,1), (4,6);
+
+
+-- ==========================================
+-- LEVEL 4: ตารางที่ต้องอ้างอิง Novels (ตอนและอื่นๆ)
+-- ==========================================
+
+INSERT INTO chapters (novel_id, episode, title, status) VALUES
+(1,1,'จุดเริ่มต้น','published'),
+(1,2,'ป่าต้องห้าม','published'),
+(1,3,'วิหารโบราณ','published'),
+(2,1,'จดหมายสีเลือด','published'),
+(2,2,'เสียงกระซิบ','published'),
+(3,1,'บั๊กแรกของหัวใจ','draft');
+
+INSERT INTO bookshelves (user_id, novel_id) VALUES
+(4,1), (4,2), (5,1), (4,4), (5,4);
+
+INSERT INTO likes (user_id, novel_id) VALUES
+(4,1), (5,1), (4,2), (4,4), (5,4);
+
+INSERT INTO reports (user_id, novel_id, reason, status) VALUES
+(5, 2, 'หน้าปกน่ากลัวเกินไป', 'pending');
+
+INSERT INTO notifications (user_id, type, reference_id, reference_type, message, is_read) VALUES
+(4, 'NEW_CHAPTER', 2, 'chapter', 'นิยายอัปเดตตอนใหม่แล้ว', false),
+(2, 'COMMENT', 1, 'comment', 'มีคนคอมเมนต์นิยายของคุณ', true);
+
+
+-- ==========================================
+-- LEVEL 5: ตาราง Scenes (ต้องมี Chapter ก่อน)
+-- รวม Scenes ทั้งหมดเข้าด้วยกัน (ID 1-10)
+-- ==========================================
+
+INSERT INTO scenes (chapter_id, novel_id, title, content, type, ending_title, ending_type, ending_description) VALUES
+(1, 1, 'ลืมตาตื่น', '<h2>บทเริ่มต้น</h2><p>คุณตื่นกลางป่า...</p>', 'start', NULL, NULL, NULL),
+(1, 1, 'ลำธารแห่งแสง', '<p>คุณพบลำธารศักดิ์สิทธิ์</p><img src="http://localhost:9000/novels-images/river.jpg" />', 'normal', NULL, NULL, NULL),
+(1, 1, 'รอยเท้าปีศาจ', '<p>กลิ่นประหลาดโชยมา...</p>', 'normal', NULL, NULL, NULL),
+(2, 1, 'ดาบโบราณ', '<p>คุณค้นพบดาบในตำนาน</p>', 'normal', NULL, NULL, NULL),
+(2, 1, 'หมีกลายพันธุ์', '<p>หมียักษ์พุ่งเข้าใส่!</p>', 'ending', 'จุดจบแห่งป่า', 'bad', 'คุณถูกฆ่าโดยสัตว์ประหลาด'),
+(3, 1, 'ผู้ถูกเลือก', '<p>คุณปลุกพลังเอลฟ์สำเร็จ</p>', 'ending', 'ผู้ถูกเลือก', 'true', 'คุณเริ่มต้นการกอบกู้โลก'),
+(2, 1, 'ทางเข้าสู่ป่าต้องห้าม', '<p>หลังจากได้ดาบในตำนาน คุณเดินทางมาถึงป่าต้องห้าม ต้นไม้รอบตัวสูงผิดธรรมชาติ และมีหมอกสีดำปกคลุมทั่วพื้นที่</p><p><strong>เบื้องหน้าคือประตูหินโบราณ</strong></p>', 'normal', NULL, NULL, NULL),
+(2, 1, 'เสียงเรียกจากเงามืด', '<p>คุณได้ยินเสียงกระซิบเรียกชื่อของคุณจากภายในป่า</p><p><em>"จงเข้ามา..."</em></p>', 'normal', NULL, NULL, NULL),
+(2, 1, 'ห้องสมุดโบราณ', '<h2>ห้องสมุดต้องห้าม</h2><p>คุณเดินเข้ามาในห้องสมุดเก่าแก่</p><p><img src="http://localhost:9000/novels-images/library.jpg" alt="library" /></p><p>บนกำแพงมีภาพเคลื่อนไหวเวทมนตร์ปรากฏขึ้น</p><iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="magic video" frameborder="0" allowfullscreen></iframe><p><strong>คุณจะทำอย่างไรต่อ?</strong></p>', 'normal', NULL, NULL, NULL),
+(2, 1, 'ห้องลับใต้ต้นไม้โลก', '<p>คุณค้นพบห้องลับที่ไม่มีใครเคยพบมาก่อน...</p>', 'ending', 'ผู้พิทักษ์ต้นไม้โลก', 'secret', 'คุณค้นพบความจริงของโลก และกลายเป็นผู้พิทักษ์คนใหม่');
+
+
+-- ==========================================
+-- LEVEL 6: ตารางที่ต้องอ้างอิง Scenes 
+-- (Choices, Comments, History, Endings)
+-- ==========================================
+
+-- รวม Choices ทั้งหมด
+INSERT INTO choices (from_scene_id, to_scene_id, label) VALUES
+(1,2,'เดินไปทางลำธาร'),
+(1,3,'เดินตามรอยเท้า'),
+(2,4,'หยิบดาบโบราณ'),
+(3,5,'สำรวจเสียง'),
+(4,6,'ปลดปล่อยพลังเอลฟ์'),
+(4,7,'ถือดาบแล้วเดินทางต่อเข้าสู่ป่าต้องห้าม'),
+(7,8,'เปิดประตูหินโบราณ');
+
+-- รวม Comments ทั้งหมด
+INSERT INTO comments (user_id, novel_id, scene_id, content) VALUES
+(4, 1, 1, 'เปิดเรื่องได้น่าสนใจมากค่ะ'),
+(5, 1, 5, 'จบไวเกิน 😭'),
+(4, 2, NULL, 'ชอบบรรยากาศมาก'),
+(4, 4, NULL, 'โลกไซไฟเรื่องนี้สนุกมาก!'),
+(5, 4, NULL, 'อยากให้ทำเป็นเกมเลย');
+
+INSERT INTO reading_progress (user_id, novel_id, current_scene_id) VALUES
+(4,1,6),
+(5,1,5);
+
+INSERT INTO user_scene_history (user_id, scene_id) VALUES
+(4,1), (4,2), (4,4), (4,6),
+(5,1), (5,3), (5,5);
+
+INSERT INTO user_endings (user_id, scene_id) VALUES
+(4,6),
+(5,5);
+
+
+-- ==========================================
+-- LEVEL 7: ตารางที่ต้องอ้างอิง Choices 
+-- (ต้องมี Choices ก่อนถึงจะผูกประวัติได้)
+-- ==========================================
+
+INSERT INTO user_choice_history (user_id, choice_id) VALUES
+(4,1), (4,3), (4,5),
+(5,2), (5,4);
