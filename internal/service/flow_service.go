@@ -1,20 +1,19 @@
-﻿package service
+package service
 
 import "novel-be/internal/models"
 
-type FlowService struct {
-	Scene *SceneService
+type flowService struct {
+	scene SceneService
 }
 
-func NewFlowService(scene *SceneService) *FlowService {
-	return &FlowService{Scene: scene}
+func NewFlowService(scene SceneService) FlowService {
+	return &flowService{scene: scene}
 }
 
-// 👉 ใช้ SceneService แทน ไม่เขียน query ซ้ำ
-func (f *FlowService) GetScene(sceneID int) (models.SceneResponse, error) {
-	return f.Scene.GetScene(sceneID)
+func (f *flowService) GetScene(sceneID int) (models.SceneResponse, error) {
+	return f.scene.GetScene(sceneID)
 }
 
-func (f *FlowService) GetWelcome() string {
+func (f *flowService) GetWelcome() string {
 	return "Welcome to Novel Reader API"
 }

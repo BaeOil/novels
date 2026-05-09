@@ -1,7 +1,6 @@
-﻿package handlers
+package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,53 +11,44 @@ import (
 // --------------------
 // Health
 // --------------------
-func HealthCheck(sceneService *service.SceneService) http.HandlerFunc {
+func HealthCheck(sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Set("Content-Type", "application/json")
-
-		if err := sceneService.DB.Ping(); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(map[string]string{"status": "down"})
+		if err := sceneService.Ping(); err != nil {
+			WriteError(w, http.StatusServiceUnavailable, "service unavailable")
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]string{"status": "up"})
+		WriteJSON(w, http.StatusOK, map[string]string{"status": "up"})
 	}
 }
 
 // --------------------
 // Root
 // --------------------
-func GetRoot(flow *service.FlowService) http.HandlerFunc {
+func GetRoot(flow service.FlowService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": flow.GetWelcome(),
-		})
+		WriteJSON(w, http.StatusOK, map[string]string{"message": flow.GetWelcome()})
 	}
 }
 
 // --------------------
 // GET /reader/scenes/{id}
 // --------------------
-func GetSceneHandler(sceneService *service.SceneService) http.HandlerFunc {
+func GetSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		idStr := strings.TrimPrefix(r.URL.Path, "/reader/scenes/")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			http.Error(w, "invalid id", 400)
+			WriteError(w, http.StatusBadRequest, "invalid id")
 			return
 		}
 
 		result, err := sceneService.GetScene(id)
 		if err != nil {
-			http.Error(w, err.Error(), 500)
+			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		WriteJSON(w, http.StatusOK, result)
 	}
 }

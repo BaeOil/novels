@@ -8,6 +8,8 @@ import (
 
 	"novel-be/config"
 	"novel-be/internal/db"
+	"novel-be/internal/middleware"
+	"novel-be/internal/repository"
 	"novel-be/internal/routes"
 	"novel-be/internal/service"
 
@@ -57,24 +59,49 @@ func main() {
 	fmt.Println("✅ MinIO Connected")
 
 	// -----------------------
-	// 4. Services
+	// 4. Repositories
 	// -----------------------
-	novelService := service.NewNovelService(dbConn)
-	sceneService := service.NewSceneService(dbConn)
-	flowService := service.NewFlowService(sceneService) // ✅ FIX
+	novelRepo := repository.NewNovelRepository(dbConn)
+	sceneRepo := repository.NewSceneRepository(dbConn)
+	chapterRepo := repository.NewChapterRepository(dbConn)
+	socialRepo := repository.NewSocialRepository(dbConn)
+	readingRepo := repository.NewReadingRepository(dbConn)
+	mediaRepo := repository.NewMinIOMediaRepository(minioClient, cfg.MinIOEndpoint)
+	categoryRepo := repository.NewCategoryRepository(dbConn)
+
+	// Ensure MinIO bucket exists
+	ctx := context.Background()
+	if err := mediaRepo.EnsureBucketExists(ctx, "novels-images"); err != nil {
+		log.Fatalf("❌ failed to ensure MinIO bucket: %v", err)
+	}
+	fmt.Println("✅ MinIO Bucket Ready")
 
 	// -----------------------
-	// 5. Routes
+	// 5. Services
 	// -----------------------
-
-	routes.RegisterRoutes(flowService, novelService, sceneService)
+	novelService := service.NewNovelService(novelRepo)
+	sceneService := service.NewSceneService(sceneRepo, dbConn)
+	chapterService := service.NewChapterService(chapterRepo)
+	socialService := service.NewSocialService(socialRepo)
+	readingService := service.NewReadingService(readingRepo)
+	flowService := service.NewFlowService(sceneService)
+	writerService := service.NewWriterService(dbConn)
+	mediaService := service.NewMediaService(mediaRepo)
+	categoryService := service.NewCategoryService(categoryRepo)
 
 	// -----------------------
-	// 6. Start Server
+	// 6. Routes
+	// -----------------------
+	routes.RegisterRoutes(flowService, novelService, chapterService, sceneService, socialService, readingService, writerService, mediaService, categoryService)
+
+	// -----------------------
+	// 7. Start Server
 	// -----------------------
 	fmt.Printf("🚀 Server running on port %s\n", cfg.AppPort)
+	fmt.Println("📚 Novel Interactive Platform Backend Ready!")	
 
-	err = http.ListenAndServe(":"+cfg.AppPort, nil)
+	handler := middleware.CORSMiddleware(http.DefaultServeMux)
+	err = http.ListenAndServe(":"+cfg.AppPort, handler)
 	if err != nil {
 		log.Fatalf("❌ server start fail: %v", err)
 	}

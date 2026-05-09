@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"database/sql"
@@ -6,33 +6,65 @@ import (
 	"novel-be/internal/repository"
 )
 
-type SceneService struct {
-	DB *sql.DB
+type sceneService struct {
+	repo repository.SceneRepository
+	db   *sql.DB
 }
 
-func NewSceneService(db *sql.DB) *SceneService {
-	return &SceneService{DB: db}
+func NewSceneService(repo repository.SceneRepository, db *sql.DB) SceneService {
+	return &sceneService{repo: repo, db: db}
 }
 
-func (s *SceneService) GetScene(sceneID int) (models.SceneResponse, error) {
-
-	scene, err := repository.GetSceneByID(s.DB, sceneID)
+func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
+	scene, err := s.repo.GetSceneByID(sceneID)
 	if err != nil {
 		return models.SceneResponse{}, err
 	}
 
-	choices, err := repository.GetChoicesBySceneID(s.DB, sceneID)
+	choices, err := s.repo.GetChoicesBySceneID(sceneID)
 	if err != nil {
 		return models.SceneResponse{}, err
 	}
 
-	// ✅ แปลงเป็น response
-	response := models.SceneResponse{
+	return models.SceneResponse{
 		SceneID: scene.SceneID,
 		Content: scene.Content,
 		Type:    scene.Type,
 		Choices: choices,
+	}, nil
+}
+
+func (s *sceneService) GetStartScene(novelID int) (models.SceneResponse, error) {
+	scene, err := s.repo.GetStartSceneByNovelID(novelID)
+	if err != nil {
+		return models.SceneResponse{}, err
 	}
 
-	return response, nil
+	choices, err := s.repo.GetChoicesBySceneID(scene.SceneID)
+	if err != nil {
+		return models.SceneResponse{}, err
+	}
+
+	return models.SceneResponse{
+		SceneID: scene.SceneID,
+		Content: scene.Content,
+		Type:    scene.Type,
+		Choices: choices,
+	}, nil
+}
+
+func (s *sceneService) GetScenesByChapterID(chapterID int) ([]models.Scene, error) {
+	return s.repo.GetScenesByChapterID(chapterID)
+}
+
+func (s *sceneService) CreateScene(scene models.Scene) (int, error) {
+	return s.repo.CreateScene(scene)
+}
+
+func (s *sceneService) CreateChoice(choice models.Choice) (int, error) {
+	return s.repo.CreateChoice(choice)
+}
+
+func (s *sceneService) Ping() error {
+	return s.db.Ping()
 }

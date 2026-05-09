@@ -36,7 +36,7 @@ func LoadConfig() (Config, error) {
 	viper.SetDefault("POSTGRES.PORT", 5432)
 	viper.SetDefault("POSTGRES.USER", "postgres")
 	viper.SetDefault("POSTGRES.PASSWORD", "")
-	viper.SetDefault("POSTGRES.DBNAME", "bookstore") // แอบเห็นว่าเป็น bookstore อาจจะอยากแก้เป็น novel นะ 😉
+	viper.SetDefault("POSTGRES.DBNAME", "novel") 
 	viper.SetDefault("POSTGRES.SSLMODE", "disable")
 
 	// MinIO defaults

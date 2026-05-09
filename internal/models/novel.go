@@ -1,4 +1,4 @@
-﻿package models
+package models
 
 import "time"
 
@@ -7,6 +7,8 @@ type Novel struct {
 	Title        string    `json:"title"`
 	Captions     *string   `json:"captions"`
 	Introduction *string   `json:"introduction"`
+	CategoryIDs []int `json:"category_ids,omitempty"`
+	Categories   []Category `json:"categories"`
 	CoverImage   *string   `json:"cover_image"`
 	Status       string    `json:"status"`
 	AuthorID     int       `json:"author_id"`

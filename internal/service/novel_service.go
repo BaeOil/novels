@@ -1,19 +1,30 @@
-﻿package service
+package service
 
 import (
-    "database/sql"
-    "novel-be/internal/models"
-    "novel-be/internal/repository"
+	"novel-be/internal/models"
+	"novel-be/internal/repository"
 )
 
-type NovelService struct {
-    DB *sql.DB
+type novelService struct {
+	repo repository.NovelRepository
 }
 
-func NewNovelService(db *sql.DB) *NovelService {
-    return &NovelService{DB: db}
+func NewNovelService(repo repository.NovelRepository) NovelService {
+	return &novelService{repo: repo}
 }
 
-func (s *NovelService) ListNovels() ([]models.Novel, error) {
-    return repository.GetNovels(s.DB)
+func (s *novelService) ListNovels() ([]models.Novel, error) {
+	return s.repo.ListNovels()
+}
+
+func (s *novelService) GetNovelDetail(id int) (interface{}, error) {
+	novel, err := s.repo.GetNovelByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return novel, nil
+}
+
+func (s *novelService) CreateNovel(novel models.Novel) (int, error) {
+	return s.repo.CreateNovel(novel)
 }
