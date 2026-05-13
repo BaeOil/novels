@@ -1,3 +1,25 @@
+DROP TABLE IF EXISTS 
+    notifications, 
+    reports, 
+    user_endings, 
+    user_scene_history, 
+    user_choice_history, 
+    reading_progress, 
+    follows, 
+    comments, 
+    likes, 
+    bookshelves, 
+    choices, 
+    scenes, 
+    chapters, 
+    novel_categories, 
+    novels, 
+    writer_categories, 
+    writers, 
+    users, 
+    categories 
+CASCADE;
+
 -- 1. สร้างตารางหมวดหมู่ (หมวดหมู่ต้องเกิดก่อนเพื่อน)
 -- ==========================================
 CREATE TABLE categories (
@@ -26,7 +48,10 @@ CREATE TABLE writers (
     pen_name VARCHAR(255) NOT NULL,
     bio TEXT,
     email_writer VARCHAR(255),
-    contact_info JSONB
+    contact_info JSONB,
+    status VARCHAR(20) DEFAULT 'pending',
+    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP
 );
 
 -- สร้างตารางกลางสำหรับ Writer M:N Category (แก้ปัญหา Array)
@@ -209,9 +234,49 @@ INSERT INTO users (username, email, password_hash, role, pic_profile) VALUES
 -- LEVEL 2: ตารางที่ต้องอ้างอิง User
 -- ==========================================
 
-INSERT INTO writers (writer_id, user_id, name_lastname, pen_name, bio, email_writer, contact_info) VALUES
-(1, 2, 'Jane Doe', 'JaneTheAuthor', '<p>นักเขียนสายแฟนตาซี ✨</p>', 'contact_jane@novelverse.com', '{"twitter":"@janetheauthor"}'),
-(2, 3, 'John Smith', 'DarkMaster', '<p>นักเขียนสายสยอง 👁️</p>', 'contact_john@novelverse.com', '{"twitter":"@darkmaster"}');
+-- ==========================================
+-- LEVEL 2: ตารางที่ต้องอ้างอิง User (Writers)
+-- ==========================================
+
+INSERT INTO writers (
+    writer_id, 
+    user_id, 
+    name_lastname, 
+    pen_name, 
+    bio, 
+    email_writer, 
+    contact_info, 
+    status, 
+    applied_at, 
+    approved_at
+) VALUES
+(
+    1, 
+    2, 
+    'Jane Doe', 
+    'JaneTheAuthor', 
+    '<h2>เกี่ยวกับนักเขียน</h2><p>นักเขียนสายแฟนตาซีผู้หลงรักในการสร้างโลกใหม่ ✨</p>', 
+    'contact_jane@novelverse.com', 
+    '{"twitter": "@janetheauthor", "facebook": "Jane.Fiction"}', 
+    'approved', 
+    CURRENT_TIMESTAMP, 
+    CURRENT_TIMESTAMP
+),
+(
+    2, 
+    3, 
+    'John Smith', 
+    'DarkMaster', 
+    '<h2>Dark Master Official</h2><p>นักเขียนสายสยองขวัญ สั่นประสาท 👁️</p>', 
+    'contact_john@novelverse.com', 
+    '{"twitter": "@darkmaster", "website": "darknovel.com"}', 
+    'approved', 
+    CURRENT_TIMESTAMP, 
+    CURRENT_TIMESTAMP
+);
+
+-- รีเซ็ตค่า SERIAL ของ writer_id ให้เริ่มนับต่อจาก 2 (ป้องกัน Error เวลาเพิ่มคนใหม่)
+SELECT setval('writers_writer_id_seq', (SELECT MAX(writer_id) FROM writers));
 
 INSERT INTO follows (follower_id, following_id) VALUES
 (4,2),
@@ -276,18 +341,60 @@ INSERT INTO notifications (user_id, type, reference_id, reference_type, message,
 -- รวม Scenes ทั้งหมดเข้าด้วยกัน (ID 1-10)
 -- ==========================================
 
-INSERT INTO scenes (chapter_id, novel_id, title, content, type, ending_title, ending_type, ending_description) VALUES
-(1, 1, 'ลืมตาตื่น', '<h2>บทเริ่มต้น</h2><p>คุณตื่นกลางป่า...</p>', 'start', NULL, NULL, NULL),
-(1, 1, 'ลำธารแห่งแสง', '<p>คุณพบลำธารศักดิ์สิทธิ์</p><img src="http://localhost:9000/novels-images/river.jpg" />', 'normal', NULL, NULL, NULL),
-(1, 1, 'รอยเท้าปีศาจ', '<p>กลิ่นประหลาดโชยมา...</p>', 'normal', NULL, NULL, NULL),
-(2, 1, 'ดาบโบราณ', '<p>คุณค้นพบดาบในตำนาน</p>', 'normal', NULL, NULL, NULL),
-(2, 1, 'หมีกลายพันธุ์', '<p>หมียักษ์พุ่งเข้าใส่!</p>', 'ending', 'จุดจบแห่งป่า', 'bad', 'คุณถูกฆ่าโดยสัตว์ประหลาด'),
-(3, 1, 'ผู้ถูกเลือก', '<p>คุณปลุกพลังเอลฟ์สำเร็จ</p>', 'ending', 'ผู้ถูกเลือก', 'true', 'คุณเริ่มต้นการกอบกู้โลก'),
-(2, 1, 'ทางเข้าสู่ป่าต้องห้าม', '<p>หลังจากได้ดาบในตำนาน คุณเดินทางมาถึงป่าต้องห้าม ต้นไม้รอบตัวสูงผิดธรรมชาติ และมีหมอกสีดำปกคลุมทั่วพื้นที่</p><p><strong>เบื้องหน้าคือประตูหินโบราณ</strong></p>', 'normal', NULL, NULL, NULL),
-(2, 1, 'เสียงเรียกจากเงามืด', '<p>คุณได้ยินเสียงกระซิบเรียกชื่อของคุณจากภายในป่า</p><p><em>"จงเข้ามา..."</em></p>', 'normal', NULL, NULL, NULL),
-(2, 1, 'ห้องสมุดโบราณ', '<h2>ห้องสมุดต้องห้าม</h2><p>คุณเดินเข้ามาในห้องสมุดเก่าแก่</p><p><img src="http://localhost:9000/novels-images/library.jpg" alt="library" /></p><p>บนกำแพงมีภาพเคลื่อนไหวเวทมนตร์ปรากฏขึ้น</p><iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="magic video" frameborder="0" allowfullscreen></iframe><p><strong>คุณจะทำอย่างไรต่อ?</strong></p>', 'normal', NULL, NULL, NULL),
-(2, 1, 'ห้องลับใต้ต้นไม้โลก', '<p>คุณค้นพบห้องลับที่ไม่มีใครเคยพบมาก่อน...</p>', 'ending', 'ผู้พิทักษ์ต้นไม้โลก', 'secret', 'คุณค้นพบความจริงของโลก และกลายเป็นผู้พิทักษ์คนใหม่');
+-- ลบข้อมูลเดิมออกก่อนเพื่อให้ ID ไม่ตีกัน (กรณีใช้ Script เดิม)
+DELETE FROM scenes WHERE novel_id = 1;
 
+INSERT INTO scenes (chapter_id, novel_id, title, content, type, ending_title, ending_type, ending_description) VALUES
+(1, 1, 'ลืมตาตื่นในพงไพร', 
+'<h2>บทนำ: แสงที่จางหาย</h2>
+<p>ความเย็นเยียบของหยดน้ำค้างที่ตกลงบนแก้ม ปลุกให้สติที่หลุดลอยของกัลเดรลค่อยๆ กลับคืนมา เขารู้สึกได้ถึงกลิ่นอายของดินชื้นและใบไม้แห้ง กลิ่นที่เขาคุ้นเคยดี... <strong>ป่าแห่งเอลฟ์</strong></p>
+<p>"เจ้าตื่นแล้วหรือ... ผู้สืบทอดคนสุดท้าย"</p>
+<p>เสียงกระซิบแผ่วเบาดังมาจากทิศทางที่มองไม่เห็น กัลเดรลยันตัวขึ้นช้าๆ รอบกายของเขามีเพียงต้นไม้ขนาดยักษ์ที่ยืนต้นตายซาก กิ่งก้านไร้ใบเหยียดยาวราวกับมือที่โหยหาแสงสว่างที่ไม่มีวันมาถึง</p>
+<p><em>เวทมนตร์แห่งพฤกษาหายไปหมดแล้ว...</em> เขาคิดด้วยความเจ็บปวดในใจ ทันใดนั้น แสงสีฟ้าอ่อนจางก็วาบขึ้นที่ปลายนิ้วของเขา มันคือพลังเฮือกสุดท้ายที่โลกทิ้งไว้ให้</p>
+<p><strong>คุณจะทำอย่างไรต่อไป?</strong></p>', 
+'start', NULL, NULL, NULL),
+
+(1, 1, 'ลำธารแห่งแสง', 
+'<p>คุณพบลำธารศักดิ์สิทธิ์ที่น้ำยังคงใสสะอาดราวกับคริสตัล ท่ามกลางป่าที่ตายซาก ลำธารนี้ดูเหมือนจะเป็นสิ่งเดียวที่ยังมีชีวิตอยู่</p>
+<img src="http://localhost:9000/novels-images/river.jpg" style="width:100%; border-radius:10px;" />', 
+'normal', NULL, NULL, NULL),
+
+(1, 1, 'รอยเท้าปีศาจ', 
+'<p>กลิ่นสาบสางประหลาดโชยมาตามลม มันเป็นกลิ่นที่ชวนให้คลื่นเหียน บนพื้นดินเลนคุณพบรอยเท้าขนาดใหญ่ที่มีกรงเล็บแหลมคมมุ่งหน้าไปทางทิศตะวันออก</p>', 
+'normal', NULL, NULL, NULL),
+
+(2, 1, 'ดาบโบราณ', 
+'<p>ท่ามกลางซากปรักหักพัง คุณค้นพบดาบที่สลักลวดลายใบไม้โบราณ ตัวดาบส่องแสงสีเขียวจางๆ เมื่อคุณสัมผัสมัน</p>', 
+'normal', NULL, NULL, NULL),
+
+(2, 1, 'หมีกลายพันธุ์', 
+'<p>ทันใดนั้น หมียักษ์ที่มีดวงตาสีแดงฉานและร่างกายบิดเบี้ยวด้วยพลังมืดพุ่งเข้าใส่คุณอย่างรวดเร็ว!</p>', 
+'ending', 'จุดจบแห่งป่า', 'bad', 'คุณไม่สามารถหลบหนีได้พ้นและถูกปลิดชีพโดยอสูรที่บ้าคลั่ง'),
+
+(3, 1, 'ผู้ถูกเลือก', 
+'<p>แสงสว่างระเบิดออกจากร่างของคุณ พลังแห่งพฤกษาถูกปลุกให้ตื่นขึ้นอีกครั้ง ต้นไม้รอบข้างเริ่มแตกกิ่งก้านสาขาอย่างรวดเร็ว</p>', 
+'ending', 'ผู้ถูกเลือก', 'true', 'คุณเริ่มต้นการเดินทางในฐานะผู้กอบกู้โลกเอลฟ์อย่างเต็มตัว'),
+
+(2, 1, 'ทางเข้าสู่ป่าต้องห้าม', 
+'<p>หลังจากได้ดาบในตำนาน คุณเดินทางมาถึงป่าต้องห้าม ต้นไม้รอบตัวสูงผิดธรรมชาติ และมีหมอกสีดำปกคลุมทั่วพื้นที่</p>
+<p><strong>เบื้องหน้าคือประตูหินโบราณที่สลักอักขระเวทมนตร์</strong></p>', 
+'normal', NULL, NULL, NULL),
+
+(2, 1, 'เสียงเรียกจากเงามืด', 
+'<p>คุณได้ยินเสียงกระซิบเรียกชื่อของคุณจากภายในป่าลึก เสียงนั้นฟังดูคุ้นเคยอย่างน่าประหลาด...</p>
+<p><em>"จงเข้ามา... กัลเดรล... ความจริงรอเจ้าอยู่"</em></p>', 
+'normal', NULL, NULL, NULL),
+
+(2, 1, 'ห้องสมุดโบราณ', 
+'<h2>ห้องสมุดต้องห้าม</h2>
+<p>คุณเดินเข้ามาในห้องสมุดเก่าแก่ที่เต็มไปด้วยกลิ่นกระดาษและมนตรา บนกำแพงมีภาพเคลื่อนไหวเวทมนตร์ปรากฏขึ้นบอกเล่าเรื่องราวในอดีต</p>
+<p><img src="http://localhost:9000/novels-images/library.jpg" alt="library" style="width:100%; border-radius:10px;" /></p>
+<p><strong>คุณจะค้นหาข้อมูลเรื่องอะไรก่อน?</strong></p>', 
+'normal', NULL, NULL, NULL),
+
+(2, 1, 'ห้องลับใต้ต้นไม้โลก', 
+'<p>กำแพงหินเลื่อนออกเผยให้เห็นห้องลับที่ซ่อนอยู่ใต้รากของต้นไม้โลก ที่นั่นมีหัวใจแห่งพฤกษาที่ยังคงเต้นอยู่เบาๆ</p>', 
+'ending', 'ผู้พิทักษ์ต้นไม้โลก', 'secret', 'คุณตัดสินใจสละชีวิตทางโลกเพื่อกลายเป็นผู้พิทักษ์ความลับของโลกตลอดกาล');
 
 -- ==========================================
 -- LEVEL 6: ตารางที่ต้องอ้างอิง Scenes 
@@ -295,14 +402,19 @@ INSERT INTO scenes (chapter_id, novel_id, title, content, type, ending_title, en
 -- ==========================================
 
 -- รวม Choices ทั้งหมด
-INSERT INTO choices (from_scene_id, to_scene_id, label) VALUES
-(1,2,'เดินไปทางลำธาร'),
-(1,3,'เดินตามรอยเท้า'),
-(2,4,'หยิบดาบโบราณ'),
-(3,5,'สำรวจเสียง'),
-(4,6,'ปลดปล่อยพลังเอลฟ์'),
-(4,7,'ถือดาบแล้วเดินทางต่อเข้าสู่ป่าต้องห้าม'),
-(7,8,'เปิดประตูหินโบราณ');
+INSERT INTO choices (choice_id, from_scene_id, to_scene_id, label) VALUES
+(1, 1, 2, 'เดินไปทางลำธาร'),                    -- จาก 'ลืมตาตื่น' ไป 'ลำธารแห่งแสง'
+(2, 1, 3, 'สำรวจรอยเท้าประหลาด'),               -- จาก 'ลืมตาตื่น' ไป 'รอยเท้าปีศาจ'
+(3, 2, 4, 'หยิบดาบโบราณขึ้นมา'),                -- จาก 'ลำธารแห่งแสง' ไป 'ดาบโบราณ'
+(4, 3, 5, 'ตามเสียงคำรามไป'),                   -- จาก 'รอยเท้าปีศาจ' ไป 'หมีกลายพันธุ์' (Bad Ending)
+(5, 4, 6, 'ปลดปล่อยพลังเอลฟ์ในตัว'),             -- จาก 'ดาบโบราณ' ไป 'ผู้ถูกเลือก' (True Ending)
+(6, 4, 7, 'ถือดาบแล้วมุ่งหน้าสู่ป่าต้องห้าม'),       -- จาก 'ดาบโบราณ' ไป 'ทางเข้าสู่ป่าต้องห้าม'
+(7, 7, 8, 'เปิดประตูหินโบราณ'),                  -- จาก 'ทางเข้าสู่ป่าต้องห้าม' ไป 'เสียงเรียกจากเงามืด'
+(8, 8, 9, 'เดินตามเสียงเข้าไปในหอสมุด'),          -- จาก 'เสียงเรียกจากเงามืด' ไป 'ห้องสมุดโบราณ'
+(9, 9, 10, 'อ่านบันทึกลับเรื่องต้นไม้โลก');         -- จาก 'ห้องสมุดโบราณ' ไป 'ห้องลับใต้ต้นไม้โลก' (Secret Ending)
+
+-- รีเซ็ต Serial ของ choice_id ให้เริ่มนับต่อจากเลขล่าสุด
+SELECT setval('choices_choice_id_seq', (SELECT MAX(choice_id) FROM choices));
 
 -- รวม Comments ทั้งหมด
 INSERT INTO comments (user_id, novel_id, scene_id, content) VALUES
