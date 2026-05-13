@@ -12,6 +12,13 @@ const HERO_BOOK_BG = [
   "linear-gradient(150deg,#fff3cd,#ffe082)",
 ];
 
+// ฟังก์ชันช่วยแก้ URL รูปภาพให้ใช้งานได้จริง
+const formatMinioUrl = (url) => {
+  if (!url) return null;
+  // ถ้าเจอ minio ให้เปลี่ยนเป็น localhost เพื่อให้ Browser เข้าถึงได้
+  return url.replace('http://minio:9000', 'http://localhost:9000');
+};
+
 const HomePage = ({ onNavigate }) => {
   const [novels, setNovels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,44 +34,43 @@ const HomePage = ({ onNavigate }) => {
           throw new Error(payload?.error || payload?.message || "ดึงข้อมูลนิยายไม่สำเร็จ");
         }
 
-        // จัดการข้อมูลที่ได้จาก API (payload อาจจะเป็น { data: [...] } หรือ [...])
         const dataList = payload?.data || payload || [];
 
         const formattedNovels = dataList.map((data) => {
-          // ดึง mock data มาสำรองเผื่อบางฟิลด์ใน DB ยังไม่มีข้อมูล
+          // ค้นหาข้อมูลจำลองเพื่อเอามาเติมเต็มส่วนที่ Backend ยังไม่มี
           const mockData = mockNovels.find(m => m.id === (data.novel_id || data.id)) || mockNovels[0];
-          
+
           return {
             id: data.novel_id || data.id,
             title: data.title || "ไม่พบชื่อเรื่อง",
-            
-            // 🟢 จุดสำคัญ: แปลง Object [{name: "xxx"}] ให้เป็น String ["xxx"]
             categories: data.categories && data.categories.length > 0
               ? data.categories.map(cat => typeof cat === "object" ? cat.name : cat)
               : mockData?.categories || ["ทั่วไป"],
 
-            coverImage: data.cover_image || null,
+            // ใช้ฟังก์ชันจัดการ URL รูปปก
+            coverImage: formatMinioUrl(data.cover_image),
             coverEmoji: data.cover_image ? "" : "📘",
+
             author: {
               displayName: data.author_name || data.pen_name || "ไม่ทราบผู้แต่ง",
-              avatarUrl: data.author_avatar || null,
+              avatarUrl: formatMinioUrl(data.author_avatar),
             },
             synopsis: data.captions || data.introduction || "",
             stats: {
               views: data.views || 0,
-              paths: mockData?.stats?.paths || Math.floor(Math.random() * 10) + 1,
-              choicePoints: data.choice_points || mockData?.stats?.choicePoints || 0,
-              endings: mockData?.stats?.endings || 1,
+              paths: mockData?.stats?.paths || 0,
+              choicePoints: data.choice_points || 0,
+              endings: 1,
             },
-            isLiked: mockData?.isLiked || false,
-            isBookmarked: mockData?.isBookmarked || false,
+            isLiked: false,
+            isBookmarked: false,
           };
         });
 
         setNovels(formattedNovels);
       } catch (err) {
         console.error("API Error:", err);
-        setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กำลังแสดงข้อมูลจำลอง");
+        setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ แสดงข้อมูลจำลองแทน");
         setNovels(mockNovels);
       } finally {
         setLoading(false);
@@ -74,8 +80,11 @@ const HomePage = ({ onNavigate }) => {
     fetchNovels();
   }, []);
 
+  // ฟังก์ชันจัดการเมื่อคลิกที่นิยาย
   const handleReadNovel = (novelId) => {
-    onNavigate("novel-detail", { novelId });
+    // ส่งไปที่หน้า "detail" พร้อมกับ id ของนิยาย
+    // หมายเหตุ: ตรวจสอบใน App.jsx ว่าเคสที่ใช้คือ "detail" หรือ "novel-detail" นะครับ
+    onNavigate("detail", { id: novelId });
   };
 
   return (
@@ -86,13 +95,13 @@ const HomePage = ({ onNavigate }) => {
           <div className="home__hero-left">
             <div className="home__hero-eyebrow">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <path d="M7 1l1.5 4h4l-3.2 2.3 1.2 3.7L7 9 3.5 11l1.2-3.7L1.5 5h4z" fill="var(--pink-500)"/>
+                <path d="M7 1l1.5 4h4l-3.2 2.3 1.2 3.7L7 9 3.5 11l1.2-3.7L1.5 5h4z" fill="#ec4899" />
               </svg>
               นิยายทางเลือกแบบ Interactive
             </div>
             <h1 className="home__hero-title">
-              ทุกตัวเลือก<br/>
-              <span className="home__hero-title-accent">เปลี่ยนชะตา</span><br/>
+              ทุกตัวเลือก<br />
+              <span className="home__hero-title-accent">เปลี่ยนชะตา</span><br />
               ของเรื่องราว
             </h1>
             <p className="home__hero-quote">"เรื่องเดียวกัน — จบไม่เหมือนกัน"</p>
@@ -111,8 +120,8 @@ const HomePage = ({ onNavigate }) => {
                 <span className="home__book-emoji">🌊</span>
               </div>
               <div className="home__book home__book--main" style={{ background: HERO_BOOK_BG[1] }}>
-                <span className="home__book-label">SAKAMOTO<br/>HOLIDAYS</span>
-                <span className="home__book-emoji home__book-emoji--main">🎌</span>
+                <span className="home__book-label">STORY<br />MAKER</span>
+                <span className="home__book-emoji home__book-emoji--main">📖</span>
               </div>
             </div>
           </div>
@@ -130,14 +139,14 @@ const HomePage = ({ onNavigate }) => {
             <button className="home__see-all" aria-label="ดูนิยายทั้งหมด">
               ดูทั้งหมด
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M4 7h6M7 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 7h6M7 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
           </div>
 
           {loading ? (
-            <div style={{ textAlign: "center", padding: "2rem", color: "#666" }}>
-              กำลังโหลดนิยาย...
+            <div className="loading-container" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
+              <p>กำลังโหลดนิยาย...</p>
             </div>
           ) : (
             <div className="home__novel-grid" role="list">
@@ -151,7 +160,7 @@ const HomePage = ({ onNavigate }) => {
                   </div>
                 ))
               ) : (
-                <div style={{ padding: "2rem", color: "#888" }}>
+                <div style={{ padding: "3rem", color: "#94a3b8", textAlign: "center", width: "100%" }}>
                   ยังไม่มีนิยายในระบบ
                 </div>
               )}

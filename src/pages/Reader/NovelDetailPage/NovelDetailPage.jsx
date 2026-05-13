@@ -34,10 +34,15 @@ const initialNovelState = {
     discoveredChoices: 0,
     totalChoices: 0,
   },
-  characters: [],
   synopsis_detail: "",
   isLiked: false,
   isBookmarked: false,
+};
+// ฟังก์ชันช่วยแก้ URL จาก minio:9000 เป็น localhost:9000 หรือ IP จริง
+const formatMinioUrl = (url) => {
+  if (!url) return null;
+  // ถ้าเจอคำว่า minio ให้เปลี่ยนเป็น localhost (หรือเปลี่ยนเป็น IP เครื่อง)
+  return url.replace('http://minio:9000', 'http://localhost:9000');
 };
 
 const NovelDetailPage = () => {
@@ -45,6 +50,7 @@ const NovelDetailPage = () => {
   const [novel, setNovel] = useState(initialNovelState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [comments, setComments] = useState([]);
 
   useEffect(() => {
     const fetchNovel = async () => {
@@ -67,7 +73,7 @@ const NovelDetailPage = () => {
         }
 
         const data = payload?.data || payload || {};
-        
+
         // ดึงข้อมูลบท (chapters) ตามเส้นทางใหม่: GET /novels/{id}/chapters
         let chaptersData = [];
         try {
@@ -84,9 +90,16 @@ const NovelDetailPage = () => {
         let commentsData = [];
         try {
           const commentsResponse = await fetch(`${API_BASE_URL}/novels/${id}/comments`);
+
           if (commentsResponse.ok) {
             const commentsPayload = await commentsResponse.json();
-            commentsData = commentsPayload?.data?.comments || commentsPayload?.comments || [];
+
+            commentsData =
+              commentsPayload?.data?.comments ||
+              commentsPayload?.comments ||
+              [];
+
+            setComments(commentsData);
           }
         } catch (err) {
           console.warn("Failed to fetch comments:", err);
@@ -99,34 +112,29 @@ const NovelDetailPage = () => {
         setNovel({
           id: data.novel_id || data.id || id,
           title: data.title || "ไม่พบชื่อเรื่อง",
-          
-          // 🟢 แก้บรรทัดนี้บรรทัดเดียว
           categories: data.categories && data.categories.length > 0
             ? data.categories.map(cat => typeof cat === "object" ? cat.name : cat)
-            : mockNovel.categories || [],
-
-          coverImage: data.cover_image || null,
-          coverEmoji: data.cover_image ? "" : "📘",
+            : ["ทั่วไป"],
+          coverImage: formatMinioUrl(data.cover_image) || null,
           author: {
             displayName: data.author_name || data.pen_name || "ไม่ทราบผู้แต่ง",
-            avatarUrl: data.author_avatar || null,
+            avatarUrl: formatMinioUrl(data.author_avatar) || null,
           },
           synopsis: data.captions || data.introduction || "",
           stats: {
             views: data.views || 0,
-            paths: data.paths || mockNovel.stats?.paths || 0,
-            choicePoints: data.choice_points || 0,
-            endings: data.endings || mockNovel.stats?.endings || 1,
+            paths: 0,
+            choicePoints: 0,
+            endings: 1,
           },
           userProgress: {
-            percentage: mockNovel.userProgress?.percentage || 0,
-            currentChapter: mockNovel.userProgress?.currentChapter || 0,
-            totalChapters: totalChapters || mockNovel.userProgress?.totalChapters || 0,
-            discoveredChoices: mockNovel.userProgress?.discoveredChoices || 0,
-            totalChoices: totalChoices || mockNovel.userProgress?.totalChoices || 0,
+            percentage: 0, // ถ้ายังไม่มีระบบเก็บ Logic การอ่าน ให้เริ่มที่ 0
+            currentChapter: 0,
+            totalChapters: chaptersData.length,
+            discoveredChoices: 0,
+            totalChoices: 0,
           },
-          characters: data.characters || mockNovel.characters || [],
-          synopsis_detail: data.introduction || data.captions || mockNovel.synopsis_detail || "ยังไม่มีรายละเอียดเพิ่มเติม",
+          synopsis_detail: data.introduction || "ยังไม่มีรายละเอียดเพิ่มเติม",
           isLiked: false,
           isBookmarked: false,
         });
@@ -245,6 +253,7 @@ const NovelDetailPage = () => {
           </main>
         </div>
 
+        {/* ── Section แนะนำเรื่อง ── */}
         <section className="novel-detail__synopsis-section" aria-labelledby="synopsis-heading">
           <h2 id="synopsis-heading" className="novel-detail__section-title">
             แนะนำเรื่อง
@@ -253,22 +262,78 @@ const NovelDetailPage = () => {
             className="novel-detail__synopsis-detail"
             dangerouslySetInnerHTML={{ __html: novel.synopsis_detail }}
           />
+        </section>
+        {/* ── Section คอมเมนต์ ── */}
+        <section
+          className="novel-detail__comments-section"
+          aria-labelledby="comments-heading"
+        >
+          <div className="novel-detail__comments-header">
+            <h2
+              id="comments-heading"
+              className="novel-detail__section-title"
+            >
+              ความคิดเห็น
+            </h2>
 
-          {novel.characters && novel.characters.length > 0 && (
-            <div className="novel-detail__characters" aria-label="ตัวละคร">
-              {novel.characters.map((char) => (
-                <div key={char.role} className="novel-detail__character-row">
-                  <span className="novel-detail__character-role">{char.role}</span>
-                  <span className="novel-detail__character-sep">:</span>
-                  <span className="novel-detail__character-name">{char.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
+            <span className="novel-detail__comments-count">
+              {comments.length} ความคิดเห็น
+            </span>
+          </div>
+
+          {/* Input */}
+          <div className="novel-detail__comment-form">
+            <textarea
+              placeholder="เขียนความคิดเห็นของคุณ..."
+              className="novel-detail__comment-input"
+              rows={4}
+            />
+
+            <button className="novel-detail__comment-button">
+              ส่งความคิดเห็น
+            </button>
+          </div>
+
+          {/* List */}
+          <div className="novel-detail__comments-list">
+            {comments.length === 0 ? (
+              <div className="novel-detail__comments-empty">
+                ยังไม่มีความคิดเห็น เป็นคนแรกที่คอมเมนต์เลย 💖
+              </div>
+            ) : (
+              comments.map((comment) => (
+                <article
+                  key={comment.comment_id}
+                  className="novel-detail__comment-card"
+                >
+                  <div className="novel-detail__comment-avatar">
+                    💬
+                  </div>
+
+                  <div className="novel-detail__comment-body">
+                    <div className="novel-detail__comment-top">
+                      <span className="novel-detail__comment-user">
+                        {comment.username || "Unknown"}
+                      </span>
+
+                      <span className="novel-detail__comment-date">
+                        {new Date(comment.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <p className="novel-detail__comment-content">
+                      {comment.content}
+                    </p>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </section>
       </div>
     </div>
   );
 };
+
 
 export default NovelDetailPage;
