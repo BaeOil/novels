@@ -8,14 +8,51 @@ import (
 	"strconv"
 )
 
-func GetScene(sceneService service.SceneService) http.HandlerFunc {
+func toPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func CreateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		var req CreateSceneRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 
-		sceneIDStr := r.URL.Query().Get("id")
+		if err := req.Validate(); err != nil {
+			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		// ✅ แก้จุดแดง image_48c32e โดยใช้ strPtr() หุ้มค่าที่เป็น string
+		sceneID, err := sceneService.CreateScene(models.Scene{
+			NovelID:           req.NovelID,
+			ChapterID:         req.ChapterID,
+			Title:             req.Title,
+			Content:           req.Content,
+			Type:              req.Type,
+			EndingTitle:       toPtr(req.EndingTitle),
+			EndingType:        toPtr(req.EndingType),
+			EndingDescription: toPtr(req.EndingDescription),
+		})
+
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		WriteJSON(w, http.StatusCreated, map[string]any{"message": "scene created", "scene_id": sceneID})
+	}
+}
+
+// ... GetSceneHandler คงเดิม ...
+func GetSceneHandler(sceneService service.SceneService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sceneIDStr := r.PathValue("id")
 		if sceneIDStr == "" {
 			WriteError(w, http.StatusBadRequest, "missing id parameter")
 			return
@@ -34,42 +71,5 @@ func GetScene(sceneService service.SceneService) http.HandlerFunc {
 		}
 
 		WriteJSON(w, http.StatusOK, scene)
-	}
-}
-
-func CreateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-			return
-		}
-
-		var req CreateSceneRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			WriteError(w, http.StatusBadRequest, "invalid request body")
-			return
-		}
-
-		if err := req.Validate(); err != nil {
-			WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		sceneID, err := sceneService.CreateScene(models.Scene{
-			NovelID:           req.NovelID,
-			ChapterID:         req.ChapterID,
-			Title:             req.Title,
-			Content:           req.Content,
-			Type:              req.Type,
-			EndingTitle:       req.EndingTitle,
-			EndingType:        req.EndingType,
-			EndingDescription: req.EndingDescription,
-		})
-		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		WriteJSON(w, http.StatusCreated, map[string]any{"message": "scene created", "scene_id": sceneID})
 	}
 }

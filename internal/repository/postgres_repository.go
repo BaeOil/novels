@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt" // 🟢 เพิ่มตัวนี้เข้ามาเพื่อให้ใช้ fmt.Errorf ได้
 	"novel-be/internal/models"
 )
 
@@ -45,7 +46,8 @@ func NewReadingRepository(db *sql.DB) ReadingRepository {
 	return &postgresReadingRepository{db: db}
 }
 
-// Novel Repository Methods
+// ======= Novel Repository Methods =======
+
 func (r *postgresNovelRepository) ListNovels() ([]models.Novel, error) {
 	return GetNovels(r.db)
 }
@@ -58,7 +60,18 @@ func (r *postgresNovelRepository) CreateNovel(novel models.Novel) (int, error) {
 	return CreateNovel(r.db, novel)
 }
 
-// Scene Repository Methods
+// 🟢 ฟังก์ชันเจ้าปัญหาที่ทำให้รูปไม่ขึ้น คราวนี้น่าจะทำงานได้สมบูรณ์แล้วครับ
+func (r *postgresNovelRepository) UpdateCoverImage(id int, url string) error {
+	query := `UPDATE novels SET cover_image = $1 WHERE novel_id = $2`
+	_, err := r.db.Exec(query, url, id)
+	if err != nil {
+		return fmt.Errorf("failed to update db: %w", err)
+	}
+	return nil
+}
+
+// ======= Scene Repository Methods =======
+
 func (r *postgresSceneRepository) GetSceneByID(id int) (*models.Scene, error) {
 	return GetSceneByID(r.db, id)
 }
@@ -79,11 +92,16 @@ func (r *postgresSceneRepository) CreateScene(scene models.Scene) (int, error) {
 	return CreateScene(r.db, scene)
 }
 
+func (r *postgresSceneRepository) CountScenesInNovel(novelID int) (int, error) {
+	return CountScenesInNovel(r.db, novelID)
+}
+
 func (r *postgresSceneRepository) CreateChoice(choice models.Choice) (int, error) {
 	return CreateChoice(r.db, choice)
 }
 
-// Chapter Repository Methods
+// ======= Chapter Repository Methods =======
+
 func (r *postgresChapterRepository) GetChaptersByNovelID(novelID int) ([]models.Chapter, error) {
 	return GetChaptersByNovelID(r.db, novelID)
 }
@@ -96,7 +114,8 @@ func (r *postgresChapterRepository) CreateChapter(chapter models.Chapter) (int, 
 	return CreateChapter(r.db, chapter)
 }
 
-// Social Repository Methods
+// ======= Social Repository Methods =======
+
 func (r *postgresSocialRepository) AddLike(like models.Like) error {
 	return AddLike(r.db, like)
 }
@@ -117,7 +136,8 @@ func (r *postgresSocialRepository) GetCommentsBySceneID(sceneID int) ([]models.C
 	return GetCommentsBySceneID(r.db, sceneID)
 }
 
-// Reading Repository Methods
+// ======= Reading Repository Methods =======
+
 func (r *postgresReadingRepository) GetReadingProgress(userID, novelID int) (*models.ReadingProgress, error) {
 	return GetReadingProgress(r.db, userID, novelID)
 }

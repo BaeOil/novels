@@ -11,6 +11,7 @@ type NovelService interface {
 	ListNovels() ([]models.Novel, error)
 	GetNovelDetail(id int) (interface{}, error)
 	CreateNovel(models.Novel) (int, error)
+	UpdateNovelCover(id int, url string) error
 }
 
 type SceneService interface {

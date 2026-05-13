@@ -150,4 +150,5 @@ func CreateNovel(db *sql.DB, novel models.Novel) (int, error) {
 	}
 
 	return id, nil
+
 }

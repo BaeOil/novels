@@ -20,12 +20,10 @@ func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
 	if err != nil {
 		return models.SceneResponse{}, err
 	}
-
 	choices, err := s.repo.GetChoicesBySceneID(sceneID)
 	if err != nil {
 		return models.SceneResponse{}, err
 	}
-
 	return models.SceneResponse{
 		SceneID: scene.SceneID,
 		Content: scene.Content,
@@ -39,12 +37,10 @@ func (s *sceneService) GetStartScene(novelID int) (models.SceneResponse, error) 
 	if err != nil {
 		return models.SceneResponse{}, err
 	}
-
 	choices, err := s.repo.GetChoicesBySceneID(scene.SceneID)
 	if err != nil {
 		return models.SceneResponse{}, err
 	}
-
 	return models.SceneResponse{
 		SceneID: scene.SceneID,
 		Content: scene.Content,
@@ -54,11 +50,22 @@ func (s *sceneService) GetStartScene(novelID int) (models.SceneResponse, error) 
 }
 
 func (s *sceneService) GetScenesByChapterID(chapterID int) ([]models.Scene, error) {
-	return s.repo.GetScenesByChapterID(chapterID)
+	return s.repo.GetScenesByChapterID(chapterID) // ✅ หายแดง: ไม่ต้องส่ง s.db
 }
 
 func (s *sceneService) CreateScene(scene models.Scene) (int, error) {
-	return s.repo.CreateScene(scene)
+	count, err := s.repo.CountScenesInNovel(scene.NovelID)
+	if err != nil {
+		return 0, err
+	}
+
+	if count == 0 {
+		scene.Type = "start"
+	} else if scene.Type == "" {
+		scene.Type = "normal"
+	}
+
+	return s.repo.CreateScene(scene) // ✅ หายแดง: ไม่ต้องส่ง s.db
 }
 
 func (s *sceneService) CreateChoice(choice models.Choice) (int, error) {

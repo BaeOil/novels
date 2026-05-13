@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 )
 
-// MediaRepository interface defines methods for file storage operations
 type MediaRepository interface {
 	EnsureBucketExists(ctx context.Context, bucketName string) error
 	UploadFile(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, contentType string) (string, error)
@@ -17,13 +17,11 @@ type MediaRepository interface {
 	GetPresignedURL(ctx context.Context, bucketName, objectName string) (string, error)
 }
 
-// MinIOMediaRepository implements MediaRepository using MinIO
 type MinIOMediaRepository struct {
 	client   *minio.Client
 	endpoint string
 }
 
-// NewMinIOMediaRepository creates a new MinIO media repository
 func NewMinIOMediaRepository(client *minio.Client, endpoint string) MediaRepository {
 	return &MinIOMediaRepository{
 		client:   client,
@@ -31,24 +29,21 @@ func NewMinIOMediaRepository(client *minio.Client, endpoint string) MediaReposit
 	}
 }
 
-// EnsureBucketExists creates a bucket if it doesn't already exist
 func (m *MinIOMediaRepository) EnsureBucketExists(ctx context.Context, bucketName string) error {
 	exists, err := m.client.BucketExists(ctx, bucketName)
 	if err != nil {
 		return fmt.Errorf("failed to check bucket existence: %w", err)
 	}
-
 	if !exists {
 		err := m.client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create bucket: %w", err)
 		}
 	}
-
 	return nil
 }
 
-// UploadFile uploads a file to MinIO and returns the object URL
+// 🟢 ส่วนนี้จะคืนค่า URL เต็มรูปแบบเพื่อบันทึกลง Database
 func (m *MinIOMediaRepository) UploadFile(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, contentType string) (string, error) {
 	_, err := m.client.PutObject(ctx, bucketName, objectName, reader, objectSize, minio.PutObjectOptions{
 		ContentType: contentType,
@@ -57,37 +52,32 @@ func (m *MinIOMediaRepository) UploadFile(ctx context.Context, bucketName, objec
 		return "", fmt.Errorf("failed to upload file: %w", err)
 	}
 
-	// Construct the URL
-	url := fmt.Sprintf("http://%s/%s/%s", m.endpoint, bucketName, objectName)
+	// ใช้ชื่อเครื่อง minio:9000 ตามที่น้าต้องการ
+	url := fmt.Sprintf("http://minio:9000/%s/%s", bucketName, objectName)
 	return url, nil
 }
 
-// DownloadFile downloads a file from MinIO
 func (m *MinIOMediaRepository) DownloadFile(ctx context.Context, bucketName, objectName string) (io.Reader, error) {
 	object, err := m.client.GetObject(ctx, bucketName, objectName, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file: %w", err)
 	}
-
 	return object, nil
 }
 
-// DeleteFile deletes a file from MinIO
 func (m *MinIOMediaRepository) DeleteFile(ctx context.Context, bucketName, objectName string) error {
 	err := m.client.RemoveObject(ctx, bucketName, objectName, minio.RemoveObjectOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to delete file: %w", err)
 	}
-
 	return nil
 }
 
-// GetPresignedURL generates a presigned URL for temporary access
 func (m *MinIOMediaRepository) GetPresignedURL(ctx context.Context, bucketName, objectName string) (string, error) {
-	presignedURL, err := m.client.PresignedGetObject(ctx, bucketName, objectName, 3600, nil)
+	expiry := time.Hour * 24
+	presignedURL, err := m.client.PresignedGetObject(ctx, bucketName, objectName, expiry, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
 	}
-
 	return presignedURL.String(), nil
 }

@@ -79,28 +79,45 @@ func main() {
 	// -----------------------
 	// 5. Services
 	// -----------------------
-	novelService := service.NewNovelService(novelRepo)
+	// 🟢 ย้าย mediaService ขึ้นมาสร้างก่อน เพราะ novelService ต้องใช้งาน
+	mediaService := service.NewMediaService(mediaRepo)
+
+	// 🟢 ตอนนี้ส่ง mediaService เข้าไปได้แล้ว (ต้องแก้ NewNovelService ในไฟล์ service ให้รับด้วยนะจ๊ะ)
+	novelService := service.NewNovelService(novelRepo, mediaService)
+
 	sceneService := service.NewSceneService(sceneRepo, dbConn)
 	chapterService := service.NewChapterService(chapterRepo)
 	socialService := service.NewSocialService(socialRepo)
 	readingService := service.NewReadingService(readingRepo)
 	flowService := service.NewFlowService(sceneService)
 	writerService := service.NewWriterService(dbConn)
-	mediaService := service.NewMediaService(mediaRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
+	// สร้าง ServeMux ใหม่
+	mux := http.NewServeMux()
 
 	// -----------------------
 	// 6. Routes
 	// -----------------------
-	routes.RegisterRoutes(flowService, novelService, chapterService, sceneService, socialService, readingService, writerService, mediaService, categoryService)
+	routes.RegisterRoutes(
+		mux,
+		flowService,
+		novelService,
+		chapterService,
+		sceneService,
+		socialService,
+		readingService,
+		writerService,
+		mediaService,
+		categoryService,
+	)
 
 	// -----------------------
 	// 7. Start Server
 	// -----------------------
 	fmt.Printf("🚀 Server running on port %s\n", cfg.AppPort)
-	fmt.Println("📚 Novel Interactive Platform Backend Ready!")	
+	fmt.Println("📚 Novel Interactive Platform Backend Ready!")
 
-	handler := middleware.CORSMiddleware(http.DefaultServeMux)
+	handler := middleware.CORSMiddleware(mux) // 👈 ใช้ mux ที่เราสร้าง
 	err = http.ListenAndServe(":"+cfg.AppPort, handler)
 	if err != nil {
 		log.Fatalf("❌ server start fail: %v", err)

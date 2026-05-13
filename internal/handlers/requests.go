@@ -51,14 +51,14 @@ func (r *CreateChapterRequest) Validate() error {
 }
 
 type CreateSceneRequest struct {
-	NovelID           int     `json:"novel_id"`
-	ChapterID         int     `json:"chapter_id"`
-	Title             string  `json:"title,omitempty"`
-	Content           string  `json:"content"`
-	Type              string  `json:"type,omitempty"`
-	EndingTitle       *string `json:"ending_title,omitempty"`
-	EndingType        *string `json:"ending_type,omitempty"`
-	EndingDescription *string `json:"ending_description,omitempty"`
+	NovelID           int    `json:"novel_id"`
+	ChapterID         int    `json:"chapter_id"`
+	Title             string `json:"title"`
+	Content           string `json:"content"`
+	Type              string `json:"type"`
+	EndingTitle       string `json:"ending_title"`
+	EndingType        string `json:"ending_type"`
+	EndingDescription string `json:"ending_description"`
 }
 
 func (r *CreateSceneRequest) Validate() error {

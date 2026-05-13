@@ -1,20 +1,24 @@
 package repository
 
-import "novel-be/internal/models"
+import (
+	"novel-be/internal/models"
+)
 
 type NovelRepository interface {
 	ListNovels() ([]models.Novel, error)
 	GetNovelByID(id int) (*models.Novel, error)
 	CreateNovel(models.Novel) (int, error)
+	UpdateCoverImage(id int, url string) error
 }
 
 type SceneRepository interface {
-	GetSceneByID(int) (*models.Scene, error)
-	GetStartSceneByNovelID(int) (*models.Scene, error)
-	GetChoicesBySceneID(int) ([]models.Choice, error)
-	GetScenesByChapterID(int) ([]models.Scene, error)
-	CreateScene(models.Scene) (int, error)
-	CreateChoice(models.Choice) (int, error)
+	GetSceneByID(id int) (*models.Scene, error)
+	GetStartSceneByNovelID(novelID int) (*models.Scene, error)
+	GetChoicesBySceneID(id int) ([]models.Choice, error)
+	GetScenesByChapterID(chapterID int) ([]models.Scene, error)
+	CreateScene(scene models.Scene) (int, error)
+	CreateChoice(choice models.Choice) (int, error)
+	CountScenesInNovel(novelID int) (int, error)
 }
 
 type ChapterRepository interface {

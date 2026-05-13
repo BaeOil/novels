@@ -9,13 +9,29 @@ import (
 	"novel-be/internal/service"
 )
 
-func GetProgressHandler(readingService service.ReadingService) http.HandlerFunc {
+// StartReadingHandler หาฉากแรกสุดของนิยายเรื่องนั้น
+func StartReadingHandler(sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		// รับ id จาก path parameter เช่น /novels/{id}/start
+		idStr := r.PathValue("id")
+		novelID, err := strconv.Atoi(idStr)
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid novel id")
 			return
 		}
 
+		scene, err := sceneService.GetStartScene(novelID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "start scene not found for this novel")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, scene)
+	}
+}
+
+func GetProgressHandler(readingService service.ReadingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
 		if err != nil || userID == 0 {
 			WriteError(w, http.StatusBadRequest, "user_id is required")
@@ -58,11 +74,6 @@ func ProgressHandler(readingService service.ReadingService) http.HandlerFunc {
 
 func SaveProgressHandler(readingService service.ReadingService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-			return
-		}
-
 		var req SaveProgressRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			WriteError(w, http.StatusBadRequest, "invalid request body")
@@ -89,11 +100,6 @@ func SaveProgressHandler(readingService service.ReadingService) http.HandlerFunc
 
 func RecordChoiceHistoryHandler(readingService service.ReadingService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-			return
-		}
-
 		var req RecordChoiceHistoryRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			WriteError(w, http.StatusBadRequest, "invalid request body")
