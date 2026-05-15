@@ -1,0 +1,243 @@
+/* src/pages/Reading/ReadingPage.css */
+
+.rp {
+    min-height: 100vh;
+    background: var(--white);
+}
+
+/* ── Sticky progress bar ── */
+.rp__progress-bar {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    height: 3px;
+    z-index: 99;
+    background: linear-gradient(90deg, var(--pink-300), var(--pink-500));
+    transition: width 0.2s linear;
+    border-radius: 0 2px 2px 0;
+}
+
+/* ── Container ── */
+.rp__container {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 32px 32px 80px;
+}
+
+/* ── Loading ── */
+.rp__loading {
+    min-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--gray-600);
+    font-size: 14px;
+}
+
+.rp__loading-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid var(--pink-100);
+    border-top-color: var(--pink-500);
+    animation: rp-spin 0.8s linear infinite;
+}
+
+@keyframes rp-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Article transitions ── */
+.rp__article {
+    transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.rp__article--out {
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+}
+
+.rp__article--in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ── Path badge ── */
+.rp__path-badge {
+    display: inline-block;
+    margin-bottom: 12px;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--pink-50);
+    color: var(--pink-500);
+    border: 1px solid var(--pink-100);
+}
+
+/* From-choice context */
+.rp__from-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--gray-600);
+    background: var(--gray-50);
+    border: 1px solid var(--gray-100);
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+/* ── Chapter title ── */
+.rp__title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(24px, 4vw, 34px);
+    font-weight: 700;
+    color: var(--ink);
+    text-align: center;
+    margin-bottom: 20px;
+    line-height: 1.25;
+    letter-spacing: -0.3px;
+}
+
+/* ── Ornament ── */
+.rp__ornament {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.rp__orn-line {
+    flex: 1;
+    max-width: 120px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--pink-300), transparent);
+}
+
+.rp__orn-dot {
+    color: var(--pink-300);
+    font-size: 11px;
+}
+
+/* ── Meta ── */
+.rp__meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--gray-300);
+    margin-bottom: 36px;
+}
+
+.rp__meta-sep {
+    color: var(--gray-100);
+}
+
+/* ── Body text ── */
+.rp__body {
+    font-size: 17px;
+    line-height: 2;
+    color: var(--ink);
+}
+
+.rp__paragraph {
+    margin-bottom: 28px;
+    text-indent: 2em;
+    font-family: 'Sarabun', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+}
+
+/* ── Ending ── */
+.rp__ending {
+    text-align: center;
+    margin-top: 56px;
+    padding: 40px 32px;
+    background: linear-gradient(150deg, var(--pink-50), var(--white));
+    border: 1.5px solid var(--pink-100);
+    border-radius: 20px;
+}
+
+.rp__ending-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.rp__ending-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 8px;
+}
+
+.rp__ending-desc {
+    font-size: 15px;
+    color: var(--gray-600);
+    margin-bottom: 28px;
+}
+
+.rp__ending-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+}
+
+.rp__ending-btn {
+    padding: 12px 28px;
+    border-radius: 10px;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+    width: 100%;
+    max-width: 380px;
+    border: none;
+    /* เปลี่ยนสีพื้นฐานให้เหมือนกันทุกปุ่มเป็นสีชมพูปกติ */
+    background: var(--pink-500);
+    color: white;
+    box-shadow: 0 4px 14px rgba(233, 30, 140, 0.2);
+}
+
+.rp__ending-btn:hover {
+    background: var(--pink-600);
+    transform: translateY(-1px);
+}
+
+/* เมื่อถูกคลิก (Active) ให้เป็นชมพูเข้ม */
+.rp__ending-btn:active {
+    background: var(--pink-700) !important;
+    transform: translateY(0);
+}
+
+/* ยกเลิกสไตล์เดิมของปุ่ม outline เพื่อให้สีเหมือนกัน */
+.rp__ending-btn--outline {
+    background: var(--pink-500);
+    color: white;
+    border: none !important;
+}
+/* Responsive */
+@media (max-width: 600px) {
+    .rp__container {
+        padding: 20px 20px 60px;
+    }
+
+    .rp__body {
+        font-size: 16px;
+    }
+
+    .rp__paragraph:first-child::first-letter {
+        font-size: 3.2em;
+    }
+}

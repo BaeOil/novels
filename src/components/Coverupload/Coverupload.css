@@ -1,0 +1,137 @@
+/* src/components/CoverUpload/CoverUpload.css */
+
+.cup {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 14px;
+  border: 2px dashed var(--pink-300);
+  background: linear-gradient(150deg, var(--pink-50) 0%, #FFF5FC 100%);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.cup:hover {
+  border-color: var(--pink-500);
+  background: var(--pink-50);
+  box-shadow: 0 4px 16px rgba(233, 30, 140, 0.1);
+}
+
+.cup:focus-visible {
+  outline: 2px solid var(--pink-500);
+  outline-offset: 2px;
+}
+
+/* Dragging state */
+.cup--drag {
+  border-color: var(--pink-500);
+  background: rgba(233, 30, 140, 0.06);
+  box-shadow: 0 0 0 4px rgba(233, 30, 140, 0.1);
+  transform: scale(1.01);
+}
+
+/* Has image state */
+.cup--has-image {
+  border-style: solid;
+  border-color: var(--pink-100);
+}
+
+/* Hidden file input */
+.cup__input {
+  display: none;
+}
+
+/* ── Placeholder (no image) ── */
+.cup__placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.cup__placeholder-icon {
+  font-size: 28px;
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+
+.cup__placeholder-text {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pink-500);
+  line-height: 1.4;
+}
+
+.cup__placeholder-hint {
+  font-size: 11px;
+  color: var(--gray-300);
+}
+
+/* ── Preview (has image) ── */
+.cup__preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.cup__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Hover overlay */
+.cup__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(45, 27, 61, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.cup:hover .cup__overlay {
+  opacity: 1;
+}
+
+.cup__change-btn,
+.cup__remove-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.cup__change-btn {
+  background: var(--pink-500);
+  color: var(--white);
+}
+
+.cup__change-btn:hover {
+  background: var(--pink-700);
+}
+
+.cup__remove-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.cup__remove-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}

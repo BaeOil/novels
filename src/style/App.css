@@ -117,3 +117,31 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--pink-300);
 }
+
+/* ======================================================
+   Reader Layout
+====================================================== */
+
+.reader-layout {
+  min-height: 100vh;
+}
+
+/* ======================================================
+   Writer Layout
+====================================================== */
+
+.writer-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #fdf7fb;
+}
+
+/* ด้านขวา */
+.writer-layout__content {
+  flex: 1;
+  margin-left: 260px;
+
+  min-height: 100vh;
+
+  padding: 40px 56px;
+}

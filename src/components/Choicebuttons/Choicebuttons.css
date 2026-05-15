@@ -1,33 +1,97 @@
 /* src/components/ChoiceButtons/ChoiceButtons.css */
-.choices { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 48px; padding-top: 36px; border-top: 1px solid var(--gray-100); }
-.choices__ornament { display: flex; gap: 8px; margin-bottom: 4px; }
-.choices__dot { color: var(--pink-300); font-size: 11px; }
-.choices__prompt {
-  font-family: 'Playfair Display', serif; font-size: 17px; color: var(--ink);
-  text-align: center; margin-bottom: 4px; font-weight: 500;
+.choices {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 48px;
+  padding-top: 36px;
+  border-top: 1px solid var(--gray-100);
 }
-.choices__list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 480px; }
+
+.choices__ornament {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.choices__dot {
+  color: var(--pink-300);
+  font-size: 11px;
+}
+
+.choices__prompt {
+  font-family: 'Playfair Display', serif;
+  font-size: 17px;
+  color: var(--ink);
+  text-align: center;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.choices__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 480px;
+}
+
 .choices__btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; padding: 13px 24px; border-radius: 10px;
-  font-family: 'Sarabun', sans-serif; font-size: 15px; font-weight: 500;
-  cursor: pointer; transition: all 0.2s ease; border: none; position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 24px;
+  border-radius: 10px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  position: relative;
   overflow: hidden;
 }
-/* First choice: filled pink */
-.choices__list .choices__btn:nth-child(1) { background: var(--pink-500); color: white; box-shadow: 0 4px 14px rgba(233,30,140,0.3); }
-.choices__list .choices__btn:nth-child(1):hover { background: var(--pink-700); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(233,30,140,0.4); }
+
 /* Other choices: outline */
-.choices__list .choices__btn:nth-child(n+2) { background: white; color: var(--ink); border: 1.5px solid var(--gray-100); }
-.choices__list .choices__btn:nth-child(n+2):hover { border-color: var(--pink-300); color: var(--pink-500); background: var(--pink-50); }
+.choices__list .choices__btn:nth-child(n) {
+  background: white;
+  color: var(--ink);
+  border: 1.5px solid var(--gray-100);
+}
+
+.choices__list .choices__btn:nth-child(n):hover {
+  border-color: var(--pink-300);
+  color: var(--pink-500);
+  background: var(--pink-50);
+}
+
 /* Selected state */
-.choices__btn--selected { opacity: 0.75; transform: scale(0.98) !important; }
-.choices__btn:disabled { cursor: not-allowed; }
-.choices__btn-check { font-size: 14px; }
+.choices__btn--selected {
+  opacity: 0.75;
+  transform: scale(0.98) !important;
+}
+
+.choices__btn:disabled {
+  cursor: not-allowed;
+}
+
+.choices__btn-check {
+  font-size: 14px;
+}
+
 /* Ripple shimmer on hover */
 .choices__btn::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%);
-  transform: translateX(-100%); transition: transform 0.4s;
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.15) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.4s;
 }
-.choices__btn:hover::after { transform: translateX(100%); }
+
+.choices__btn:hover::after {
+  transform: translateX(100%);
+}
