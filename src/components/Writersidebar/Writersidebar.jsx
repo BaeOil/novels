@@ -59,7 +59,7 @@ const WriterSidebar = ({ currentPage, selectedNovelId, onNavigate }) => {
     <aside className="wsb">
       {/* ── Logo ── */}
       <div className="wsb__logo">
-        <div className="wsb__logo-icon">🎩</div>
+        <img src="/logo192.png" alt="Logo" className="logo-img" />
         <div className="wsb__logo-text">
           <span className="wsb__logo-story">Story</span>
           <span className="wsb__logo-verse"> Verse</span>
