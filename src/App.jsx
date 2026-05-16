@@ -21,12 +21,10 @@ import "./style/index.css";
 // ======================================================
 // Reader Layout
 // ======================================================
-
 const ReaderLayout = ({ children }) => {
   return (
     <>
       <Navbar />
-
       <main className="reader-layout">
         {children}
       </main>
@@ -37,19 +35,16 @@ const ReaderLayout = ({ children }) => {
 // ======================================================
 // Writer Layout
 // ======================================================
-
 const WriterLayout = ({ children }) => {
   return (
     <div className="writer-layout">
       <WriterSidebar />
-
       <main className="writer-layout__content">
         {children}
       </main>
     </div>
   );
 };
-
 
 function App() {
   return (
@@ -78,8 +73,10 @@ function App() {
           }
         />
 
+        {/* 🎯 🟢 จุดแก้ไข: ปรับเส้นทางผังเมืองให้รับพารามิเตอร์รหัสนิยาย (:novelId) จาก URL
+            คราวนี้เวลาพิมพ์หรือ Link วิ่งมาที่ /storytree/1 หรือ /storytree/5 หน้าเว็บจะดึง ID ไปยิง Go API ได้ถูกต้องทันทีครับน้า */}
         <Route
-          path="/storytree"
+          path="/storytree/:novelId"
           element={
             <ReaderLayout>
               <Storytreepage />
@@ -87,8 +84,19 @@ function App() {
           }
         />
 
+        {/* แบบที่ 1: เข้ามาอ่านครั้งแรก (ไม่มี sceneId ลอยมา) จะใช้ URL: /reading/1 */}
         <Route
-          path="/reading"
+          path="/reading/:novelId"
+          element={
+            <ReaderLayout>
+              <ReadingPage />
+            </ReaderLayout>
+          }
+        />
+
+        {/* แบบที่ 2: อ่านกิ่งต่อๆ ไป (มี sceneId ส่งมาด้วย) จะใช้ URL: /reading/1/12 */}
+        <Route
+          path="/reading/:novelId/:sceneId"
           element={
             <ReaderLayout>
               <ReadingPage />

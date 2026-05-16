@@ -1,407 +1,311 @@
-// src/pages/Reading/ReadingPage.jsx
-
 import React, { useState, useEffect, useRef } from "react";
-
+import { useParams, useNavigate } from "react-router-dom"; // 👈 นำเข้าเครื่องมือดึงค่าจาก URL และสลับหน้าจอ
 import "./ReadingPage.css";
-
 import ReadingBreadcrumb from "../../../components/ReadingBreadcrumb/ReadingBreadcrumb";
-
 import ChoiceButtons from "../../../components/ChoiceButtons/ChoiceButtons";
 
-import { getChapterById } from "../../../data/mockData";
+const BASE_URL = "http://localhost:8080"; // 👈 พอร์ตเซิร์ฟเวอร์ Go หลังบ้าน (app-1) ใน Docker
 
 const ReadingPage = ({
-  novelId,
-  chapterId: initialChapterId,
-  novelTitle = "ผจญภัยกับสามหมี",
-  onNavigate,
+  userId = 1, // ชั่วคราวก่อนทำระบบล็อกอิน
+  novelTitle = "กำลังโหลดชื่อเรื่อง...",
 }) => {
 
-  // scene/chapter ปัจจุบัน
-  const [currentChapterId, setCurrentChapterId] = useState(
-    initialChapterId || "ch-001"
-  );
+  const { novelId, sceneId } = useParams();
+  const navigate = useNavigate();
 
-  // ข้อมูล chapter
-  const [chapter, setChapter] = useState(null);
+  // สลับมุมมองหน้าจออ่าน หรือ ดู Tree
+  const [currentView, setCurrentView] = useState("reading");
 
-  // animation
+  // เก็บ ID ของ ฉาก (Scene) ปัจจุบันตามระบบ Branching (ยึดตามที่ส่งมาจาก URL ก่อน)
+  const [currentSceneId, setCurrentSceneId] = useState(sceneId || null);
+  const [sceneData, setSceneData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [isTransitioning, setIsTransitioning] = useState(false);
-
-  // progress bar
   const [readProgress, setReadProgress] = useState(0);
-
-  // choice selected
   const [selectedChoiceId, setSelectedChoiceId] = useState(null);
-
   const contentRef = useRef(null);
 
-  // ==========================================
-  // โหลด chapter จาก mockData
-  // ==========================================
-
+  // ดักจับกรณีที่ URL เปลี่ยนแปลง (เช่น ผู้ใช้อ่านกิ่งถัดไป หรือกดเปลี่ยนเส้นทาง)
   useEffect(() => {
-
-    const foundChapter = getChapterById(currentChapterId);
-
-    setChapter(foundChapter);
-
-    // scroll top
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-
-  }, [currentChapterId]);
+    if (sceneId) {
+      setCurrentSceneId(sceneId);
+    }
+  }, [sceneId]);
 
   // ==========================================
-  // progress bar
+  // 🔄 FETCH ข้อมูลจาก GO API
   // ==========================================
-
   useEffect(() => {
+    if (!novelId || novelId === "undefined") {
+      console.error("❌ บั๊กหน้าจอ: ReadingPage ไม่ได้รับรหัสนิยาย (novelId เป็น undefined)");
+      setError("ไม่พบรหัสนิยาย (Novel ID เป็น undefined) กรุณาตรวจสอบการส่งค่ามาจากหน้าก่อนหน้า");
+      setLoading(false);
+      return;
+    }
 
-    const handleScroll = () => {
+    const fetchScene = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        let url = "";
+        if (!currentSceneId) {
+          url = `${BASE_URL}/novels/${novelId}/start?user_id=${userId}`;
+        } else {
+          url = `${BASE_URL}/scenes/${currentSceneId}?user_id=${userId}`;
+        }
 
-      const el = document.documentElement;
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error("ไม่สามารถโหลดเนื้อหาฉากจากระบบหลังบ้านได้");
+        }
 
-      const scrolled = el.scrollTop;
+        const resData = await response.json();
 
-      const total = el.scrollHeight - el.clientHeight;
-
-      if (total > 0) {
-
-        setReadProgress(
-          Math.round((scrolled / total) * 100)
-        );
-
+        if (resData && resData.data) {
+          setSceneData(resData.data);
+          if (!currentSceneId) {
+            setCurrentSceneId(resData.data.scene_id || resData.data.id);
+          }
+        } else {
+          throw new Error("รูปแบบข้อมูลที่หลังบ้านส่งมาไม่ถูกต้อง");
+        }
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-
     };
 
-    window.addEventListener(
-      "scroll",
-      handleScroll,
-      { passive: true }
-    );
+    fetchScene();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentSceneId, novelId, userId]);
 
-    return () => {
-
-      window.removeEventListener(
-        "scroll",
-        handleScroll
-      );
-
+  // ==========================================
+  // 📊 PROGRESS BAR LOGIC
+  // ==========================================
+  useEffect(() => {
+    const handleScroll = () => {
+      const el = document.documentElement;
+      const scrolled = el.scrollTop;
+      const total = el.scrollHeight - el.clientHeight;
+      if (total > 0) {
+        setReadProgress(Math.round((scrolled / total) * 100));
+      }
     };
-
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // ==========================================
-  // เลือกตัวเลือก
+  // 🖱️ HANDLE CHOICE CLICK & POST HISTORY
   // ==========================================
-
-  const handleChoose = (choice) => {
-
-    console.log("เลือก:", choice);
-
-    setSelectedChoiceId(choice.id);
-
+  const handleChoose = async (choice) => {
+    setSelectedChoiceId(choice.choice_id);
     setIsTransitioning(true);
 
+    try {
+      await fetch(`${BASE_URL}/choice-history`, {
+        box: "no-cors",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          choice_id: choice.choice_id
+        })
+      });
+    } catch (err) {
+      console.error("บันทึกประวัติการเลือกเลือกฟลอป:", err);
+    }
+
     setTimeout(() => {
-
-      // เปลี่ยน chapter
-      setCurrentChapterId(choice.nextChapterId);
-
-      // reset animation
+      navigate(`/reading/${novelId}/${choice.to_scene_id}`);
+      setCurrentSceneId(choice.to_scene_id);
       setIsTransitioning(false);
-
-      // reset selected
       setSelectedChoiceId(null);
-
     }, 350);
-
   };
 
-  // ==========================================
-  // loading
-  // ==========================================
+  const handleLocalNavigate = (targetView) => {
+  if (targetView === "story-tree") {
+    // พ่น URL ไปที่ /storytree/รหัสนิยาย เพื่อให้เข้าเงื่อนไข App.jsx ใหม่ทันที  !
+    navigate(`/storytree/${novelId}`); 
+  } else if (targetView === "novel-detail") {
+    navigate(`/novel/${novelId}`);
+  }
+};
 
-  if (!chapter) {
-
+  // 🌳 RENDER: หน้าผังเมืองจำลอง (Story Tree)
+  if (currentView === "story-tree") {
     return (
-
-      <div
-        className="rp__loading"
-        aria-live="polite"
-      >
-
-        <div
-          className="rp__loading-spinner"
-          aria-label="กำลังโหลด"
-        />
-
-        <p>กำลังโหลดตอน...</p>
-
+      <div style={{ padding: "40px", textAlign: "center", background: "#1a1a1a", color: "#fff", minHeight: "100vh" }}>
+        <h2 style={{ color: "#4CAF50" }}>🌳 หน้าผังเนื้อเรื่อง Story Tree</h2>
+        <p style={{ color: "#aaa" }}>[ ลิงก์ API หลังบ้าน: GET /novels/{novelId}/story-tree ]</p>
+        <button
+          onClick={() => setCurrentView("reading")}
+          style={{ padding: "10px 20px", marginTop: "20px", cursor: "pointer", background: "#4CAF50", color: "#fff", border: "none", borderRadius: "5px" }}
+        >
+          ↩️ กลับไปอ่านนิยายต่อ
+        </button>
       </div>
-
     );
-
   }
 
-  // ==========================================
-  // render
-  // ==========================================
+  // ⏳ LOADING & ERROR STATES
+  if (loading) {
+    return (
+      <div className="rp__loading" aria-live="polite">
+        <div className="rp__loading-spinner" aria-label="กำลังโหลด" />
+        <p>กำลังดึงเนื้อหาฉากจริงจากระบบฐานข้อมูล...</p>
+      </div>
+    );
+  }
 
+  if (error) {
+    return (
+      <div style={{ padding: "50px", textAlign: "center", color: "red", background: "#fff5f5", minHeight: "100vh" }}>
+        <h3 style={{ fontSize: "1.5rem", marginBottom: "10px" }}>เกิดข้อผิดพลาดในการโหลดเนื้อหา</h3>
+        <p style={{ color: "#555", marginBottom: "20px" }}>{error}</p>
+        <button
+          onClick={() => navigate("/")}
+          style={{ padding: "8px 20px", cursor: "pointer", background: "#f44336", color: "#fff", border: "none", borderRadius: "4px" }}
+        >
+          กลับไปหน้ารายชื่อนิยายหลัก
+        </button>
+      </div>
+    );
+  }
+
+  // 🎯 แกะตัวแปรจาก Database
+  const { content, choices, type, novel_title, chapter_title, scene_title } = sceneData;
+
+  // 🏷️ ฟังก์ชันช่วยแปลงข้อมูล 'type' ให้เป็นข้อความ Tag สวยๆ บนหน้าจอ
+  const getSceneTagDetails = (sceneType) => {
+    switch (sceneType) {
+      case "start":
+        return { text: "🎬 จุดเริ่มต้นเนื้อเรื่อง", bg: "#e3f2fd", color: "#0d47a1" };
+      case "normal":
+        return { text: "📖 เนื้อเรื่องหลัก", bg: "#f1f8e9", color: "#33691e" };
+      case "ending":
+        return { text: "🏆 ฉากจบ", bg: "#fff8e1", color: "#ff6f00" };
+      default:
+        return { text: "🌿 เส้นทางดำเนินเรื่อง", bg: "#f5f5f5", color: "#616161" };
+    }
+  };
+
+  const tag = getSceneTagDetails(type);
+
+  // ==========================================
+  // 📖 RENDER DISPLAY 
+  // ==========================================
   return (
-
     <div className="rp">
-
-      {/* progress bar */}
-
-      <div
-        className="rp__progress-bar"
-        style={{
-          width: `${readProgress}%`,
-        }}
-        role="progressbar"
-        aria-valuenow={readProgress}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      />
+      <div className="rp__progress-bar" style={{ width: `${readProgress}%` }} role="progressbar" />
 
       <div className="rp__container">
-
-        {/* breadcrumb */}
-
         <ReadingBreadcrumb
-          novelTitle={novelTitle}
-          chapterTitle={chapter.title}
-          onBack={() =>
-            onNavigate("novel-detail", {
-              novelId,
-            })
-          }
-          onStoryMap={() =>
-            onNavigate("story-tree", {
-              novelId,
-            })
-          }
+          novelTitle={novel_title || novelTitle}
+          chapterTitle={chapter_title || (type === "start" ? "บทนำ" : "ตอนอ่านต่อ")}
+          onBack={() => handleLocalNavigate("novel-detail")}
+          onStoryMap={() => handleLocalNavigate("story-tree")}
         />
 
-        {/* article */}
+        <article className={`rp__article ${isTransitioning ? "rp__article--out" : "rp__article--in"}`} ref={contentRef}>
 
-        <article
-          className={`rp__article ${
-            isTransitioning
-              ? "rp__article--out"
-              : "rp__article--in"
-          }`}
-          ref={contentRef}
-        >
+          {/* ------------------------------------------------------------- */}
+          {/* 🎯 โซนแสดงหัวข้อแบ่งจัดเต็มตามความต้องการ 3 แถวตรงตัวล็อก */}
+          {/* ------------------------------------------------------------- */}
+          <div className="rp__header-group" style={{ textAlign: "center", marginBottom: "25px" }}>
 
-          {/* path */}
-
-          {chapter.path && (
-
-            <div
-              className="rp__path-badge"
-              aria-label={`เส้นทาง: ${chapter.path}`}
-            >
-
-              {chapter.path}
-
+            {/* แถวที่ 1 บนสุด: แสดงชื่อเรื่องนิยายหลัก */}
+            <div className="rp__novel-subtitle" style={{ fontSize: "1.1rem", color: "#666", marginBottom: "6px" }}>
+              เรื่อง : {novel_title || novelTitle}
             </div>
 
-          )}
+            {/* แถวที่ 2 ตรงกลาง: แสดงชื่อตอน/ชื่อบทจริง */}
+            <h1 className="rp__title" style={{ fontSize: "2.2rem", fontWeight: "bold", margin: "10px 0", color: "#111" }}>
+              {chapter_title || (type === "start" ? "บทนำ" : "ไม่มีชื่อตอน")}
+            </h1>
 
-          {/* from choice */}
-
-          {chapter.fromChoice && (
-
-            <div
-              className="rp__from-choice"
-              aria-label="ตัวเลือกก่อนหน้า"
-            >
-
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                aria-hidden="true"
-              >
-
-                <path
-                  d="M4 6h4M7 4l2 2-2 2"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-              </svg>
-
-              เลือก: {chapter.fromChoice}
-
+            {/* แถวที่ 3 เล็กลงมา: แสดงชื่อฉากย่อย และ ป้าย Tag สถานะเนื้อเรื่อง แทนตัวจับเวลาเดิม */}
+            <div className="rp__scene-meta" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontSize: "1.05rem", color: "#555", marginTop: "15px", flexWrap: "wrap" }}>
+              {scene_title && (
+                <span style={{ color: "#333", fontWeight: "600" }}>
+                  ✨ {scene_title}
+                </span>
+              )}
+              {scene_title && <span style={{ color: "#ccc" }}>|</span>}
+              
+              {/* 🎯 ป้าย Tag แสดงประเภทฉากย่อย สวยงาม สบายตา ไม่กดดันคนอ่านครับน้า */}
+              <span style={{ 
+                backgroundColor: tag.bg, 
+                color: tag.color, 
+                padding: "3px 12px", 
+                borderRadius: "12px", 
+                fontSize: "0.85rem", 
+                fontWeight: "bold",
+                letterSpacing: "0.5px"
+              }}>
+                {tag.text}
+              </span>
             </div>
 
-          )}
+          </div>
+          {/* ------------------------------------------------------------- */}
 
-          {/* title */}
-
-          <h1 className="rp__title">
-
-            {chapter.title}
-
-          </h1>
-
-          {/* ornament */}
-
-          <div
-            className="rp__ornament"
-            aria-hidden="true"
-          >
-
+          {/* เส้นคั่นลายประดับพุ่มไม้/ดาว */}
+          <div className="rp__ornament" aria-hidden="true">
             <span className="rp__orn-line" />
-
             <span className="rp__orn-dot">✦</span>
-
             <span className="rp__orn-dot">✦</span>
-
             <span className="rp__orn-dot">✦</span>
-
             <span className="rp__orn-line" />
-
           </div>
 
-          {/* meta */}
-
-          <div className="rp__meta">
-
-            <span>
-              ⏱ {chapter.readingTime} นาที
-            </span>
-
-            <span className="rp__meta-sep">
-              ·
-            </span>
-
-            <span>
-              ตอนที่ {chapter.chapterNumber}
-            </span>
-
-          </div>
-
-          {/* body */}
-
+          {/* แสดงเนื้อหาจริงจากระบบฐานข้อมูล */}
           <div
             className="rp__body"
             aria-label="เนื้อหา"
-          >
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
 
-            {chapter.content.map(
-              (paragraph, i) => (
-
-                <p
-                  key={i}
-                  className="rp__paragraph"
-                >
-
-                  {paragraph}
-
-                </p>
-
-              )
-            )}
-
-          </div>
-
-          {/* choices */}
-
-          {chapter.choices &&
-            chapter.choices.length > 0 && (
-
-              <ChoiceButtons
-                prompt={chapter.choicePrompt}
-                choices={chapter.choices}
-                onChoose={handleChoose}
-                selectedChoiceId={selectedChoiceId}
-              />
-
-            )}
-
-          {/* ending */}
-
-          {(!chapter.choices ||
-            chapter.choices.length === 0) && (
-
-            <div className="rp__ending">
-
-              <div
-                className="rp__ending-icon"
-                aria-hidden="true"
-              >
-
-                🏆
-
-              </div>
-
-              <h2 className="rp__ending-title">
-
-                จบเส้นทางนี้แล้ว!
-
-              </h2>
-
-              <p className="rp__ending-desc">
-
-                คุณได้ค้นพบหนึ่งในตอนจบของนิยายเรื่องนี้
-
-              </p>
-
-              <div className="rp__ending-actions">
-
-                <button
-                  className="rp__ending-btn rp__ending-btn--primary"
-                  onClick={() =>
-                    onNavigate(
-                      "story-tree",
-                      { novelId }
-                    )
-                  }
-                >
-
-                  🌳 ดู Story Tree
-
-                </button>
-
-                <button
-                  className="rp__ending-btn rp__ending-btn--outline"
-                  onClick={() =>
-                    onNavigate(
-                      "novel-detail",
-                      { novelId }
-                    )
-                  }
-                >
-
-                  กลับหน้ารายละเอียด
-
-                </button>
-
-              </div>
-
-            </div>
-
+          {/* ปุ่มตัวเลือกเส้นทางกิ่งก้าน (Choices) จากหลังบ้าน */}
+          {choices && choices.length > 0 && (
+            <ChoiceButtons
+              prompt="คุณจะเลือกเส้นทางดำเนินเรื่องอย่างไรต่อไป?"
+              choices={choices.map(c => ({
+                id: c.choice_id,
+                text: c.label || c.text,
+                choice_id: c.choice_id,
+                to_scene_id: c.to_scene_id
+              }))}
+              onChoose={handleChoose}
+              selectedChoiceId={selectedChoiceId}
+            />
           )}
 
+          {/* กรณีจบสมบูรณ์แบบ แตกแขนงไปต่อไม่ได้แล้ว */}
+          {(!choices || choices.length === 0) && (
+            <div className="rp__ending">
+              <div className="rp__ending-icon" aria-hidden="true">🏆</div>
+              <h2 className="rp__ending-title">จบเส้นทางเนื้อเรื่องย่อยนี้แล้ว!</h2>
+              <div className="rp__ending-actions">
+                <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => handleLocalNavigate("story-tree")}>
+                  🌳 ดู Story Tree
+                </button>
+                <button className="rp__ending-btn rp__ending-btn--outline" onClick={() => handleLocalNavigate("novel-detail")}>
+                  กลับหน้ารายละเอียด
+                </button>
+              </div>
+            </div>
+          )}
         </article>
-
       </div>
-
     </div>
-
   );
-
 };
 
 export default ReadingPage;

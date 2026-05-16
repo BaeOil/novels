@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom"; 
 import "./NovelDetailPage.css";
 
 import NovelCoverCard from "../../../components/NovelCoverCard/NovelCoverCard";
 import GenreTag from "../../../components/GenreTag/GenreTag";
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import ProgressBar from "../../../components/ProgressBar/ProgressBar";
-import { mockNovel } from "../../../data/mockNovel";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -38,15 +37,15 @@ const initialNovelState = {
   isLiked: false,
   isBookmarked: false,
 };
-// ฟังก์ชันช่วยแก้ URL จาก minio:9000 เป็น localhost:9000 หรือ IP จริง
+
 const formatMinioUrl = (url) => {
   if (!url) return null;
-  // ถ้าเจอคำว่า minio ให้เปลี่ยนเป็น localhost (หรือเปลี่ยนเป็น IP เครื่อง)
   return url.replace('http://minio:9000', 'http://localhost:9000');
 };
 
 const NovelDetailPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate(); 
   const [novel, setNovel] = useState(initialNovelState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -64,7 +63,8 @@ const NovelDetailPage = () => {
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/novels/${id}`);
+        // ดึงข้อมูลรายละเอียดนิยายพ่วง user_id
+        const response = await fetch(`${API_BASE_URL}/novels/${id}?user_id=1`);
         const payload = await response.json().catch(() => null);
         if (!response.ok) {
           throw new Error(
@@ -73,76 +73,80 @@ const NovelDetailPage = () => {
         }
 
         const data = payload?.data || payload || {};
+        const nData = data.novel || {}; 
 
-        // ดึงข้อมูลบท (chapters) ตามเส้นทางใหม่: GET /novels/{id}/chapters
-        let chaptersData = [];
+        // ดึงจำนวนตอนทั้งหมดจาก API chapters เผื่อไว้เช็คสถิติฝั่งแกรนด์ทับ
+        let chaptersCountFromApi = 0;
         try {
           const chaptersResponse = await fetch(`${API_BASE_URL}/novels/${id}/chapters`);
           if (chaptersResponse.ok) {
             const chaptersPayload = await chaptersResponse.json();
-            chaptersData = chaptersPayload?.data?.chapters || chaptersPayload?.chapters || [];
+            const chaptersList = chaptersPayload?.data?.chapters || chaptersPayload?.chapters || [];
+            chaptersCountFromApi = chaptersList.length;
           }
         } catch (err) {
           console.warn("Failed to fetch chapters:", err);
         }
 
-        // ดึงข้อมูลความคิดเห็น (comments) ตามเส้นทางใหม่: GET /novels/{id}/comments
-        let commentsData = [];
         try {
           const commentsResponse = await fetch(`${API_BASE_URL}/novels/${id}/comments`);
-
           if (commentsResponse.ok) {
             const commentsPayload = await commentsResponse.json();
-
-            commentsData =
-              commentsPayload?.data?.comments ||
-              commentsPayload?.comments ||
-              [];
-
+            const commentsData = commentsPayload?.data?.comments || commentsPayload?.comments || [];
             setComments(commentsData);
           }
         } catch (err) {
           console.warn("Failed to fetch comments:", err);
         }
 
-        // คำนวณสถิติจาก chapters ที่ได้
-        const totalChapters = chaptersData.length || 0;
-        const totalChoices = commentsData.length || 0;
+        // 🔍 ดักจับชื่อตัวแปรจากหลังบ้าน รองรับทั้ง snake_case และ camelCase (ถอดเลข Mock ออกหมดแล้ว)
+        const totalScenes = data.total_scenes ?? data.totalScenes ?? chaptersCountFromApi ?? 0;
+        const visitedScenes = data.visited_scenes ?? data.visitedScenes ?? 0;
+        const totalChoices = data.total_choices ?? data.totalChoices ?? 0;
+        const discoveredChoices = data.discovered_choices ?? data.discoveredChoices ?? 0;
+        const totalEndings = data.total_endings ?? data.totalEndings ?? 0;
+
+        // คำนวณเปอร์เซ็นต์จากข้อมูลหลังบ้านแท้ๆ
+        const calculatedPercentage = totalScenes > 0 
+          ? Math.round((visitedScenes / totalScenes) * 100) 
+          : 0;
 
         setNovel({
-          id: data.novel_id || data.id || id,
-          title: data.title || "ไม่พบชื่อเรื่อง",
-          categories: data.categories && data.categories.length > 0
-            ? data.categories.map(cat => typeof cat === "object" ? cat.name : cat)
+          id: nData.novel_id || nData.id || id,
+          title: nData.title || "ไม่พบชื่อเรื่อง",
+          categories: nData.categories && nData.categories.length > 0
+            ? nData.categories.map(cat => typeof cat === "object" ? cat.name : cat)
             : ["ทั่วไป"],
-          coverImage: formatMinioUrl(data.cover_image) || null,
+          coverImage: formatMinioUrl(nData.cover_image) || null,
           author: {
-            displayName: data.author_name || data.pen_name || "ไม่ทราบผู้แต่ง",
-            avatarUrl: formatMinioUrl(data.author_avatar) || null,
+            displayName: nData.author_name || nData.pen_name || "ไม่ทราบผู้แต่ง",
+            avatarUrl: formatMinioUrl(nData.author_avatar) || null,
           },
-          synopsis: data.captions || data.introduction || "",
+          synopsis: nData.captions || nData.introduction || "ไม่มีเรื่องย่อ",
+          
+          // 📊 ข้อมูลจริงจากสเตตัสหลังบ้าน (ถ้าเรื่องไหนไม่มีจะขึ้นตามจริง ไม่ก๊อปปี้เลขเดิมแล้วครับ)
           stats: {
-            views: data.views || 0,
-            paths: 0,
-            choicePoints: 0,
-            endings: 1,
+            views: nData.views || 0, 
+            paths: totalScenes, 
+            choicePoints: totalChoices,
+            endings: totalEndings,
           },
+
+          // 📈 ส่วนการ์ดความคืบหน้าผู้ใช้งาน
           userProgress: {
-            percentage: 0, // ถ้ายังไม่มีระบบเก็บ Logic การอ่าน ให้เริ่มที่ 0
-            currentChapter: 0,
-            totalChapters: chaptersData.length,
-            discoveredChoices: 0,
-            totalChoices: 0,
+            percentage: calculatedPercentage, 
+            currentChapter: visitedScenes,       
+            totalChapters: totalScenes,          
+            discoveredChoices: discoveredChoices, 
+            totalChoices: totalChoices,          
           },
-          synopsis_detail: data.introduction || "ยังไม่มีรายละเอียดเพิ่มเติม",
+          synopsis_detail: nData.introduction || "ยังไม่มีรายละเอียดเพิ่มเติม",
           isLiked: false,
           isBookmarked: false,
         });
       } catch (err) {
         console.error("Fetch error:", err);
         setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
-        // Fallback ใช้ mock data ถ้า API พัง
-        setNovel(mockNovel);
       } finally {
         setLoading(false);
       }
@@ -152,7 +156,9 @@ const NovelDetailPage = () => {
   }, [id]);
 
   const handleRead = () => {
-    alert(`เริ่มอ่าน "${novel.title}"`);
+    if (novel.id) {
+      navigate(`/reading/${novel.id}`);
+    }
   };
 
   const handleBookmark = (isBookmarked) => {
@@ -164,7 +170,9 @@ const NovelDetailPage = () => {
   };
 
   const handleStoryMap = () => {
-    alert("ดู Story Map");
+    if (novel.id) {
+      navigate(`/storytree/${novel.id}`);
+    }
   };
 
   if (loading) {
@@ -192,7 +200,7 @@ const NovelDetailPage = () => {
       <div className="novel-detail__container">
         <button
           className="novel-detail__back"
-          onClick={() => window.history.back()}
+          onClick={() => navigate("/")} 
           aria-label="กลับหน้าหลัก"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -247,13 +255,12 @@ const NovelDetailPage = () => {
                 totalChapters={novel.userProgress.totalChapters}
                 discoveredChoices={novel.userProgress.discoveredChoices}
                 totalChoices={novel.userProgress.totalChoices}
-                onStoryMapClick={handleStoryMap}
+                onStoryMapClick={handleStoryMap} 
               />
             </div>
           </main>
         </div>
 
-        {/* ── Section แนะนำเรื่อง ── */}
         <section className="novel-detail__synopsis-section" aria-labelledby="synopsis-heading">
           <h2 id="synopsis-heading" className="novel-detail__section-title">
             แนะนำเรื่อง
@@ -263,38 +270,28 @@ const NovelDetailPage = () => {
             dangerouslySetInnerHTML={{ __html: novel.synopsis_detail }}
           />
         </section>
-        {/* ── Section คอมเมนต์ ── */}
-        <section
-          className="novel-detail__comments-section"
-          aria-labelledby="comments-heading"
-        >
+
+        <section className="novel-detail__comments-section" aria-labelledby="comments-heading">
           <div className="novel-detail__comments-header">
-            <h2
-              id="comments-heading"
-              className="novel-detail__section-title"
-            >
+            <h2 id="comments-heading" className="novel-detail__section-title">
               ความคิดเห็น
             </h2>
-
             <span className="novel-detail__comments-count">
               {comments.length} ความคิดเห็น
             </span>
           </div>
 
-          {/* Input */}
           <div className="novel-detail__comment-form">
             <textarea
               placeholder="เขียนความคิดเห็นของคุณ..."
               className="novel-detail__comment-input"
               rows={4}
             />
-
             <button className="novel-detail__comment-button">
               ส่งความคิดเห็น
             </button>
           </div>
 
-          {/* List */}
           <div className="novel-detail__comments-list">
             {comments.length === 0 ? (
               <div className="novel-detail__comments-empty">
@@ -303,24 +300,19 @@ const NovelDetailPage = () => {
             ) : (
               comments.map((comment) => (
                 <article
-                  key={comment.comment_id}
+                  key={comment.comment_id || comment.id}
                   className="novel-detail__comment-card"
                 >
-                  <div className="novel-detail__comment-avatar">
-                    💬
-                  </div>
-
+                  <div className="novel-detail__comment-avatar">💬</div>
                   <div className="novel-detail__comment-body">
                     <div className="novel-detail__comment-top">
                       <span className="novel-detail__comment-user">
-                        {comment.username || "Unknown"}
+                        {comment.username || "ผู้ใช้งานนิรนาม"}
                       </span>
-
                       <span className="novel-detail__comment-date">
-                        {new Date(comment.created_at).toLocaleDateString()}
+                        {comment.created_at ? new Date(comment.created_at).toLocaleDateString() : "ไม่ระบุวันที่"}
                       </span>
                     </div>
-
                     <p className="novel-detail__comment-content">
                       {comment.content}
                     </p>
@@ -335,5 +327,5 @@ const NovelDetailPage = () => {
   );
 };
 
-
 export default NovelDetailPage;
+  

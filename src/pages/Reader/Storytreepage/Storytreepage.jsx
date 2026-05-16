@@ -1,534 +1,403 @@
-// src/pages/StoryTree/StoryTreePage.jsx
-
-import React, { useMemo } from "react";
-
+import React, { useMemo, useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import ReactFlow, {
   Background,
   Controls,
+  MiniMap, 
   Handle,
   Position,
 } from "reactflow";
-
 import "reactflow/dist/style.css";
 import "./StoryTreePage.css";
 
-import {
-  mockStoryTreeData,
-  NODE_STATUS,
-  ENDING_META,
-} from "../../../data/mockstorytreedata";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-import { SCENE_TYPES } from "../../../data/mockscenedata";
-
-// ======================================================
-// Status Colors
-// ======================================================
-
-const STATUS_STYLE = {
-  [NODE_STATUS.VISITED]: {
-    stroke: "#4CAF82",
-    fill: "#F0FBF5",
-    text: "#2E7A55",
-  },
-
-  [NODE_STATUS.CURRENT]: {
-    stroke: "#E91E8C",
-    fill: "#FFF0F5",
-    text: "#E91E8C",
-  },
-
-  [NODE_STATUS.LOCKED]: {
-    stroke: "#C8C3D4",
-    fill: "#F9F9FB",
-    text: "#9E9589",
-  },
-
-  [NODE_STATUS.ENDING_UNLOCKED]: {
-    stroke: "#F7C940",
-    fill: "#FFFDE7",
-    text: "#8B6D00",
-  },
-
-  [NODE_STATUS.ENDING_LOCKED]: {
-    stroke: "#C8C3D4",
-    fill: "#F9F9FB",
-    text: "#9E9589",
-  },
+const NODE_STATUS = {
+  VISITED: "visited",
+  CURRENT: "current",
+  LOCKED: "locked",
+  ENDING_UNLOCKED: "ending_unlocked",
+  ENDING_LOCKED: "ending_locked",
 };
 
-// ======================================================
-// Custom Node
-// ======================================================
+const STATUS_STYLE = {
+  [NODE_STATUS.VISITED]: { stroke: "#4CAF82", fill: "#F0FBF5", text: "#2E7A55" },
+  [NODE_STATUS.CURRENT]: { stroke: "#E91E8C", fill: "#FFF0F5", text: "#E91E8C" },
+  [NODE_STATUS.LOCKED]: { stroke: "#C8C3D4", fill: "#F9F9FB", text: "#9E9589" },
+  [NODE_STATUS.ENDING_UNLOCKED]: { stroke: "#F7C940", fill: "#FFFDE7", text: "#8B6D00" },
+  [NODE_STATUS.ENDING_LOCKED]: { stroke: "#C8C3D4", fill: "#F9F9FB", text: "#9E9589" },
+};
 
 const StoryNode = ({ data }) => {
-  const style = STATUS_STYLE[data.status];
-
-  const isCurrent =
-    data.status === NODE_STATUS.CURRENT;
-
-  const isLocked =
-    data.status === NODE_STATUS.LOCKED ||
-    data.status === NODE_STATUS.ENDING_LOCKED;
-
-  const isEnding =
-    data.sceneType === SCENE_TYPES.ENDING;
-
-  const endingMeta = data.endingType
-    ? ENDING_META[data.endingType]
-    : null;
+  const currentStatus = data.computedStatus || NODE_STATUS.LOCKED;
+  const style = STATUS_STYLE[currentStatus] || STATUS_STYLE[NODE_STATUS.LOCKED];
+  
+  const sceneType = data.type || "normal";
+  const isLocked = currentStatus === NODE_STATUS.LOCKED || currentStatus === NODE_STATUS.ENDING_LOCKED;
 
   const getPrefix = () => {
-    if (data.sceneType === SCENE_TYPES.START)
-      return "▶ ";
-
-    if (isLocked)
-      return "🔒 ";
-
-    if (
-      data.status ===
-      NODE_STATUS.ENDING_UNLOCKED &&
-      endingMeta
-    ) {
-      return `${endingMeta.icon} `;
-    }
-
-    if (isEnding)
-      return "🏆 ";
-
-    return "";
+    if (sceneType === "start") return "▶ ";
+    if (isLocked) return "🔒 ";
+    if (sceneType === "ending") return "🏆 ";
+    return "📖 ";
   };
+
+  // ดักจับชื่อคีย์จากหลังบ้านทุกรูปแบบที่เป็นไปได้ (ป้องกันชื่อไม่ขึ้น)
+  const sceneTitle = data.title || data.scene_name || data.name || data.label || data.chapter_name || `ฉากที่ ${data.id}`;
+  const sceneDescription = data.summary || data.description || data.short_content || data.content_summary || data.content || "อ่านต่อเพื่อค้นหาความลับในฉากนี้...";
 
   return (
     <>
-      <Handle
-        type="target"
-        position={Position.Top}
-      />
-
+      <Handle type="target" position={Position.Left} isConnectable={false} style={{ opacity: 0, pointerEvents: 'none' }} />
+      
       <div
-        className={`story-node ${isCurrent
-          ? "story-node--current"
-          : ""
-          }`}
+        className={`story-node ${currentStatus === NODE_STATUS.CURRENT ? "story-node--current" : ""}`}
         style={{
-          borderColor:
-            endingMeta &&
-              data.status ===
-              NODE_STATUS.ENDING_UNLOCKED
-              ? endingMeta.color
-              : style.stroke,
-
-          background:
-            endingMeta &&
-              data.status ===
-              NODE_STATUS.ENDING_UNLOCKED
-              ? `${endingMeta.color}15`
-              : style.fill,
-
-          color:
-            endingMeta &&
-              data.status ===
-              NODE_STATUS.ENDING_UNLOCKED
-              ? endingMeta.color
-              : style.text,
+          borderColor: style.stroke,
+          background: style.fill,
+          color: style.text,
+          padding: "12px",
+          width: "240px",
+          borderRadius: "8px",
+          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
+          borderWidth: "2px",
+          borderStyle: "solid"
         }}
       >
-        <div className="story-node__label">
+        <div className="story-node__label" style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {getPrefix()}
-
-          {data.isHidden &&
-            data.status !==
-            NODE_STATUS.ENDING_UNLOCKED
-            ? "???"
-            : data.label}
+          {isLocked ? "เนื้อเรื่องยังไม่เปิดเผย" : sceneTitle}
         </div>
 
-        <div className="story-node__chapter">
-          Ch.{data.chapterNumber}
+        <div className="story-node__desc" style={{ fontSize: "11px", color: isLocked ? "#a0aec0" : "#4a5568", lineHeight: "1.4", minHeight: "32px", display: "-webkit-box", WebkitLineClamp: "3", WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+          {isLocked ? "ผ่านเงื่อนไขในฉากก่อนหน้าเพื่อปลดล็อกผังเส้นทางคลังสายนี้" : sceneDescription}
+        </div>
+
+        <div className="story-node__chapter" style={{ marginTop: "8px", fontSize: "10px", opacity: 0.6, textAlign: "right" }}>
+          {sceneType === "start" ? "จุดเริ่มต้น" : sceneType === "ending" ? "ฉากจบ" : `ID: ${data.id}`}
         </div>
       </div>
 
-      <Handle
-        type="source"
-        position={Position.Bottom}
-      />
+      <Handle type="source" position={Position.Right} isConnectable={false} style={{ opacity: 0, pointerEvents: 'none' }} />
     </>
   );
 };
 
-// ======================================================
-// Node Types
-// ======================================================
-
+// 🔒 ย้ายออกมาไว้นอก Component ตามคำแนะนำใน Console เพื่อแก้ Warning สีเหลืองข้อแรกตัวบนสุดครับ
 const nodeTypes = {
   storyNode: StoryNode,
 };
 
-// ======================================================
-// Component
-// ======================================================
+const StoryTreePage = ({ novelId: propNovelId, userId = 1, onNavigate }) => {
+  const { novelId: urlNovelId } = useParams();
+  const activeNovelId = propNovelId || urlNovelId;
 
-const StoryTreePage = ({
-  novelId,
-  onNavigate,
-}) => {
-  const data = mockStoryTreeData;
+  const [treeData, setTreeData] = useState(null);
+  const [novelDetail, setNovelDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // ====================================================
-  // Nodes
-  // ====================================================
+  useEffect(() => {
+    if (!activeNovelId || activeNovelId === "undefined") {
+      setError("ไม่พบรหัสนิยายเพื่อโหลดผังเส้นทาง");
+      setLoading(false);
+      return;
+    }
 
-  const nodes = useMemo(() => {
-    return data.nodes.map((node) => ({
-      id: node.id,
+    const loadAllData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        try {
+          const novelRes = await fetch(`${BASE_URL}/novels/${activeNovelId}`);
+          if (novelRes.ok) {
+            const novelJson = await novelRes.json();
+            setNovelDetail(novelJson?.data?.novel || novelJson?.data || novelJson);
+          }
+        } catch (e) {
+          console.warn("ดึงข้อมูลนิยายหลักไม่สำเร็จ:", e);
+        }
 
-      type: "storyNode",
+        const response = await fetch(`${BASE_URL}/novels/${activeNovelId}/story-tree?user_id=${userId}`);
+        if (!response.ok) {
+          throw new Error("ไม่สามารถเรียกดูแผนผังนิยายกิ่งไม้จากฐานข้อมูลได้");
+        }
 
-      position: {
-        x: node.col * 240,
-        y: node.row * 140,
-      },
+        const resData = await response.json();
+        const actualTreeData = resData.data || resData;
+        if (actualTreeData) {
+          setTreeData(actualTreeData);
+        } else {
+          throw new Error("รูปแบบ JSON ของผังต้นไม้ที่ระบบส่งมาไม่ถูกต้อง");
+        }
+      } catch (err) {
+        console.error("StoryTree Fetch Error:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      data: node,
-    }));
-  }, [data.nodes]);
+    loadAllData();
+  }, [activeNovelId, userId]);
 
-  // ====================================================
-  // Edges
-  // ====================================================
+  const { computedNodes, computedEdges, autoStats } = useMemo(() => {
+    if (!treeData || !treeData.nodes) return { computedNodes: [], computedEdges: [], autoStats: null };
 
-  const nodeMap = Object.fromEntries(
-    data.nodes.map((n) => [n.id, n])
-  );
+    const rawNodes = treeData.nodes;
+    const rawEdges = treeData.edges || [];
 
-  const edges = useMemo(() => {
-    return data.edges.map((edge) => {
-      const fromNode = nodeMap[edge.from];
-      const toNode = nodeMap[edge.to];
+    const startNode = rawNodes.find(n => n.type === "start") || rawNodes[0];
+    const startNodeIdStr = startNode ? String(startNode.id) : null;
+    const hasBackendCurrent = rawNodes.some(n => n.is_current === true);
 
-      let stroke = "#D0CCD7";
+    const parentMap = {};
+    rawEdges.forEach(e => {
+      const from = String(e.from_id || e.from);
+      const to = String(e.to_id || e.to);
+      if (!parentMap[to]) parentMap[to] = [];
+      parentMap[to].push(from);
+    });
 
-      if (
-        fromNode.status ===
-        NODE_STATUS.CURRENT
-      ) {
-        stroke = "#E91E8C";
-      } else if (
-        fromNode.status ===
-        NODE_STATUS.VISITED &&
-        toNode.status ===
-        NODE_STATUS.VISITED
-      ) {
-        stroke = "#4CAF82";
-      } else if (
-        toNode.status ===
-        NODE_STATUS.ENDING_UNLOCKED
-      ) {
-        stroke = "#F7C940";
+    const adjList = {};
+    const inDegree = {};
+    rawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
+    rawEdges.forEach(e => {
+      const from = e.from_id || e.from; const to = e.to_id || e.to;
+      if (adjList[from] && adjList[to] !== undefined) { adjList[from].push(to); inDegree[to]++; }
+    });
+    const levels = {}; const queue = [];
+    rawNodes.forEach(n => { if (inDegree[n.id] === 0 || n.type === "start") { levels[n.id] = 0; queue.push(n.id); } });
+    while (queue.length > 0) {
+      const curr = queue.shift(); const currLevel = levels[curr] || 0;
+      (adjList[curr] || []).forEach(child => { if (levels[child] === undefined) { levels[child] = currLevel + 1; queue.push(child); } });
+    }
+    const levelCounts = {};
+    rawNodes.forEach(n => { const lv = levels[n.id] || 0; levelCounts[lv] = (levelCounts[lv] || 0) + 1; });
+    const levelCurrentTracker = {};
+
+    const activeNodeIds = new Set();
+    rawNodes.forEach(n => {
+      if (n.type === "start" || n.is_current || n.is_unlocked) {
+        activeNodeIds.add(String(n.id));
+      }
+    });
+
+    const mappedNodes = rawNodes.map((node) => {
+      const nodeIdStr = String(node.id);
+      const lv = levels[node.id] || 0;
+      if (levelCurrentTracker[lv] === undefined) levelCurrentTracker[lv] = 0;
+
+      const branchIndex = levelCurrentTracker[lv];
+      levelCurrentTracker[lv]++;
+      const xPosition = lv * 300;
+      const totalInLevel = levelCounts[lv] || 1;
+      const yPosition = (branchIndex - (totalInLevel - 1) / 2) * 180;
+
+      let computedStatus = NODE_STATUS.LOCKED;
+      const parents = parentMap[nodeIdStr] || [];
+      const isAnyParentActive = parents.some(pId => activeNodeIds.has(pId));
+
+      const isCurrentNode = node.is_current || (!hasBackendCurrent && nodeIdStr === startNodeIdStr);
+
+      if (node.type === "start") {
+        computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.VISITED;
+      } else if (node.type === "ending") {
+        computedStatus = node.is_unlocked ? NODE_STATUS.ENDING_UNLOCKED : NODE_STATUS.ENDING_LOCKED;
+      } else {
+        if (isCurrentNode) {
+          computedStatus = NODE_STATUS.CURRENT;
+        } else if (node.is_unlocked || isAnyParentActive) {
+          computedStatus = NODE_STATUS.VISITED; 
+        } else {
+          computedStatus = NODE_STATUS.LOCKED;
+        }
       }
 
       return {
-        id: edge.id,
+        id: nodeIdStr,
+        type: "storyNode",
+        position: { x: xPosition + 60, y: yPosition + 220 },
+        data: { ...node, computedStatus },
+      };
+    });
 
-        source: edge.from,
-        target: edge.to,
+    const mappedEdges = rawEdges.map((edge, idx) => {
+      const fromId = String(edge.from_id || edge.from);
+      const toId = String(edge.to_id || edge.to);
+      const sourceNodeMapped = mappedNodes.find(n => n.id === fromId);
+      
+      const isSourceActive = sourceNodeMapped?.data?.computedStatus === NODE_STATUS.CURRENT ||
+                             sourceNodeMapped?.data?.computedStatus === NODE_STATUS.VISITED;
 
-        animated:
-          fromNode.status ===
-          NODE_STATUS.CURRENT,
-
-        style: {
-          stroke,
-          strokeWidth: 2,
-        },
-
+      return {
+        id: String(edge.id || `e-${fromId}-${toId}-${idx}`),
+        source: fromId,
+        target: toId,
+        animated: isSourceActive,
+        label: edge.label || edge.choice_text || edge.text || "???",
+        labelStyle: { fill: "#4a5568", fontWeight: 500, fontSize: 11 },
+        labelBgPadding: [4, 4],
+        labelBgRadius: 4,
+        labelBgStyle: { fill: "#fff", fillOpacity: 0.9, stroke: "#cbd5e1", strokeWidth: 1 },
+        style: { stroke: isSourceActive ? "#4CAF82" : "#D0CCD7", strokeWidth: 2 },
         type: "smoothstep",
       };
     });
-  }, [data.edges]);
 
-  // ====================================================
-  // Click Node
-  // ====================================================
+    const visitedScenesCount = mappedNodes.filter(n => n.data.computedStatus === NODE_STATUS.VISITED || n.data.computedStatus === NODE_STATUS.CURRENT).length;
+    
+    const discoveredChoicesCount = mappedEdges.filter(edge => {
+      const targetNode = mappedNodes.find(n => n.id === edge.target);
+      return targetNode && (
+        targetNode.data.computedStatus === NODE_STATUS.VISITED || 
+        targetNode.data.computedStatus === NODE_STATUS.CURRENT ||
+        targetNode.data.computedStatus === NODE_STATUS.ENDING_UNLOCKED
+      );
+    }).length;
+
+    const unlockedEndingsCount = mappedNodes.filter(n => n.data.computedStatus === NODE_STATUS.ENDING_UNLOCKED).length;
+
+    return { 
+      computedNodes: mappedNodes, 
+      computedEdges: mappedEdges, 
+      autoStats: {
+        visitedScenes: visitedScenesCount,
+        totalScenes: rawNodes.length,
+        discoveredChoices: discoveredChoicesCount,
+        totalChoices: rawEdges.length,
+        unlockedEndings: unlockedEndingsCount,
+        totalEndings: rawNodes.filter(n => n.type === "ending").length || 3
+      } 
+    };
+  }, [treeData]);
 
   const handleNodeClick = (_, node) => {
-    const scene = node.data;
-
-    const clickable =
-      scene.status ===
-      NODE_STATUS.CURRENT ||
-      scene.status ===
-      NODE_STATUS.VISITED;
+    const currentStatus = node.data?.computedStatus;
+    const clickable = currentStatus === NODE_STATUS.CURRENT ||
+                      currentStatus === NODE_STATUS.VISITED ||
+                      currentStatus === NODE_STATUS.ENDING_UNLOCKED;
 
     if (!clickable) return;
 
-    onNavigate("reading", {
-      novelId,
-      initialSceneId: scene.id,
-    });
+    if (onNavigate) {
+      onNavigate("reading", {
+        novelId: activeNovelId,
+        initialSceneId: node.data.id,
+      });
+    }
   };
 
-  // ====================================================
-  // Render
-  // ====================================================
+  if (loading) {
+    return (
+      <div style={{ padding: "100px", textAlign: "center", color: "#666" }}>
+        <div style={{ width: "40px", height: "40px", border: "4px solid #f3f3f3", borderTop: "4px solid #E91E8C", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
+        <p style={{ fontSize: "1.1rem" }}>กำลังเตรียมข้อมูลผังเส้นทาง...</p>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: "60px", textAlign: "center", color: "#f44336" }}>
+        <h3>💥 โหลดผังโครงสร้างไม่สำเร็จ</h3>
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  const finalTitle = novelDetail?.title || treeData?.novel_title || "ผังโครงสร้างเนื้อเรื่อง";
+  const stats = autoStats;
 
   return (
     <div className="stp">
       <div className="stp__container">
-
-        {/* Back */}
-        <button
-          className="stp__back"
-          onClick={() =>
-            onNavigate(
-              "novel-detail",
-              { novelId }
-            )
-          }
-        >
+        <button className="stp__back" onClick={() => onNavigate && onNavigate("novel-detail", { novelId: activeNovelId })}>
           ← กลับรายละเอียด
         </button>
 
-        {/* Header */}
         <div className="stp__header">
           <h1 className="stp__title">
             ผังเส้นทาง
-            <span className="stp__title-sep">
-              {" "}—{" "}
-            </span>
-
-            <span className="stp__title-novel">
-              {data.novelTitle}
-            </span>
+            <span className="stp__title-sep">{" "}—{" "}</span>
+            <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{finalTitle}</span>
           </h1>
 
           <div className="stp__legend">
             {[
-              {
-                color: "#E91E8C",
-                label: "กำลังอ่าน",
-              },
-              {
-                color: "#4CAF82",
-                label: "ผ่านแล้ว",
-              },
-              {
-                color: "#F7C940",
-                label: "ตอนจบ",
-              },
-              {
-                color: "#C8C3D4",
-                label: "ยังไม่ถึง",
-              },
+              { color: "#E91E8C", label: "จุดปัจจุบัน" },
+              { color: "#4CAF82", label: "ปลดล็อกแล้ว" },
+              { color: "#F7C940", label: "ตอนจบปลดแล้ว" },
+              { color: "#C8C3D4", label: "ยังไม่ปลดล็อก" },
             ].map((item) => (
-              <div
-                key={item.label}
-                className="stp__legend-item"
-              >
-                <span
-                  className="stp__legend-dot"
-                  style={{
-                    background:
-                      item.color,
-                  }}
-                />
-
+              <div key={item.label} className="stp__legend-item">
+                <span className="stp__legend-dot" style={{ background: item.color }} />
                 <span>{item.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* MAIN */}
         <div className="stp__main">
-
-          {/* FLOW */}
-          <div className="stp__flow-wrapper">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              fitView
-              fitViewOptions={{
-                padding: 0.3,
-              }}
-              zoomOnScroll={false}
-              panOnDrag={true}
-              minZoom={0.7}
-              maxZoom={1.5}
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable={false}
-              onNodeClick={
-                handleNodeClick
-              }
-              proOptions={{
-                hideAttribution: true,
-              }}
-            >
-              <Background
-                gap={20}
-                size={1}
-              />
-
-              <Controls />
-            </ReactFlow>
+          {/* กำหนดขนาดกว้างสูงแบบ inline และครอบเงื่อนไขให้แน่ใจว่าเรนเดอร์ React Flow ตอนมีข้อมูลชัวร์ๆ ป้องกัน Warning ตัวที่สองครับ */}
+          <div className="stp__flow-wrapper" style={{ width: "100%", height: "650px", background: "#f8f9fa", borderRadius: "8px", position: "relative" }}>
+            {computedNodes.length > 0 && (
+              <ReactFlow
+                nodes={computedNodes}
+                edges={computedEdges}
+                nodeTypes={nodeTypes}
+                fitView
+                fitViewOptions={{ padding: 0.2 }}
+                zoomOnScroll={true}
+                panOnDrag={true}
+                nodesDraggable={true}
+                nodesConnectable={false}
+                elementsSelectable={false}
+                onNodeClick={handleNodeClick}
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background gap={24} size={1} color="#e2e8f0" />
+                <Controls />
+                <MiniMap 
+                  nodeColor={(node) => {
+                    const status = node.data?.computedStatus;
+                    if (status === NODE_STATUS.CURRENT) return "#E91E8C";
+                    if (status === NODE_STATUS.VISITED) return "#4CAF82";
+                    if (status === NODE_STATUS.ENDING_UNLOCKED) return "#F7C940";
+                    return "#cbd5e1";
+                  }}
+                  maskColor="rgba(248, 249, 250, 0.7)"
+                  style={{ borderRadius: "6px", border: "1px solid #cbd5e1" }}
+                />
+              </ReactFlow>
+            )}
           </div>
 
-          {/* SIDEBAR */}
           <aside className="stp__sidebar">
-
             <div className="stp__stat-card">
-
-              <div className="stp__stat-card-title">
-                สถิติการสำรวจ
-              </div>
+              <div className="stp__stat-card-title">สถิติการสำรวจ</div>
 
               {[
-                {
-                  label:
-                    "เส้นทางที่ผ่านแล้ว",
-
-                  val:
-                    data.stats
-                      .visitedScenes,
-
-                  total:
-                    data.stats
-                      .totalScenes,
-                },
-
-                {
-                  label:
-                    "จุดเลือกที่ค้นพบ",
-
-                  val:
-                    data.stats
-                      .discoveredChoices,
-
-                  total:
-                    data.stats
-                      .totalChoicePoints,
-                },
-
-                {
-                  label:
-                    "ตอนจบที่ปลดล็อก",
-
-                  val:
-                    data.stats
-                      .unlockedEndings,
-
-                  total:
-                    data.stats
-                      .totalEndings,
-                },
+                { label: "เส้นทางที่ผ่านแล้ว", val: stats.visitedScenes, total: stats.totalScenes },
+                { label: "ทางเลือกที่ค้นพบ", val: stats.discoveredChoices, total: stats.totalChoices },
+                { label: "ตอนจบที่ปลดล็อก", val: stats.unlockedEndings, total: stats.totalEndings },
               ].map((stat, i) => (
-                <div
-                  key={i}
-                  style={{
-                    marginTop:
-                      i > 0
-                        ? 14
-                        : 0,
-                  }}
-                >
+                <div key={i} style={{ marginTop: i > 0 ? 14 : 0 }}>
                   <div className="stp__stat-item">
-                    <span className="stp__stat-label">
-                      {stat.label}
-                    </span>
-
+                    <span className="stp__stat-label">{stat.label}</span>
                     <span className="stp__stat-value stp__stat-value--pink">
-                      {stat.val}/
-                      {stat.total}
+                      {stat.val}/{stat.total}
                     </span>
                   </div>
-
                   <div className="stp__stat-track">
                     <div
                       className="stp__stat-fill stp__stat-fill--pink"
-                      style={{
-                        width: `${(stat.val /
-                          stat.total) *
-                          100
-                          }%`,
-                      }}
+                      style={{ width: `${stat.total > 0 ? (stat.val / stat.total) * 100 : 0}%` }}
                     />
                   </div>
                 </div>
               ))}
-
-              {/* ENDINGS */}
-              <div className="stp__endings-list">
-                {data.nodes
-                  .filter(
-                    (n) =>
-                      n.sceneType ===
-                      SCENE_TYPES.ENDING
-                  )
-                  .map((endNode) => {
-                    const meta =
-                      endNode.endingType
-                        ? ENDING_META[
-                        endNode
-                          .endingType
-                        ]
-                        : null;
-
-                    const unlocked =
-                      endNode.status ===
-                      NODE_STATUS.ENDING_UNLOCKED;
-
-                    return (
-                      <div
-                        key={
-                          endNode.id
-                        }
-                        className={`stp__ending-item ${unlocked
-                          ? "stp__ending-item--unlocked"
-                          : ""
-                          }`}
-                      >
-                        <span className="stp__ending-icon">
-                          {unlocked
-                            ? meta?.icon ||
-                            "🏆"
-                            : "🔒"}
-                        </span>
-
-                        <div>
-                          <div className="stp__ending-type">
-                            {meta?.label}
-                          </div>
-
-                          <div className="stp__ending-name">
-                            {unlocked
-                              ? endNode.label
-                              : "???"}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* BUTTON */}
-              <button
-                className="stp__continue-btn"
-                onClick={() =>
-                  onNavigate(
-                    "reading",
-                    {
-                      novelId,
-                      initialSceneId:
-                        data.currentSceneId,
-                    }
-                  )
-                }
-              >
-                ▶ อ่านต่อ
-              </button>
-
             </div>
           </aside>
         </div>
