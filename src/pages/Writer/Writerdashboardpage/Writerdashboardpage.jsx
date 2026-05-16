@@ -42,7 +42,7 @@ const STAT_CARDS = [
   {
     key: "totalBookmarks",
     label: "จำนวนเพิ่มเข้าชั้น",
-    icon: "🔖",
+    icon: "📓",
     colorClass: "scard--green",
   },
 ];
