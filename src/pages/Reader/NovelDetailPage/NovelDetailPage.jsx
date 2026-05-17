@@ -50,6 +50,9 @@ const NovelDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [comments, setComments] = useState([]);
+  
+  // 📝 เพิ่ม State เฉพาะฝั่งกล่องพิมพ์ข้อความ (ไม่ต้องใช้ Authen)
+  const [commentText, setCommentText] = useState("");
 
   useEffect(() => {
     const fetchNovel = async () => {
@@ -63,7 +66,7 @@ const NovelDetailPage = () => {
       setError(null);
 
       try {
-        // ดึงข้อมูลรายละเอียดนิยายพ่วง user_id
+        // ดึงข้อมูลรายละเอียดนิยายพ่วง user_id ล็อกหัวไว้ที่ 1 ก่อนทำ Authen
         const response = await fetch(`${API_BASE_URL}/novels/${id}?user_id=1`);
         const payload = await response.json().catch(() => null);
         if (!response.ok) {
@@ -99,7 +102,7 @@ const NovelDetailPage = () => {
           console.warn("Failed to fetch comments:", err);
         }
 
-        // 🔍 ดักจับชื่อตัวแปรจากหลังบ้าน รองรับทั้ง snake_case และ camelCase (ถอดเลข Mock ออกหมดแล้ว)
+        // 🔍 ดักจับชื่อตัวแปรจากหลังบ้าน รองรับทั้ง snake_case และ camelCase
         const totalScenes = data.total_scenes ?? data.totalScenes ?? chaptersCountFromApi ?? 0;
         const visitedScenes = data.visited_scenes ?? data.visitedScenes ?? 0;
         const totalChoices = data.total_choices ?? data.totalChoices ?? 0;
@@ -124,7 +127,7 @@ const NovelDetailPage = () => {
           },
           synopsis: nData.captions || nData.introduction || "ไม่มีเรื่องย่อ",
           
-          // 📊 ข้อมูลจริงจากสเตตัสหลังบ้าน (ถ้าเรื่องไหนไม่มีจะขึ้นตามจริง ไม่ก๊อปปี้เลขเดิมแล้วครับ)
+          // 📊 ข้อมูลจริงจากสเตตัสหลังบ้าน
           stats: {
             views: nData.views || 0, 
             paths: totalScenes, 
@@ -155,6 +158,7 @@ const NovelDetailPage = () => {
     fetchNovel();
   }, [id]);
 
+  // 📖 ปุ่มเริ่มอ่าน ดิ่งเข้าหน้าอ่านหลักประจำรหัสนิยาย
   const handleRead = () => {
     if (novel.id) {
       navigate(`/reading/${novel.id}`);
@@ -173,6 +177,14 @@ const NovelDetailPage = () => {
     if (novel.id) {
       navigate(`/storytree/${novel.id}`);
     }
+  };
+
+  // 💬 ฟังก์ชันจำลองเมื่อกดปุ่มส่งความคิดเห็น (ผูก Log ไว้รอน้าทำ Authen / API ส่งจริง)
+  const handleSendCommentMock = () => {
+    if (!commentText.trim()) return;
+    console.log("ส่งความคิดเห็นข้อความสำเร็จ:", commentText);
+    alert(`ระบบบันทึกคอมเมนต์จำลอง: "${commentText}" (รอเชื่อมต่อหลังบ้านสมบูรณ์)`);
+    setCommentText(""); // ล้างกล่องข้อความ
   };
 
   if (loading) {
@@ -286,8 +298,13 @@ const NovelDetailPage = () => {
               placeholder="เขียนความคิดเห็นของคุณ..."
               className="novel-detail__comment-input"
               rows={4}
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)} // 👈 เพิ่มลอจิกผูกข้อความเข้า State
             />
-            <button className="novel-detail__comment-button">
+            <button 
+              className="novel-detail__comment-button" 
+              onClick={handleSendCommentMock} // 👈 ลิงก์ปุ่มเข้าฟังก์ชันจัดการเบื้องต้น
+            >
               ส่งความคิดเห็น
             </button>
           </div>
@@ -328,4 +345,3 @@ const NovelDetailPage = () => {
 };
 
 export default NovelDetailPage;
-  

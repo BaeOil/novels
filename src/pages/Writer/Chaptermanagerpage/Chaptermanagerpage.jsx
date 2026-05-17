@@ -361,7 +361,7 @@ const ChapterManagerPage = ({ novelId, onNavigate }) => {
           </div>
           <button
             className="cm-btn cm-btn--outline cm-btn--tree"
-            onClick={() => onNavigate("story-tree")}
+            onClick={() => onNavigate("story-tree", { novelId })}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <circle cx="3" cy="8" r="2" fill="currentColor" opacity=".7"/>
@@ -384,7 +384,7 @@ const ChapterManagerPage = ({ novelId, onNavigate }) => {
           <ChapterPanel
             chapter={activeChapter}
             onWrite={(chId, scId) =>
-              onNavigate("write", { chapterId: chId, sceneId: scId })
+              onNavigate("write", { novelId, chapterId: chId, sceneId: scId })
             }
           />
         )}

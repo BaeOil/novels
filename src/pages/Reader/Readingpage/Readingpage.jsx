@@ -130,29 +130,12 @@ const ReadingPage = ({
   };
 
   const handleLocalNavigate = (targetView) => {
-  if (targetView === "story-tree") {
-    // พ่น URL ไปที่ /storytree/รหัสนิยาย เพื่อให้เข้าเงื่อนไข App.jsx ใหม่ทันที  !
-    navigate(`/storytree/${novelId}`); 
-  } else if (targetView === "novel-detail") {
-    navigate(`/novel/${novelId}`);
-  }
-};
-
-  // 🌳 RENDER: หน้าผังเมืองจำลอง (Story Tree)
-  if (currentView === "story-tree") {
-    return (
-      <div style={{ padding: "40px", textAlign: "center", background: "#1a1a1a", color: "#fff", minHeight: "100vh" }}>
-        <h2 style={{ color: "#4CAF50" }}>🌳 หน้าผังเนื้อเรื่อง Story Tree</h2>
-        <p style={{ color: "#aaa" }}>[ ลิงก์ API หลังบ้าน: GET /novels/{novelId}/story-tree ]</p>
-        <button
-          onClick={() => setCurrentView("reading")}
-          style={{ padding: "10px 20px", marginTop: "20px", cursor: "pointer", background: "#4CAF50", color: "#fff", border: "none", borderRadius: "5px" }}
-        >
-          ↩️ กลับไปอ่านนิยายต่อ
-        </button>
-      </div>
-    );
-  }
+    if (targetView === "story-tree") {
+      navigate(`/storytree/${novelId}`); 
+    } else if (targetView === "novel-detail") {
+      navigate(`/novel/${novelId}`);
+    }
+  };
 
   // ⏳ LOADING & ERROR STATES
   if (loading) {
@@ -180,7 +163,10 @@ const ReadingPage = ({
   }
 
   // 🎯 แกะตัวแปรจาก Database
-  const { content, choices, type, novel_title, chapter_title, scene_title } = sceneData;
+  const { content, choices, type, novel_title, chapter_title, scene_title, chapter_order, order } = sceneData;
+
+  // 🎯 ดักจับตัวเลขลำดับตอน (มองหาเผื่อไว้ทั้งชื่อ chapter_order และ order เผื่อหลังบ้านส่งคีย์ไม่เหมือนกัน)
+  const currentOrder = chapter_order || order || null;
 
   // 🏷️ ฟังก์ชันช่วยแปลงข้อมูล 'type' ให้เป็นข้อความ Tag สวยๆ บนหน้าจอ
   const getSceneTagDetails = (sceneType) => {
@@ -225,21 +211,21 @@ const ReadingPage = ({
               เรื่อง : {novel_title || novelTitle}
             </div>
 
-            {/* แถวที่ 2 ตรงกลาง: แสดงชื่อตอน/ชื่อบทจริง */}
+            {/* แถวที่ 2 ตรงกลาง: แสดงชื่อฉาก/เนื้อเรื่องย่อย (ตัวใหญ่สะใจสายตาคนอ่าน) */}
             <h1 className="rp__title" style={{ fontSize: "2.2rem", fontWeight: "bold", margin: "10px 0", color: "#111" }}>
-              {chapter_title || (type === "start" ? "บทนำ" : "ไม่มีชื่อตอน")}
+              {scene_title || (type === "start" ? "จุดเริ่มต้นการเดินทาง" : "ดำเนินเรื่องย่อย")}
             </h1>
 
-            {/* แถวที่ 3 เล็กลงมา: แสดงชื่อฉากย่อย และ ป้าย Tag สถานะเนื้อเรื่อง แทนตัวจับเวลาเดิม */}
+            {/* แถวที่ 3 เล็กลงมา: แสดงคำว่า "ตอนที่ [เลข] : [ชื่อตอน]" และ ป้าย Tag ประเภทเนื้อเรื่อง */}
             <div className="rp__scene-meta" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontSize: "1.05rem", color: "#555", marginTop: "15px", flexWrap: "wrap" }}>
-              {scene_title && (
-                <span style={{ color: "#333", fontWeight: "600" }}>
-                  ✨ {scene_title}
-                </span>
-              )}
-              {scene_title && <span style={{ color: "#ccc" }}>|</span>}
+              <span style={{ color: "#4a5568", fontWeight: "600" }}>
+                📂 {currentOrder ? `ตอนที่ ${currentOrder} : ` : "ตอน : "} 
+                {chapter_title || (type === "start" ? "บทนำ" : "บททั่วไป")}
+              </span>
               
-              {/* 🎯 ป้าย Tag แสดงประเภทฉากย่อย สวยงาม สบายตา ไม่กดดันคนอ่านครับน้า */}
+              <span style={{ color: "#ccc" }}>|</span>
+              
+              {/* 🎯 ป้าย Tag แสดงประเภทฉากย่อย */}
               <span style={{ 
                 backgroundColor: tag.bg, 
                 color: tag.color, 

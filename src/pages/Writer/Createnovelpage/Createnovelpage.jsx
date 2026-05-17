@@ -12,27 +12,43 @@
 //    - สถานะเรื่อง toggle (เผยแพร่ / ฉบับร่าง)
 //    - สถานะจบ  toggle  (จบแล้ว / ยังไม่จบ)
 //
-//  TODO: POST /api/v1/novels เมื่อ Backend พร้อม
+//  Backend API connected:
+//    - POST /novels           -> สร้างนิยายใหม่
+//    - POST /upload/image      -> อัพโหลดปกนิยาย
 // ══════════════════════════════════════════════════════════════
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./CreateNovelPage.css";
 import MultiSelect from "../../../components/MultiSelect/MultiSelect";
 import CoverUpload from "../../../components/CoverUpload/CoverUpload";
 import Toggle from "../../../components/Toggle/Toggle";
-import { NOVEL_CATEGORIES } from "../../../data/mockWriterData";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 // ── ค่า default ของ form ──────────────────────────────────────
 const INITIAL_FORM = {
     title: "",
     tagline: "",
-    categories: ["ผจญภัย", "มิตรภาพ"],  // ตาม mock ในรูป
+    categories: [],
     description: "",
     coverFile: null,
     coverPreview: null,
     isPublished: true,    // toggle สถานะเรื่อง (เผยแพร่)
     isCompleted: false,   // toggle สถานะจบ    (ยังไม่จบ)
 };
+
+const FALLBACK_CATEGORIES = [
+    "แฟนตาซี",
+    "โรแมนซ์",
+    "ผจญภัย",
+    "ลึกลับ",
+    "สยองขวัญ",
+    "ดราม่า",
+    "ตลก",
+    "ชีวิต",
+    "ไซไฟ",
+    "ประวัติศาสตร์",
+];
 
 // ── Validation rules ─────────────────────────────────────────
 const validate = (form) => {
@@ -54,7 +70,46 @@ const validate = (form) => {
 const CreateNovelPage = ({ onNavigate }) => {
     const [form, setForm] = useState(INITIAL_FORM);
     const [errors, setErrors] = useState({});
+    const [submissionError, setSubmissionError] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [categories, setCategories] = useState([]);
+    const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [categoriesError, setCategoriesError] = useState(null);
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            setCategoriesLoading(true);
+            setCategoriesError(null);
+            try {
+                const response = await fetch(`${API_BASE_URL}/categories`);
+                if (!response.ok) {
+                    throw new Error("failed to fetch categories");
+                }
+                const result = await response.json();
+                const categoriesData = Array.isArray(result)
+                    ? result
+                    : Array.isArray(result?.data)
+                        ? result.data
+                        : [];
+                if (categoriesData.length === 0) {
+                    throw new Error("categories response invalid");
+                }
+                setCategories(categoriesData.map((category) => ({
+                    id: category.category_id || category.id,
+                    name: category.name,
+                })));
+            } catch (err) {
+                console.error("Category load error:", err);
+                setCategories(FALLBACK_CATEGORIES.map((name, index) => ({ id: index + 1, name })));
+                setCategoriesError("ไม่สามารถดึงหมวดหมู่จากระบบได้ กำลังใช้ค่าเริ่มต้นแทน");
+            } finally {
+                setCategoriesLoading(false);
+            }
+        };
+        loadCategories();
+    }, []);
+
+    const categoryOptions = categories.map((cat) => cat.name);
 
     // ── Field change helper ──────────────────────────────────
     const setField = (key, value) => {
@@ -81,31 +136,78 @@ const CreateNovelPage = ({ onNavigate }) => {
         }
 
         setIsSubmitting(true);
+        setSubmissionError(null);
 
-        // TODO: เชื่อม API เมื่อ Backend พร้อม:
-        // const formData = new FormData();
-        // formData.append("title",       form.title);
-        // formData.append("tagline",     form.tagline);
-        // formData.append("categories",  JSON.stringify(form.categories));
-        // formData.append("description", form.description);
-        // formData.append("isPublished", form.isPublished);
-        // formData.append("isCompleted", form.isCompleted);
-        // if (form.coverFile) formData.append("cover", form.coverFile);
-        //
-        // const res = await fetch("/api/v1/novels", {
-        //   method: "POST",
-        //   headers: { Authorization: `Bearer ${token}` },
-        //   body: formData,
-        // });
-        // const data = await res.json();
-        // onNavigate("chapters", data.id);
+        try {
+            let coverImageUrl = null;
+            if (form.coverFile) {
+                const uploadForm = new FormData();
+                uploadForm.append("image", form.coverFile);
 
-        // Mock: simulate API delay
-        setTimeout(() => {
+                const uploadResponse = await fetch(`${API_BASE_URL}/upload/image`, {
+                    method: "POST",
+                    body: uploadForm,
+                });
+
+                if (!uploadResponse.ok) {
+                    const errorPayload = await uploadResponse.json().catch(() => null);
+                    throw new Error(errorPayload?.error || errorPayload?.message || "Upload cover image failed");
+                }
+
+                const uploadData = await uploadResponse.json();
+                coverImageUrl = uploadData?.full_url || uploadData?.data?.full_url || uploadData?.url;
+                if (coverImageUrl) {
+                    coverImageUrl = coverImageUrl.replace("http://minio:9000", "http://localhost:9000");
+                }
+            }
+
+            const categoryIds = categories
+                .filter((category) => form.categories.includes(category.name))
+                .map((category) => category.id);
+
+            console.log("🐛 DEBUG categoryIds:", {
+                selectedNames: form.categories,
+                allCategories: categories,
+                calculatedIds: categoryIds,
+            });
+
+            const payload = {
+                title: form.title.trim(),
+                captions: form.tagline.trim(),
+                introduction: form.description.trim(),
+                cover_image: coverImageUrl,
+                status: form.isPublished ? "published" : "draft",
+                category_ids: categoryIds,
+                author_id: 1,
+            };
+
+            console.log("📦 DEBUG payload:", payload);
+
+            const response = await fetch(`${API_BASE_URL}/novels`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const result = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(result?.error || result?.message || "Failed to create novel");
+            }
+
+            const newNovelId = result?.novel_id || result?.data?.novel_id;
+            if (!newNovelId) {
+                throw new Error("Novel ID not returned from server");
+            }
+
+            onNavigate("chapters", { novelId: newNovelId });
+        } catch (err) {
+            console.error("Create novel error:", err);
+            setSubmissionError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดไม่รู้จัก");
+        } finally {
             setIsSubmitting(false);
-            alert(`✅ สร้างนิยาย "${form.title}" สำเร็จ!`);
-            onNavigate("dashboard");
-        }, 800);
+        }
     };
 
     const taglineLen = form.tagline.length;
@@ -122,6 +224,11 @@ const CreateNovelPage = ({ onNavigate }) => {
             {/* ── Main card ── */}
             <div className="cnp__form-wrap">
                 <div className="cnp__card">
+                    {submissionError && (
+                      <div className="cnp__error-banner" role="alert" style={{ marginBottom: "16px" }}>
+                        {submissionError}
+                      </div>
+                    )}
 
                     {/* ── Card section header ── */}
                     <div className="cnp__section-header">
@@ -186,12 +293,17 @@ const CreateNovelPage = ({ onNavigate }) => {
                                     หมวดหมู่ <span className="cnp__required">*</span>
                                 </label>
                                 <MultiSelect
-                                    options={NOVEL_CATEGORIES}
+                                    options={categoryOptions}
                                     value={form.categories}
                                     onChange={(val) => setField("categories", val)}
-                                    placeholder="เลือกหมวดหมู่..."
+                                    placeholder={categoriesLoading ? "กำลังโหลดหมวดหมู่..." : "เลือกหมวดหมู่..."}
                                     max={5}
                                 />
+                                {categoriesError && (
+                                    <p className="cnp__info" style={{ color: "#d97706" }} role="alert">
+                                        {categoriesError}
+                                    </p>
+                                )}
                                 {errors.categories && (
                                     <p className="cnp__error" role="alert">{errors.categories}</p>
                                 )}

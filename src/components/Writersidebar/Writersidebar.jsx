@@ -1,5 +1,6 @@
 // src/components/WriterSidebar/WriterSidebar.jsx
 import React from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./WriterSidebar.css";
 import { mockWriterProfile } from "../../data/mockWriterData";
 
@@ -54,7 +55,58 @@ const NOVEL_MENU = [
   },
 ];
 
-const WriterSidebar = ({ currentPage, selectedNovelId, onNavigate }) => {
+const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selectedNovelIdProp, onNavigate }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = location.pathname;
+
+  const selectedNovelId = selectedNovelIdProp || (() => {
+    const writerMatch = pathname.match(/^\/writer\/(\d+)\/chapters/);
+    const storyMatch = pathname.match(/^\/storytree\/(\d+)/);
+    return writerMatch ? writerMatch[1] : storyMatch ? storyMatch[1] : null;
+  })();
+
+  const currentPage = currentPageProp || (() => {
+    if (pathname.startsWith("/create")) return "create-novel";
+    if (pathname.startsWith("/writer/") && pathname.includes("/chapters")) return "chapters";
+    if (pathname.startsWith("/storytree/")) return "story-tree";
+    return pathname.startsWith("/dashboard") ? "dashboard" : "dashboard";
+  })();
+
+  const handleRoute = (pageId) => {
+    if (typeof onNavigate === "function") {
+      onNavigate(pageId);
+      return;
+    }
+
+    switch (pageId) {
+      case "dashboard":
+        navigate("/dashboard");
+        break;
+      case "create-novel":
+        navigate("/create");
+        break;
+      case "chapters":
+      case "write":
+        if (selectedNovelId) {
+          navigate(`/writer/${selectedNovelId}/chapters`);
+        } else {
+          navigate("/dashboard");
+        }
+        break;
+      case "story-tree":
+        if (selectedNovelId) {
+          navigate(`/storytree/${selectedNovelId}`);
+        } else {
+          navigate("/dashboard");
+        }
+        break;
+      default:
+        navigate("/dashboard");
+        break;
+    }
+  };
+
   return (
     <aside className="wsb">
       {/* ── Logo ── */}
@@ -73,7 +125,7 @@ const WriterSidebar = ({ currentPage, selectedNovelId, onNavigate }) => {
           <button
             key={item.id}
             className={`wsb__item ${currentPage === item.id ? "wsb__item--active" : ""}`}
-            onClick={() => onNavigate(item.id)}
+            onClick={() => handleRoute(item.id)}
             aria-current={currentPage === item.id ? "page" : undefined}
           >
             <span className="wsb__item-icon">{item.icon}</span>
@@ -91,7 +143,7 @@ const WriterSidebar = ({ currentPage, selectedNovelId, onNavigate }) => {
               <button
                 key={item.id}
                 className={`wsb__item ${currentPage === item.id ? "wsb__item--active" : ""}`}
-                onClick={() => onNavigate(item.id)}
+                onClick={() => handleRoute(item.id)}
               >
                 <span className="wsb__item-icon">{item.icon}</span>
                 <span className="wsb__item-label">{item.label}</span>

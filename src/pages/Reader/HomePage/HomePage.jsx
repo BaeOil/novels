@@ -123,7 +123,7 @@ const HomePage = ({ onNavigate }) => {
       <section className="home__section">
         <div className="home__section-inner">
           <div className="home__section-header">
-            <h2 className="home__section-title">นิยายยอดนิยม</h2>
+            <h2 className="home__section-title">นิยายใหม่ล่าสุด</h2>
             {error && <span className="error-text" style={{ color: '#ef4444' }}>{error}</span>}
           </div>
 
