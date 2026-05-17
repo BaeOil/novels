@@ -48,6 +48,19 @@ services:
     networks:
       - novels_network
     restart: unless-stopped
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    networks:
+      - novels_network
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set myminio http://minio:9000 minionovel minionovel123) do echo 'Waiting for Minio...' && sleep 1; done;
+      /usr/bin/mc mb myminio/novel-buckets || true;
+      /usr/bin/mc anonymous set public myminio/novel-buckets;
+      exit 0;
+      "
 
 volumes:
   novels_postgres_data:
