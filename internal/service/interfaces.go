@@ -20,6 +20,7 @@ type SceneService interface {
 	GetScenesByChapterID(int) ([]models.Scene, error)
 	CreateScene(models.Scene) (int, error)
 	CreateChoice(models.Choice) (int, error)
+	GetStoryTree(novelID int, userID int) (models.StoryTreeResponse, error)
 	Ping() error
 }
 
@@ -38,9 +39,9 @@ type SocialService interface {
 }
 
 type ReadingService interface {
-	GetProgress(int, int) (*models.ReadingProgress, error)
-	SaveProgress(models.ReadingProgress) error
-	RecordChoiceHistory(models.ChoiceHistory) error
+	GetProgress(userID, novelID int) (*models.ReadingProgress, error)
+	SaveProgress(progress models.ReadingProgress) error
+	RecordChoiceHistory(history models.ChoiceHistory) error
 }
 
 type FlowService interface {

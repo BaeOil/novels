@@ -11,6 +11,7 @@ type CreateNovelRequest struct {
 	Introduction *string `json:"introduction,omitempty"`
 	CoverImage   *string `json:"cover_image,omitempty"`
 	Status       string  `json:"status,omitempty"`
+	CategoryIDs  []int   `json:"category_ids,omitempty"`
 	AuthorID     int     `json:"author_id"`
 }
 
@@ -55,6 +56,7 @@ type CreateSceneRequest struct {
 	ChapterID         int    `json:"chapter_id"`
 	Title             string `json:"title"`
 	Content           string `json:"content"`
+	ImageURL          string `json:"image_url"`
 	Type              string `json:"type"`
 	EndingTitle       string `json:"ending_title"`
 	EndingType        string `json:"ending_type"`

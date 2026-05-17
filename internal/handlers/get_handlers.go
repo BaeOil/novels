@@ -1,13 +1,30 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"novel-be/internal/service"
 	"strconv"
 	"strings"
 )
 
-// GET /novels/{id} or /novels/{id}/start
+func extractIDFromPath(urlPath, prefix string) (int, error) {
+	trimmed := strings.TrimPrefix(urlPath, prefix)
+	trimmed = strings.Trim(trimmed, "/")
+	if trimmed == "" {
+		return 0, errors.New("missing id")
+	}
+	if idx := strings.Index(trimmed, "/"); idx != -1 {
+		trimmed = trimmed[:idx]
+	}
+	id, err := strconv.Atoi(trimmed)
+	if err != nil || id <= 0 {
+		return 0, errors.New("invalid id")
+	}
+	return id, nil
+}
+
+// GET /novels/{id}
 func GetNovelDetailHandler(novelService service.NovelService, sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -15,42 +32,76 @@ func GetNovelDetailHandler(novelService service.NovelService, sceneService servi
 			return
 		}
 
-		path := strings.TrimPrefix(r.URL.Path, "/novels/")
-		path = strings.TrimSuffix(path, "/")
-
-		// Check if this is a /start request
-		if strings.HasSuffix(path, "/start") {
-			idStr := strings.TrimSuffix(path, "/start")
-			id, err := strconv.Atoi(strings.Trim(idStr, "/"))
-			if err != nil || id <= 0 {
-				RespondWithError(w, http.StatusBadRequest, "invalid novel id", err.Error())
-				return
-			}
-
-			response, err := sceneService.GetStartScene(id)
-			if err != nil {
-				RespondWithError(w, http.StatusNotFound, "start scene not found", err.Error())
-				return
-			}
-
-			RespondWithJSON(w, http.StatusOK, response)
-			return
-		}
-
-		// Otherwise, treat it as a novel detail request
-		id, err := strconv.Atoi(path)
-		if err != nil || id <= 0 {
+		id, err := extractIDFromPath(r.URL.Path, "/novels/")
+		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, "invalid novel id", err.Error())
 			return
 		}
 
+		// ดึงข้อมูลรายละเอียดนิยายดั้งเดิม
 		novel, err := novelService.GetNovelDetail(id)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, "novel not found", err.Error())
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, novel)
+		// =================================================================
+		// 🎯 ส่วนที่เพิ่ม: คำนวณสถิติเพื่อส่งไปให้หน้ารายละเอียดนิยาย (Novel Detail)
+		// =================================================================
+		// 🟢 ดึง user_id จาก query string เผื่อเอาไว้เช็คประวัติปลดล็อกรายบุคคล
+		userID, _ := strconv.Atoi(r.URL.Query().Get("user_id"))
+
+		visitedCount := 0
+		totalScenes := 0
+		discoveredChoices := 0
+		totalChoices := 0
+		unlockedEndings := 0
+		totalEndings := 0
+
+		// เรียกใช้สิทธิ์บริการ GetStoryTree ตัวเดิมที่เพิ่งเขียนเสร็จมาคำนวณสด
+		tree, err := sceneService.GetStoryTree(id, userID)
+		if err == nil {
+			totalScenes = len(tree.Nodes)
+			totalChoices = len(tree.Edges)
+
+			unlockedNodesMap := make(map[int]bool)
+
+			for _, rawNode := range tree.Nodes {
+				if rawNode.Type == "ending" {
+					totalEndings++
+					if rawNode.IsUnlocked {
+						unlockedEndings++
+					}
+				}
+
+				// เงื่อนไขเปิดไฟโหนดเหมือนในหน้าผังกิ่งไม้
+				isNodeAccessible := rawNode.IsUnlocked || rawNode.ID == 1 || rawNode.Type == "start"
+				if isNodeAccessible {
+					visitedCount++
+					unlockedNodesMap[rawNode.ID] = true
+				}
+			}
+
+			// คำนวณเส้นเลือกที่ผ่าน
+			for _, edge := range tree.Edges {
+				if unlockedNodesMap[edge.FromID] {
+					discoveredChoices++
+				}
+			}
+		}
+
+		// ประกอบร่าง Response ใหม่ ผนึกข้อมูลนิยาย และก้อนสถิติจริงส่งออกไปหา React
+		finalDetailResponse := map[string]interface{}{
+			"novel":              novel,             // ข้อมูลนิยายก้อนเดิม (ชื่อเรื่อง, คำโปรย, ยอดวิว ฯลฯ)
+			"visited_scenes":     visitedCount,      // จำนวนตอนที่อ่านแล้ว (การ์ดชมพูซ้าย)
+			"total_scenes":       totalScenes,       // จำนวนตอนทั้งหมด
+			"discovered_choices": discoveredChoices, // ช้อยส์ที่เจอ (การ์ดชมพูขวา)
+			"total_choices":      totalChoices,      // ช้อยส์ทั้งหมด
+			"unlocked_endings":   unlockedEndings,   // ฉากจบที่ปลด (ตัวเลขหน้าเลข /)
+			"total_endings":      totalEndings,      // ฉากจบทั้งหมดหลังเลข /
+		}
+
+		RespondWithJSON(w, http.StatusOK, finalDetailResponse)
 	}
 }
 
@@ -200,9 +251,8 @@ func GetWriterDetailHandler(writerService service.WriterService) http.HandlerFun
 			return
 		}
 
-		idStr := strings.TrimPrefix(r.URL.Path, "/writer/")
-		id, err := strconv.Atoi(strings.TrimSuffix(idStr, "/"))
-		if err != nil || id <= 0 {
+		id, err := extractIDFromPath(r.URL.Path, "/writer/")
+		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, "invalid writer id", err.Error())
 			return
 		}
@@ -225,13 +275,11 @@ func UploadImageHandler(mediaService service.MediaService, novelService service.
 			return
 		}
 
-		// 1. Parse multipart form (10MB max)
 		if err := r.ParseMultipartForm(10 * 1024 * 1024); err != nil {
 			RespondWithError(w, http.StatusBadRequest, "failed to parse form", err.Error())
 			return
 		}
 
-		// 2. รับไฟล์ภาพ
 		file, handler, err := r.FormFile("image")
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, "missing image file", err.Error())
@@ -239,24 +287,20 @@ func UploadImageHandler(mediaService service.MediaService, novelService service.
 		}
 		defer file.Close()
 
-		// 3. ส่งไฟล์ไปฝากที่ MinIO (จะได้ URL เต็มๆ มา เช่น http://minio:9000/...)
 		url, err := mediaService.UploadImage(r.Context(), handler)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, "failed to upload image", err.Error())
 			return
 		}
 
-		// 4. 🟢 แก้ไขตรงนี้: เลิกตัด Path ออก เพื่อบันทึก URL เต็มรูปแบบลง Database
 		dbPathToSave := url
 
-		// 5. ดึง novel_id และสั่ง Update ลง Database
 		novelIDStr := r.FormValue("novel_id")
 		var dbStatus string = "not updated"
 
 		if novelIDStr != "" {
 			novelID, err := strconv.Atoi(novelIDStr)
 			if err == nil && novelID > 0 {
-				// 🟢 บันทึก url เต็มๆ (http://minio:9000/...) ลง DB เลย
 				err = novelService.UpdateNovelCover(novelID, dbPathToSave)
 				if err != nil {
 					dbStatus = "failed to update database: " + err.Error()
@@ -266,10 +310,9 @@ func UploadImageHandler(mediaService service.MediaService, novelService service.
 			}
 		}
 
-		// 6. ตอบกลับพร้อมบอกข้อมูลทั้งหมด
 		RespondWithCreated(w, "process completed", map[string]interface{}{
-			"full_url":   url,          // URL จาก MinIO
-			"saved_path": dbPathToSave, // สิ่งที่บันทึกลงฐานข้อมูลจริงๆ (ตอนนี้จะเป็น URL เต็มแล้ว)
+			"full_url":   url,
+			"saved_path": dbPathToSave,
 			"filename":   handler.Filename,
 			"db_status":  dbStatus,
 		})

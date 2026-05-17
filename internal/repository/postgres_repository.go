@@ -2,7 +2,6 @@ package repository
 
 import (
 	"database/sql"
-	"fmt" // 🟢 เพิ่มตัวนี้เข้ามาเพื่อให้ใช้ fmt.Errorf ได้
 	"novel-be/internal/models"
 )
 
@@ -58,16 +57,6 @@ func (r *postgresNovelRepository) GetNovelByID(id int) (*models.Novel, error) {
 
 func (r *postgresNovelRepository) CreateNovel(novel models.Novel) (int, error) {
 	return CreateNovel(r.db, novel)
-}
-
-// 🟢 ฟังก์ชันเจ้าปัญหาที่ทำให้รูปไม่ขึ้น คราวนี้น่าจะทำงานได้สมบูรณ์แล้วครับ
-func (r *postgresNovelRepository) UpdateCoverImage(id int, url string) error {
-	query := `UPDATE novels SET cover_image = $1 WHERE novel_id = $2`
-	_, err := r.db.Exec(query, url, id)
-	if err != nil {
-		return fmt.Errorf("failed to update db: %w", err)
-	}
-	return nil
 }
 
 // ======= Scene Repository Methods =======
@@ -134,18 +123,4 @@ func (r *postgresSocialRepository) GetCommentsByNovelID(novelID int) ([]models.C
 
 func (r *postgresSocialRepository) GetCommentsBySceneID(sceneID int) ([]models.Comment, error) {
 	return GetCommentsBySceneID(r.db, sceneID)
-}
-
-// ======= Reading Repository Methods =======
-
-func (r *postgresReadingRepository) GetReadingProgress(userID, novelID int) (*models.ReadingProgress, error) {
-	return GetReadingProgress(r.db, userID, novelID)
-}
-
-func (r *postgresReadingRepository) SaveReadingProgress(progress models.ReadingProgress) error {
-	return SaveReadingProgress(r.db, progress)
-}
-
-func (r *postgresReadingRepository) InsertChoiceHistory(history models.ChoiceHistory) error {
-	return InsertChoiceHistory(r.db, history)
 }

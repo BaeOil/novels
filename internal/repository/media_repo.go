@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -52,8 +53,9 @@ func (m *MinIOMediaRepository) UploadFile(ctx context.Context, bucketName, objec
 		return "", fmt.Errorf("failed to upload file: %w", err)
 	}
 
-	// ใช้ชื่อเครื่อง minio:9000 ตามที่น้าต้องการ
-	url := fmt.Sprintf("http://minio:9000/%s/%s", bucketName, objectName)
+	// สร้าง URL จาก endpoint ที่กำหนดใน config
+	endpoint := strings.TrimPrefix(strings.TrimPrefix(m.endpoint, "http://"), "https://")
+	url := fmt.Sprintf("http://%s/%s/%s", endpoint, bucketName, objectName)
 	return url, nil
 }
 
@@ -80,4 +82,13 @@ func (m *MinIOMediaRepository) GetPresignedURL(ctx context.Context, bucketName, 
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
 	}
 	return presignedURL.String(), nil
+}
+
+func (r *postgresNovelRepository) UpdateCoverImage(id int, url string) error {
+	query := `UPDATE novels SET cover_image = $1 WHERE novel_id = $2`
+	_, err := r.db.Exec(query, url, id)
+	if err != nil {
+		return fmt.Errorf("failed to update db: %w", err)
+	}
+	return nil
 }

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	NovelImagesBucket = "novels-images"
+	NovelImagesBucket = "novel-buckets"
 	MaxFileSize       = 10 * 1024 * 1024
 )
 

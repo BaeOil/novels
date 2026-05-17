@@ -5,52 +5,77 @@ import (
 	"novel-be/internal/models"
 )
 
-func GetReadingProgress(db *sql.DB, userID, novelID int) (*models.ReadingProgress, error) {
-	row := db.QueryRow(`
-        SELECT progress_id, user_id, novel_id, current_scene_id, updated_at
-        FROM reading_progress
-        WHERE user_id = $1 AND novel_id = $2
-    `, userID, novelID)
+// ======= Reading Repository Methods =======
+
+func (r *postgresReadingRepository) GetReadingProgress(userID, novelID int) (*models.ReadingProgress, error) {
+	row := r.db.QueryRow(`
+		SELECT progress_id, user_id, novel_id, current_scene_id, updated_at
+		FROM reading_progress
+		WHERE user_id = $1 AND novel_id = $2
+	`, userID, novelID)
 
 	var progress models.ReadingProgress
-	err := row.Scan(&progress.ProgressID, &progress.UserID, &progress.NovelID, &progress.CurrentSceneID, &progress.UpdatedAt)
+
+	err := row.Scan(
+		&progress.ProgressID,
+		&progress.UserID,
+		&progress.NovelID,
+		&progress.CurrentSceneID,
+		&progress.UpdatedAt,
+	)
+
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &progress, nil
 }
 
-func SaveReadingProgress(db *sql.DB, progress models.ReadingProgress) error {
-	result, err := db.Exec(`
-        UPDATE reading_progress
-        SET current_scene_id = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $2 AND novel_id = $3
-    `, progress.CurrentSceneID, progress.UserID, progress.NovelID)
-	if err != nil {
-		return err
-	}
+func (r *postgresReadingRepository) SaveReadingProgress(userID, novelID, sceneID int) error {
+	query := `
+		INSERT INTO reading_progress (
+			user_id,
+			novel_id,
+			current_scene_id,
+			updated_at
+		)
+		VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
+		ON CONFLICT (user_id, novel_id)
+		DO UPDATE SET
+			current_scene_id = EXCLUDED.current_scene_id,
+			updated_at = CURRENT_TIMESTAMP
+	`
 
-	if rowsAffected == 0 {
-		_, err = db.Exec(`
-            INSERT INTO reading_progress (user_id, novel_id, current_scene_id)
-            VALUES ($1, $2, $3)
-        `, progress.UserID, progress.NovelID, progress.CurrentSceneID)
-	}
+	_, err := r.db.Exec(query, userID, novelID, sceneID)
 	return err
 }
 
-func InsertChoiceHistory(db *sql.DB, history models.ChoiceHistory) error {
-	_, err := db.Exec(`
-        INSERT INTO user_choice_history (user_id, choice_id)
-        VALUES ($1, $2)
-    `, history.UserID, history.ChoiceID)
+func (r *postgresReadingRepository) InsertSceneHistory(userID int, sceneID int) error {
+	query := `
+		INSERT INTO user_scene_history (user_id, scene_id, visited_at)
+		VALUES ($1, $2, CURRENT_TIMESTAMP)
+		ON CONFLICT (user_id, scene_id) DO NOTHING
+	`
+
+	_, err := r.db.Exec(query, userID, sceneID)
+	return err
+}
+
+func (r *postgresReadingRepository) InsertChoiceHistory(history models.ChoiceHistory) error {
+	query := `
+		INSERT INTO user_choice_history (
+			user_id,
+			choice_id
+		)
+		VALUES ($1, $2)
+	`
+
+	_, err := r.db.Exec(query, history.UserID, history.ChoiceID)
+
 	return err
 }

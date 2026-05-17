@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"novel-be/internal/models"
 	"novel-be/internal/service"
-	"strconv"
 )
 
 func toPtr(s string) *string {
@@ -34,6 +33,7 @@ func CreateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 			ChapterID:         req.ChapterID,
 			Title:             req.Title,
 			Content:           req.Content,
+			ImageURL:          req.ImageURL,
 			Type:              req.Type,
 			EndingTitle:       toPtr(req.EndingTitle),
 			EndingType:        toPtr(req.EndingType),
@@ -52,13 +52,7 @@ func CreateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 // ... GetSceneHandler คงเดิม ...
 func GetSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sceneIDStr := r.PathValue("id")
-		if sceneIDStr == "" {
-			WriteError(w, http.StatusBadRequest, "missing id parameter")
-			return
-		}
-
-		sceneID, err := strconv.Atoi(sceneIDStr)
+		sceneID, err := extractIDFromPath(r.URL.Path, "/scenes/")
 		if err != nil {
 			WriteError(w, http.StatusBadRequest, "invalid id parameter")
 			return

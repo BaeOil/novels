@@ -13,16 +13,15 @@ import (
 func StartReadingHandler(sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// รับ id จาก path parameter เช่น /novels/{id}/start
-		idStr := r.PathValue("id")
-		novelID, err := strconv.Atoi(idStr)
+		novelID, err := extractIDFromPath(r.URL.Path, "/novels/")
 		if err != nil {
-			WriteError(w, http.StatusBadRequest, "invalid novel id")
+			WriteError(w, http.StatusBadRequest, "ID นิยายไม่ถูกต้อง")
 			return
 		}
 
 		scene, err := sceneService.GetStartScene(novelID)
 		if err != nil {
-			WriteError(w, http.StatusNotFound, "start scene not found for this novel")
+			WriteError(w, http.StatusNotFound, "ไม่พบจุดเริ่มต้นของนิยายเรื่องนี้")
 			return
 		}
 

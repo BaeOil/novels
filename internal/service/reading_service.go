@@ -18,7 +18,7 @@ func (s *readingService) GetProgress(userID, novelID int) (*models.ReadingProgre
 }
 
 func (s *readingService) SaveProgress(progress models.ReadingProgress) error {
-	return s.repo.SaveReadingProgress(progress)
+	return s.repo.SaveReadingProgress(progress.UserID, progress.NovelID, progress.CurrentSceneID)
 }
 
 func (s *readingService) RecordChoiceHistory(history models.ChoiceHistory) error {

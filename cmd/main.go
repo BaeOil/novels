@@ -71,7 +71,7 @@ func main() {
 
 	// Ensure MinIO bucket exists
 	ctx := context.Background()
-	if err := mediaRepo.EnsureBucketExists(ctx, "novels-images"); err != nil {
+	if err := mediaRepo.EnsureBucketExists(ctx, "novel-buckets"); err != nil {
 		log.Fatalf("❌ failed to ensure MinIO bucket: %v", err)
 	}
 	fmt.Println("✅ MinIO Bucket Ready")

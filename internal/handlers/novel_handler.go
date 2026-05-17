@@ -37,6 +37,7 @@ func NovelsHandler(novelService service.NovelService) http.HandlerFunc {
 				Introduction: req.Introduction,
 				CoverImage:   req.CoverImage,
 				Status:       req.Status,
+				CategoryIDs:  req.CategoryIDs,
 				AuthorID:     req.AuthorID,
 			})
 			if err != nil {

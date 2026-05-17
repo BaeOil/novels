@@ -41,3 +41,10 @@ func CreateChoice(db *sql.DB, choice models.Choice) (int, error) {
 	}
 	return id, nil
 }
+
+func (r *postgresSceneRepository) CheckChoiceExists(fromID, toID int, label string) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM choices WHERE from_scene_id=$1 AND to_scene_id=$2 AND label=$3)`
+	err := r.db.QueryRow(query, fromID, toID, label).Scan(&exists)
+	return exists, err
+}

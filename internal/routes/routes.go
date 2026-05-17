@@ -2,6 +2,8 @@ package routes
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 
 	"novel-be/internal/handlers"
 	"novel-be/internal/middleware"
@@ -21,75 +23,116 @@ func RegisterRoutes(
 	category service.CategoryService,
 ) {
 	// Health & Root
-	mux.HandleFunc("GET /health", middleware.RequestLogger(http.HandlerFunc(handlers.HealthCheck(scene))).ServeHTTP)
-	mux.HandleFunc("GET /", middleware.RequestLogger(http.HandlerFunc(handlers.GetRoot(flow))).ServeHTTP)
+	mux.Handle("/health", middleware.RequestLogger(handlers.HealthCheck(scene)))
+	mux.Handle("/", middleware.RequestLogger(handlers.GetRoot(flow)))
 
 	// ==========================================
 	// 🟢 Category Endpoints
 	// ==========================================
-	mux.HandleFunc("GET /categories", middleware.RequestLogger(http.HandlerFunc(handlers.GetAllCategoriesHandler(category))).ServeHTTP)
-
-	// Novel Endpoints (GET list, POST create)
-	mux.HandleFunc("GET /novels", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlers.NovelsHandler(novel)(w, r)
-	})).ServeHTTP)
-
-	mux.HandleFunc("POST /novels", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlers.NovelsHandler(novel)(w, r)
-	})).ServeHTTP)
-
-	// ---------------------------------------------------------------------
-	// 🟢 RESTful API (Path Parameters)
-	// ---------------------------------------------------------------------
-
-	// ดึงรายละเอียดนิยาย
-	mux.HandleFunc("GET /novels/{id}", middleware.RequestLogger(http.HandlerFunc(handlers.GetNovelDetailHandler(novel, scene))).ServeHTTP)
-
-	// ดึงตอนทั้งหมดของนิยาย
-	mux.HandleFunc("GET /novels/{id}/chapters", middleware.RequestLogger(http.HandlerFunc(handlers.GetChaptersByNovelHandler(chapter))).ServeHTTP)
-
-	// ดึงคอมเมนต์ของนิยาย
-	mux.HandleFunc("GET /novels/{id}/comments", middleware.RequestLogger(http.HandlerFunc(handlers.GetCommentsByNovelHandler(social))).ServeHTTP)
-
-	// ดึงฉากทั้งหมดในตอน
-	mux.HandleFunc("GET /chapters/{id}/scenes", middleware.RequestLogger(http.HandlerFunc(handlers.GetScenesByChapterHandler(scene))).ServeHTTP)
-
-	// ดึงคอมเมนต์ของฉาก
-	mux.HandleFunc("GET /scenes/{id}/comments", middleware.RequestLogger(http.HandlerFunc(handlers.GetCommentsBySceneHandler(social))).ServeHTTP)
-
-	// ---------------------------------------------------------------------
-
-	// Chapter & Scene (Create)
-	mux.HandleFunc("POST /chapters", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlers.CreateChapterHandler(chapter)(w, r)
-	})).ServeHTTP)
-
-	mux.HandleFunc("POST /scenes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlers.CreateSceneHandler(scene)(w, r)
-	})).ServeHTTP)
-
-	mux.HandleFunc("POST /choices", middleware.RequestLogger(http.HandlerFunc(handlers.CreateChoiceHandler(scene))).ServeHTTP)
-
-	// Social Endpoints
-	mux.HandleFunc("POST /likes", middleware.RequestLogger(http.HandlerFunc(handlers.AddLikeHandler(social))).ServeHTTP)
-
-	mux.HandleFunc("POST /comments", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlers.AddCommentHandler(social)(w, r)
-	})).ServeHTTP)
-
-	mux.HandleFunc("POST /follows", middleware.RequestLogger(http.HandlerFunc(handlers.AddFollowHandler(social))).ServeHTTP)
-
-	// Reading Endpoints
-	mux.HandleFunc("POST /progress", middleware.RequestLogger(http.HandlerFunc(handlers.ProgressHandler(reading))).ServeHTTP)
-	mux.HandleFunc("POST /choice-history", middleware.RequestLogger(http.HandlerFunc(handlers.RecordChoiceHistoryHandler(reading))).ServeHTTP)
-	mux.HandleFunc("GET /novels/{id}/start", middleware.RequestLogger(http.HandlerFunc(handlers.StartReadingHandler(scene))).ServeHTTP)
-
-	// Reader & Writer Endpoints
-	mux.HandleFunc("GET /reader/scenes/{id}", middleware.RequestLogger(http.HandlerFunc(handlers.GetSceneHandler(scene))).ServeHTTP)
-	mux.HandleFunc("GET /writer/{id}", middleware.RequestLogger(http.HandlerFunc(handlers.GetWriterDetailHandler(writer))).ServeHTTP)
+	mux.Handle("/categories", middleware.RequestLogger(handlers.GetAllCategoriesHandler(category)))
 
 	// ==========================================
-	// 🟢 Media Endpoints (แก้ไขให้ส่ง novelService เข้าไป)
+	// 🟢 Novel Endpoints
 	// ==========================================
-	mux.HandleFunc("POST /upload/image", middleware.RequestLogger(http.HandlerFunc(handlers.UploadImageHandler(media, novel))).ServeHTTP)
+	mux.Handle("/novels", middleware.RequestLogger(handlers.NovelsHandler(novel)))
+	mux.Handle("/novels/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/novels/")
+		path = strings.TrimSuffix(path, "/")
+
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/chapters"):
+			handlers.GetChaptersByNovelHandler(chapter)(w, r)
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/comments"):
+			handlers.GetCommentsByNovelHandler(social)(w, r)
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/story-tree"):
+			handlers.GetStoryTreeHandler(scene)(w, r)
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/start"):
+			handlers.StartReadingHandler(scene)(w, r)
+		case r.Method == http.MethodGet && isNumericIDPath(path):
+			handlers.GetNovelDetailHandler(novel, scene)(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})))
+
+	// ==========================================
+	// 🟢 Chapter & Scene Endpoints
+	// ==========================================
+	mux.Handle("/chapters", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/chapters" && r.Method == http.MethodPost {
+			handlers.CreateChapterHandler(chapter)(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+
+	mux.Handle("/chapters/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/chapters/")
+		path = strings.TrimSuffix(path, "/")
+		if r.Method == http.MethodGet && strings.HasSuffix(path, "/scenes") {
+			handlers.GetScenesByChapterHandler(scene)(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+
+	mux.Handle("/scenes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/scenes" && r.Method == http.MethodPost {
+			handlers.CreateSceneHandler(scene)(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+
+	mux.Handle("/scenes/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/scenes/")
+		path = strings.TrimSuffix(path, "/")
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/comments"):
+			handlers.GetCommentsBySceneHandler(social)(w, r)
+		case r.Method == http.MethodGet && isNumericIDPath(path):
+			handlers.GetSceneHandler(scene)(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})))
+
+	mux.Handle("/choices", middleware.RequestLogger(handlers.CreateChoiceHandler(scene)))
+
+	// ==========================================
+	// 🟢 Reading Flow (หน้าอ่านนิยาย)
+	// ==========================================
+	mux.Handle("/progress", middleware.RequestLogger(handlers.ProgressHandler(reading)))
+	mux.Handle("/choice-history", middleware.RequestLogger(handlers.RecordChoiceHistoryHandler(reading)))
+
+	// ==========================================
+	// 🟢 Social & Writer Endpoints
+	// ==========================================
+	mux.Handle("/likes", middleware.RequestLogger(handlers.AddLikeHandler(social)))
+	mux.Handle("/comments", middleware.RequestLogger(handlers.AddCommentHandler(social)))
+	mux.Handle("/follows", middleware.RequestLogger(handlers.AddFollowHandler(social)))
+	mux.Handle("/writer/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/writer/")
+		path = strings.TrimSuffix(path, "/")
+		if r.Method == http.MethodGet && isNumericIDPath(path) {
+			handlers.GetWriterDetailHandler(writer)(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+
+	// Media Upload
+	mux.Handle("/upload/image", middleware.RequestLogger(handlers.UploadImageHandler(media, novel)))
+}
+
+func isNumericIDPath(path string) bool {
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return false
+	}
+	if strings.Contains(path, "/") {
+		return false
+	}
+	_, err := strconv.Atoi(path)
+	return err == nil
 }
