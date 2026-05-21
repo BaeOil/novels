@@ -17,6 +17,10 @@ import ReadingPage from "./pages/Reader/Readingpage/Readingpage";
 import WriterDashboardPage from "./pages/Writer/WriterDashboardPage/WriterDashboardPage";
 import CreateNovelPage from "./pages/Writer/Createnovelpage/Createnovelpage";
 import ChapterManagerPage from "./pages/Writer/Chaptermanagerpage/Chaptermanagerpage";
+import WriterStoryTreePage from "./pages/Writer/WriterStoryTreePage/WriterStoryTreePage";
+import SceneEditorPage from "./pages/Writer/Sceneeditorpage/Sceneeditorpage";
+
+import AuthPage from "./pages/Auth/AuthPage";
 
 import "./style/App.css";
 import "./style/index.css";
@@ -166,6 +170,7 @@ const ChapterManagerRoute = () => {
   );
 };
 
+
 function App() {
   return (
     <Router>
@@ -196,6 +201,11 @@ function App() {
         <Route path="/dashboard" element={<WriterDashboardRoute />} />
         <Route path="/create" element={<CreateNovelRoute />} />
         <Route path="/writer/:novelId/chapters" element={<ChapterManagerRoute />} />
+        <Route path="/storytreewt/:novelId" element={<WriterStoryTreePage />} />
+        <Route path="/writer/:novelId/scene/:sceneId" element={<SceneEditorPage />} />
+
+
+        <Route path="/auth" element={<AuthPage />} />
 
       </Routes>
     </Router>
