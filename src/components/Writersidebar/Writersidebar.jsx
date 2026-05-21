@@ -8,7 +8,7 @@ import { mockWriterProfile } from "../../data/mockWriterData";
 const MAIN_MENU = [
   {
     id: "dashboard",
-    label: "Dashboard",
+    label: "Dashboard นักเขียน",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <rect x="1" y="1" width="7" height="7" rx="2" fill="currentColor" opacity=".85"/>
@@ -73,13 +73,18 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
     return pathname.startsWith("/dashboard") ? "dashboard" : "dashboard";
   })();
 
+  // 🎯 🟢 ปรับปรุงฟังก์ชัน Route ให้รองรับทั้ง App State และ URL Navigation 
   const handleRoute = (pageId) => {
+    // 1. ถ้าหน้าหลักส่ง Event Callback มาควบคุม ให้ส่งข้ามไปบอกหน้าหลักด้วย
     if (typeof onNavigate === "function") {
       onNavigate(pageId);
-      return;
     }
 
+    // 2. ควบคุมทิศทางของ URL ไปพร้อมๆ กัน ป้องกันอาการนิ่งค้าง
     switch (pageId) {
+      case "reader-mode":
+        navigate("/");
+        break;
       case "dashboard":
         navigate("/dashboard");
         break;
@@ -110,7 +115,7 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
   return (
     <aside className="wsb">
       {/* ── Logo ── */}
-      <div className="wsb__logo">
+      <div className="wsb__logo" onClick={() => handleRoute("dashboard")} style={{ cursor: "pointer" }}>
         <img src="/logo192.png" alt="Logo" className="logo-img" />
         <div className="wsb__logo-text">
           <span className="wsb__logo-story">Story</span>
@@ -132,6 +137,16 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
             <span className="wsb__item-label">{item.label}</span>
           </button>
         ))}
+
+        {/* 🎯 🟢 แก้ไขปุ่มสลับฝั่งใหม่: ให้วิ่งผ่าน handleRoute เพื่อปลดล็อกสถานะแอพฝั่งหน้าหลัก */}
+        <button 
+          className="wsb__item wsb__item--switch-mode" 
+          onClick={() => handleRoute("reader-mode")} 
+          style={{ marginTop: "8px", color: "#e11d48", fontWeight: "600" }}
+        >
+          <span className="wsb__item-icon">📖</span>
+          <span className="wsb__item-label">กลับไปหน้าหลักนักอ่าน</span>
+        </button>
       </nav>
 
       {/* ── นิยายที่เลือก (conditional) ── */}
@@ -170,7 +185,7 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
       <div className="wsb__bottom">
         <button
           className={`wsb__create-btn ${currentPage === "create-novel" ? "wsb__create-btn--active" : ""}`}
-          onClick={() => onNavigate("create-novel")}
+          onClick={() => handleRoute("create-novel")}
           aria-label="สร้างนิยายเรื่องใหม่"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

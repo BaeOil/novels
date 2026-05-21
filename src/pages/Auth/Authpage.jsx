@@ -1,16 +1,10 @@
 // src/pages/Auth/AuthPage.jsx
 //
 // ══════════════════════════════════════════════════════════
-//  หน้าเข้าสู่ระบบ / สมัครสมาชิก
-//  Layout: ซ้าย = Decorative panel | ขวา = Form card
-//  Tab switcher ด้านบนสลับระหว่าง Login / Register
-//
-//  TODO: เชื่อม API เมื่อ Backend พร้อม
-//   POST /api/v1/auth/login    → { token, user }
-//   POST /api/v1/auth/register → { token, user }
+//  หน้าเข้าสู่ระบบ / สมัครสมาชิก (แก้ไขระบบ Validation และย้าย Event ไปยังปุ่มกด)
 // ══════════════════════════════════════════════════════════
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./AuthPage.css";
 
 // ══════════════════════════════════════════════════════════
@@ -79,12 +73,10 @@ const PasswordInput = ({ id, value, onChange, placeholder, error }) => {
 // ══════════════════════════════════════════════════════════
 const DecorPanel = () => (
   <div className="auth-decor" aria-hidden="true">
-    {/* Book card stack */}
     <div className="auth-decor__cards">
       <div className="auth-decor__card auth-decor__card--back2" />
       <div className="auth-decor__card auth-decor__card--back1" />
       <div className="auth-decor__card auth-decor__card--main">
-        {/* Story Verse logo illustration */}
         <div className="auth-decor__logo-art">
           <div className="auth-decor__hat">🎩</div>
           <div className="auth-decor__book-text">
@@ -96,19 +88,16 @@ const DecorPanel = () => (
       </div>
     </div>
 
-    {/* Brand name */}
     <div className="auth-decor__brand">
       <span className="auth-decor__brand-story">Story </span>
       <span className="auth-decor__brand-verse">Verse</span>
     </div>
 
-    {/* Tagline */}
     <p className="auth-decor__tagline">
       แพลตฟอร์มนิยายทางเลือกรูปแบบใหม่ ที่ให้คุณเป็นผู้กำหนดเส้นทาง
       เลือกปลดล็อก และค้นพบตอนจบที่แตกต่าง
     </p>
 
-    {/* Feature pills */}
     <div className="auth-decor__pills">
       <div className="auth-decor__pill">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
@@ -154,27 +143,46 @@ const LoginForm = ({ onSwitchToRegister }) => {
   };
 
   const handleSubmit = async (ev) => {
-    ev.preventDefault();
+    if (ev) ev.preventDefault();
+    console.log("🔑 Login Event Triggered");
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) { 
+      console.warn("⚠️ Login Validation Failed:", e);
+      setErrors(e); 
+      return; 
+    }
 
     setIsLoading(true);
     setErrors({});
-    // TODO: POST /api/v1/auth/login
-    // const res = await fetch("/api/v1/auth/login", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({ email, password }),
-    // });
-    // const data = await res.json();
-    // if (!res.ok) { setErrors({ general: data.message }); setIsLoading(false); return; }
-    // localStorage.setItem("token", data.token);
-    // onLoginSuccess(data.user);
+    try {
+      console.log("🛰️ Fetching Login API...", { email, passwordLength: password.length });
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    setTimeout(() => {
+      console.log("📥 Login Response Received. Status:", res.status);
+      const data = await res.json().catch(() => ({}));
+      console.log("📦 Login Response Data:", data);
+
+      if (!res.ok) {
+        setErrors({ general: data.message || data.error || 'ไม่สามารถเข้าสู่ระบบได้' });
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.token) {
+        console.log("💾 Saving token to LocalStorage");
+        localStorage.setItem('token', data.token);
+      }
       setIsLoading(false);
-      alert("✅ เข้าสู่ระบบสำเร็จ! (mock)");
-    }, 900);
+      window.location.href = '/';
+    } catch (err) {
+      console.error("❌ Catch Error in Login Process:", err);
+      setErrors({ general: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้' });
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -184,12 +192,10 @@ const LoginForm = ({ onSwitchToRegister }) => {
         <h2 className="auth-form__title">เข้าสู่ระบบได้ที่นี่</h2>
       </div>
 
-      {/* General error */}
       {errors.general && (
         <div className="auth-form__error-banner" role="alert">⚠️ {errors.general}</div>
       )}
 
-      {/* Email */}
       <div className="auth-field">
         <div className="auth-field__label-row">
           <IconMail />
@@ -202,7 +208,7 @@ const LoginForm = ({ onSwitchToRegister }) => {
             className="auth-input"
             placeholder="you@example.com"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); errors.email && setErrors((p) => ({ ...p, email: "" })); }}
+            onChange={(e) => { setEmail(e.target.value); if(errors.email) setErrors((p) => ({ ...p, email: "" })); }}
             autoComplete="email"
             aria-invalid={!!errors.email}
           />
@@ -210,7 +216,6 @@ const LoginForm = ({ onSwitchToRegister }) => {
         {errors.email && <p className="auth-field__error" role="alert">{errors.email}</p>}
       </div>
 
-      {/* Password */}
       <div className="auth-field">
         <div className="auth-field__label-row">
           <label className="auth-label" htmlFor="login-password">รหัสผ่าน</label>
@@ -218,14 +223,13 @@ const LoginForm = ({ onSwitchToRegister }) => {
         <PasswordInput
           id="login-password"
           value={password}
-          onChange={(e) => { setPassword(e.target.value); errors.password && setErrors((p) => ({ ...p, password: "" })); }}
+          onChange={(e) => { setPassword(e.target.value); if(errors.password) setErrors((p) => ({ ...p, password: "" })); }}
           placeholder="กรอกรหัสผ่านของคุณ"
           error={errors.password}
         />
         {errors.password && <p className="auth-field__error" role="alert">{errors.password}</p>}
       </div>
 
-      {/* Remember + Forgot */}
       <div className="auth-form__row">
         <label className="auth-checkbox">
           <input
@@ -240,7 +244,6 @@ const LoginForm = ({ onSwitchToRegister }) => {
         <button type="button" className="auth-form__forgot">ลืมรหัสผ่าน</button>
       </div>
 
-      {/* Submit */}
       <button
         type="submit"
         className="auth-submit"
@@ -250,7 +253,6 @@ const LoginForm = ({ onSwitchToRegister }) => {
         {isLoading ? <span className="auth-submit__spinner" /> : "เข้าสู่ระบบ"}
       </button>
 
-      {/* Switch */}
       <p className="auth-form__switch">
         ยังไม่มีบัญชีใช่ไหม?{" "}
         <button type="button" className="auth-form__switch-link" onClick={onSwitchToRegister}>
@@ -265,78 +267,156 @@ const LoginForm = ({ onSwitchToRegister }) => {
 //  Sub: Register form
 // ══════════════════════════════════════════════════════════
 const RegisterForm = ({ onSwitchToLogin }) => {
-  const [username,      setUsername]      = useState("");
-  const [email,         setEmail]         = useState("");
-  const [password,      setPassword]      = useState("");
-  const [confirm,       setConfirm]       = useState("");
-  const [remember,      setRemember]      = useState(false);
-  const [profileImage,  setProfileImage]  = useState(null);  // ✅ เพิ่ม state นี้
-  const [errors,        setErrors]        = useState({});
-  const [isLoading,     setIsLoading]     = useState(false);
+  const [username,       setUsername]       = useState("");
+  const [email,          setEmail]          = useState("");
+  const [password,       setPassword]       = useState("");
+  const [confirm,        setConfirm]        = useState("");
+  const [remember,       setRemember]       = useState(false);
+  const [profilePreview, setProfilePreview] = useState(null);
+  const [profileFile,    setProfileFile]    = useState(null);
+  const [errors,         setErrors]         = useState({});
+  const [isLoading,      setIsLoading]      = useState(false);
 
-  // ✅ เพิ่ม handler สำหรับอัพโหลดรูป
   const handleProfileChange = (e) => {
+    console.log("📸 Image selection triggered");
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log("🚫 No file selected or cancelled");
+      return;
+    }
 
-    // ตรวจสอบว่าเป็น image file
+    console.log("ℹ️ Selected File Info:", { name: file.name, type: file.type, sizeBytes: file.size });
+
     if (!file.type.startsWith('image/')) {
+      console.error("❌ Error: File is not an image");
       alert("กรุณาเลือกไฟล์รูปภาพเท่านั้น");
       return;
     }
 
-    // ตรวจสอบขนาดไฟล์ (< 5MB)
     if (file.size > 5 * 1024 * 1024) {
+      console.error("❌ Error: File size exceeds 5MB limit");
       alert("ขนาดไฟล์ต้องน้อยกว่า 5MB");
       return;
     }
 
     try {
+      if (profilePreview) {
+        console.log("🧹 Revoking old image preview URL");
+        URL.revokeObjectURL(profilePreview);
+      }
       const imageUrl = URL.createObjectURL(file);
-      setProfileImage(imageUrl);
+      setProfileFile(file);
+      setProfilePreview(imageUrl);
+      console.log("✨ Successfully created object preview URL:", imageUrl);
     } catch (err) {
-      console.error("Error creating object URL:", err);
+      console.error("❌ Error creating object URL:", err);
       alert("เกิดข้อผิดพลาดในการอัพโหลดรูป");
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (profilePreview) {
+        console.log("🧹 Cleanup: Revoking profile preview URL on unmount");
+        URL.revokeObjectURL(profilePreview);
+      }
+    };
+  }, [profilePreview]);
+
   const validate = () => {
     const e = {};
-    if (!username.trim())           e.username = "กรุณากรอกชื่อผู้ใช้";
-    if (!email.trim())              e.email    = "กรุณากรอกอีเมล";
+    if (!username.trim())                 e.username = "กรุณากรอกชื่อผู้ใช้";
+    if (!email.trim())                    e.email    = "กรุณากรอกอีเมล";
     else if (!/\S+@\S+\.\S+/.test(email)) e.email = "รูปแบบอีเมลไม่ถูกต้อง";
-    if (!password.trim())           e.password = "กรุณากรอกรหัสผ่าน";
-    else if (password.length < 8)   e.password = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร";
-    if (!confirm.trim())            e.confirm  = "กรุณายืนยันรหัสผ่าน";
-    else if (confirm !== password)  e.confirm  = "รหัสผ่านไม่ตรงกัน";
+    if (!password.trim())                 e.password = "กรุณากรอกรหัสผ่าน";
+    else if (password.length < 8)         e.password = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร";
+    if (!confirm.trim())                  e.confirm  = "กรุณายืนยันรหัสผ่าน";
+    else if (confirm !== password)        e.confirm  = "รหัสผ่านไม่ตรงกัน";
     return e;
   };
 
-  const clearFieldError = (field) =>
-    errors[field] && setErrors((p) => { const n = { ...p }; delete n[field]; return n; });
+  const clearFieldError = (field) => {
+    if (errors[field]) {
+      setErrors((p) => {
+        const n = { ...p };
+        delete n[field];
+        return n;
+      });
+    }
+  };
 
   const handleSubmit = async (ev) => {
-    ev.preventDefault();
+    if (ev) ev.preventDefault();
+    console.log("📝 Register Form Button Clicked!");
+    
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) { 
+      console.warn("⚠️ Register Frontend Validation Failed. Errors:", e);
+      setErrors(e); 
+      return; 
+    }
 
     setIsLoading(true);
     setErrors({});
-    // TODO: POST /api/v1/auth/register with profileImage
-    // const formData = new FormData();
-    // formData.append('username', username);
-    // formData.append('email', email);
-    // formData.append('password', password);
-    // if (profileImage) formData.append('profileImage', profileImage);
-    // const res = await fetch("/api/v1/auth/register", {
-    //   method: "POST",
-    //   body: formData,
-    // });
 
-    setTimeout(() => {
+    try {
+      console.log("📦 Preparing FormData payload...");
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('email', email);
+      formData.append('password', password);
+      
+      if (profileFile) {
+        console.log("📎 Appending profile image to FormData");
+        formData.append('profileImage', profileFile);
+      }
+
+      console.log("🕵️ Inspecting FormData items to be sent:");
+      for (let [key, value] of formData.entries()) {
+        if (key === 'password') {
+          console.log(` -> ${key}: [REDACTED, length: ${value.length}]`);
+        } else if (value instanceof File) {
+          console.log(` -> ${key}: File -> Name: ${value.name}, Size: ${value.size} bytes`);
+        } else {
+          console.log(` -> ${key}: ${value}`);
+        }
+      }
+
+      const apiEndpoint = '/api/register'; 
+      console.log(`🛰️ Sending HTTP POST to endpoint: "${apiEndpoint}"`);
+
+      const res = await fetch(apiEndpoint, {
+        method: 'POST',
+        body: formData, // ปล่อยให้ Browser จัดการ Content-Type Boundary ของ Multipart เอง
+      });
+
+      console.log("📥 Register Response Received! Status Code:", res.status);
+      const data = await res.json().catch((jsonErr) => {
+        console.error("❌ Failed to parse response body to JSON:", jsonErr);
+        return {};
+      });
+      console.log("📦 Response Data payload:", data);
+
+      if (!res.ok) {
+        console.error(`❌ Register failed with status ${res.status}. Error Msg:`, data.message || data.error);
+        setErrors({ general: data.message || data.error || 'เกิดข้อผิดพลาดในการสมัคร' });
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.token) {
+        console.log("💾 Token received successfully! Storing to LocalStorage.");
+        localStorage.setItem('token', data.token);
+      }
+      
       setIsLoading(false);
-      alert("✅ สมัครสมาชิกสำเร็จ! (mock)");
-    }, 900);
+      console.log("🏁 Registration workflow completed. Redirecting to home...");
+      window.location.href = '/';
+    } catch (err) {
+      console.error("💥 CRITICAL CATCH: Register process threw an exception:", err);
+      setErrors({ general: `ไม่สามารถติดต่อเซิร์ฟเวอร์ได้: ${err.message}` });
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -349,7 +429,7 @@ const RegisterForm = ({ onSwitchToLogin }) => {
         <div className="auth-form__error-banner" role="alert">⚠️ {errors.general}</div>
       )}
 
-      {/* ✅ เพิ่มส่วนรูปโปรไฟล์ */}
+      {/* รูปโปรไฟล์ */}
       <div className="auth-field auth-field--profile">
         <label className="auth-profile-label">รูปโปรไฟล์</label>
         
@@ -363,9 +443,9 @@ const RegisterForm = ({ onSwitchToLogin }) => {
             aria-label="อัพโหลดรูปโปรไฟล์"
           />
 
-          {profileImage ? (
+          {profilePreview ? (
             <img
-              src={profileImage}
+              src={profilePreview}
               alt="Profile Preview"
               className="auth-profile-image"
             />
@@ -491,12 +571,10 @@ const RegisterForm = ({ onSwitchToLogin }) => {
 //  Main: AuthPage
 // ══════════════════════════════════════════════════════════
 const AuthPage = ({ initialTab = "login" }) => {
-  const [activeTab, setActiveTab] = useState(initialTab); // "login" | "register"
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   return (
     <div className="auth-page">
-
-      {/* ── Tab switcher (top center) ── */}
       <div className="auth-tabs" role="tablist" aria-label="เลือกโหมด">
         <button
           className={`auth-tab ${activeTab === "login" ? "auth-tab--active" : ""}`}
@@ -516,13 +594,8 @@ const AuthPage = ({ initialTab = "login" }) => {
         </button>
       </div>
 
-      {/* ── Main content: 2 columns ── */}
       <div className="auth-layout">
-
-        {/* Left: decorative */}
         <DecorPanel />
-
-        {/* Right: form card */}
         <div className="auth-card-wrap">
           <div className="auth-card" role="tabpanel">
             {activeTab === "login" ? (
@@ -538,3 +611,4 @@ const AuthPage = ({ initialTab = "login" }) => {
 };
 
 export default AuthPage;
+

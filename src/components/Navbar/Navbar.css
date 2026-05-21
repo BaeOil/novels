@@ -1,16 +1,27 @@
+/* 🛠️ กำหนดสีมาตรฐานป้องกันกรณีตัวแปรระบบหลุด */
+:root {
+  --pink-500: #e91e63;
+  --pink-300: #f48fb1;
+  --ink: #212121;
+  --gray-50: #f8f9fa;
+  --gray-100: #e9ecef;
+  --gray-300: #adb5bd;
+  --white: #ffffff;
+}
+
 .nav-header {
   position: sticky;
   top: 0;
   left: 0;
   width: 100%;
   z-index: 1000;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: rgba(255, 255, 255, 0.98);
   transition: all 0.3s ease;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .nav-sticky {
-  padding: 10px 0;
+  padding: 5px 0;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 }
 
@@ -20,19 +31,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 15px 20px;
+  padding: 12px 20px;
 }
 
 /* ส่วนโลโก้ */
-.nav-logo { display: flex; align-items: center; gap: 10px; }
-.logo-img { width: 40px; height: 40px; }
-.brand-name { font-weight: bold; font-size: 1.2rem; color: #ff4081; display: block; }
-.mode-tag { font-size: 0.7rem; color: #888; }
+.nav-logo { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  cursor: pointer;
+}
+.logo-img { width: 42px; height: 42px; object-fit: contain; }
 
 .navbar__logo-text {
   display: flex;
   flex-direction: column;
-  line-height: 1;
+  line-height: 1.1;
 }
 
 .navbar__logo-story {
@@ -40,7 +54,6 @@
   font-size: 18px;
   font-weight: 700;
   color: var(--pink-500);
-  letter-spacing: -0.3px;
 }
 
 .navbar__logo-verse {
@@ -48,7 +61,6 @@
   font-size: 18px;
   font-weight: 500;
   color: var(--ink);
-  letter-spacing: -0.3px;
 }
 
 .navbar__logo-mode {
@@ -56,38 +68,46 @@
   font-size: 10px;
   color: var(--gray-300);
   letter-spacing: 0.5px;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
-/* รายการเมนู */
+/* รายการเมนูศูนย์กลาง */
 .nav-menu {
   display: flex;
   list-style: none;
   gap: 30px;
+  margin: 0;
+  padding: 0;
 }
 
 .nav-item a {
   text-decoration: none;
   color: #333;
   font-weight: 500;
+  font-size: 15px;
   position: relative;
-  transition: 0.3s;
+  transition: color 0.2s ease;
 }
 
-/* แอนิเมชันเส้นใต้สีชมพูตามรูป */
 .nav-item.active a::after,
 .nav-item a:hover::after {
   content: '';
   position: absolute;
-  bottom: -5px;
+  bottom: -6px;
   left: 0;
   width: 100%;
   height: 2px;
-  background-color: #ff4081;
+  background-color: var(--pink-500);
 }
 
-/* ส่วนค้นหา */
+/* 🎯 จัดการ Layout ฝั่งขวา (ค้นหา + อวาตาร์) ให้ขนานกันตรงๆ */
+.navbar__right {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* ระยะห่างระหว่างช่องค้นหากับรูปโปรไฟล์ */
+}
 
+/* ช่องค้นหา */
 .navbar__search {
   display: flex;
   align-items: center;
@@ -95,7 +115,7 @@
   background: var(--gray-50);
   border: 1.5px solid var(--gray-100);
   border-radius: 24px;
-  padding: 8px 16px;
+  padding: 6px 14px;
   transition: all 0.2s ease;
   width: 180px;
 }
@@ -103,8 +123,8 @@
 .navbar__search--focused {
   border-color: var(--pink-300);
   background: var(--white);
-  box-shadow: 0 0 0 3px rgba(233, 30, 140, 0.08);
-  width: 220px;
+  box-shadow: 0 0 0 3px rgba(233, 30, 140, 0.06);
+  width: 210px;
 }
 
 .navbar__search-icon {
@@ -127,12 +147,135 @@
   width: 100%;
 }
 
-.navbar__search-input::placeholder {
-  color: var(--gray-300);
+/* โซนล็อกอิน & โปรไฟล์ */
+.navbar__auth-zone {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
+.nav-login-btn {
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(135deg, var(--pink-500) 0%, #ff758c 100%);
+  color: white !important;
+  padding: 0.5rem 1.25rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(255, 75, 110, 0.15);
+}
 
-/* รองรับ Mobile (Responsive เหมือนใน CodePen) */
+.nav-login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(255, 75, 110, 0.3);
+}
+
+.nav-profile-container {
+  position: relative;
+}
+
+/* สไตล์ปุ่มกลมสีชมพูรอบวงแบบในรูปหน้าจอ */
+.nav-profile-trigger {
+  background: #ffffff;
+  border: 2px solid var(--pink-500);
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  box-shadow: 0 2px 8px rgba(233, 30, 140, 0.15);
+}
+
+.nav-profile-trigger:hover {
+  transform: scale(1.05);
+}
+
+.nav-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: #ffe6eb;
+}
+
+/* หน้าต่าง Dropdown */
+.nav-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  width: 220px;
+  padding: 0.8rem;
+  z-index: 1001;
+  animation: navDropdownFade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes navDropdownFade {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nav-dropdown__user-info {
+  padding: 0.25rem 0.5rem;
+}
+
+.nav-dropdown__status {
+  font-size: 0.7rem;
+  color: #888888;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nav-dropdown__user-id {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #333333;
+  margin: 4px 0 0 0;
+  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* ตัดคำถ้ายาวเกินกรอบ */
+}
+
+.nav-dropdown__divider {
+  border: 0;
+  border-top: 1px solid #f1f3f5;
+  margin: 0.6rem 0;
+}
+
+.nav-dropdown__logout-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0.6rem 0.5rem;
+  text-align: left;
+  font-size: 0.85rem;
+  color: #ff4d4d;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-dropdown__logout-btn:hover {
+  background: #fff5f5;
+}
+
+/* Responsive Mobile ดึงแถวลงมา */
 @media (max-width: 991px) {
   .nav-menu {
     position: fixed;
@@ -147,4 +290,50 @@
     box-shadow: -5px 0 15px rgba(0,0,0,0.1);
   }
   .nav-menu.active { right: 0; }
+}
+
+/* ปุ่มสลับโหมดหลัก */
+.nav-switch-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+/* ตอนเป็นโหมดนักเขียน: ปรับธีมหวาน ๆ สไตล์นักอ่าน */
+.nav-switch-btn--reader {
+    background-color: #f3f4f6;
+    color: #4b5563;
+}
+.nav-switch-btn--reader:hover {
+    background-color: #e5e7eb;
+}
+
+/* ตอนเป็นโหมดนักอ่าน: ยั่วเย้าให้คลิกไปเขียนนิยายด้วยโทนสีชมพูแสนรัก */
+.nav-switch-btn--writer {
+    background-color: var(--pink-50, #fff1f2);
+    color: var(--pink-600, #e11d48);
+    border-color: var(--pink-200, #fecdd3);
+}
+.nav-switch-btn--writer:hover {
+    background-color: var(--pink-100, #ffe4e6);
+}
+
+/* เพิ่มเติม: ปุ่มทางลัดภายใน Dropdown */
+.nav-dropdown__link-btn {
+    width: 100%;
+    padding: 8px 12px;
+    text-align: left;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    color: #374151;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.nav-dropdown__link-btn:hover {
+    background-color: #f3f4f6;
 }

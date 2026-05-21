@@ -1,7 +1,5 @@
-// src/pages/Writer/CreateNovel/CreateNovelPage.jsx
-//
 // ══════════════════════════════════════════════════════════════
-//  หน้าสร้างนิยายเรื่องใหม่ — ฝั่งนักเขียน
+//  หน้าสร้างนิยายเรื่องใหม่ — ฝั่งนักเขียน (แก้ไขเชื่อมต่อ Token หลังบ้าน)
 //
 //  Form fields:
 //    - ชื่อเรื่อง (required)
@@ -9,12 +7,12 @@
 //    - หมวดหมู่  (multi-select, required)
 //    - แนะนำเรื่อง (required)
 //    - ภาพปก    (cover upload)
-//    - สถานะเรื่อง toggle (เผยแพร่ / ฉบับร่าง)
-//    - สถานะจบ  toggle  (จบแล้ว / ยังไม่จบ)
+//    - Status เรื่อง toggle (เผยแพร่ / ฉบับร่าง)
+//    - Status จบ  toggle  (จบแล้ว / ยังไม่จบ)
 //
 //  Backend API connected:
-//    - POST /novels           -> สร้างนิยายใหม่
-//    - POST /upload/image      -> อัพโหลดปกนิยาย
+//    - POST /novels           -> สร้างนิยายใหม่ (Requires JWT Token)
+//    - POST /upload/image      -> อัพโหลดปกนิยาย (Requires JWT Token)
 // ══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from "react";
@@ -146,14 +144,23 @@ const CreateNovelPage = ({ onNavigate }) => {
         setIsSubmitting(true);
         setSubmissionError(null);
 
+        // ดึง JWT Token มารอไว้สำหรับยิงแนบไปกับ API ป้องกันสิทธิ์หลุด
+        const token = localStorage.getItem("token");
+
         try {
             let coverImageUrl = null;
             if (form.coverFile) {
                 const uploadForm = new FormData();
                 uploadForm.append("image", form.coverFile);
 
+                const uploadHeaders = {};
+                if (token) {
+                    uploadHeaders["Authorization"] = `Bearer ${token}`;
+                }
+
                 const uploadResponse = await fetch(`${API_BASE_URL}/upload/image`, {
                     method: "POST",
+                    headers: uploadHeaders,
                     body: uploadForm,
                 });
 
@@ -179,6 +186,8 @@ const CreateNovelPage = ({ onNavigate }) => {
                 calculatedIds: categoryIds,
             });
 
+            // 🟢 แก้ไขจุดนี้: ประกอบร่าง payload แบบสะอาด โดยไม่ต้องส่ง author_id ไปแล้ว 
+            // ปล่อยให้หลังบ้านดึงข้อมูลจาก Token ผ่านทางตัวแปร Context (r.Context()) ได้โดยตรงและปลอดภัยกว่า
             const payload = {
                 title: form.title.trim(),
                 captions: form.tagline.trim(),
@@ -186,16 +195,20 @@ const CreateNovelPage = ({ onNavigate }) => {
                 cover_image: coverImageUrl,
                 status: form.isPublished ? "published" : "draft",
                 category_ids: categoryIds,
-                author_id: 1,
             };
 
             console.log("📦 DEBUG payload:", payload);
 
+            const headers = {
+                "Content-Type": "application/json",
+            };
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+
             const response = await fetch(`${API_BASE_URL}/novels`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: headers,
                 body: JSON.stringify(payload),
             });
 
@@ -349,14 +362,14 @@ const CreateNovelPage = ({ onNavigate }) => {
                                         setField("coverFile", file);
                                         setField("coverPreview", preview);
                                     }}
-                                />
+                                Dad />
                             </div>
 
                             {/* ── การตั้งค่าเบื้องต้น ── */}
                             <div className="cnp__settings">
                                 <h3 className="cnp__settings-title">การตั้งค่าเบื้องต้น</h3>
 
-                                {/* สถานะเรื่อง */}
+                                {/* Status เรื่อง */}
                                 <div className="cnp__setting-row">
                                     <span className="cnp__setting-label">สถานะเรื่อง</span>
                                     <div className="cnp__setting-control">
@@ -371,7 +384,7 @@ const CreateNovelPage = ({ onNavigate }) => {
                                     </div>
                                 </div>
 
-                                {/* สถานะจบ */}
+                                {/* Status จบ */}
                                 <div className="cnp__setting-row">
                                     <span className="cnp__setting-label">สถานะจบ</span>
                                     <div className="cnp__setting-control">

@@ -13,18 +13,16 @@
 //   - Right sidebar: novel stats + chapter/scene accordion
 //   - Top bar: legend + + เพิ่มตอน
 //
-//  TODO: GET /api/v1/novels/:id/story-tree (writer)
-//        POST /api/v1/chapters  → เพิ่มตอน
+//  CONNECTED: GET /api/v1/novels/:id/story-tree (writer)
+//             POST /api/v1/chapters  → เพิ่มตอน
 // ══════════════════════════════════════════════════════════
 
 import React, {
     useState, useRef, useEffect, useCallback, useMemo
 } from "react";
+import axios from "axios"; // นำเข้า axios สำหรับเชื่อมต่อ API
 import "./Writerstorytreepage.css";
 import {
-    mockWriterTreeNodes,
-    mockWriterTreeEdges,
-    mockWriterNovelSummary,
     WRITER_NODE_STYLE,
     WRITER_NODE_STATUS,
     WRITER_LEGEND,
@@ -89,9 +87,22 @@ const LegendBar = () => (
 // ════════════════════════════════════════════════════════
 //  Sub: Minimap
 // ════════════════════════════════════════════════════════
-const Minimap = ({ nodes, edges, svgW, svgH, viewBox, nodeMap }) => {
+const Minimap = ({ nodes, edges, svgW, svgH, viewBox, nodeMap, wrapRef }) => {
     const scaleX = MINIMAP_W / svgW;
     const scaleY = MINIMAP_H / svgH;
+
+    // คำนวณขนาดจริงของพื้นที่แสดงผลเพื่อแปลงอัตราส่วนลงมินิแมพ
+    const viewRect = useMemo(() => {
+        if (!viewBox || !wrapRef.current) return null;
+        const { width, height } = wrapRef.current.getBoundingClientRect();
+        
+        return {
+            x: (-viewBox.x / viewBox.zoom) * scaleX,
+            y: (-viewBox.y / viewBox.zoom) * scaleY,
+            w: (width / viewBox.zoom) * scaleX,
+            h: (height / viewBox.zoom) * scaleY
+        };
+    }, [viewBox, scaleX, scaleY, wrapRef]);
 
     return (
         <div className="wst-minimap">
@@ -126,13 +137,13 @@ const Minimap = ({ nodes, edges, svgW, svgH, viewBox, nodeMap }) => {
                     );
                 })}
                 {/* viewport rect */}
-                {viewBox && (
+                {viewRect && (
                     <rect
-                        x={-viewBox.x * scaleX / viewBox.zoom}
-                        y={-viewBox.y * scaleY / viewBox.zoom}
-                        width={(600 / viewBox.zoom) * scaleX}
-                        height={(500 / viewBox.zoom) * scaleY}
-                        fill="none" stroke="var(--pink-500)" strokeWidth={1} opacity={0.5}
+                        x={viewRect.x}
+                        y={viewRect.y}
+                        width={viewRect.w}
+                        height={viewRect.h}
+                        fill="none" stroke="var(--pink-500)" strokeWidth={1.2} opacity={0.7}
                     />
                 )}
             </svg>
@@ -144,7 +155,16 @@ const Minimap = ({ nodes, edges, svgW, svgH, viewBox, nodeMap }) => {
 //  Sub: Right sidebar (novel stats + chapter accordion)
 // ════════════════════════════════════════════════════════
 const WriterTreeSidebar = ({ summary, onNavigate }) => {
-    const [openChapters, setOpenChapters] = useState(["ch-001", "ch-002", "ch-003"]);
+    const [openChapters, setOpenChapters] = useState([]);
+
+    // ตั้งค่าให้เปิด Accordion อัตโนมัติเมื่อข้อมูลชุดแรกโหลดเสร็จ
+    useEffect(() => {
+        if (summary?.chapters?.length > 0) {
+            setOpenChapters(summary.chapters.slice(0, 3).map(ch => ch.id));
+        }
+    }, [summary]);
+
+    if (!summary) return null;
 
     const toggleChapter = (id) => {
         setOpenChapters((prev) =>
@@ -152,7 +172,9 @@ const WriterTreeSidebar = ({ summary, onNavigate }) => {
         );
     };
 
-    const pct = Math.round((summary.publishedChapters / summary.totalChapters) * 100);
+    const totalChapters = summary.totalChapters || 0;
+    const publishedChapters = summary.publishedChapters || 0;
+    const pct = totalChapters > 0 ? Math.round((publishedChapters / totalChapters) * 100) : 0;
 
     return (
         <aside className="wst-sidebar">
@@ -166,12 +188,12 @@ const WriterTreeSidebar = ({ summary, onNavigate }) => {
             <div className="wst-sidebar__stats">
                 <div className="wst-sidebar__stat-row">
                     <span className="wst-sidebar__stat-label">ตอนทั้งหมด</span>
-                    <span className="wst-sidebar__stat-val">{summary.totalChapters} ตอน</span>
+                    <span className="wst-sidebar__stat-val">{totalChapters} ตอน</span>
                 </div>
                 <div className="wst-sidebar__stat-row">
                     <span className="wst-sidebar__stat-label">เผยแพร่แล้ว</span>
                     <span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">
-                        {summary.publishedChapters} / {summary.totalChapters}
+                        {publishedChapters} / {totalChapters}
                     </span>
                 </div>
                 <div className="wst-sidebar__progress-track">
@@ -180,13 +202,13 @@ const WriterTreeSidebar = ({ summary, onNavigate }) => {
                 <div className="wst-sidebar__stat-row" style={{ marginTop: 10 }}>
                     <span className="wst-sidebar__stat-label">จุดเลือก</span>
                     <span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">
-                        {summary.totalChoicePoints} จุด
+                        {summary.totalChoicePoints || 0} จุด
                     </span>
                 </div>
                 <div className="wst-sidebar__stat-row">
                     <span className="wst-sidebar__stat-label">ตอนจบ</span>
                     <span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">
-                        {summary.totalEndings} ทาง
+                        {summary.totalEndings || 0} ทาง
                     </span>
                 </div>
             </div>
@@ -196,7 +218,7 @@ const WriterTreeSidebar = ({ summary, onNavigate }) => {
             {/* Chapter accordion */}
             <div className="wst-sidebar__ch-label">ตอนทั้งหมด</div>
             <div className="wst-sidebar__chapters">
-                {summary.chapters.map((ch) => {
+                {summary.chapters?.map((ch) => {
                     const isOpen = openChapters.includes(ch.id);
                     return (
                         <div key={ch.id} className="wst-sidebar__chapter">
@@ -217,7 +239,7 @@ const WriterTreeSidebar = ({ summary, onNavigate }) => {
                             </button>
                             {isOpen && (
                                 <div className="wst-sidebar__scenes">
-                                    {ch.scenes.map((scene) => (
+                                    {ch.scenes?.map((scene) => (
                                         <div key={scene.id} className="wst-sidebar__scene-row">
                                             <span
                                                 className="wst-sidebar__scene-dot"
@@ -243,9 +265,60 @@ const WriterTreeSidebar = ({ summary, onNavigate }) => {
 //  Main Component
 // ════════════════════════════════════════════════════════
 const WriterStoryTreePage = ({ novelId, onNavigate }) => {
-    const nodes = mockWriterTreeNodes;
-    const edges = mockWriterTreeEdges;
-    const summary = mockWriterNovelSummary;
+    // ── API States ────────────────────────────────────────
+    const [treeData, setTreeData] = useState({ nodes: [], edges: [], summary: null });
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false); // สำหรับปุ่มเพิ่มตอน
+
+    const { nodes, edges, summary } = treeData;
+
+    // ── Fetch data from backend ───────────────────────────
+    const fetchStoryTree = useCallback(async () => {
+        if (!novelId) return;
+        try {
+            setIsLoading(true);
+            setError(null);
+            const response = await axios.get(`/api/v1/novels/${novelId}/story-tree`);
+            
+            // ป้องกัน fallback ในกรณีที่ Backend ส่ง array หรือ field มาไม่ครบ
+            setTreeData({
+                nodes: response.data?.nodes || [],
+                edges: response.data?.edges || [],
+                summary: response.data?.summary || null
+            });
+        } catch (err) {
+            console.error("Error fetching story tree:", err);
+            setError("ไม่สามารถโหลดข้อมูล Story Tree ได้ กรุณาลองใหม่อีกครั้ง");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [novelId]);
+
+    useEffect(() => {
+        fetchStoryTree();
+    }, [fetchStoryTree]);
+
+    // ── Handler: เพิ่มตอน (POST API) ──────────────────────
+    const handleCreateChapter = async () => {
+        if (isSubmitting) return;
+        try {
+            setIsSubmitting(true);
+            // ยิง API เพิ่มตอนใหม่ (สามารถเปลี่ยน payload เป็นชื่อตอนที่กรอกผ่าน prompt/modal ได้ตาม UX จริง)
+            await axios.post("/api/v1/chapters", {
+                novelId: novelId,
+                title: "ตอนใหม่ที่ยังไม่ได้ตั้งชื่อ" 
+            });
+            
+            // ดึงข้อมูลใหม่หลังจากเพิ่มตอนสำเร็จเพื่อให้ UI อัปเดตล่าสุด
+            await fetchStoryTree();
+        } catch (err) {
+            console.error("Error creating chapter:", err);
+            alert("เกิดข้อผิดพลาดในการสร้างตอนใหม่");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     // ── nodeMap: id → node ────────────────────────────────
     const nodeMap = useMemo(
@@ -254,10 +327,15 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     );
 
     // ── Canvas size ───────────────────────────────────────
-    const maxCol = Math.max(...nodes.map((n) => n.col));
-    const maxRow = Math.max(...nodes.map((n) => n.row));
-    const svgW = PAD_X * 2 + (maxCol + 1) * COL_W;
-    const svgH = PAD_Y * 2 + (maxRow + 1) * ROW_H + 20;
+    const { svgW, svgH } = useMemo(() => {
+        if (nodes.length === 0) return { svgW: 800, svgH: 600 };
+        const maxCol = Math.max(...nodes.map((n) => n.col), 0);
+        const maxRow = Math.max(...nodes.map((n) => n.row), 0);
+        return {
+            svgW: PAD_X * 2 + (maxCol + 1) * COL_W,
+            svgH: PAD_Y * 2 + (maxRow + 1) * ROW_H + 20
+        };
+    }, [nodes]);
 
     // ── Zoom / pan state ──────────────────────────────────
     const [zoom, setZoom] = useState(1);
@@ -299,18 +377,18 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     };
 
     // ── Wheel zoom ────────────────────────────────────────
-    const handleWheel = (e) => {
+    const handleWheel = useCallback((e) => {
         if (locked) return;
         e.preventDefault();
         setZoom((z) => Math.min(Math.max(z - e.deltaY * 0.001, 0.3), 2.5));
-    };
+    }, [locked]);
 
     useEffect(() => {
         const el = wrapRef.current;
         if (!el) return;
         el.addEventListener("wheel", handleWheel, { passive: false });
         return () => el.removeEventListener("wheel", handleWheel);
-    }, [locked]);
+    }, [handleWheel]);
 
     // ── Node click ────────────────────────────────────────
     const handleNodeClick = (node) => {
@@ -331,6 +409,26 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
             y: (f.y + NODE_H + t.y) / 2,
         };
     };
+
+    // ── Loading / Error rendering screen ─────────────────
+    if (isLoading) {
+        return (
+            <div className="wst-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <p>กำลังโหลดโครงสร้างเนื้อเรื่อง...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="wst-page" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: '1rem' }}>
+                <p style={{ color: 'red' }}>{error}</p>
+                <button onClick={fetchStoryTree} style={{ padding: '8px 16px', background: 'var(--pink-500)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                    ลองใหม่อีกครั้ง
+                </button>
+            </div>
+        );
+    }
 
     // ════════════════════════════════════════════════════
     return (
@@ -357,12 +455,14 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                 {/* + เพิ่มตอน */}
                 <button
                     className="wst-topbar__add"
-                    onClick={() => onNavigate("create-novel")}
+                    onClick={handleCreateChapter}
+                    disabled={isSubmitting}
+                    style={{ opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
                 >
                     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                         <path d="M6.5 1v11M1 6.5h11" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
                     </svg>
-                    เพิ่มตอน
+                    {isSubmitting ? "กำลังเพิ่ม..." : "เพิ่มตอน"}
                 </button>
             </header>
 
@@ -373,7 +473,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                 <div className="wst-canvas-area">
                     <div className="wst-canvas-heading">
                         <h1 className="wst-canvas-title">Story Tree</h1>
-                        <p className="wst-canvas-sub">{summary.title} · ภาพรวมโครงสร้าง</p>
+                        <p className="wst-canvas-sub">{summary?.title} · ภาพรวมโครงสร้าง</p>
                     </div>
 
                     {/* Canvas wrap */}
@@ -522,7 +622,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                                             <text
                                                 x={
                                                     node.status === WRITER_NODE_STATUS.ENDING ||
-                                                        node.status === WRITER_NODE_STATUS.NO_LINK
+                                                    node.status === WRITER_NODE_STATUS.NO_LINK
                                                         ? NODE_W / 2 + 8
                                                         : NODE_W / 2
                                                 }
@@ -549,6 +649,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                             svgH={svgH}
                             viewBox={{ x: pan.x, y: pan.y, zoom }}
                             nodeMap={nodeMap}
+                            wrapRef={wrapRef}
                         />
 
                         {/* ── Zoom controls ── */}
@@ -589,58 +690,28 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                                     <path d={locked
                                         ? "M4 6V4.5a3 3 0 016 0V6"
                                         : "M4 6V4.5a3 3 0 016 0"
-                                    } stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-                                    <circle cx="7" cy="9.5" r="1" fill="currentColor" />
+                                    } stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                                 </svg>
                             </button>
                             <button
                                 className="wst-zoom-btn"
                                 onClick={zoomFit}
-                                title="Fit to screen"
-                                aria-label="พอดีจอ"
+                                title="จัดให้พอดีหน้าจอ"
+                                aria-label="จัดให้พอดีหน้าจอ"
                             >
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                    <path d="M1 5V2h3M1 9v3h3M13 5V2h-3M13 9v3h-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M2 5V2h3M12 5V2H9M2 9v3h3M12 9v3H9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                             </button>
                         </div>
+
                     </div>
                 </div>
 
-                {/* ── Right sidebar ── */}
-                <WriterTreeSidebar
-                    summary={summary}
-                    onNavigate={onNavigate}
-                />
-            </div>
+                {/* ── Right: Sidebar ── */}
+                <WriterTreeSidebar summary={summary} onNavigate={onNavigate} />
 
-            {/* ── Context: selected node info bar ── */}
-            {selectedId && (() => {
-                const node = nodeMap[selectedId];
-                const st = WRITER_NODE_STYLE[node.status];
-                return (
-                    <div className="wst-node-info">
-                        <span className="wst-node-info__name" style={{ color: st.text }}>{node.label}</span>
-                        <span className="wst-node-info__status"
-                            style={{ background: st.fill, border: `1px solid ${st.stroke}`, color: st.text }}>
-                            {node.status}
-                        </span>
-                        <button
-                            className="wst-node-info__edit"
-                            onClick={() => onNavigate("write", { sceneId: node.id })}
-                        >
-                            ✏️ แก้ไขฉากนี้
-                        </button>
-                        <button
-                            className="wst-node-info__close"
-                            onClick={() => setSelectedId(null)}
-                            aria-label="ปิด"
-                        >
-                            ✕
-                        </button>
-                    </div>
-                );
-            })()}
+            </div>
         </div>
     );
 };

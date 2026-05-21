@@ -1,53 +1,158 @@
 import React, { useState, useEffect } from "react";
+// 🎯 🟢 นำเข้า Link, useNavigate และ useLocation เพื่อทำระบบสลับโหมดแบบไร้รอยต่อ
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 
 const Navbar = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const [searchValue, setSearchValue] = useState("");
     const [searchFocused, setSearchFocused] = useState(false);
+    
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [userData, setUserData] = useState({
+        username: "",
+        email: "",
+        pic_profile: "",
+        role: ""
+    });
+    const [isLoadingUser, setIsLoadingUser] = useState(false);
+
+    // 🎯 🟢 ตรวจสอบว่าปัจจุบัน URL อยู่ในฝั่งโหมดนักเขียนหรือไม่
+    const isWriterMode = location.pathname.startsWith("/dashboard") || 
+                         location.pathname.startsWith("/writer") || 
+                         location.pathname.startsWith("/storytree") || 
+                         location.pathname.startsWith("/create");
 
     useEffect(() => {
         const handleScroll = () => {
             setIsScrolled(window.scrollY > 50);
         };
         window.addEventListener("scroll", handleScroll);
+        
+        const token = localStorage.getItem("token");
+        if (token) {
+            setIsLoggedIn(true);
+            fetchUserData(token);
+        }
+
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    const fetchUserData = async (token) => {
+        setIsLoadingUser(true);
+        try {
+            console.log("🛰️ Fetching user info from /api/users...");
+            const res = await fetch('/api/users', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`API Error: ${res.status} - ${errorText}`);
+            }
+
+            const data = await res.json();
+            if (data.user) {
+                setUserData({
+                    username: data.user.username || "",
+                    email: data.user.email || "",
+                    pic_profile: data.user.pic_profile || "",
+                    role: data.user.role || ""
+                });
+                localStorage.setItem("user_email", data.user.email);
+            }
+        } catch (err) {
+            console.error("❌ Error fetching user data:", err);
+            const savedEmail = localStorage.getItem("user_email");
+            if (savedEmail) {
+                setUserData(prev => ({ ...prev, email: savedEmail }));
+            }
+        } finally {
+            setIsLoadingUser(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            await fetch('/api/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+        } catch (err) {
+            console.error("Logout error:", err);
+        } finally {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user_email");
+            setIsLoggedIn(false);
+            setIsDropdownOpen(false);
+            setUserData({ username: "", email: "", pic_profile: "", role: "" });
+            navigate("/");
+        }
+    };
+
     return (
-        <nav className={`nav-header ${isScrolled ? "nav-sticky" : ""}`}>
+        <nav className={`nav-header ${isScrolled ? "nav-sticky" : ""} ${isWriterMode ? "nav-header--writer" : ""}`}>
             <div className="nav-container">
-                {/* ส่วนโลโก้ตามแบบในรูป */}
-                <div className="nav-logo">
+                {/* ── ส่วนโลโก้: อัปเดตสลับข้อความ Reader/Writer Mode ตามพิกัด URL ── */}
+                <div className="nav-logo" onClick={() => navigate(isWriterMode ? "/dashboard" : "/")}>
                     <img src="/logo192.png" alt="Logo" className="logo-img" />
                     <div className="navbar__logo-text">
                         <span className="navbar__logo-story">Story</span>
-                        <span className="navbar__logo-verse"> Verse</span>
-                        <span className="navbar__logo-mode">Reader Mode</span>
+                        <span className="navbar__logo-verse">Verse</span>
+                        <span className="navbar__logo-mode">
+                            {isWriterMode ? "Writer Mode" : "Reader Mode"}
+                        </span>
                     </div>
                 </div>
 
-                {/* เมนูหลัก */}
+                {/* ── เมนูหลัก: ปรับเป็นสไตล์สลับร่าง ── */}
                 <ul className={`nav-menu ${isMenuOpen ? "active" : ""}`}>
-                    <li className="nav-item active"><a href="/">หน้าแรก</a></li>
-                    <li className="nav-item"><a href="/category">หมวดหมู่</a></li>
-                    <li className="nav-item"><a href="/bookshelf">ชั้นหนังสือ</a></li>
-                    <li className="nav-item"><a href="/history">ประวัติการอ่าน</a></li>
-                    <li className="nav-item"><a href="/create">สร้างนิยาย</a></li>
+                    {isWriterMode ? (
+                        <>
+                            {/* เมนูที่ปรากฏเมื่ออยู่ในโหมดนักเขียน */}
+                            <li className={`nav-item ${location.pathname === "/dashboard" ? "active" : ""}`}>
+                                <Link to="/dashboard">Dashboard นักเขียน</Link>
+                            </li>
+                            <li className={`nav-item ${location.pathname === "/create" ? "active" : ""}`}>
+                                <Link to="/create">สร้างเรื่องใหม่</Link>
+                            </li>
+                        </>
+                    ) : (
+                        <>
+                            {/* เมนูที่ปรากฏเมื่ออยู่ในโหมดนักอ่านตามปกติ */}
+                            <li className={`nav-item ${location.pathname === "/" ? "active" : ""}`}>
+                                <Link to="/">หน้าแรก</Link>
+                            </li>
+                            <li className={`nav-item ${location.pathname === "/category" ? "active" : ""}`}>
+                                <Link to="/category">หมวดหมู่</Link>
+                            </li>
+                            <li className={`nav-item ${location.pathname === "/bookshelf" ? "active" : ""}`}>
+                                <Link to="/bookshelf">ชั้นหนังสือ</Link>
+                            </li>
+                            <li className={`nav-item ${location.pathname === "/history" ? "active" : ""}`}>
+                                <Link to="/history">ประวัติการอ่าน</Link>
+                            </li>
+                        </>
+                    )}
                 </ul>
 
-                {/* ส่วนขวา: ค้นหาและโปรไฟล์ */}
+                {/* ── ส่วนขวา: ช่องค้นหา และ โซนควบคุมโหมด/สิทธิ์ผู้ใช้ ── */}
                 <div className="navbar__right">
                     <div className={`navbar__search ${searchFocused ? "navbar__search--focused" : ""}`}>
-                        <svg
-                            className="navbar__search-icon"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            aria-hidden="true"
-                        >
+                        <svg className="navbar__search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
                             <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
                             <path d="M11 11L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
@@ -59,11 +164,69 @@ const Navbar = () => {
                             onChange={(e) => setSearchValue(e.target.value)}
                             onFocus={() => setSearchFocused(true)}
                             onBlur={() => setSearchFocused(false)}
-                            aria-label="ค้นหานิยาย"
                         />
                     </div>
-                    <span></span>
-                    <span></span>
+
+                    {/* 🎯 🟢 ปุ่มสลับโหมดเชื่อมมิติ (Switch Mode Button) */}
+                    {isLoggedIn && (
+                        <div className="navbar__mode-switch-zone">
+                            {isWriterMode ? (
+                                <button className="nav-switch-btn nav-switch-btn--reader" onClick={() => navigate("/")}>
+                                    📖 สลับไปโหมดนักอ่าน
+                                </button>
+                            ) : (
+                                <button className="nav-switch-btn nav-switch-btn--writer" onClick={() => navigate("/dashboard")}>
+                                    ✍️ สตูดิโอนักเขียน
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ส่วนจัดการตู้เซฟข้อมูลผู้ใช้งาน */}
+                    <div className="navbar__auth-zone">
+                        {isLoggedIn ? (
+                            <div className="nav-profile-container">
+                                <button 
+                                    type="button"
+                                    className="nav-profile-trigger"
+                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                    aria-label="เมนูผู้ใช้งาน"
+                                >
+                                    <img 
+                                        src={userData.pic_profile || "https://api.dicebear.com/7.x/bottts/svg?seed=Lucky"} 
+                                        alt="User Avatar" 
+                                        className="nav-avatar-img"
+                                    />
+                                </button>
+
+                                {isDropdownOpen && (
+                                    <div className="nav-dropdown">
+                                        <div className="nav-dropdown__user-info">
+                                            <p className="nav-dropdown__status">
+                                                {isLoadingUser ? "⏳ กำลังโหลด..." : `สิทธิ์: ${userData.role || "ผู้ใช้"}`}
+                                            </p>
+                                            <p className="nav-dropdown__user-id" title={userData.email}>
+                                                {userData.username || userData.email || "ผู้ใช้งาน"}
+                                            </p>
+                                        </div>
+                                        <hr className="nav-dropdown__divider" />
+                                        
+                                        {/* 🎯 ทางลัดเพิ่มเติมภายใน Dropdown โปรไฟล์ */}
+                                        <button type="button" className="nav-dropdown__link-btn" onClick={() => { navigate(isWriterMode ? "/" : "/dashboard"); setIsDropdownOpen(false); }}>
+                                            {isWriterMode ? "📖 เข้าสู่หน้าหลักนักอ่าน" : "✍️ เข้าสู่สตูดิโอนักเขียน"}
+                                        </button>
+                                        
+                                        <hr className="nav-dropdown__divider" />
+                                        <button type="button" className="nav-dropdown__logout-btn" onClick={handleLogout}>
+                                            🚪 ออกจากระบบ
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <Link to="/auth" className="nav-login-btn">เข้าสู่ระบบ</Link>
+                        )}
+                    </div>
                 </div>
             </div>
         </nav>

@@ -1,3 +1,4 @@
+import React from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -41,12 +42,12 @@ const ReaderLayout = ({ children }) => {
 };
 
 // ======================================================
-// Writer Layout
+// Writer Layout 
 // ======================================================
-const WriterLayout = ({ children }) => {
+const WriterLayout = ({ children, onNavigate }) => {
   return (
     <div className="writer-layout">
-      <WriterSidebar />
+      <WriterSidebar onNavigate={onNavigate} />
       <main className="writer-layout__content">
         {children}
       </main>
@@ -54,7 +55,12 @@ const WriterLayout = ({ children }) => {
   );
 };
 
-const createNavigateHandler = (navigate) => (page, payload = {}) => {
+// ======================================================
+// Navigation Central Handler (แก้ไข Syntax ปีกกาเรียบร้อยแล้ว)
+// ======================================================
+const createNavigateHandler = (navigate, currentNovelId = null) => (page, payload = {}) => {
+  const activeNovelId = typeof payload === "string" ? payload : (payload?.novelId || currentNovelId);
+
   switch (page) {
     case "dashboard":
       navigate("/dashboard");
@@ -63,15 +69,15 @@ const createNavigateHandler = (navigate) => (page, payload = {}) => {
       navigate("/create");
       break;
     case "chapters":
-      if (payload?.novelId) {
-        navigate(`/writer/${payload.novelId}/chapters`);
+      if (activeNovelId) {
+        navigate(`/writer/${activeNovelId}/chapters`);
       } else {
         navigate("/dashboard");
       }
       break;
     case "story-tree":
-      if (payload?.novelId) {
-        navigate(`/storytree/${payload.novelId}`);
+      if (activeNovelId) {
+        navigate(`/storytreewt/${activeNovelId}`);
       } else {
         navigate("/dashboard");
       }
@@ -94,11 +100,16 @@ const createNavigateHandler = (navigate) => (page, payload = {}) => {
       }
       break;
     }
+    case "scene-editor":
+      if (activeNovelId && payload?.sceneId) {
+        navigate(`/writer/${activeNovelId}/scene/${payload.sceneId}`);
+      }
+      break;
     case "write":
-      if (payload?.novelId) {
-        navigate(`/writer/${payload.novelId}/chapters`);
+      if (activeNovelId && payload?.sceneId) {
+        navigate(`/writer/${activeNovelId}/scene/${payload.sceneId}`);
       } else {
-        navigate("/dashboard");
+        console.warn("⚠️ ไม่สามารถเปิดหน้าเขียนได้เนื่องจากข้อมูลไม่ครบ:", { activeNovelId, payload });
       }
       break;
     default:
@@ -107,6 +118,9 @@ const createNavigateHandler = (navigate) => (page, payload = {}) => {
   }
 };
 
+// ======================================================
+// Route Wrappers 
+// ======================================================
 const HomePageRoute = () => {
   const navigate = useNavigate();
   return (
@@ -145,18 +159,20 @@ const ReadingRoute = () => {
 
 const WriterDashboardRoute = () => {
   const navigate = useNavigate();
+  const navHandler = createNavigateHandler(navigate);
   return (
-    <WriterLayout>
-      <WriterDashboardPage onNavigate={createNavigateHandler(navigate)} />
+    <WriterLayout onNavigate={navHandler}>
+      <WriterDashboardPage onNavigate={navHandler} />
     </WriterLayout>
   );
 };
 
 const CreateNovelRoute = () => {
   const navigate = useNavigate();
+  const navHandler = createNavigateHandler(navigate);
   return (
-    <WriterLayout>
-      <CreateNovelPage onNavigate={createNavigateHandler(navigate)} />
+    <WriterLayout onNavigate={navHandler}>
+      <CreateNovelPage onNavigate={navHandler} />
     </WriterLayout>
   );
 };
@@ -164,48 +180,66 @@ const CreateNovelRoute = () => {
 const ChapterManagerRoute = () => {
   const navigate = useNavigate();
   const { novelId } = useParams();
+  const navHandler = createNavigateHandler(navigate, novelId);
+  
   return (
-    <WriterLayout>
-      <ChapterManagerPage novelId={novelId} onNavigate={createNavigateHandler(navigate)} />
+    <WriterLayout onNavigate={navHandler}>
+      <ChapterManagerPage novelId={novelId} onNavigate={navHandler} />
     </WriterLayout>
   );
 };
 
+const WriterStoryTreeRoute = () => {
+  const navigate = useNavigate();
+  const { novelId } = useParams();
+  const navHandler = createNavigateHandler(navigate, novelId);
 
+  return (
+    <WriterLayout onNavigate={navHandler}>
+      <WriterStoryTreePage novelId={novelId} onNavigate={navHandler} />
+    </WriterLayout>
+  );
+};
+
+const SceneEditorRoute = () => {
+  const navigate = useNavigate();
+  const { novelId, sceneId } = useParams();
+  const navHandler = createNavigateHandler(navigate, novelId);
+
+  return (
+    <WriterLayout onNavigate={navHandler}>
+      <SceneEditorPage 
+        novelId={novelId} 
+        chapterId="1" 
+        sceneId={sceneId} 
+        onNavigate={navHandler} 
+      />
+    </WriterLayout>
+  );
+};
+
+// ======================================================
+// Main Application Component
+// ======================================================
 function App() {
   return (
     <Router>
       <Routes>
-
-        {/* ==================================================
-            Reader Routes
-        ================================================== */}
-
+        {/* Reader Routes */}
         <Route path="/" element={<HomePageRoute />} />
-
         <Route path="/novel/:id" element={<NovelDetailRoute />} />
-
-        {/* 🎯 🟢 จุดแก้ไข: ปรับเส้นทางผังเมืองให้รับพารามิเตอร์รหัสนิยาย (:novelId) จาก URL
-            คราวนี้เวลาพิมพ์หรือ Link วิ่งมาที่ /storytree/1 หรือ /storytree/5 หน้าเว็บจะดึง ID ไปยิง Go API ได้ถูกต้องทันทีครับน้า */}
         <Route path="/storytree/:novelId" element={<StoryTreeRoute />} />
-
-        {/* แบบที่ 1: เข้ามาอ่านครั้งแรก (ไม่มี sceneId ลอยมา) จะใช้ URL: /reading/1 */}
         <Route path="/reading/:novelId" element={<ReadingRoute />} />
-
-        {/* แบบที่ 2: อ่านกิ่งต่อๆ ไป (มี sceneId ส่งมาด้วย) จะใช้ URL: /reading/1/12 */}
         <Route path="/reading/:novelId/:sceneId" element={<ReadingRoute />} />
 
-        {/* ==================================================
-            Writer Routes
-        ================================================== */}
-
+        {/* Writer Routes */}
         <Route path="/dashboard" element={<WriterDashboardRoute />} />
         <Route path="/create" element={<CreateNovelRoute />} />
         <Route path="/writer/:novelId/chapters" element={<ChapterManagerRoute />} />
-        <Route path="/storytreewt/:novelId" element={<WriterStoryTreePage />} />
-        <Route path="/writer/:novelId/scene/:sceneId" element={<SceneEditorPage />} />
+        <Route path="/storytreewt/:novelId" element={<WriterStoryTreeRoute />} />
+        <Route path="/writer/:novelId/scene/:sceneId" element={<SceneEditorRoute />} />
 
-
+        {/* Auth Routes */}
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/registerwriter" element={<WriterRegisterPage />} />
       </Routes>
