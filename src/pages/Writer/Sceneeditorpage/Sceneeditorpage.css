@@ -939,3 +939,33 @@
     display: none;
   }
 }
+
+/* React Quill */
+
+.se-quill {
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.se-quill .ql-toolbar {
+  border: 1px solid var(--gray-200);
+  border-bottom: none;
+  background: #fafafa;
+}
+
+.se-quill .ql-container {
+  border: 1px solid var(--gray-200);
+  min-height: 420px;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.se-quill .ql-editor {
+  min-height: 420px;
+  padding: 24px;
+}
+
+.se-quill .ql-editor p {
+  margin-bottom: 1rem;
+}

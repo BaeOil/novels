@@ -21,6 +21,7 @@ import WriterStoryTreePage from "./pages/Writer/WriterStoryTreePage/WriterStoryT
 import SceneEditorPage from "./pages/Writer/Sceneeditorpage/Sceneeditorpage";
 
 import AuthPage from "./pages/Auth/AuthPage";
+import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
 
 import "./style/App.css";
 import "./style/index.css";
@@ -206,7 +207,7 @@ function App() {
 
 
         <Route path="/auth" element={<AuthPage />} />
-
+        <Route path="/registerwriter" element={<WriterRegisterPage />} />
       </Routes>
     </Router>
   );
