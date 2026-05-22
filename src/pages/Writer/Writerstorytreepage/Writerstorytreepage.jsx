@@ -28,6 +28,8 @@ import {
     WRITER_LEGEND,
 } from "../../../data/mockWriterTreeData";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
 // ════════════════════════════════════════════════════════
 //  Layout constants
 // ════════════════════════════════════════════════════════
@@ -279,7 +281,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
         try {
             setIsLoading(true);
             setError(null);
-            const response = await axios.get(`/api/v1/novels/${novelId}/story-tree`);
+            const response = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`);
             
             // ป้องกัน fallback ในกรณีที่ Backend ส่ง array หรือ field มาไม่ครบ
             setTreeData({
@@ -304,10 +306,18 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
         if (isSubmitting) return;
         try {
             setIsSubmitting(true);
-            // ยิง API เพิ่มตอนใหม่ (สามารถเปลี่ยน payload เป็นชื่อตอนที่กรอกผ่าน prompt/modal ได้ตาม UX จริง)
-            await axios.post("/api/v1/chapters", {
-                novelId: novelId,
-                title: "ตอนใหม่ที่ยังไม่ได้ตั้งชื่อ" 
+
+            const token = localStorage.getItem("token");
+            const headers = { "Content-Type": "application/json" };
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+
+            await axios.post(`${API_BASE_URL}/chapters`, {
+                novel_id: novelId,
+                title: "ตอนใหม่ที่ยังไม่ได้ตั้งชื่อ"
+            }, {
+                headers,
             });
             
             // ดึงข้อมูลใหม่หลังจากเพิ่มตอนสำเร็จเพื่อให้ UI อัปเดตล่าสุด

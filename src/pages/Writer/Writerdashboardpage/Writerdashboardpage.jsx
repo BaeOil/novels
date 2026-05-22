@@ -56,20 +56,22 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const token = localStorage.getItem("token");
+  const buildAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    return { Authorization: `Bearer ${token}` };
+  };
 
   // ── ฟังก์ชันดึงข้อมูลจากหลังบ้าน ──────────────────────────────
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const headers = {};
-      if (token) {
-        // ทำการส่ง Bearer Token ไปตามที่ middleware.RequireAuth ของ Go ต้องการ
-        headers["Authorization"] = `Bearer ${token}`;
+      const headers = buildAuthHeaders();
+      if (!headers) {
+        throw new Error("กรุณาเข้าสู่ระบบก่อนดูแดชบอร์ดนักเขียน");
       }
 
-      // 🟢 เปลี่ยนมายิงที่เส้นหลักตามท่อ Go (/api/me/novels)
       const response = await fetch(`${API_BASE_URL}/api/me/novels`, { headers });
       
       if (!response.ok) {
@@ -83,7 +85,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
       
       // ดึงอาร์เรย์ของนิยายออกมาจากโครงสร้าง Map {"author_id": X, "novels": [...]} ที่ Go ส่งมา
       // และดักตรวจสอบกรณีก่อนหน้าถ้าข้อมูลหลังบ้านเป็น empty array
-      const fetchedNovels = result?.novels || [];
+      const fetchedNovels = result?.novels || result?.data?.novels || [];
       
       // คำนวณสถิติรวม (สแตท) จากอาร์เรย์นิยายที่ดึงมาได้โดยตรง (ไม่ต้องพึ่ง API สถิติแยก)
       let calculatedLikes = 0;
@@ -112,7 +114,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -121,12 +123,12 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   // ── ฟังก์ชันลบนิยาย ─────────────────────────────────────────
   const handleDeleteNovel = async (novelId) => {
     try {
-      const headers = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+      const headers = buildAuthHeaders();
+      if (!headers) {
+        throw new Error("กรุณาเข้าสู่ระบบก่อนลบนิยาย");
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/v1/writer/novels/${novelId}`, {
+      const response = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
         method: "DELETE",
         headers,
       });
