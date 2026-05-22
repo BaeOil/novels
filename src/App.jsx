@@ -106,10 +106,6 @@ const createNavigateHandler = (navigate, currentNovelId = null) => (page, payloa
       break;
     }
     case "scene-editor":
-      if (activeNovelId && payload?.sceneId) {
-        navigate(`/writer/${activeNovelId}/scene/${payload.sceneId}`);
-      }
-      break;
     case "write":
       if (activeNovelId && payload?.sceneId) {
         navigate(`/writer/${activeNovelId}/scene/${payload.sceneId}`);

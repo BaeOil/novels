@@ -12,7 +12,7 @@ import Toggle from "../../../components/Toggle/Toggle";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 // ─────────────────────────────────────────────
-// React Quill config (ปรับปรุงเพื่อแก้บั๊ก Cannot register bullet)
+// React Quill config
 // ─────────────────────────────────────────────
 const quillModules = {
   toolbar: [
@@ -48,27 +48,121 @@ const ChoiceCard = ({
   choice,
   index,
   allTargetOptions,
+  currentChapterId,
   onUpdate,
   onDelete,
 }) => {
-  const [text, setText] = useState(choice.text || "");
-  const [targetType, setTargetType] = useState(choice.targetType || "same");
-  const [targetLabel, setTargetLabel] = useState(choice.targetLabel || "");
-  const [subScene, setSubScene] = useState(choice.targetSubScene || "");
+  const allScenes = (Array.isArray(allTargetOptions) ? allTargetOptions : []).flatMap((ch) => {
+    const scenes = Array.isArray(ch.scenes) ? ch.scenes : [];
+    const chapterTitle = ch.title || ch.chapterTitle || "";
+    const chapterId = ch.id || ch.chapterId || ch.ChapterID || ch.chapter_id || "";
+    return scenes.map((s) => ({
+      value: `${chapterId}||${s.id ?? s.scene_id ?? s.SceneID}`,
+      label: `${chapterTitle} › ${s.title || s.label || s.sceneTitle || "ฉากไม่มีชื่อ"}`,
+      chapterTitle,
+      chapterId,
+      sceneId: s.id ?? s.scene_id ?? s.SceneID,
+      sceneLabel: s.title || s.label || s.sceneTitle || "ฉากไม่มีชื่อ",
+    }));
+  });
 
-  // ทำการ Map รายการบทและฉากทั้งหมดที่มี เพื่อเป็น Dropdown ปลายทาง
-  const flatOptions = (allTargetOptions || []).flatMap((ch) =>
-    (ch.scenes || []).map((s) => ({
-      value: `${ch.id || ch.chapterId}||${s.id}`,
-      label: `${ch.title || ch.chapterTitle} › ${s.label || s.title || s.sceneTitle}`,
-      chapterTitle: ch.title || ch.chapterTitle,
-    }))
+  const findSceneByValue = (value) => allScenes.find((scene) => String(scene.value) === String(value));
+
+  const normalizeChoiceTarget = (target) => {
+    if (!target) return "";
+    if (typeof target === "string" && target.includes("||")) return target;
+    const targetId = String(target);
+    const found = allScenes.find((scene) =>
+      String(scene.value) === targetId || String(scene.value).endsWith(`||${targetId}`)
+    );
+    return found ? found.value : "";
+  };
+
+  const initialTargetSubScene = normalizeChoiceTarget(
+    choice.targetSubScene ?? choice.to_scene_id ?? choice.toSceneID ?? choice.toSceneId ?? ""
   );
+  const resolvedScene = findSceneByValue(initialTargetSubScene);
+  const initialScope = resolvedScene
+    ? String(resolvedScene.chapterId) === String(currentChapterId)
+      ? "same"
+      : "other"
+    : "same";
+  const initialChapterId = resolvedScene?.chapterId ?? currentChapterId;
+
+  const [text, setText] = useState(choice.text ?? choice.label ?? choice.Label ?? "");
+  const [targetType, setTargetType] = useState(choice.targetType || initialScope);
+  const [targetLabel, setTargetLabel] = useState(choice.targetLabel || resolvedScene?.label || resolvedScene?.chapterTitle || "");
+  const [subScene, setSubScene] = useState(initialTargetSubScene);
+  const [selectedChapterId, setSelectedChapterId] = useState(initialChapterId);
+
+  useEffect(() => {
+    setText(choice.text ?? choice.label ?? choice.Label ?? "");
+  }, [choice.text, choice.label]);
+
+  useEffect(() => {
+    if (!subScene && initialTargetSubScene) {
+      const scene = findSceneByValue(initialTargetSubScene);
+      if (scene) {
+        setSubScene(initialTargetSubScene);
+        setTargetLabel(scene.label);
+        setSelectedChapterId(scene.chapterId);
+        setTargetType(String(scene.chapterId) === String(currentChapterId) ? "same" : "other");
+      }
+    }
+  }, [allScenes.length]);
+
+  const sameChapterScenes = allScenes.filter((scene) => String(scene.chapterId) === String(currentChapterId));
+  const otherChapterOptions = Array.from(
+    new Map(
+      allScenes
+        .filter((scene) => String(scene.chapterId) !== String(currentChapterId))
+        .map((scene) => [String(scene.chapterId), { chapterId: scene.chapterId, chapterTitle: scene.chapterTitle }])
+    )
+  ).map(([, value]) => value);
+
+  const effectiveChapterId =
+    targetType === "same"
+      ? currentChapterId
+      : selectedChapterId || otherChapterOptions[0]?.chapterId || currentChapterId;
+  const targetScenes = allScenes.filter((scene) => String(scene.chapterId) === String(effectiveChapterId));
+  const sceneOptions = targetType === "same" ? sameChapterScenes : targetScenes;
+
+  const handleScopeChange = (scopeValue) => {
+    setTargetType(scopeValue);
+    const nextChapterId = scopeValue === "same" ? currentChapterId : otherChapterOptions[0]?.chapterId || currentChapterId;
+    setSelectedChapterId(nextChapterId);
+    const nextScene = allScenes.find((scene) => String(scene.chapterId) === String(nextChapterId));
+    if (nextScene) {
+      setSubScene(nextScene.value);
+      setTargetLabel(nextScene.label);
+      onUpdate?.({
+        ...choice,
+        text,
+        targetType: scopeValue,
+        targetSubScene: nextScene.value,
+      });
+    }
+  };
+
+  const handleChapterChange = (chapterId) => {
+    setSelectedChapterId(chapterId);
+    const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(chapterId));
+    if (firstScene) {
+      setSubScene(firstScene.value);
+      setTargetLabel(firstScene.label);
+      onUpdate?.({
+        ...choice,
+        text,
+        targetType,
+        targetSubScene: firstScene.value,
+      });
+    }
+  };
 
   const handleSubSceneChange = (val) => {
     setSubScene(val);
-    const found = flatOptions.find((o) => o.value === val);
-    if (found) setTargetLabel(found.chapterTitle);
+    const found = findSceneByValue(val);
+    if (found) setTargetLabel(found.label || found.chapterTitle);
 
     onUpdate?.({
       ...choice,
@@ -87,46 +181,23 @@ const ChoiceCard = ({
         style={{
           background: COLORS[index % COLORS.length] + "18",
           color: COLORS[index % COLORS.length],
-          border: `1.5px solid ${COLORS[index % COLORS.length]}30`,
         }}
       >
         {index + 1}
       </div>
 
       <div className="se-choice__body">
-        <div className="se-choice__titlerow">
-          <input
-            className="se-choice__text-input"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              onUpdate?.({
-                ...choice,
-                text: e.target.value,
-              });
-            }}
-            placeholder="ข้อความตัวเลือก..."
-          />
-
-          <div className="se-choice__target-badge">
-            − {targetLabel || "เลือกตอน..."}
-          </div>
-
-          <button
-            className="se-choice__del"
-            onClick={() => onDelete(choice.id)}
-            aria-label="ลบ"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M2 2l8 8M10 2l-8 8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
+        <button
+          className="se-choice__del"
+          onClick={() => onDelete(choice.id)}
+          aria-label="ลบตัวเลือก"
+          title="ลบตัวเลือกนี้"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
 
         <div className="se-choice__config">
           <div className="se-choice__config-col">
@@ -138,12 +209,13 @@ const ChoiceCard = ({
                 setText(e.target.value);
                 onUpdate?.({ ...choice, text: e.target.value });
               }}
-              placeholder="สำรวจแบบไม่ย่อท้อ..."
+              placeholder="ตัวอย่าง: สำรวจแบบไม่ย่อท้อ..."
             />
           </div>
 
           <div className="se-choice__config-col">
-            <div className="se-choice__config-label">ไปตอนใด</div>
+            <div className="se-choice__config-label">ลิงก์ปลายทาง</div>
+            
             <div className="se-choice__radios">
               <label className="se-radio">
                 <input
@@ -151,13 +223,10 @@ const ChoiceCard = ({
                   name={`tt-${choice.id}`}
                   value="same"
                   checked={targetType === "same"}
-                  onChange={() => {
-                    setTargetType("same");
-                    onUpdate?.({ ...choice, targetType: "same" });
-                  }}
+                  onChange={() => handleScopeChange("same")}
                 />
                 <span className="se-radio__dot" />
-                ไปฉากในตอนเดียวกัน
+                ฉากในตอนเดียวกัน
               </label>
 
               <label className="se-radio">
@@ -166,28 +235,42 @@ const ChoiceCard = ({
                   name={`tt-${choice.id}`}
                   value="other"
                   checked={targetType === "other"}
-                  onChange={() => {
-                    setTargetType("other");
-                    onUpdate?.({ ...choice, targetType: "other" });
-                  }}
+                  onChange={() => handleScopeChange("other")}
                 />
                 <span className="se-radio__dot" />
-                ไปฉากในตอนอื่น
+                ฉากในตอนอื่น
               </label>
             </div>
 
-            <select
-              className="se-select"
-              value={subScene}
-              onChange={(e) => handleSubSceneChange(e.target.value)}
-            >
-              <option value="">เลือกฉากปลายทาง...</option>
-              {flatOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {targetType === "other" && (
+                <select
+                  className="se-select"
+                  value={effectiveChapterId || ""}
+                  onChange={(e) => handleChapterChange(e.target.value)}
+                >
+                  <option value="">เลือกตอนปลายทาง...</option>
+                  {otherChapterOptions.map((ch) => (
+                    <option key={`chapter-target-${ch.chapterId}`} value={ch.chapterId}>
+                      {ch.chapterTitle || `ตอน ${ch.chapterId}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <select
+                className="se-select"
+                value={subScene}
+                onChange={(e) => handleSubSceneChange(e.target.value)}
+              >
+                <option value="">เลือกฉากปลายทาง...</option>
+                {sceneOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -196,22 +279,29 @@ const ChoiceCard = ({
 };
 
 // ─────────────────────────────────────────────
-// Scene Tree Sidebar Component
+// Scene Tree Sidebar Component (คำนวณลำดับตอนและฉากอัตโนมัติ)
 // ─────────────────────────────────────────────
 const SceneTreeSidebar = ({
   chapters,
   currentSceneId,
+  currentChapterId,
+  currentChapterTitle,
+  currentSceneLabel,
   onSelectScene,
   onAddScene,
   onAddChapter,
+  isPublished,
+  setIsPublished,
+  isEnding,
+  setIsEnding,
+  triggerAutoSave
 }) => {
   const [expandedChapters, setExpandedChapters] = useState([]);
 
-  // ขยายเมนูกิ่งตอนอัตโนมัติหากมีฉากปัจจุบันอยู่ข้างใน
   useEffect(() => {
     if (chapters && chapters.length > 0) {
       const activeChs = chapters
-        .filter((c) => (c.scenes || []).some((s) => String(s.id) === String(currentSceneId)))
+        .filter((c) => (c.scenes || []).some((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId)))
         .map((c) => c.id);
       if (activeChs.length > 0) {
         setExpandedChapters((prev) => Array.from(new Set([...prev, ...activeChs])));
@@ -225,19 +315,94 @@ const SceneTreeSidebar = ({
     );
   };
 
+  const safeChapters = Array.isArray(chapters) ? chapters : [];
+
+  // ─────────────────────────────────────────────
+  // คำนวณหาลำดับ "ตอนที่เท่าไหร่" และ "ฉากที่เท่าไหร่" ของฉากปัจจุบันที่แก้ไขอยู่
+  // ─────────────────────────────────────────────
+  const currentChIndex = safeChapters.findIndex((c) => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(currentChapterId));
+  const currentChDisplayNumber = currentChIndex !== -1 
+    ? (safeChapters[currentChIndex].chapterNumber || safeChapters[currentChIndex].order_index || (currentChIndex + 1)) 
+    : "";
+
+  const currentChapterScenes = currentChIndex !== -1 ? (Array.isArray(safeChapters[currentChIndex].scenes) ? safeChapters[currentChIndex].scenes : []) : [];
+  const currentScIndex = currentChapterScenes.findIndex((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId));
+  const currentScDisplayNumber = currentScIndex !== -1 ? (currentScIndex + 1) : "";
+
   return (
-    <div className="se-tree">
-      <div className="se-tree__header">เส้นทางของตอนนี้</div>
-      <div className="se-tree__list">
-        {(chapters || []).map((ch) => {
-          const isExpanded = expandedChapters.includes(ch.id);
-          const hasActiveScene = (ch.scenes || []).some((s) => String(s.id) === String(currentSceneId));
+    <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+      
+      {/* 1. เส้นทางของตอนนี้ (กล่องสีชมพู) */}
+      <div className="se-tree__header" style={{ marginBottom: "12px" }}>เส้นทางของตอนนี้</div>
+      <div 
+        className="se-tree__current-path" 
+        style={{ 
+          backgroundColor: 'var(--pink-50)', 
+          padding: '14px', 
+          borderRadius: '10px', 
+          border: '1px solid var(--pink-200)',
+          marginBottom: '20px' 
+        }}
+      >
+        <div style={{ color: 'var(--pink-600)', fontWeight: 'bold', marginBottom: '6px', fontSize: '0.95rem' }}>
+          ตอนที่ {currentChDisplayNumber || "-"}: {currentChapterTitle || "ไม่ระบุชื่อตอน"}
+        </div>
+        <div style={{ color: 'var(--gray-700)', fontSize: '0.9rem', lineHeight: '1.4', fontWeight: '500' }}>
+          ฉากที่ {currentChDisplayNumber || "-"}.{currentScDisplayNumber || "-"}: {currentSceneLabel || "ฉากไม่มีชื่อ"}
+        </div>
+      </div>
+
+      {/* 2. ตั้งค่าสถานะ (Toggles) */}
+      <div className="se-tree__toggles" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--gray-800)' }}>สถานะการเผยแพร่</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{isPublished ? "เผยแพร่แล้ว" : "ซ่อน (ฉบับร่าง)"}</span>
+          </div>
+          <Toggle
+            checked={isPublished}
+            onChange={(value) => {
+              setIsPublished(value);
+              triggerAutoSave();
+            }}
+            id={`toggle-publish-sidebar`}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--gray-800)' }}>จุดจบของเรื่อง</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{isEnding ? "ใช่ (นี่คือตอนจบ)" : "ไม่ใช่"}</span>
+          </div>
+          <Toggle
+            checked={isEnding}
+            onChange={(value) => {
+              setIsEnding(value);
+              triggerAutoSave();
+            }}
+            id={`toggle-ending-sidebar`}
+          />
+        </div>
+      </div>
+
+      <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '0 0 20px 0' }} />
+
+      {/* 3. ภาพรวมของนิยาย */}
+      <div className="se-tree__header" style={{ marginBottom: "16px" }}>ภาพรวมของนิยาย</div>
+      <div className="se-tree__list" style={{ flex: 1 }}>
+        {safeChapters.map((ch, chapterIndex) => {
+          const chapterKey = ch.id ?? ch.chapter_id ?? ch.ChapterID ?? chapterIndex;
+          const isExpanded = expandedChapters.includes(chapterKey);
+          const chapterScenes = Array.isArray(ch.scenes) ? ch.scenes : [];
+          const hasActiveScene = chapterScenes.some((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId));
+          
+          const chDisplayNum = ch.chapterNumber || ch.order_index || (chapterIndex + 1);
 
           return (
-            <div key={ch.id} className="se-tree__chapter" >
+            <div key={chapterKey} className="se-tree__chapter" >
               <button
                 className="se-tree__ch-row"
-                onClick={() => toggleChapter(ch.id)}
+                onClick={() => toggleChapter(chapterKey)}
               >
                 <svg
                   width="12"
@@ -254,7 +419,7 @@ const SceneTreeSidebar = ({
                 </svg>
 
                 <span className="se-tree__ch-label">
-                  ตอน {ch.chapterNumber || ch.order_index || ""} — {ch.title}
+                  ตอนที่ {chDisplayNum} — {ch.title}
                 </span>
 
                 <span
@@ -267,15 +432,21 @@ const SceneTreeSidebar = ({
 
               {isExpanded && (
                 <div className="se-tree__scenes">
-                  {(ch.scenes || []).map((scene) => {
-                    const isCurrent = String(scene.id) === String(currentSceneId);
+                  {chapterScenes.map((scene, sceneIndex) => {
+                    const sceneKey = scene.id ?? scene.scene_id ?? scene.SceneID ?? sceneIndex;
+                    const sceneIdValue = scene.id ?? scene.scene_id ?? scene.SceneID;
+                    const chapterIdValue = ch.id ?? ch.chapter_id ?? ch.ChapterID;
+                    const isCurrent = String(sceneIdValue) === String(currentSceneId);
+                    
+                    const scDisplayNum = sceneIndex + 1;
+
                     return (
                       <button
-                        key={scene.id}
+                        key={sceneKey}
                         className={`se-tree__scene-row ${isCurrent ? "se-tree__scene-row--active" : ""}`}
-                        onClick={() => onSelectScene(ch.id, scene.id)}
+                        onClick={() => onSelectScene(chapterIdValue, sceneIdValue)}
                       >
-                        {scene.label || scene.title || scene.sceneTitle || "ฉากไม่มีชื่อ"}
+                        ฉากที่ {chDisplayNum}.{scDisplayNum} — {scene.label || scene.title || scene.sceneTitle || "ฉากไม่มีชื่อ"}
                       </button>
                     );
                   })}
@@ -293,25 +464,22 @@ const SceneTreeSidebar = ({
         })}
       </div>
 
-      <button className="se-tree__add-ch" onClick={onAddChapter}>
+      <button className="se-tree__add-ch" onClick={onAddChapter} style={{ marginTop: "16px" }}>
         เพิ่มตอนใหม่
       </button>
     </div>
   );
 };
 
-// ═════════════════════════════════════════════
+// ─────────────────────────────────────────────
 // Main Component
-// ═════════════════════════════════════════════
+// ─────────────────────────────────────────────
 const SceneEditorPage = ({
   novelId,
   chapterId,
   sceneId,
   onNavigate,
 }) => {
-  // ─────────────────────────────────────────
-  // State 
-  // ─────────────────────────────────────────
   const [novelTitle, setNovelTitle] = useState("");
   const [chapterTitle, setChapterTitle] = useState("");
   const [sceneLabel, setSceneLabel] = useState("");
@@ -331,9 +499,6 @@ const SceneEditorPage = ({
   const autoSaveTimer = useRef(null);
   const token = localStorage.getItem("token");
 
-  // ─────────────────────────────────────────
-  // Fetch Data จากหลังบ้านจริง (ปรับปรุงเอนด์พอยท์)
-  // ─────────────────────────────────────────
   const fetchSceneData = useCallback(async () => {
     setIsLoading(true);
     setErrorMsg(null);
@@ -341,7 +506,6 @@ const SceneEditorPage = ({
       const headers = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      // 1. ดึงรายละเอียดฉากปัจจุบัน วิ่งเข้า /scenes/:id ตรงๆ ตามยูนิตเร้าเตอร์ Go
       const sceneRes = await fetch(`${API_BASE_URL}/scenes/${sceneId}`, {
         headers,
       });
@@ -349,23 +513,36 @@ const SceneEditorPage = ({
       const sceneResult = await sceneRes.json();
       const sceneData = sceneResult?.data || sceneResult;
 
-      // เซ็ตข้อมูลเข้าสเตตฟอร์ม
       setNovelTitle(sceneData.novelTitle || sceneData.novel_title || "ไม่ระบุชื่อนิยาย");
       setChapterTitle(sceneData.chapterTitle || sceneData.chapter_title || "ไม่ระบุชื่อตอน");
-      setSceneLabel(sceneData.sceneLabel || sceneData.title || `ฉาก ${sceneData.id}`);
-      setSceneTitle(sceneData.sceneTitle || sceneData.title || "");
+      setSceneLabel(
+        sceneData.sceneLabel || sceneData.scene_label || sceneData.sceneTitle || sceneData.scene_title || sceneData.title || `ฉาก ${sceneData.scene_id || sceneData.id}`
+      );
+      setSceneTitle(sceneData.sceneTitle || sceneData.scene_title || sceneData.title || "");
       setContent(sceneData.content || "");
       setIsPublished(sceneData.status === "published" || sceneData.isPublished || false);
       setIsEnding(sceneData.isEnding || sceneData.is_ending || false);
-      setChoices(sceneData.choices || []);
 
-      // 2. ดึงโครงสร้างตอนทั้งหมดของนิยายเรื่องนี้เพื่อทำแผนภูมิแผนผัง (Sidebar และ Dropdown ปลายทาง)
-      const chaptersRes = await fetch(`${API_BASE_URL}/novels/${novelId}/story-tree`, {
+      const normalizedChoices = (Array.isArray(sceneData.choices) ? sceneData.choices : []).map((choice) => ({
+        ...choice,
+        id: choice.id ?? choice.choice_id ?? choice.choiceId ?? `choice-${choice.choice_id || choice.id || Date.now()}`,
+        text: choice.text ?? choice.label ?? choice.Label ?? "",
+        targetSubScene: choice.targetSubScene ?? choice.to_scene_id ?? choice.toSceneID ?? choice.toSceneId ?? "",
+      }));
+      setChoices(normalizedChoices);
+
+      const chaptersRes = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters`, {
         headers,
       });
       if (chaptersRes.ok) {
         const chaptersResult = await chaptersRes.json();
-        setChapters(chaptersResult?.data || chaptersResult || []);
+        const chaptersData =
+          chaptersResult?.data?.chapters ||
+          chaptersResult?.chapters ||
+          chaptersResult?.data ||
+          chaptersResult ||
+          [];
+        setChapters(Array.isArray(chaptersData) ? chaptersData : []);
       }
     } catch (err) {
       console.error("Fetch Scene Data Error:", err);
@@ -379,9 +556,6 @@ const SceneEditorPage = ({
     fetchSceneData();
   }, [fetchSceneData]);
 
-  // ─────────────────────────────────────────
-  // Save Function (ส่งไปอัปเดตที่หลังบ้านจริง)
-  // ─────────────────────────────────────────
   const handleSave = async (overridePublishStatus = null) => {
     setIsSaving(true);
     try {
@@ -398,7 +572,6 @@ const SceneEditorPage = ({
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      // ยิง PUT ไปอัปเดตที่เซนทรัลเร้าต์หลัก /scenes/:id
       const response = await fetch(`${API_BASE_URL}/scenes/${sceneId}`, {
         method: "PUT",
         headers,
@@ -418,23 +591,17 @@ const SceneEditorPage = ({
     }
   };
 
-  // ─────────────────────────────────────────
-  // Auto Save Timer
-  // ─────────────────────────────────────────
   const triggerAutoSave = useCallback(() => {
     clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       handleSave();
-    }, 2000); // บันทึกอัตโนมัติเมื่อหยุดพิมพ์ 2 วินาที
+    }, 2000);
   }, [sceneTitle, content, isPublished, isEnding, choices]);
 
   useEffect(() => {
     return () => clearTimeout(autoSaveTimer.current);
   }, [triggerAutoSave]);
 
-  // ─────────────────────────────────────────
-  // Publish และจัดการ Action ต่างๆ
-  // ─────────────────────────────────────────
   const handlePublish = () => {
     setIsPublished(true);
     handleSave(true);
@@ -443,6 +610,7 @@ const SceneEditorPage = ({
   const addChoice = () => {
     const newChoice = {
       id: `choice-new-${Date.now()}`,
+      _tempId: `choice-temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: "",
       targetType: "same",
       targetSubScene: "",
@@ -462,7 +630,6 @@ const SceneEditorPage = ({
     triggerAutoSave();
   };
 
-  // ── เพิ่มฉากใหม่เข้า API หลังบ้าน ──
   const handleAddScene = async (chId) => {
     if (!novelId || !chId) return;
     try {
@@ -482,14 +649,13 @@ const SceneEditorPage = ({
       });
 
       if (response.ok) {
-        fetchSceneData(); // โหลดโครงสร้างเมนูใหม่
+        fetchSceneData();
       }
     } catch (err) {
       console.error("Add scene error:", err);
     }
   };
 
-  // ── เพิ่มตอนใหม่เข้า API หลังบ้าน ──
   const handleAddChapter = async () => {
     if (!novelId) return;
     try {
@@ -508,7 +674,7 @@ const SceneEditorPage = ({
       });
 
       if (response.ok) {
-        fetchSceneData(); // โหลดโครงสร้างเมนูใหม่
+        fetchSceneData();
       }
     } catch (err) {
       console.error("Add chapter error:", err);
@@ -570,16 +736,25 @@ const SceneEditorPage = ({
         <SceneTreeSidebar
           chapters={chapters}
           currentSceneId={sceneId}
+          currentChapterId={chapterId}
+          currentChapterTitle={chapterTitle}
+          currentSceneLabel={sceneLabel}
           onSelectScene={(chId, sId) => onNavigate("scene-editor", { novelId, chapterId: chId, sceneId: sId })}
           onAddScene={handleAddScene}
           onAddChapter={handleAddChapter}
+          isPublished={isPublished}
+          setIsPublished={setIsPublished}
+          isEnding={isEnding}
+          setIsEnding={setIsEnding}
+          triggerAutoSave={triggerAutoSave}
         />
 
-        {/* Editor */}
+        {/* Editor (ฝั่งขวา) */}
         <main className="se-editor">
           <div className="se-section">
             <div className="se-section__heading">เนื้อหาฉาก</div>
 
+            {/* ช่องกรอกชื่อฉาก */}
             <div className="se-field">
               <label className="se-label" htmlFor="scene-title">ชื่อฉาก</label>
               <input
@@ -594,6 +769,7 @@ const SceneEditorPage = ({
               />
             </div>
 
+            {/* พื้นที่เนื้อเรื่อง (React Quill) */}
             <div className="se-field">
               <label className="se-label">เนื้อเรื่อง</label>
               <ReactQuill
@@ -611,7 +787,7 @@ const SceneEditorPage = ({
             </div>
           </div>
 
-          {/* Choices */}
+          {/* โซน Choices */}
           <div className="se-section se-section--choices">
             <div className="se-section__heading-row">
               <div className="se-section__heading">ตัวเลือกท้ายตอน</div>
@@ -623,10 +799,11 @@ const SceneEditorPage = ({
             <div className="se-choices-list">
               {choices.map((choice, i) => (
                 <ChoiceCard
-                  key={choice.id}
+                  key={choice.id || choice._tempId || i}
                   choice={choice}
                   index={i}
                   allTargetOptions={chapters}
+                  currentChapterId={chapterId}
                   onUpdate={updateChoice}
                   onDelete={deleteChoice}
                 />

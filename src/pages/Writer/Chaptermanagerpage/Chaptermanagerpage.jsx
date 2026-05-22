@@ -669,7 +669,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             chapter={activeChapter}
             allChapters={chapters}
             fetchChapters={fetchNovelAndChapters}
-            onWrite={(chId, scId) => onNavigate("write", { novelId: currentNovelId, chapterId: chId, sceneId: scId })}
+            onWrite={(chId, scId) => onNavigate("scene-editor", { novelId: currentNovelId, chapterId: chId, sceneId: scId })}
           />
         ) : (
           <div className="cm-empty-state">
