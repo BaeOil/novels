@@ -272,11 +272,21 @@ function App() {
     <Router>
       <Routes>
         {/* Reader Routes */}
+<<<<<<< HEAD
         <Route path="/" element={<RedirectAdminIfNeeded><HomePageRoute /></RedirectAdminIfNeeded>} />
         <Route path="/novel/:id" element={<RedirectAdminIfNeeded><NovelDetailRoute /></RedirectAdminIfNeeded>} />
         <Route path="/storytree/:novelId" element={<RedirectAdminIfNeeded><StoryTreeRoute /></RedirectAdminIfNeeded>} />
         <Route path="/reading/:novelId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />
         <Route path="/reading/:novelId/:sceneId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />
+=======
+        <Route path="/" element={<HomePageRoute />} />
+        <Route path="/novel/:id" element={<NovelDetailRoute />} />
+        <Route path="/storytree/:novelId" element={<StoryTreeRoute />} />
+        <Route path="/reading/:novelId" element={<ReadingRoute />} />
+        <Route path="/reading/:novelId/:sceneId" element={<ReadingRoute />} />
+        
+
+>>>>>>> 530143f211e72c24f129e442ec432425e4cba34e
 
         {/* Writer Routes */}
         <Route path="/writer/dashboard" element={<RedirectAdminIfNeeded><WriterDashboardRoute /></RedirectAdminIfNeeded>} />
