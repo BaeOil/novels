@@ -20,6 +20,7 @@ import CreateNovelPage from "./pages/Writer/Createnovelpage/Createnovelpage";
 import ChapterManagerPage from "./pages/Writer/Chaptermanagerpage/Chaptermanagerpage";
 import WriterStoryTreePage from "./pages/Writer/WriterStoryTreePage/WriterStoryTreePage";
 import SceneEditorPage from "./pages/Writer/Sceneeditorpage/Sceneeditorpage";
+import EditNovelPage from "./pages/Writer/Editnovelpage/Editnovelpage";
 
 import AuthPage from "./pages/Auth/AuthPage";
 import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
@@ -63,21 +64,21 @@ const createNavigateHandler = (navigate, currentNovelId = null) => (page, payloa
 
   switch (page) {
     case "dashboard":
-      navigate("/dashboard");
+      navigate("/writer/dashboard");
       break;
     case "create-novel":
-      navigate("/create");
+      navigate("/writer/create");
       break;
     case "chapters":
       if (activeNovelId) {
         navigate(`/writer/${activeNovelId}/chapters`);
       } else {
-        navigate("/dashboard");
+        navigate("/writer/dashboard");
       }
       break;
     case "story-tree":
       if (activeNovelId) {
-        navigate(`/storytreewt/${activeNovelId}`);
+        navigate(`/writer/storytree/${activeNovelId}`);
       } else {
         navigate("/dashboard");
       }
@@ -218,6 +219,17 @@ const SceneEditorRoute = () => {
   );
 };
 
+const EditNovelRoute = () => {
+  const navigate = useNavigate();
+  const navHandler = createNavigateHandler(navigate);
+  
+  return (
+    <WriterLayout onNavigate={navHandler}>
+      <EditNovelPage onNavigate={navHandler} />
+    </WriterLayout>
+  );
+};
+
 // ======================================================
 // Main Application Component
 // ======================================================
@@ -233,14 +245,15 @@ function App() {
         <Route path="/reading/:novelId/:sceneId" element={<ReadingRoute />} />
 
         {/* Writer Routes */}
-        <Route path="/dashboard" element={<WriterDashboardRoute />} />
-        <Route path="/create" element={<CreateNovelRoute />} />
+        <Route path="/writer/dashboard" element={<WriterDashboardRoute />} />
+        <Route path="/writer/create" element={<CreateNovelRoute />} />
         <Route path="/writer/:novelId/chapters" element={<ChapterManagerRoute />} />
-        <Route path="/storytreewt/:novelId" element={<WriterStoryTreeRoute />} />
         <Route path="/writer/:novelId/scene/:sceneId" element={<SceneEditorRoute />} />
-
+        <Route path="/writer/storytree/:novelId" element={<WriterStoryTreeRoute />} />
+        <Route path="/writer/:novelId/edit" element={<EditNovelRoute />} />
+        
         {/* Auth Routes */}
-        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/login-register" element={<AuthPage />} />
         <Route path="/registerwriter" element={<WriterRegisterPage />} />
       </Routes>
     </Router>

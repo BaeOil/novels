@@ -225,6 +225,45 @@
   color: var(--gray-300);
 }
 
+/* ── Create Section ── */
+.wsb__create-section {
+  padding: 12px 8px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 8px;
+}
+
+/* ── Reader Mode Button ── */
+.wsb__reader-mode-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #ffaee7 0%, #fa89cb 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.wsb__reader-mode-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 113, 201, 0.575);
+}
+
+.wsb__reader-mode-btn:active {
+  transform: translateY(0);
+}
+
+.wsb__reader-mode-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .wsb {
   width: 260px;
   height: 100vh;

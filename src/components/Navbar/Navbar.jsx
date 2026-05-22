@@ -145,6 +145,9 @@ const Navbar = () => {
                             <li className={`nav-item ${location.pathname === "/history" ? "active" : ""}`}>
                                 <Link to="/history">ประวัติการอ่าน</Link>
                             </li>
+                            <li className={`nav-item ${location.pathname === "/history" ? "active" : ""}`}>
+                                <Link to="/registerwriter">สมัครนักเขียน</Link>
+                            </li>
                         </>
                     )}
                 </ul>
@@ -224,7 +227,7 @@ const Navbar = () => {
                                 )}
                             </div>
                         ) : (
-                            <Link to="/auth" className="nav-login-btn">เข้าสู่ระบบ</Link>
+                            <Link to="/login-register" className="nav-login-btn">เข้าสู่ระบบ / สมัครสมาชิก</Link>
                         )}
                     </div>
                 </div>

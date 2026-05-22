@@ -13,6 +13,7 @@
 
 import React, { useState, useRef } from "react";
 import "./WriterRegisterPage.css";
+import { useNavigate } from "react-router-dom";
 
 // ─────────────────────────────────────────────
 //  Constants
@@ -337,10 +338,13 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
         // await fetch("/api/v1/auth/register/writer", { method:"POST", body: formData });
         setTimeout(() => {
             setIsSubmitting(false);
-            onComplete?.();
             alert("✅ สมัครเป็นนักเขียนสำเร็จ!");
+            navigate("/"); // เปลี่ยนจาก window.location.href
+            onComplete?.();
         }, 1000);
     };
+
+    const navigate = useNavigate(); // เพิ่มบรรทัดนี้
 
     // ════════════════════════════════════════════════════
     return (
