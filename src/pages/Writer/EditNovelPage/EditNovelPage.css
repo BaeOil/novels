@@ -1,3 +1,38 @@
+/* เหมือนกับ CreateNovelPage.css แต่เปลี่ยน class prefix จาก cnp เป็น enp */
+
+.enp {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.enp__header {
+  margin-bottom: 32px;
+}
+
+.enp__title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.enp__sub {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.enp__form-wrap {
+  /* Same as cnp */
+}
+
+.enp__card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
 /* src/pages/Writer/CreateNovel/CreateNovelPage.css */
 
 /* หน้า */

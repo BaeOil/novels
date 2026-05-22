@@ -25,6 +25,7 @@ const NOVEL_MENU = [
   {
     id: "chapters",
     label: "จัดการตอน",
+    path: "/writer/:novelId/chapters",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M2 4h14M2 8h10M2 12h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
@@ -34,6 +35,7 @@ const NOVEL_MENU = [
   {
     id: "write",
     label: "เขียนเนื้อหา",
+    path: "/writer/:novelId/scene/:sceneId",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M3 13.5L5.5 11l7-7 2 2-7 7-2.5 2.5H3v-2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none"/>
@@ -44,12 +46,27 @@ const NOVEL_MENU = [
   {
     id: "story-tree",
     label: "Story Tree",
+    path: "/writer/:novelId/storytree",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <circle cx="9" cy="3" r="2" fill="currentColor" opacity=".8"/>
         <circle cx="4" cy="12" r="2" fill="currentColor" opacity=".6"/>
         <circle cx="14" cy="12" r="2" fill="currentColor" opacity=".6"/>
         <path d="M9 5v3M9 8l-4 3M9 8l4 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+];
+
+// เมนูสร้างนิยาย
+const CREATE_MENU = [
+  {
+    id: "create-novel",
+    label: "สร้างนิยายเรื่องใหม่",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
       </svg>
     ),
   },
@@ -62,15 +79,17 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
 
   const selectedNovelId = selectedNovelIdProp || (() => {
     const writerMatch = pathname.match(/^\/writer\/(\d+)\/chapters/);
-    const storyMatch = pathname.match(/^\/storytree\/(\d+)/);
-    return writerMatch ? writerMatch[1] : storyMatch ? storyMatch[1] : null;
+    const writerSceneMatch = pathname.match(/^\/writer\/(\d+)\/scene/);
+    const storyMatch = pathname.match(/^\/writer\/(\d+)\/storytree/);
+    return writerMatch ? writerMatch[1] : writerSceneMatch ? writerSceneMatch[1] : storyMatch ? storyMatch[1] : null;
   })();
 
   const currentPage = currentPageProp || (() => {
-    if (pathname.startsWith("/create")) return "create-novel";
     if (pathname.startsWith("/writer/") && pathname.includes("/chapters")) return "chapters";
-    if (pathname.startsWith("/storytree/")) return "story-tree";
-    return pathname.startsWith("/dashboard") ? "dashboard" : "dashboard";
+    if (pathname.startsWith("/writer/") && pathname.includes("/scene")) return "write";
+    if (pathname.startsWith("/writer/") && pathname.includes("/storytree")) return "story-tree";
+    if (pathname.startsWith("/writer/create")) return "create-novel";
+    return pathname.startsWith("/writer/dashboard") ? "dashboard" : "dashboard";
   })();
 
   // 🎯 🟢 ปรับปรุงฟังก์ชัน Route ให้รองรับทั้ง App State และ URL Navigation 
@@ -86,28 +105,34 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
         navigate("/");
         break;
       case "dashboard":
-        navigate("/dashboard");
+        navigate("/writer/dashboard");
         break;
       case "create-novel":
-        navigate("/create");
+        navigate("/writer/create");
         break;
       case "chapters":
-      case "write":
         if (selectedNovelId) {
           navigate(`/writer/${selectedNovelId}/chapters`);
         } else {
-          navigate("/dashboard");
+          navigate("/writer/dashboard");
+        }
+        break;
+      case "write":
+        if (selectedNovelId) {
+          navigate(`/writer/${selectedNovelId}/scene/1`);
+        } else {
+          navigate("/writer/dashboard");
         }
         break;
       case "story-tree":
         if (selectedNovelId) {
-          navigate(`/storytree/${selectedNovelId}`);
+          navigate(`/writer/${selectedNovelId}/storytree`);
         } else {
-          navigate("/dashboard");
+          navigate("/writer/dashboard");
         }
         break;
       default:
-        navigate("/dashboard");
+        navigate("/writer/dashboard");
         break;
     }
   };
@@ -137,62 +162,59 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
             <span className="wsb__item-label">{item.label}</span>
           </button>
         ))}
-
-        {/* 🎯 🟢 แก้ไขปุ่มสลับฝั่งใหม่: ให้วิ่งผ่าน handleRoute เพื่อปลดล็อกสถานะแอพฝั่งหน้าหลัก */}
-        <button 
-          className="wsb__item wsb__item--switch-mode" 
-          onClick={() => handleRoute("reader-mode")} 
-          style={{ marginTop: "8px", color: "#e11d48", fontWeight: "600" }}
-        >
-          <span className="wsb__item-icon">📖</span>
-          <span className="wsb__item-label">กลับไปหน้าหลักนักอ่าน</span>
-        </button>
       </nav>
 
-      {/* ── นิยายที่เลือก (conditional) ── */}
-      {selectedNovelId && (
-        <div className="wsb__novel-section">
-          <div className="wsb__section-label">นิยายที่เลือก</div>
-          <nav aria-label="เมนูนิยาย">
-            {NOVEL_MENU.map((item) => (
-              <button
-                key={item.id}
-                className={`wsb__item ${currentPage === item.id ? "wsb__item--active" : ""}`}
-                onClick={() => handleRoute(item.id)}
-              >
-                <span className="wsb__item-icon">{item.icon}</span>
-                <span className="wsb__item-label">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-      )}
+      {/* ── นิยายที่เลือก (แสดงเสมอ) ── */}
+      <div className="wsb__novel-section">
+        <div className="wsb__section-label">นิยายที่เลือก</div>
+        <nav aria-label="เมนูนิยาย">
+          {NOVEL_MENU.map((item) => (
+            <button
+              key={item.id}
+              className={`wsb__item ${currentPage === item.id ? "wsb__item--active" : ""} ${!selectedNovelId ? "wsb__item--disabled" : ""}`}
+              onClick={() => handleRoute(item.id)}
+              disabled={!selectedNovelId}
+              title={!selectedNovelId ? "เลือกนิยายจาก Dashboard ก่อน" : ""}
+            >
+              <span className="wsb__item-icon">{item.icon}</span>
+              <span className="wsb__item-label">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
 
-      {/* ── ไม่มีนิยายที่เลือก ── */}
-      {!selectedNovelId && (
-        <div className="wsb__novel-section">
-          <div className="wsb__section-label">นิยายที่เลือก</div>
-          <div className="wsb__no-novel">
-            เลือกนิยายจาก Dashboard
-          </div>
-        </div>
-      )}
+      {/* ── หัวข้อสร้างนิยาย ── */}
+      <div className="wsb__create-section">
+        <div className="wsb__section-label">สร้างนิยาย</div>
+        <nav aria-label="เมนูสร้างนิยาย">
+          {CREATE_MENU.map((item) => (
+            <button
+              key={item.id}
+              className={`wsb__item ${currentPage === item.id ? "wsb__item--active" : ""}`}
+              onClick={() => handleRoute(item.id)}
+            >
+              <span className="wsb__item-icon">{item.icon}</span>
+              <span className="wsb__item-label">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
 
       {/* ── spacer ── */}
       <div className="wsb__spacer" />
 
-      {/* ── ปุ่มสร้างนิยายใหม่ ── */}
+      {/* ── ปุ่มกลับโหมดนักอ่าน ── */}
       <div className="wsb__bottom">
         <button
-          className={`wsb__create-btn ${currentPage === "create-novel" ? "wsb__create-btn--active" : ""}`}
-          onClick={() => handleRoute("create-novel")}
-          aria-label="สร้างนิยายเรื่องใหม่"
+          className="wsb__reader-mode-btn"
+          onClick={() => handleRoute("reader-mode")}
+          aria-label="กลับไปโหมดนักอ่าน"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M1 4v6h6M23 20v-6h-6"/>
+            <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 03.51 15"/>
           </svg>
-          สร้างเรื่องใหม่
+          กลับไปโหมดนักอ่าน
         </button>
 
         {/* ── Profile ── */}
