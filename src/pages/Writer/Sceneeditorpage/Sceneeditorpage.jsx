@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════
 //  หน้าเขียน/แก้ไขฉากนิยาย (Scene Editor) — ฝั่งนักเขียน 
-//  [ เชื่อมต่อระบบหลังบ้านสมบูรณ์แบบ รองรับ JWT Token ]
+//  [ ปรับแต่งเชื่อมต่อ Go หลังบ้าน ผ่าน /scenes/:id และ /story-tree ]
 // ══════════════════════════════════════════════════════════════
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
@@ -12,7 +12,7 @@ import Toggle from "../../../components/Toggle/Toggle";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 // ─────────────────────────────────────────────
-// React Quill config
+// React Quill config (ปรับปรุงเพื่อแก้บั๊ก Cannot register bullet)
 // ─────────────────────────────────────────────
 const quillModules = {
   toolbar: [
@@ -332,7 +332,7 @@ const SceneEditorPage = ({
   const token = localStorage.getItem("token");
 
   // ─────────────────────────────────────────
-  // Fetch Data จากหลังบ้านจริง
+  // Fetch Data จากหลังบ้านจริง (ปรับปรุงเอนด์พอยท์)
   // ─────────────────────────────────────────
   const fetchSceneData = useCallback(async () => {
     setIsLoading(true);
@@ -341,8 +341,8 @@ const SceneEditorPage = ({
       const headers = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      // 1. ดึงรายละเอียดฉากปัจจุบัน
-      const sceneRes = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters/${chapterId}/scenes/${sceneId}`, {
+      // 1. ดึงรายละเอียดฉากปัจจุบัน วิ่งเข้า /scenes/:id ตรงๆ ตามยูนิตเร้าเตอร์ Go
+      const sceneRes = await fetch(`${API_BASE_URL}/scenes/${sceneId}`, {
         headers,
       });
       if (!sceneRes.ok) throw new Error("ไม่สามารถดึงข้อมูลรายละเอียดฉากได้");
@@ -359,8 +359,8 @@ const SceneEditorPage = ({
       setIsEnding(sceneData.isEnding || sceneData.is_ending || false);
       setChoices(sceneData.choices || []);
 
-      // 2. ดึงโครงสร้างตอนทั้งหมดของนิยายเรื่องนี้มาทำ Sidebar และ Dropdown ปลายทาง
-      const chaptersRes = await fetch(`${API_BASE_URL}/novels/${novelId}/structure`, {
+      // 2. ดึงโครงสร้างตอนทั้งหมดของนิยายเรื่องนี้เพื่อทำแผนภูมิแผนผัง (Sidebar และ Dropdown ปลายทาง)
+      const chaptersRes = await fetch(`${API_BASE_URL}/novels/${novelId}/story-tree`, {
         headers,
       });
       if (chaptersRes.ok) {
@@ -373,14 +373,14 @@ const SceneEditorPage = ({
     } finally {
       setIsLoading(false);
     }
-  }, [novelId, chapterId, sceneId, token]);
+  }, [novelId, sceneId, token]);
 
   useEffect(() => {
     fetchSceneData();
   }, [fetchSceneData]);
 
   // ─────────────────────────────────────────
-  // Save Function (ส่งไปหลังบ้านจริง)
+  // Save Function (ส่งไปอัปเดตที่หลังบ้านจริง)
   // ─────────────────────────────────────────
   const handleSave = async (overridePublishStatus = null) => {
     setIsSaving(true);
@@ -398,7 +398,8 @@ const SceneEditorPage = ({
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const response = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters/${chapterId}/scenes/${sceneId}`, {
+      // ยิง PUT ไปอัปเดตที่เซนทรัลเร้าต์หลัก /scenes/:id
+      const response = await fetch(`${API_BASE_URL}/scenes/${sceneId}`, {
         method: "PUT",
         headers,
         body: JSON.stringify(payload),
@@ -424,7 +425,7 @@ const SceneEditorPage = ({
     clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       handleSave();
-    }, 2000); // ดีเลย์บันทึกอัตโนมัติเมื่อหยุดพิมพ์ 2 วินาที
+    }, 2000); // บันทึกอัตโนมัติเมื่อหยุดพิมพ์ 2 วินาที
   }, [sceneTitle, content, isPublished, isEnding, choices]);
 
   useEffect(() => {
@@ -463,14 +464,21 @@ const SceneEditorPage = ({
 
   // ── เพิ่มฉากใหม่เข้า API หลังบ้าน ──
   const handleAddScene = async (chId) => {
+    if (!novelId || !chId) return;
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
       
-      const response = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters/${chId}/scenes`, {
+      const response = await fetch(`${API_BASE_URL}/scenes`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ title: "ฉากใหม่ยังไม่มีชื่อ" }),
+        body: JSON.stringify({
+          novel_id: parseInt(novelId, 10),
+          chapter_id: parseInt(chId, 10),
+          title: "ฉากใหม่ยังไม่มีชื่อ",
+          content: "",
+          type: "normal",
+        }),
       });
 
       if (response.ok) {
@@ -483,14 +491,20 @@ const SceneEditorPage = ({
 
   // ── เพิ่มตอนใหม่เข้า API หลังบ้าน ──
   const handleAddChapter = async () => {
+    if (!novelId) return;
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const response = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters`, {
+      const nextEpisode = (chapters?.length || 0) + 1;
+      const response = await fetch(`${API_BASE_URL}/chapters`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ title: "ตอนใหม่ยังไม่มีชื่อ" }),
+        body: JSON.stringify({
+          novel_id: parseInt(novelId, 10),
+          episode: nextEpisode,
+          title: "ตอนใหม่ยังไม่มีชื่อ",
+        }),
       });
 
       if (response.ok) {

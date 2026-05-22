@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Manageusers.css';
 
@@ -54,13 +54,21 @@ const ActionConfirmModal = ({
 const EditUserModal = ({ isOpen, user, onCancel }) => {
   if (!isOpen || !user) return null;
 
+  const contactInfo = (() => {
+    try {
+      return typeof user.contact_info === 'string' ? JSON.parse(user.contact_info) : user.contact_info || {};
+    } catch {
+      return {};
+    }
+  })();
+
   const writerData = {
-    fullName: 'ชื่อ นามสกุล',
-    penName: user.username,
-    email: user.email,
-    bio: 'แนะนำตัวเกี่ยวกับการเขียนของฉัน...',
-    genres: ['แฟนตาซี', 'โรแมนติก'],
-    mainContact: 'https://facebook.com/...',
+    fullName: user.name_lastname || 'ไม่ระบุ',
+    penName: user.pen_name || user.username,
+    email: user.email_writer || user.username,
+    bio: user.bio || 'ไม่ระบุ',
+    genres: contactInfo.genres || [],
+    mainContact: contactInfo.primary_contact || '-',
     avatarUrl: null
   };
 
@@ -84,14 +92,7 @@ const EditUserModal = ({ isOpen, user, onCancel }) => {
             <div className="modal-info-row">
               <span className="modal-info-label">บทบาท:</span>
               <span className="modal-info-value">
-                {user.roles.map((role, idx) => (
-                  <span
-                    key={idx}
-                    className={`role-badge ${role === 'Writer' ? 'role-writer' : 'role-reader'}`}
-                  >
-                    {role}
-                  </span>
-                ))}
+                <span className="role-badge role-reader">Reader</span>
               </span>
             </div>
 
@@ -252,22 +253,9 @@ const AdminSidebar = ({ currentPage, onNavigate }) => {
 // ─────────────────────────────────────────────
 
 const Manageusers = ({ onNavigate = () => {} }) => {
-  const [users, setUsers] = useState([
-    {
-      id: 4,
-      username: '67Gen_Z',
-      email: 'Gen_Zboy@gmail.com',
-      roles: ['Reader'],
-      status: 'รอยืนยัน'
-    },
-    {
-      id: 5,
-      username: 'panda18kg',
-      email: 'bubududu@gmail.com',
-      roles: ['Reader'],
-      status: 'รอยืนยัน'
-    }
-  ]);
+  const [requests, setRequests] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [editModal, setEditModal] = useState({
     isOpen: false,
@@ -276,31 +264,82 @@ const Manageusers = ({ onNavigate = () => {} }) => {
 
   const [actionModal, setActionModal] = useState({
     isOpen: false,
-    userId: null,
+    writerId: null,
     action: '',
     userName: ''
   });
 
-  const handleApproveWriter = (userId) => {
-    setUsers(users.filter(user => user.id !== userId));
+  useEffect(() => {
+    const fetchRequests = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/admin/writers/requests', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!res.ok) {
+          throw new Error('ไม่สามารถดึงคำขอได้');
+        }
+        const data = await res.json();
+        setRequests(data || []);
+      } catch (err) {
+        console.error('Failed to load writer requests:', err);
+        setError('ไม่สามารถโหลดคำขอสมัครนักเขียนได้ในขณะนี้');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    setActionModal({
-      isOpen: false,
-      userId: null,
-      action: '',
-      userName: ''
-    });
+    fetchRequests();
+  }, []);
+
+  const handleApproveWriter = async (writerId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/admin/writers/approve?writer_id=${writerId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || 'ไม่สามารถอนุมัติคำขอได้');
+      }
+      setRequests((prev) => prev.filter((item) => item.writer_id !== writerId));
+      setActionModal({ isOpen: false, writerId: null, action: '', userName: '' });
+    } catch (err) {
+      console.error('Approve writer failed:', err);
+      alert(err.message || 'เกิดข้อผิดพลาดขณะอนุมัติ');
+    }
   };
 
-  const handleRejectWriter = (userId) => {
-    setUsers(users.filter(user => user.id !== userId));
-
-    setActionModal({
-      isOpen: false,
-      userId: null,
-      action: '',
-      userName: ''
-    });
+  const handleRejectWriter = async (writerId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/admin/writers/reject?writer_id=${writerId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || 'ไม่สามารถปฏิเสธคำขอได้');
+      }
+      setRequests((prev) => prev.filter((item) => item.writer_id !== writerId));
+      setActionModal({ isOpen: false, writerId: null, action: '', userName: '' });
+    } catch (err) {
+      console.error('Reject writer failed:', err);
+      alert(err.message || 'เกิดข้อผิดพลาดขณะปฏิเสธ');
+    }
   };
 
   const handleEditUser = (user) => {
@@ -314,10 +353,10 @@ const Manageusers = ({ onNavigate = () => {} }) => {
     });
   };
 
-  const handleActionClick = (userId, userName, action) => {
+  const handleActionClick = (writerId, userName, action) => {
     setActionModal({
       isOpen: true,
-      userId,
+      writerId,
       userName,
       action
     });
@@ -325,16 +364,16 @@ const Manageusers = ({ onNavigate = () => {} }) => {
 
   const handleConfirmAction = () => {
     if (actionModal.action === 'approve') {
-      handleApproveWriter(actionModal.userId);
+      handleApproveWriter(actionModal.writerId);
     } else {
-      handleRejectWriter(actionModal.userId);
+      handleRejectWriter(actionModal.writerId);
     }
   };
 
   const handleCancelAction = () => {
     setActionModal({
       isOpen: false,
-      userId: null,
+      writerId: null,
       action: '',
       userName: ''
     });
@@ -362,7 +401,7 @@ const Manageusers = ({ onNavigate = () => {} }) => {
           </h1>
 
           <p className="manageusers-header__sub">
-            คำขอทั้งหมด {users.length} รายการ
+            คำขอทั้งหมด {requests.length} รายการ
           </p>
         </div>
 
@@ -380,28 +419,19 @@ const Manageusers = ({ onNavigate = () => {} }) => {
             </thead>
 
             <tbody>
-              {users.map((user, index) => (
-                <tr key={user.id}>
+              {requests.map((request, index) => (
+                <tr key={request.writer_id}>
                   <td>{index + 1}</td>
-                  <td>{user.username}</td>
-                  <td>{user.email}</td>
+                  <td>{request.username}</td>
+                  <td>{request.email_writer || request.username}</td>
 
                   <td>
-                    <div className="roles-container">
-                      {user.roles.map((role, idx) => (
-                        <span
-                          key={idx}
-                          className={`role-badge ${getRoleClass(role)}`}
-                        >
-                          {getRoleLabel(role)}
-                        </span>
-                      ))}
-                    </div>
+                    <span className="role-badge role-reader">Reader</span>
                   </td>
 
                   <td>
                     <span className="status-badge status-pending">
-                      {user.status}
+                      {request.status}
                     </span>
                   </td>
 
@@ -410,7 +440,7 @@ const Manageusers = ({ onNavigate = () => {} }) => {
 
                       <button
                         className="btn-edit"
-                        onClick={() => handleEditUser(user)}
+                        onClick={() => handleEditUser(request)}
                       >
                         👁 ดู
                       </button>
@@ -418,7 +448,7 @@ const Manageusers = ({ onNavigate = () => {} }) => {
                       <button
                         className="btn-approve"
                         onClick={() =>
-                          handleActionClick(user.id, user.username, 'approve')
+                          handleActionClick(request.writer_id, request.username, 'approve')
                         }
                       >
                         ✔ ยืนยัน
@@ -427,7 +457,7 @@ const Manageusers = ({ onNavigate = () => {} }) => {
                       <button
                         className="btn-reject"
                         onClick={() =>
-                          handleActionClick(user.id, user.username, 'reject')
+                          handleActionClick(request.writer_id, request.username, 'reject')
                         }
                       >
                         ✖ ปฏิเสธ

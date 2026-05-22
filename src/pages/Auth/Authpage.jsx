@@ -176,6 +176,10 @@ const LoginForm = ({ onSwitchToRegister }) => {
         console.log("💾 Saving token to LocalStorage");
         localStorage.setItem('token', data.token);
       }
+      if (data.user) {
+        console.log("💾 Saving user data to LocalStorage");
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
       setIsLoading(false);
       window.location.href = '/';
     } catch (err) {

@@ -68,6 +68,7 @@ const Navbar = () => {
                     pic_profile: data.user.pic_profile || "",
                     role: data.user.role || ""
                 });
+                localStorage.setItem("user", JSON.stringify(data.user));
                 localStorage.setItem("user_email", data.user.email);
             }
         } catch (err) {
@@ -174,13 +175,16 @@ const Navbar = () => {
                     {isLoggedIn && (
                         <div className="navbar__mode-switch-zone">
                             {isWriterMode ? (
-                                <button className="nav-switch-btn nav-switch-btn--reader" onClick={() => navigate("/")}>
+                                <button className="nav-switch-btn nav-switch-btn--reader" onClick={() => navigate("/") }>
                                     📖 สลับไปโหมดนักอ่าน
                                 </button>
                             ) : (
-                                <button className="nav-switch-btn nav-switch-btn--writer" onClick={() => navigate("/writer/dashboard")}>
-                                    ✍️ สตูดิโอนักเขียน
-                                </button>
+                                // แสดงปุ่มสตูดิโอเฉพาะผู้ที่มี role = 'writer'
+                                userData.role === 'writer' && (
+                                    <button className="nav-switch-btn nav-switch-btn--writer" onClick={() => navigate("/writer/dashboard") }>
+                                        ✍️ สตูดิโอนักเขียน
+                                    </button>
+                                )
                             )}
                         </div>
                     )}

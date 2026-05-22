@@ -5,6 +5,7 @@ import {
   Route,
   useNavigate,
   useParams,
+  Navigate,
 } from "react-router-dom";
 
 import Navbar from "./components/Navbar/Navbar";
@@ -233,6 +234,40 @@ const EditNovelRoute = () => {
   );
 };
 
+const getRoleFromToken = () => {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  try {
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payload.length % 4) payload += '=';
+    const decoded = atob(payload);
+    const json = decodeURIComponent(decoded.split('').map((c) => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`).join(''));
+    const parsed = JSON.parse(json);
+    return parsed.role || null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const RequireAdminRoute = ({ children }) => {
+  const role = getRoleFromToken();
+  if (role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
+const RedirectAdminIfNeeded = ({ children }) => {
+  const role = getRoleFromToken();
+  if (role === 'admin') {
+    return <Navigate to="/admin/manage-users" replace />;
+  }
+  return children;
+};
+
 // ======================================================
 // Main Application Component
 // ======================================================
@@ -241,26 +276,26 @@ function App() {
     <Router>
       <Routes>
         {/* Reader Routes */}
-        <Route path="/" element={<HomePageRoute />} />
-        <Route path="/novel/:id" element={<NovelDetailRoute />} />
-        <Route path="/storytree/:novelId" element={<StoryTreeRoute />} />
-        <Route path="/reading/:novelId" element={<ReadingRoute />} />
-        <Route path="/reading/:novelId/:sceneId" element={<ReadingRoute />} />
+        <Route path="/" element={<RedirectAdminIfNeeded><HomePageRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/novel/:id" element={<RedirectAdminIfNeeded><NovelDetailRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/storytree/:novelId" element={<RedirectAdminIfNeeded><StoryTreeRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/reading/:novelId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/reading/:novelId/:sceneId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />
 
         {/* Writer Routes */}
-        <Route path="/writer/dashboard" element={<WriterDashboardRoute />} />
-        <Route path="/writer/create" element={<CreateNovelRoute />} />
-        <Route path="/writer/:novelId/chapters" element={<ChapterManagerRoute />} />
-        <Route path="/writer/:novelId/scene/:sceneId" element={<SceneEditorRoute />} />
-        <Route path="/writer/storytree/:novelId" element={<WriterStoryTreeRoute />} />
-        <Route path="/writer/:novelId/edit" element={<EditNovelRoute />} />
+        <Route path="/writer/dashboard" element={<RedirectAdminIfNeeded><WriterDashboardRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/writer/create" element={<RedirectAdminIfNeeded><CreateNovelRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/writer/:novelId/chapters" element={<RedirectAdminIfNeeded><ChapterManagerRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/writer/:novelId/scene/:sceneId" element={<RedirectAdminIfNeeded><SceneEditorRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/writer/storytree/:novelId" element={<RedirectAdminIfNeeded><WriterStoryTreeRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/writer/:novelId/edit" element={<RedirectAdminIfNeeded><EditNovelRoute /></RedirectAdminIfNeeded>} />
         
         {/* Admin Routes */}
-        <Route path="/admin/manage-users" element={<Manageusers />} />
+        <Route path="/admin/manage-users" element={<RequireAdminRoute><Manageusers /></RequireAdminRoute>} />
 
         {/* Auth Routes */}
         <Route path="/login-register" element={<AuthPage />} />
-        <Route path="/registerwriter" element={<WriterRegisterPage />} />
+        <Route path="/registerwriter" element={<RedirectAdminIfNeeded><WriterRegisterPage /></RedirectAdminIfNeeded>} />
       </Routes>
     </Router>
   );

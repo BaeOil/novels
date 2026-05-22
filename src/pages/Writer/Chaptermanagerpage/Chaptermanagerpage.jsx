@@ -25,7 +25,7 @@ const NovelBanner = ({ novel, chapters, onEdit }) => {
   const chapterCount = chapters?.length ?? 0;
 
   // 🎯 คำนวณจำนวนฉากจริงจากก้อนข้อมูลบทเรียนย่อยสะสมที่โหลดมาได้จริงใน Client หน้าบ้าน
-  const sceneCount = chapters?.reduce((total, ch) => {
+  const sceneCount = novel?.scene_count ?? novel?.sceneCount ?? novel?.total_scenes ?? novel?.totalScenes ?? chapters?.reduce((total, ch) => {
     const chScenes = ch.scenes || ch.Scenes || [];
     return total + chScenes.length;
   }, 0) ?? 0;
@@ -93,35 +93,52 @@ const NovelBanner = ({ novel, chapters, onEdit }) => {
 // ════════════════════════════════════════════════════════
 //  Sub: Choice row inside a scene
 // ════════════════════════════════════════════════════════
-const ChoiceRow = ({ choice, sceneOptions = [], onUpdate, onDelete }) => {
+const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onDelete }) => {
   const choiceId = choice?.id ?? choice?.ID ?? choice?.choice_id ?? choice?.ChoiceID;
-  const choiceText = choice?.text ?? choice?.Text ?? "";
-  const choiceTargetSceneId = choice?.target_scene_id ?? choice?.TargetSceneID ?? 0;
+  const choiceText = choice?.label ?? choice?.Label ?? choice?.text ?? choice?.Text ?? "";
+  const choiceTargetSceneId = choice?.to_scene_id ?? choice?.ToSceneID ?? choice?.target_scene_id ?? choice?.TargetSceneID ?? 0;
 
   const [text, setText] = useState(choiceText);
   const [subScene, setSubScene] = useState(choiceTargetSceneId);
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    setText(choiceText);
-    setSubScene(choiceTargetSceneId);
-  }, [choiceText, choiceTargetSceneId]);
+  const [selectedChapterId, setSelectedChapterId] = useState(null);
+  const [isOpen, setIsOpen] = useState(true);
 
   const allScenes = (sceneOptions || []).flatMap((ch) => {
     const chTitle = ch.title ?? ch.Title;
+    const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID;
     const chScenes = ch.scenes ?? ch.Scenes ?? [];
     return chScenes.map((s) => ({
       value: s.id ?? s.ID ?? s.scene_id ?? s.SceneID,
-      label: s.title ?? s.Title,
+      label: (s.title ?? s.Title) || "(ฉากไม่มีชื่อ)",
       chapterLabel: chTitle,
+      chapterId: chId,
+      type: s.type ?? s.Type,
     }));
   });
+
+  const chapterOptions = (sceneOptions || []).map((ch) => ({
+    value: ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID,
+    label: ch.title ?? ch.Title ?? "(ยังไม่มีชื่อบท)",
+  }));
+
+  const targetScene = allScenes.find((scene) => String(scene.value) === String(choiceTargetSceneId));
+  const [scope, setScope] = useState(() => (targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same"));
+  const initialScope = targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same";
+  const effectiveScope = scope || initialScope || "same";
+  const firstOtherChapterId = chapterOptions.find((ch) => String(ch.value) !== String(currentChapterId))?.value ?? chapterOptions[0]?.value ?? null;
+  const defaultChapterId = targetScene?.chapterId ?? chapterOptions[0]?.value ?? null;
+  const effectiveChapterId = effectiveScope === "same"
+    ? currentChapterId
+    : selectedChapterId ?? (String(defaultChapterId) !== String(currentChapterId) ? defaultChapterId : firstOtherChapterId);
+  const currentChapterScenes = allScenes.filter((scene) => String(scene.chapterId) === String(effectiveChapterId));
+  const effectiveSubScene = subScene || choiceTargetSceneId || currentChapterScenes[0]?.value || "";
+  const selectedTargetScene = allScenes.find((scene) => String(scene.value) === String(effectiveSubScene));
 
   const handleSaveChoice = () => {
     if (!choiceId) return;
     onUpdate(choiceId, {
-      text,
-      target_scene_id: parseInt(subScene, 10) || 0
+      label: text,
+      to_scene_id: parseInt(effectiveSubScene, 10) || 0
     });
     setIsOpen(false);
   };
@@ -133,8 +150,8 @@ const ChoiceRow = ({ choice, sceneOptions = [], onUpdate, onDelete }) => {
         <div className="cm-choice__text-wrap">
           <span className="cm-choice__title">{text || "(ยังไม่ได้พิมพ์ข้อความบนปุ่มทางเลือก)"}</span>
         </div>
-        <div className="cm-choice__target-badge">
-          ➔ เชื่อมไปฉากปลายทาง
+        <div className="cm-choice__target-badge" style={{ background: "#ffe6f4", color: "#97266d", border: "1px solid #f9d4e0" }}>
+          {selectedTargetScene ? `⭢ ตอน ${selectedTargetScene.chapterLabel} : ${selectedTargetScene.label}` : "ยังไม่ได้เลือกปลายทาง"}
         </div>
         <button className="cm-choice__toggle" onClick={() => setIsOpen(!isOpen)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -164,14 +181,64 @@ const ChoiceRow = ({ choice, sceneOptions = [], onUpdate, onDelete }) => {
             </div>
 
             <div className="cm-choice__field">
-              <label className="cm-choice__label">หากเลือกข้อนี้ จะกระโดดไปที่ฉากใด?</label>
+              <label className="cm-choice__label">เลือกว่าเป็น</label>
               <select
                 className="cm-select"
-                value={subScene}
+                value={effectiveScope}
+                onChange={(e) => {
+                  const nextScope = e.target.value;
+                  setScope(nextScope);
+                  if (nextScope === "same") {
+                    setSelectedChapterId(currentChapterId);
+                    const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(currentChapterId));
+                    setSubScene(firstScene?.value ?? "");
+                  } else {
+                    const nextChapterId = selectedChapterId || firstOtherChapterId;
+                    setSelectedChapterId(nextChapterId);
+                    const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(nextChapterId));
+                    setSubScene(firstScene?.value ?? "");
+                  }
+                }}
+              >
+                <option value="same">ในตอนเดียวกัน</option>
+                <option value="other">ข้ามตอน</option>
+              </select>
+            </div>
+
+            {effectiveScope === "other" && (
+              <div className="cm-choice__field">
+                <label className="cm-choice__label">เลือกตอนปลายทาง</label>
+                <select
+                  className="cm-select"
+                  value={effectiveChapterId || ""}
+                  onChange={(e) => {
+                    const chapterId = e.target.value;
+                    setSelectedChapterId(chapterId);
+                    const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(chapterId));
+                    setSubScene(firstScene?.value ?? "");
+                  }}
+                >
+                  <option value="">-- เลือกตอน --</option>
+                  {chapterOptions
+                    .filter((ch) => String(ch.value) !== String(currentChapterId))
+                    .map((ch) => (
+                      <option key={`target-chapter-opt-${ch.value}`} value={ch.value}>
+                        {ch.label}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+
+            <div className="cm-choice__field">
+              <label className="cm-choice__label">เลือกฉากปลายทาง</label>
+              <select
+                className="cm-select"
+                value={effectiveSubScene || ""}
                 onChange={(e) => setSubScene(e.target.value)}
               >
                 <option value="">-- เลือกฉากปลายทาง --</option>
-                {allScenes.map((s) => (
+                {currentChapterScenes.map((s) => (
                   <option key={`target-scene-opt-${s.value}`} value={s.value}>
                     {s.chapterLabel} › {s.label}
                   </option>
@@ -209,6 +276,21 @@ const SceneCard = ({ scene, chapterId, sceneIndex, onWrite, fetchScenes, allChap
 
   const handleAddChoice = async () => {
     if (!sceneId) return;
+
+    const availableTargets = (allChapters || []).flatMap((ch) => {
+      const chScenes = ch.scenes ?? ch.Scenes ?? [];
+      return chScenes.map((s) => ({
+        id: s.id ?? s.ID ?? s.scene_id ?? s.SceneID,
+        type: s.type ?? s.Type,
+      }));
+    }).filter((s) => String(s.id) !== String(sceneId));
+
+    const targetScene = availableTargets.find((s) => s.type !== "start") || availableTargets[0];
+    if (!targetScene) {
+      alert("ไม่พบฉากปลายทางที่ใช้สร้างทางเลือกได้ กรุณาสร้างฉากเพิ่มก่อน");
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/choices`, {
         method: "POST",
@@ -217,9 +299,9 @@ const SceneCard = ({ scene, chapterId, sceneIndex, onWrite, fetchScenes, allChap
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          scene_id: parseInt(sceneId, 10),
-          text: "ตัวเลือกเส้นทางใหม่",
-          target_scene_id: 0
+          from_scene_id: parseInt(sceneId, 10),
+          to_scene_id: parseInt(targetScene.id, 10),
+          label: "ทางเลือกใหม่"
         })
       });
       if (res.ok) fetchScenes();
@@ -306,6 +388,7 @@ const SceneCard = ({ scene, chapterId, sceneIndex, onWrite, fetchScenes, allChap
             key={`choice-row-${choice.id ?? choice.ID ?? choice.choice_id ?? choice.ChoiceID ?? i}`}
             choice={choice}
             sceneOptions={allChapters}
+            currentChapterId={chapterId}
             onUpdate={handleApplyChoice}
             onDelete={handleDeleteChoice}
           />
@@ -322,7 +405,7 @@ const SceneCard = ({ scene, chapterId, sceneIndex, onWrite, fetchScenes, allChap
 // ════════════════════════════════════════════════════════
 //  Sub: Chapter panel
 // ════════════════════════════════════════════════════════
-const ChapterPanel = ({ chapter, onWrite, allChapters, fetchChapters }) => {
+const ChapterPanel = ({ novelId, chapter, onWrite, allChapters, fetchChapters }) => {
   const [scenes, setScenes] = useState([]);
   const [loading, setLoading] = useState(false);
   const token = localStorage.getItem("token");
@@ -370,7 +453,7 @@ const ChapterPanel = ({ chapter, onWrite, allChapters, fetchChapters }) => {
   }, [chId]);
 
   const handleAddScene = async () => {
-    if (!chId) return;
+    if (!chId || !novelId) return;
     try {
       const res = await fetch(`${API_BASE}/scenes`, {
         method: "POST",
@@ -379,9 +462,11 @@ const ChapterPanel = ({ chapter, onWrite, allChapters, fetchChapters }) => {
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
+          novel_id: parseInt(novelId, 10),
           chapter_id: parseInt(chId, 10),
           title: `ฉากพล็อตเรื่องย่อยที่ ${scenes.length + 1}`,
-          content: ""
+          content: "",
+          type: "normal"
         })
       });
       if (res.ok) {
@@ -411,6 +496,7 @@ const ChapterPanel = ({ chapter, onWrite, allChapters, fetchChapters }) => {
               key={`scene-card-${scene.id ?? scene.ID ?? scene.scene_id ?? scene.SceneID ?? i}`}
               scene={scene}
               chapterId={chId}
+              currentChapterId={chId}
               sceneIndex={i + 1}
               onWrite={onWrite}
               fetchScenes={fetchScenes}
@@ -579,6 +665,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
         {activeChapter ? (
           <ChapterPanel
+            novelId={currentNovelId}
             chapter={activeChapter}
             allChapters={chapters}
             fetchChapters={fetchNovelAndChapters}

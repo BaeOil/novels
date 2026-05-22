@@ -257,15 +257,20 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
   const bookmarks = novel.total_bookmarks ?? novel.bookmark_count ?? novel.stats?.bookmarks ?? novel.bookmarks ?? 0;
 
   let updatedAtText = "ไม่มีการอัปเดต";
-  const rawDate = novel.updated_at || novel.updatedAt;
+  const rawDate = novel.updated_at || novel.updatedAt || novel.created_at || novel.createdAt;
   if (rawDate) {
     try {
-      const dateObj = new Date(rawDate);
-      updatedAtText = dateObj.toLocaleDateString("th-TH", {
-        day: "numeric",
-        month: "short",
-        year: "2-digit",
-      });
+      const normalizedRawDate = String(rawDate).replace(" ", "T");
+      const dateObj = new Date(normalizedRawDate);
+      if (!Number.isNaN(dateObj.getTime())) {
+        updatedAtText = dateObj.toLocaleDateString("th-TH", {
+          day: "numeric",
+          month: "short",
+          year: "2-digit",
+        });
+      } else {
+        updatedAtText = String(rawDate).split("T")[0];
+      }
     } catch (e) {
       updatedAtText = String(rawDate).split("T")[0];
     }
