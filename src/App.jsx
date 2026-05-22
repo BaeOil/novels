@@ -22,8 +22,11 @@ import WriterStoryTreePage from "./pages/Writer/WriterStoryTreePage/WriterStoryT
 import SceneEditorPage from "./pages/Writer/Sceneeditorpage/Sceneeditorpage";
 import EditNovelPage from "./pages/Writer/Editnovelpage/Editnovelpage";
 
+import Manageusers from "./pages/Admin/Manageusers/Manageusers";
+
 import AuthPage from "./pages/Auth/AuthPage";
 import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
+
 
 import "./style/App.css";
 import "./style/index.css";
@@ -252,6 +255,9 @@ function App() {
         <Route path="/writer/storytree/:novelId" element={<WriterStoryTreeRoute />} />
         <Route path="/writer/:novelId/edit" element={<EditNovelRoute />} />
         
+        {/* Admin Routes */}
+        <Route path="/admin/manage-users" element={<Manageusers />} />
+
         {/* Auth Routes */}
         <Route path="/login-register" element={<AuthPage />} />
         <Route path="/registerwriter" element={<WriterRegisterPage />} />

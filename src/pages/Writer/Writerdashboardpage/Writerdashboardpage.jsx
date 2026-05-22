@@ -273,14 +273,13 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
 
   return (
     <article className="nvc">
-      {/* Cover */}
-      <div className="nvc__cover" style={{ background: !coverImage ? "#f3f4f6" : undefined }}>
+      {/* Cover - Fixed height */}
+      <div className="nvc__cover">
         {coverImage ? (
           <img 
             src={coverImage.replace("http://minio:9000", "http://localhost:9000")} 
             alt={`ปกนิยายเรื่อง ${title}`}
             className="nvc__cover-img"
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
             onError={(e) => {
               e.currentTarget.style.display = "none";
               const parent = e.currentTarget.parentElement;
