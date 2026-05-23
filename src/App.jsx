@@ -28,7 +28,6 @@ import Manageusers from "./pages/Admin/Manageusers/Manageusers";
 import AuthPage from "./pages/Auth/AuthPage";
 import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
 
-
 import "./style/App.css";
 import "./style/index.css";
 
@@ -63,7 +62,7 @@ const WriterLayout = ({ children, onNavigate }) => {
 };
 
 // ======================================================
-// Navigation Central Handler (แก้ไข Syntax ปีกกาเรียบร้อยแล้ว)
+// Navigation Central Handler
 // ======================================================
 const createNavigateHandler = (navigate, currentNovelId = null) => (page, payload = {}) => {
   const activeNovelId = typeof payload === "string" ? payload : (payload?.novelId || currentNovelId);
@@ -84,7 +83,7 @@ const createNavigateHandler = (navigate, currentNovelId = null) => (page, payloa
       break;
     case "story-tree":
       if (activeNovelId) {
-        navigate(`/writer/storytree/${activeNovelId}`);
+        navigate(`/writer/${activeNovelId}/storytree`);
       } else {
         navigate("/writer/dashboard");
       }
@@ -202,6 +201,11 @@ const WriterStoryTreeRoute = () => {
       <WriterStoryTreePage novelId={novelId} onNavigate={navHandler} />
     </WriterLayout>
   );
+};
+
+const LegacyWriterStoryTreeRedirect = () => {
+  const { novelId } = useParams();
+  return <Navigate to={`/writer/${novelId}/storytree`} replace />;
 };
 
 const SceneEditorRoute = () => {
@@ -337,7 +341,8 @@ function App() {
         <Route path="/writer/create" element={<RedirectAdminIfNeeded><CreateNovelRoute /></RedirectAdminIfNeeded>} />
         <Route path="/writer/:novelId/chapters" element={<RedirectAdminIfNeeded><ChapterManagerRoute /></RedirectAdminIfNeeded>} />
         <Route path="/writer/:novelId/scene/:sceneId" element={<RedirectAdminIfNeeded><SceneEditorRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/storytree/:novelId" element={<RedirectAdminIfNeeded><WriterStoryTreeRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/writer/:novelId/storytree" element={<RedirectAdminIfNeeded><WriterStoryTreeRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/writer/storytree/:novelId" element={<RedirectAdminIfNeeded><LegacyWriterStoryTreeRedirect /></RedirectAdminIfNeeded>} />
         <Route path="/writer/:novelId/edit" element={<RedirectAdminIfNeeded><EditNovelRoute /></RedirectAdminIfNeeded>} />
         
         {/* Admin Routes */}
@@ -345,7 +350,19 @@ function App() {
 
         {/* Auth Routes */}
         <Route path="/login-register" element={<AuthPage />} />
-        <Route path="/registerwriter" element={<RedirectAdminIfNeeded><WriterRegisterPage /></RedirectAdminIfNeeded>} />
+        
+        {/* 📝 แก้ไขจุดนี้: ส่งฟังก์ชันเปล่าเพื่อไม่ให้เกิด Error เวลาคอมโพเนนต์เรียกใช้ Props */}
+        <Route 
+          path="/registerwriter" 
+          element={
+            <RedirectAdminIfNeeded>
+              <WriterRegisterPage 
+                onComplete={() => console.log("สมัครสมาชิกสำเร็จ")} 
+                onBack={() => console.log("กดย้อนกลับหน้าแรก")} 
+              />
+            </RedirectAdminIfNeeded>
+          } 
+        />
       </Routes>
     </Router>
   );

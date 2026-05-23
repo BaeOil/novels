@@ -14,7 +14,9 @@
 // ══════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useMemo } from "react";
+import ReactFlow from "reactflow";
 import axios from "axios";
+import "reactflow/dist/style.css";
 import "./Writerstorytreepage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -48,11 +50,16 @@ const WRITER_LEGEND = [
   { label: "ยังไม่ปลดล็อก", color: "#C8C3D4" },
 ];
 
-const getNodeId = (node) => String(node.ID ?? node.id ?? node.SceneID ?? "");
-const getNodeType = (node) => (node.Type ?? node.type ?? "").toLowerCase();
-const getNodeTitle = (node) => node.Title || node.title || node.Label || node.label || `ฉากที่ ${getNodeId(node)}`;
-const getNodeContent = (node) => node.Content || node.content || node.Excerpt || node.excerpt || "รายละเอียดฉากนี้ยังไม่มี";
-const getNodeChapter = (node) => node.ChapterTitle || node.chapter_title || node.chapter_title || "ไม่ระบุบท";
+const normalizeId = (value) => {
+  if (value === undefined || value === null || value === "") return "";
+  return String(value);
+};
+
+const getNodeId = (node) => normalizeId(node?.ID ?? node?.id ?? node?.SceneID ?? node?.scene_id);
+const getNodeType = (node) => (node?.Type ?? node?.type ?? "").toLowerCase();
+const getNodeTitle = (node) => node?.Title || node?.title || node?.Label || node?.label || `ฉากที่ ${getNodeId(node)}`;
+const getNodeContent = (node) => node?.Content || node?.content || node?.Excerpt || node?.excerpt || "รายละเอียดฉากนี้ยังไม่มี";
+const getNodeChapter = (node) => node?.ChapterTitle || node?.chapter_title || node?.chapter_title || "ไม่ระบุบท";
 
 const formatNodeStatus = (node) => {
   const type = getNodeType(node);
@@ -62,6 +69,33 @@ const formatNodeStatus = (node) => {
     return isUnlocked ? WRITER_NODE_STATUS.ENDING_UNLOCKED : WRITER_NODE_STATUS.ENDING_LOCKED;
   }
   return isUnlocked ? WRITER_NODE_STATUS.UNLOCKED : WRITER_NODE_STATUS.LOCKED;
+};
+
+const StoryNode = ({ data }) => {
+  const status = data.status;
+  const style = WRITER_NODE_STYLE[status] || WRITER_NODE_STYLE[WRITER_NODE_STATUS.LOCKED];
+  const title = getNodeTitle(data);
+  const description = getNodeContent(data);
+  const chapter = getNodeChapter(data);
+  const prefix = status === WRITER_NODE_STATUS.START
+    ? "▶ "
+    : status === WRITER_NODE_STATUS.ENDING_UNLOCKED || status === WRITER_NODE_STATUS.ENDING_LOCKED
+      ? "🏆 "
+      : status === WRITER_NODE_STATUS.LOCKED
+        ? "🔒 "
+        : "📘 ";
+
+  return (
+    <div className="wst-node-card" style={{ borderColor: style.stroke, background: style.fill, color: style.text }}>
+      <div className="wst-node-card__title">{prefix}{title}</div>
+      <div className="wst-node-card__desc">{description}</div>
+      <div className="wst-node-card__chapter">{chapter}</div>
+    </div>
+  );
+};
+
+const nodeTypes = {
+  writerNode: StoryNode,
 };
 
 const LegendBar = () => (
@@ -88,7 +122,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
       setError(null);
       try {
         const response = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`);
-        setTreeData(response.data || null);
+        setTreeData(response.data?.data || response.data || null);
       } catch (err) {
         console.error("Error fetching story tree:", err);
         setError("ไม่สามารถโหลดข้อมูล Story Tree ได้ กรุณาลองใหม่อีกครั้ง");
@@ -109,9 +143,9 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     return map;
   }, [nodes]);
 
-  const { positionedNodes, positionedEdges, svgWidth, svgHeight, chapters, stats } = useMemo(() => {
+  const { positionedNodes, positionedEdges, chapters, stats } = useMemo(() => {
     if (!nodes.length) {
-      return { positionedNodes: [], positionedEdges: [], svgWidth: 0, svgHeight: 0, chapters: [], stats: treeData?.Stats ?? treeData?.stats ?? null };
+      return { positionedNodes: [], positionedEdges: [], chapters: [], stats: treeData?.Stats ?? treeData?.stats ?? null };
     }
 
     const nodeIds = nodes.map(getNodeId);
@@ -127,20 +161,20 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
     const edgeList = edges
       .map((edge, index) => {
-        const source = String(edge.FromID ?? edge.from_id ?? edge.from ?? edge.From ?? "");
-        const target = String(edge.ToID ?? edge.to_id ?? edge.to ?? edge.To ?? "");
+        const source = normalizeId(edge.FromID ?? edge.from_id ?? edge.from ?? edge.From ?? edge.source ?? edge.Source);
+        const target = normalizeId(edge.ToID ?? edge.to_id ?? edge.to ?? edge.To ?? edge.target ?? edge.Target);
         if (adjacency[source] && inDegree[target] !== undefined) {
           adjacency[source].push(target);
           inDegree[target] += 1;
         }
         return {
-          id: String(edge.id ?? edge.ID ?? `edge-${source}-${target}-${index}`),
+          id: normalizeId(edge.id ?? edge.ID ?? `edge-${source}-${target}-${index}`),
           source,
           target,
           label: edge.Label || edge.label || edge.choice_text || edge.text || "",
         };
       })
-      .filter((edge) => adjacency[edge.source] !== undefined && inDegree[edge.target] !== undefined);
+      .filter((edge) => edge.source && edge.target && adjacency[edge.source] !== undefined && inDegree[edge.target] !== undefined);
 
     nodes.forEach((node) => {
       const id = getNodeId(node);
@@ -215,25 +249,11 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
     const positionedEdges = edgeList
       .map((edge) => {
-        const sourcePos = positions[edge.source];
-        const targetPos = positions[edge.target];
-        if (!sourcePos || !targetPos) return null;
-
-        const x1 = sourcePos.x + NODE_WIDTH;
-        const y1 = sourcePos.y + NODE_HEIGHT / 2;
-        const x2 = targetPos.x;
-        const y2 = targetPos.y + NODE_HEIGHT / 2;
-        const controlX = x1 + Math.max(90, (x2 - x1) / 2);
-
         return {
           ...edge,
-          path: `M ${x1} ${y1} C ${controlX} ${y1} ${Math.max(x1 + 40, x2 - 90)} ${y2} ${x2} ${y2}`,
-          labelX: (x1 + x2) / 2,
-          labelY: (y1 + y2) / 2 - 12,
           active: nodeStatuses[edge.source] !== WRITER_NODE_STATUS.LOCKED && nodeStatuses[edge.source] !== WRITER_NODE_STATUS.ENDING_LOCKED,
         };
-      })
-      .filter(Boolean);
+      });
 
     const chapterGroups = new Map();
     const chapterOrder = [];
@@ -248,14 +268,38 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
     const chapters = chapterOrder.map((chapter) => ({ title: chapter, scenes: chapterGroups.get(chapter) }));
 
-    const minX = Math.min(...allX, 0);
-    const maxX = Math.max(...allX, 0);
-    const maxY = Math.max(...allY, 0);
-    const svgWidth = maxX + NODE_WIDTH + CANVAS_MARGIN * 1.4;
-    const svgHeight = maxY + NODE_HEIGHT + shiftY + CANVAS_MARGIN;
-
-    return { positionedNodes, positionedEdges, svgWidth, svgHeight, chapters, stats: treeData?.Stats ?? treeData?.stats ?? null };
+    return {
+      positionedNodes,
+      positionedEdges,
+      chapters,
+      stats: treeData?.Stats ?? treeData?.stats ?? null,
+    };
   }, [nodes, edges, sceneMap, treeData]);
+
+  const flowNodes = positionedNodes.map((item) => ({
+    id: item.id,
+    type: "writerNode",
+    position: { x: item.x, y: item.y },
+    data: { ...item.scene, status: item.status },
+    draggable: false,
+  }));
+
+  const validNodeIds = new Set(positionedNodes.map((item) => item.id));
+
+  const flowEdges = positionedEdges
+    .filter((edge) => edge.source && edge.target && edge.source !== "undefined" && edge.target !== "undefined" && validNodeIds.has(edge.source) && validNodeIds.has(edge.target))
+    .map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      animated: edge.active,
+      label: edge.label,
+      labelBgPadding: [6, 4],
+      labelBgBorderRadius: 4,
+      labelStyle: { fill: "#4a5568", fontWeight: 500, fontSize: 11 },
+      style: { stroke: edge.active ? "#4CAF82" : "#CBD5E1", strokeWidth: 2 },
+      type: "smoothstep",
+    }));
 
   useEffect(() => {
     if (!selectedSceneId && positionedNodes.length > 0) {
@@ -264,11 +308,14 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     }
   }, [positionedNodes, selectedSceneId, treeData]);
 
-  const handleNodeClick = (sceneId) => {
-    setSelectedSceneId(sceneId);
+  const handleNodeClick = (_, node) => {
+    const sceneId = node?.id;
+    if (sceneId) setSelectedSceneId(sceneId);
   };
 
-  const handleNodeDoubleClick = (sceneId) => {
+  const handleNodeDoubleClick = (_, node) => {
+    const sceneId = node?.id;
+    if (!sceneId) return;
     setSelectedSceneId(sceneId);
     if (onNavigate) {
       onNavigate("scene-editor", { novelId, sceneId });
@@ -341,98 +388,25 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
           <div className="wst-canvas-wrap">
             <div className="wst-canvas-scroll">
               {positionedNodes.length > 0 ? (
-                <svg className="wst-canvas-svg" width={Math.max(svgWidth, 920)} height={Math.max(svgHeight, 520)} aria-label="Story tree graph">
-                  <defs>
-                    <marker id="wst-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#9CA3AF" />
-                    </marker>
-                  </defs>
-
-                  {positionedEdges.map((edge) => (
-                    <g key={edge.id}>
-                      <path
-                        className="wst-edge-line"
-                        d={edge.path}
-                        stroke={edge.active ? "#4CAF82" : "#CBD5E1"}
-                        strokeWidth="2"
-                        fill="none"
-                        markerEnd="url(#wst-arrow)"
-                      />
-                      {edge.label && (
-                        <g>
-                          <rect
-                            x={edge.labelX - 60}
-                            y={edge.labelY - 16}
-                            width={120}
-                            height={28}
-                            rx="14"
-                            fill="#ffffff"
-                            opacity="0.94"
-                          />
-                          <text
-                            className="wst-edge-label"
-                            x={edge.labelX}
-                            y={edge.labelY}
-                            textAnchor="middle"
-                          >
-                            {edge.label}
-                          </text>
-                        </g>
-                      )}
-                    </g>
-                  ))}
-
-                  {positionedNodes.map((item) => {
-                    const { id, x, y, scene, status } = item;
-                    const style = WRITER_NODE_STYLE[status] || WRITER_NODE_STYLE[WRITER_NODE_STATUS.LOCKED];
-                    const isSelected = id === selectedSceneId;
-                    const prefix = status === WRITER_NODE_STATUS.START
-                      ? "▶ "
-                      : status === WRITER_NODE_STATUS.LOCKED || status === WRITER_NODE_STATUS.ENDING_LOCKED
-                        ? "🔒 "
-                        : status === WRITER_NODE_STATUS.ENDING_UNLOCKED
-                          ? "🏆 "
-                          : "📘 ";
-                    const chapterName = getNodeChapter(scene);
-                    const titleText = getNodeTitle(scene);
-                    const contentText = getNodeContent(scene);
-                    const shortDescription = contentText.length > 78 ? `${contentText.slice(0, 78)}...` : contentText;
-
-                    return (
-                      <g
-                        key={id}
-                        transform={`translate(${x}, ${y})`}
-                        className="wst-node-group"
-                        onClick={(event) => { event.stopPropagation(); handleNodeClick(id); }}
-                        onDoubleClick={(event) => { event.stopPropagation(); handleNodeDoubleClick(id); }}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`ฉาก ${titleText}`}
-                      >
-                        <rect
-                          x={0}
-                          y={0}
-                          width={NODE_WIDTH}
-                          height={NODE_HEIGHT}
-                          rx="18"
-                          fill={style.fill}
-                          stroke={isSelected ? "#E91E8C" : style.stroke}
-                          strokeWidth={isSelected ? 3 : 2}
-                          className={isSelected ? "wst-node-card wst-node-card--selected" : "wst-node-card"}
-                        />
-                        <text x={18} y={28} className="wst-node-title" fill={style.text}>
-                          {prefix}{titleText}
-                        </text>
-                        <text x={18} y={54} className="wst-node-desc" fill={style.text}>
-                          {shortDescription}
-                        </text>
-                        <text x={18} y={96} className="wst-node-footer" fill={style.text}>
-                          {chapterName}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
+                <div className="wst-reactflow-container">
+                  <ReactFlow
+                    nodes={flowNodes}
+                    edges={flowEdges}
+                    nodeTypes={nodeTypes}
+                    onNodeClick={handleNodeClick}
+                    onNodeDoubleClick={handleNodeDoubleClick}
+                    fitView
+                    fitViewOptions={{ padding: 0.2 }}
+                    preventScrolling={false}
+                    panOnScroll
+                    nodesDraggable={false}
+                    nodesConnectable={false}
+                    elementsSelectable={true}
+                    minZoom={0.3}
+                    maxZoom={1.6}
+                    className="wst-reactflow"
+                  />
+                </div>
               ) : (
                 <div className="wst-empty-state">ไม่พบข้อมูลโครงสร้างเนื้อเรื่อง</div>
               )}

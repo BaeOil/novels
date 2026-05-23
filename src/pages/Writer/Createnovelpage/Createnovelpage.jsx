@@ -1,18 +1,9 @@
 // ══════════════════════════════════════════════════════════════
-//  หน้าสร้างนิยายเรื่องใหม่ — ฝั่งนักเขียน (แก้ไขเชื่อมต่อ Token หลังบ้าน)
+//  หน้าสร้างนิยายเรื่องใหม่ — ฝั่งนักเขียน (เวอร์ชันสมบูรณ์)
 //
-//  Form fields:
-//    - ชื่อเรื่อง (required)
-//    - คำโปรย   (required, max 200 chars)
-//    - หมวดหมู่  (multi-select, required)
-//    - แนะนำเรื่อง (required)
-//    - ภาพปก    (cover upload)
-//    - Status เรื่อง toggle (เผยแพร่ / ฉบับร่าง)
-//    - Status จบ  toggle  (จบแล้ว / ยังไม่จบ)
-//
-//  Backend API connected:
-//    - POST /novels           -> สร้างนิยายใหม่ (Requires JWT Token)
-//    - POST /upload/image      -> อัพโหลดปกนิยาย (Requires JWT Token)
+//  เชื่อมต่อ API:
+//    - POST /novels      -> สร้างนิยายใหม่ (ข้อมูลตรงตาม Go Struct)
+//    - POST /upload/image -> อัปโหลดปกนิยายไปยัง MinIO
 // ══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from "react";
@@ -29,52 +20,47 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 // ── ค่า default ของ form ──────────────────────────────────────
 const INITIAL_FORM = {
     title: "",
-    tagline: "",
-    categories: [],
-    description: "",
-    coverFile: null,
+    tagline: "",          
+    categories: [],       
+    description: "",      
+    coverFile: null,      
     coverPreview: null,
-    isPublished: true,    // toggle สถานะเรื่อง (เผยแพร่)
-    isCompleted: false,   // toggle สถานะจบ    (ยังไม่จบ)
+    isPublished: true,    // เปิดเผยแพร่เป็นค่าเริ่มต้น
+    isCompleted: false,   // ยังไม่จบเป็นค่าเริ่มต้น
 };
 
 const FALLBACK_CATEGORIES = [
-    "แฟนตาซี",
-    "โรแมนซ์",
-    "ผจญภัย",
-    "ลึกลับ",
-    "สยองขวัญ",
-    "ดราม่า",
-    "ตลก",
-    "ชีวิต",
-    "ไซไฟ",
-    "ประวัติศาสตร์",
+    "แฟนตาซี", "โรแมนซ์", "ผจญภัย", "ลึกลับ", "สสยองขวัญ", 
+    "ดราม่า", "ตลก", "ชีวิต", "ไซไฟ", "ประวัติศาสตร์",
 ];
 
 // ── Validation rules ─────────────────────────────────────────
 const validate = (form) => {
     const errors = {};
-    if (!form.title.trim())
+    if (!form.title.trim()) {
         errors.title = "กรุณากรอกชื่อเรื่อง";
-    if (!form.tagline.trim())
+    }
+    if (!form.tagline.trim()) {
         errors.tagline = "กรุณากรอกคำโปรย";
-    if (form.tagline.length > 200)
+    }
+    if (form.tagline.length > 200) {
         errors.tagline = "คำโปรยต้องไม่เกิน 200 ตัวอักษร";
-    if (form.categories.length === 0)
+    }
+    if (form.categories.length === 0) {
         errors.categories = "กรุณาเลือกหมวดหมู่อย่างน้อย 1 หมวด";
+    }
     
-    const plainDescription = form.description
-        .replace(/<(.|\n)*?>/g, "")
-        .trim();
-
-    if (!plainDescription)
+    // 💡 ปรับปรุง: ตรวจสอบความปลอดภัยกรณีที่ฟอร์ม description ยังคงว่างเปล่า
+    const plainDescription = form.description ? form.description.replace(/<(.|\n)*?>/g, "").trim() : "";
+    if (!plainDescription) {
         errors.description = "กรุณากรอกแนะนำเรื่อง";
+    }
     
     return errors;
 };
 
 // ════════════════════════════════════════════════════════════
-const CreateNovelPage = ({ onNavigate }) => {
+const CreateNovelPage = () => {
     const [form, setForm] = useState(INITIAL_FORM);
     const [errors, setErrors] = useState({});
     const [submissionError, setSubmissionError] = useState(null);
@@ -123,7 +109,6 @@ const CreateNovelPage = ({ onNavigate }) => {
     // ── Field change helper ──────────────────────────────────
     const setField = (key, value) => {
         setForm((prev) => ({ ...prev, [key]: value }));
-        // ล้าง error ของ field นั้น เมื่อเริ่มแก้ไข
         if (errors[key]) {
             setErrors((prev) => {
                 const next = { ...prev };
@@ -133,23 +118,98 @@ const CreateNovelPage = ({ onNavigate }) => {
         }
     };
 
-    // ── Submit handler ─────────────────────────────────
-    const handleSubmit = async (formData) => {
+    // ── Submit handler ───────────────────────────────────────
+    const handleSubmit = async (e) => {
+        if (e) e.preventDefault(); 
+
+        const validationErrors = validate(form);
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            setSubmissionError("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วนและถูกต้อง");
+            return;
+        }
+
+        setIsSubmitting(true);
+        setSubmissionError(null);
+
         try {
-            // TODO: POST /api/v1/novels/create
-            // const response = await fetch("/api/v1/novels/create", {
-            //   method: "POST",
-            //   body: formData
-            // });
-            // const data = await response.json();
+            const token = localStorage.getItem("token"); 
+            if (!token) {
+                throw new Error("ไม่พบข้อมูลการเข้าสู่ระบบ (Token) กรุณาล็อกอินใหม่");
+            }
+
+            let coverImageUrl = null;
+
+            // 1. อัปโหลดรูปภาพปกไปยังระบบฝากไฟล์ MinIO ก่อน
+            if (form.coverFile) {
+                const imageFormData = new FormData();
+                imageFormData.append("image", form.coverFile); 
+
+                // 🎯 แก้ไขจุดที่ 1: เปลี่ยนเส้นทาง Endpoint ไปที่ /upload/image
+                const uploadRes = await fetch(`${API_BASE_URL}/upload/image`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}` },
+                    body: imageFormData
+                });
+
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    console.log("✅ ข้อมูลที่ได้จาก API Upload:", uploadData); 
+                    
+                    // 🎯 แก้ไขจุดที่ 2: เจาะจงดึงลิงก์รูปแบบยาวจาก full_url ลงสู่ตัวแปรส่งเข้าฐานข้อมูล
+                    coverImageUrl = uploadData.data?.full_url || ""; 
+                    console.log("🖼️ ลิงก์รูปภาพที่จะใช้บันทึกลงฐานข้อมูล:", coverImageUrl);
+                } else {
+                    console.error("อัปโหลดภาพปกไม่สำเร็จ แต่ระบบจะดำเนินการสร้างนิยายต่อ");
+                }
+            }
+
+            // 2. แปลงหมวดหมู่เป็น ID
+            const selectedCategoryIds = categories
+                .filter(cat => form.categories.includes(cat.name))
+                .map(cat => cat.id);
+
+            // 3. รวบตรรกะสถานะ (Status) ให้เป็น String เดียว
+            let finalStatus = "draft"; 
+            if (form.isCompleted) {
+                finalStatus = "completed"; 
+            } else if (form.isPublished) {
+                finalStatus = "publish";
+            }
+
+            // 4. ประกอบร่าง Payload ให้ตรงกับ Struct Go
+            const novelPayload = {
+                title: form.title,
+                captions: form.tagline,             
+                introduction: form.description,     
+                category_ids: selectedCategoryIds,  
+                cover_image: coverImageUrl,         
+                status: finalStatus,  
+            };
+
+            const response = await fetch(`${API_BASE_URL}/novels`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(novelPayload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || errorData.error || "ไม่สามารถบันทึกข้อมูลนิยายลงระบบได้");
+            }
+
+            alert("✅ สร้างนิยายและบันทึกข้อมูลครบถ้วนเรียบร้อย!");
+            navigate("/writer/dashboard");
             
-            // Simulate success
-            const novelId = "novel-" + Date.now(); // Replace with actual ID from API
-            
-            alert("✅ สร้างนิยายสำเร็จ!");
-            navigate(`/writer/${novelId}/chapters`);
         } catch (error) {
-            alert("❌ เกิดข้อผิดพลาด: " + error.message);
+            console.error("Submit Error:", error);
+            setSubmissionError(error.message);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -163,7 +223,7 @@ const CreateNovelPage = ({ onNavigate }) => {
         navigate("/writer/dashboard");
     };
 
-    const taglineLen = form.tagline.length;
+    const taglineLen = form.tagline ? form.tagline.length : 0;
 
     // ════════════════════════════════════════════════════════
     return (
@@ -209,10 +269,9 @@ const CreateNovelPage = ({ onNavigate }) => {
                                     onChange={(e) => setField("title", e.target.value)}
                                     maxLength={100}
                                     aria-required="true"
-                                    aria-describedby={errors.title ? "err-title" : undefined}
                                 />
                                 {errors.title && (
-                                    <p className="cnp__error" id="err-title" role="alert">{errors.title}</p>
+                                    <p className="cnp__error" role="alert">{errors.title}</p>
                                 )}
                             </div>
 
@@ -294,7 +353,7 @@ const CreateNovelPage = ({ onNavigate }) => {
                                         setField("coverFile", file);
                                         setField("coverPreview", preview);
                                     }}
-                                Dad />
+                                />
                             </div>
 
                             {/* ── การตั้งค่าเบื้องต้น ── */}
@@ -347,9 +406,7 @@ const CreateNovelPage = ({ onNavigate }) => {
                             ยกเลิก
                         </button>
 
-                        
-
-                        {/* สร้างนิยายและเพิ่มตอนแรก */}
+                        {/* สร้างนิยาย */}
                         <button
                             type="button"
                             className="cnp__btn cnp__btn--submit"
@@ -367,7 +424,7 @@ const CreateNovelPage = ({ onNavigate }) => {
                                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                                         <path d="M2 7l4 4 6-6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                     </svg>
-                                    สร้างนิยายและเพิ่มตอนแรก
+                                    สร้างนิยายเรื่องใหม่
                                 </>
                             )}
                         </button>
@@ -406,3 +463,4 @@ const CreateNovelPage = ({ onNavigate }) => {
 };
 
 export default CreateNovelPage;
+        

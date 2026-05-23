@@ -163,7 +163,16 @@ const LoginForm = ({ onSwitchToRegister }) => {
       });
 
       console.log("📥 Login Response Received. Status:", res.status);
-      const data = await res.json().catch(() => ({}));
+      // Some error responses are sent as plain text (http.Error) not JSON.
+      // Try to read as text first and parse JSON if possible, otherwise
+      // expose the plain text message so the UI can show a clearer reason.
+      const raw = await res.text().catch(() => "");
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch (err) {
+        data = { message: raw };
+      }
       console.log("📦 Login Response Data:", data);
 
       if (!res.ok) {
