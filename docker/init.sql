@@ -205,11 +205,11 @@ INSERT INTO categories (name) VALUES
 ('ผจญภัย');
 
 INSERT INTO users (username, email, password_hash, role, pic_profile) VALUES
-('admin_master', 'admin@novelverse.com', 'hashed_admin', 'admin', 'http://localhost:9000/novels-images/admin.jpg'),
-('jane_writer', 'jane@novelverse.com', 'hashed_jane', 'writer', 'http://localhost:9000/novels-images/jane.jpg'),
-('dark_john', 'john@novelverse.com', 'hashed_john', 'writer', 'http://localhost:9000/novels-images/john.jpg'),
-('alice_reader', 'alice@novelverse.com', 'hashed_alice', 'reader', 'http://localhost:9000/novels-images/alice.jpg'),
-('mike_reader', 'mike@novelverse.com', 'hashed_mike', 'reader', NULL);
+('admin_master', 'admin@novelverse.com', '$2b$10$7R8Y5Vw9g1vVw8Zmx7W2OecS8X7oVnFE4Xp8b7X1vEw6Y.O6VpZ2O', 'admin', 'http://localhost:9000/novels-images/admin.jpg'),
+('jane_writer', 'jane@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'writer', 'http://localhost:9000/novels-images/jane.jpg'),
+('dark_john', 'john@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'writer', 'http://localhost:9000/novels-images/john.jpg'),
+('alice_reader', 'alice@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'reader', 'http://localhost:9000/novels-images/alice.jpg'),
+('mike_reader', 'mike@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'reader', NULL);
 
 
 -- ==========================================
