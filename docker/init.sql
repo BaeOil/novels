@@ -209,7 +209,7 @@ INSERT INTO users (username, email, password_hash, role, pic_profile) VALUES
 ('jane_writer', 'jane@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'writer', 'http://localhost:9000/novels-images/jane.jpg'),
 ('dark_john', 'john@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'writer', 'http://localhost:9000/novels-images/john.jpg'),
 ('alice_reader', 'alice@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'reader', 'http://localhost:9000/novels-images/alice.jpg'),
-('mike_reader', 'mike@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'reader', NULL);
+('mike_reader', 'mike@novelverse.com', '$2a$10$4ZIvX0WA8fmVFyrXIElUDOGSoZvuoI9d/uJUsbwBxmnKyFxWuwKaC', 'reader','http://localhost:9000/novels-images/alice.jpg');
 
 
 -- ==========================================
