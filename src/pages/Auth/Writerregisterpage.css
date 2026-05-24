@@ -28,7 +28,7 @@
 }
 
 .wr-header__title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 32px;
   font-weight: 700;
   color: var(--pink-500);
@@ -344,7 +344,7 @@
 }
 
 .wr-card__title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 22px;
   font-weight: 700;
   color: var(--pink-500);
@@ -367,7 +367,7 @@
 ══════════════════════════════════════════ */
 
 .wr-section-title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 28px;
   font-weight: 700;
   color: var(--pink-500);
@@ -892,7 +892,7 @@
   margin: 0;
   font-size: 18px;
   color: #333;
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
 }
 
 .modal-close {

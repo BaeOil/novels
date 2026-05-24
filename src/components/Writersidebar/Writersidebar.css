@@ -44,7 +44,7 @@
 }
 
 .wsb__logo-story {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 15px;
   font-weight: 700;
   color: var(--pink-500);
@@ -52,7 +52,7 @@
 }
 
 .wsb__logo-verse {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 15px;
   font-weight: 500;
   color: var(--ink);

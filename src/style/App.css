@@ -2,7 +2,7 @@
 /* Global design tokens — ตาม SKILL.md ของโปรเจค StoryVerse */
 
 /* ── Google Fonts ── */
-/* Playfair Display + Sarabun loaded via public/index.html */
+/* Open Sans + Sarabun loaded via public/index.html */
 
 /* ── CSS Variables (Design System) ── */
 :root {
@@ -60,11 +60,13 @@ body {
   background-color: var(--gray-50);
   color: var(--ink);
   line-height: 1.6;
-  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   line-height: 1.2;
   color: var(--ink);
 }
@@ -126,22 +128,3 @@ a {
   min-height: 100vh;
 }
 
-/* ======================================================
-   Writer Layout
-====================================================== */
-
-.writer-layout {
-  display: flex;
-  min-height: 100vh;
-  background: #fdf7fb;
-}
-
-/* ด้านขวา */
-.writer-layout__content {
-  flex: 1;
-  margin-left: 260px;
-
-  min-height: 100vh;
-
-  padding: 40px 56px;
-}

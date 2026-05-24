@@ -16,7 +16,7 @@
     border: 1.5px solid var(--gray-100);
     background: var(--white);
     font-family: 'Sarabun', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     color: var(--gray-600);
     cursor: pointer;
@@ -42,7 +42,7 @@
 .rbreadcrumb__novel,
 .rbreadcrumb__chapter {
     font-family: 'Sarabun', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -65,12 +65,12 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 7px 16px;
+    padding: 7px 15px;
     border-radius: 24px;
     border: 1.5px solid var(--gray-100);
     background: var(--white);
     font-family: 'Sarabun', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     color: var(--gray-600);
     cursor: pointer;

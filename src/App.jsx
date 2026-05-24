@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 
 import Navbar from "./components/Navbar/Navbar";
+import NavbarWriter from "./components/Navbarwriter/Navbarwriter";
 import WriterSidebar from "./components/WriterSidebar/WriterSidebar";
 
 import HomePage from "./pages/Reader/HomePage/HomePage";
@@ -30,6 +31,7 @@ import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
 
 import "./style/App.css";
 import "./style/index.css";
+import { i } from "framer-motion/client";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -53,7 +55,7 @@ const ReaderLayout = ({ children }) => {
 const WriterLayout = ({ children, onNavigate }) => {
   return (
     <div className="writer-layout">
-      <WriterSidebar onNavigate={onNavigate} />
+      <NavbarWriter onNavigate={onNavigate} />
       <main className="writer-layout__content">
         {children}
       </main>

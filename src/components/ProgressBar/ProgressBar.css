@@ -9,7 +9,7 @@
 
 .progress-bar-card__title {
   font-family: 'Sarabun', sans-serif;
-  font-size: 16px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--ink);
   margin: 0 0 4px;
@@ -17,7 +17,7 @@
 
 .progress-bar-card__desc {
   font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--gray-600);
   margin: 0 0 16px;
 }
@@ -32,13 +32,13 @@
 
 .progress-bar-card__chapter-label {
   font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--gray-600);
 }
 
 .progress-bar-card__percent {
   font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--gray-600);
   font-weight: 500;
 }
@@ -86,7 +86,7 @@
   border: 1.5px solid var(--gray-100);
   background: var(--white);
   font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--gray-600);
   cursor: pointer;
