@@ -171,7 +171,7 @@ const Navbarwriter = () => {
     // ─────────────────────────────────────
     // Handle select novel
     // ─────────────────────────────────────
-    const handleSelectNovel = (novel) => {
+    const handleSelectNovel = async (novel) => {
 
         setSelectedNovel(novel);
 
@@ -185,73 +185,125 @@ const Navbarwriter = () => {
         const novelId =
             novel.id || novel.novel_id;
 
-        // หน้าเดิมที่ user กำลังอยู่
-        const currentPath = location.pathname;
+        const token = localStorage.getItem("token");
 
-        // ─────────────────────────
-        // ถ้าอยู่หน้า chapters
-        // ─────────────────────────
-        if (
-            currentPath.includes("/chapters")
-        ) {
+        const headers = {
+            Authorization: `Bearer ${token}`,
+        };
+
+        try {
+
+            // ─────────────────────────
+            // โหลด chapters ของนิยายใหม่
+            // ─────────────────────────
+            const chapterRes = await fetch(
+                `${API_BASE_URL}/novels/${novelId}/chapters`,
+                { headers }
+            );
+
+            const chapterData = await chapterRes.json();
+
+            const chapters =
+                chapterData?.data?.chapters ||
+                chapterData?.chapters ||
+                chapterData?.data ||
+                [];
+
+            // ไม่มี chapter
+            if (!chapters.length) {
+
+                window.location.href =
+                    `/writer/${novelId}/chapters`;
+
+                return;
+            }
+
+            const firstChapter = chapters[0];
+
+            const firstChapterId =
+                firstChapter.id ||
+                firstChapter.chapter_id ||
+                firstChapter.ChapterID;
+
+            // ─────────────────────────
+            // โหลด scenes ของ chapter แรก
+            // ─────────────────────────
+            const sceneRes = await fetch(
+                `${API_BASE_URL}/chapters/${firstChapterId}/scenes`,
+                { headers }
+            );
+
+            const sceneData = await sceneRes.json();
+
+            const scenes =
+                sceneData?.data?.scenes ||
+                sceneData?.scenes ||
+                sceneData?.data ||
+                [];
+
+            // ไม่มี scene
+            if (!scenes.length) {
+
+                window.location.href =
+                    `/writer/${novelId}/chapters`;
+
+                return;
+            }
+
+            const firstScene = scenes[0];
+
+            const firstSceneId =
+                firstScene.id ||
+                firstScene.scene_id ||
+                firstScene.SceneID;
+
+            const currentPath = location.pathname;
+
+            // ─────────────────────────
+            // หน้า scene editor
+            // ─────────────────────────
+            if (currentPath.includes("/scene/")) {
+
+                window.location.href =
+                    `/writer/${novelId}/scene/${firstSceneId}`;
+
+                return;
+            }
+
+            // ─────────────────────────
+            // หน้า chapters
+            // ─────────────────────────
+            if (currentPath.includes("/chapters")) {
+
+                window.location.href =
+                    `/writer/${novelId}/chapters`;
+
+                return;
+            }
+
+            // ─────────────────────────
+            // หน้า storytree
+            // ─────────────────────────
+            if (currentPath.includes("/storytree")) {
+
+                window.location.href =
+                    `/writer/${novelId}/storytree`;
+
+                return;
+            }
+
+            // ─────────────────────────
+            // fallback
+            // ─────────────────────────
+            window.location.href =
+                `/writer/${novelId}/scene/${firstSceneId}`;
+
+        } catch (err) {
+
+            console.error("เปลี่ยนนิยายล้มเหลว:", err);
 
             window.location.href =
                 `/writer/${novelId}/chapters`;
-
-            return;
-        }
-
-        // ─────────────────────────
-        // ถ้าอยู่หน้า scene editor
-        // ─────────────────────────
-        if (
-            currentPath.includes("/scene/")
-        ) {
-
-            window.location.href =
-                `/writer/${novelId}/scene/1`;
-
-            return;
-        }
-
-        // ─────────────────────────
-        // ถ้าอยู่หน้า storytree
-        // ─────────────────────────
-        if (
-            currentPath.includes("/storytree")
-        ) {
-
-            window.location.href =
-                `/writer/${novelId}/storytree`;
-
-            return;
-        }
-
-        // ─────────────────────────
-        // popup target fallback
-        // ─────────────────────────
-        if (popupTarget === "chapters") {
-
-            window.location.href =
-                `/writer/${novelId}/chapters`;
-
-            return;
-        }
-
-        if (popupTarget === "write") {
-
-            window.location.href =
-                `/writer/${novelId}/scene/1`;
-
-            return;
-        }
-
-        if (popupTarget === "tree") {
-
-            window.location.href =
-                `/writer/${novelId}/storytree`;
-
-            return;
         }
     };
 
@@ -347,8 +399,8 @@ const Navbarwriter = () => {
 
                         <button
                             className={`mode-toggle__btn ${!isWriterMode
-                                    ? "mode-toggle__btn--active"
-                                    : ""
+                                ? "mode-toggle__btn--active"
+                                : ""
                                 }`}
                             onClick={() => navigate("/")}
                         >
@@ -357,8 +409,8 @@ const Navbarwriter = () => {
 
                         <button
                             className={`mode-toggle__btn ${isWriterMode
-                                    ? "mode-toggle__btn--active"
-                                    : ""
+                                ? "mode-toggle__btn--active"
+                                : ""
                                 }`}
                             onClick={() =>
                                 navigate("/writer/dashboard")
@@ -626,8 +678,8 @@ const Navbarwriter = () => {
                                                 novel.novel_id
                                             }
                                             className={`novel-popup__item ${isActive
-                                                    ? "novel-popup__item--active"
-                                                    : ""
+                                                ? "novel-popup__item--active"
+                                                : ""
                                                 }`}
                                             onClick={() =>
                                                 handleSelectNovel(novel)

@@ -460,24 +460,24 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
             <>
               <div className="wst-sidebar__divider" />
               <div className="wst-sidebar__details-section">
-                <h4 className="wst-sidebar__details-title">📋 รายละเอียดฉากที่เลือก</h4>
+                <h4 className="wst-sidebar__details-title">รายละเอียดฉากที่เลือก</h4>
                 
                 <div className="wst-sidebar__detail-item">
                   <span className="wst-sidebar__detail-label">ชื่อฉาก:</span>
                   <span className="wst-sidebar__detail-value">{getNodeTitle(selectedScene)}</span>
                 </div>
-
+              {/*แสดงชื่อตอน 
                 <div className="wst-sidebar__detail-item">
                   <span className="wst-sidebar__detail-label">ตอน:</span>
                   <span className="wst-sidebar__detail-value">{getNodeChapter(selectedScene)}</span>
-                </div>
+                </div> */}
 
                 <div className="wst-sidebar__detail-item">
                   <span className="wst-sidebar__detail-label">ประเภท:</span>
                   <span className="wst-sidebar__detail-value">
-                    {getNodeType(selectedScene) === "start" ? "🟢 จุดเริ่มต้น" 
-                     : getNodeType(selectedScene) === "ending" ? "🏆 ฉากจบ" 
-                     : "📘 ฉากปกติ"}
+                    {getNodeType(selectedScene) === "start" ? "จุดเริ่มต้น" 
+                     : getNodeType(selectedScene) === "ending" ? "ฉากจบ" 
+                     : "ฉากทั่วไป"}
                   </span>
                 </div>
 
@@ -488,7 +488,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
                 {incomingChoices.length > 0 && (
                   <div className="wst-sidebar__choices-section">
-                    <span className="wst-sidebar__choices-label">🔤 ตัวเลือกขาเข้า ({incomingChoices.length}):</span>
+                    <span className="wst-sidebar__choices-label">ตัวเลือกต้นทางที่เชื่อมมาฉากนี้ ({incomingChoices.length}):</span>
                     <ul className="wst-sidebar__choices-list">
                       {incomingChoices.map((choice, idx) => (
                         <li key={idx} className="wst-sidebar__choice-item">{getChoiceLabel(choice)}</li>
@@ -499,7 +499,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
                 {outgoingChoices.length > 0 && (
                   <div className="wst-sidebar__choices-section">
-                    <span className="wst-sidebar__choices-label">🔤 ตัวเลือกขาออก ({outgoingChoices.length}):</span>
+                    <span className="wst-sidebar__choices-label">ตัวเลือกปลายทาง ({outgoingChoices.length}):</span>
                     <ul className="wst-sidebar__choices-list">
                       {outgoingChoices.map((choice, idx) => (
                         <li key={idx} className="wst-sidebar__choice-item">{getChoiceLabel(choice)}</li>
@@ -507,44 +507,18 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                     </ul>
                   </div>
                 )}
-
+                {/* ปุ่มแก้ไขฉาก (นำไปสู่ Scene Editor) 
                 <button 
                   className="wst-sidebar__edit-btn"
                   onClick={() => handleNodeDoubleClick(selectedSceneId)}
                 >
                   ✏️ แก้ไขฉากนี้
-                </button>
+                </button> */}
               </div>
             </>
           )}
 
-          <div className="wst-sidebar__divider" />
-          <div className="wst-sidebar__ch-label">กลุ่มตอน</div>
-          <div className="wst-sidebar__chapters">
-            {chapters.map((chapter) => (
-              <div key={chapter.title} className="wst-sidebar__chapter">
-                <div className="wst-sidebar__ch-heading">{chapter.title}</div>
-                <div className="wst-sidebar__scenes">
-                  {chapter.scenes.map((scene) => {
-                    const id = getNodeId(scene);
-                    const status = formatNodeStatus(scene);
-                    const statusColor = status === WRITER_NODE_STATUS.START ? "#6D28D9" : status === WRITER_NODE_STATUS.ENDING ? "#F97316" : "#3B82F6";
-                    return (
-                      <button
-                        type="button"
-                        key={id}
-                        className={`wst-sidebar__scene-row ${selectedSceneId === id ? "wst-sidebar__scene-row--active" : ""}`}
-                        onClick={() => handleSidebarSceneClick(id)}
-                      >
-                        <span className="wst-sidebar__scene-dot" style={{ background: statusColor }} />
-                        <span className="wst-sidebar__scene-label">{getNodeTitle(scene)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+          
         </aside>
       </div>
     </div>
