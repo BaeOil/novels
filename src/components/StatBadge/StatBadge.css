@@ -20,7 +20,7 @@
 }
 
 .stat-badge__value {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 22px;
   font-weight: 700;
   color: var(--pink-500);
@@ -30,7 +30,7 @@
 
 .stat-badge__label {
   font-family: 'Sarabun', sans-serif;
-  font-size: 12px;
+  font-size: 15px;
   color: var(--gray-600);
   white-space: nowrap;
 }

@@ -23,10 +23,10 @@ const Navbar = () => {
     const [isLoadingUser, setIsLoadingUser] = useState(false);
 
     // 🎯 🟢 ตรวจสอบว่าปัจจุบัน URL อยู่ในฝั่งโหมดนักเขียนหรือไม่
-    const isWriterMode = location.pathname.startsWith("/dashboard") || 
+    const isWriterMode = location.pathname.startsWith("/writer/dashboard") || 
                          location.pathname.startsWith("/writer") || 
-                         location.pathname.startsWith("/storytree") || 
-                         location.pathname.startsWith("/create");
+                         location.pathname.startsWith("/writer/storytree") || 
+                         location.pathname.startsWith("/writer/create");
 
     useEffect(() => {
         const handleScroll = () => {
@@ -108,7 +108,7 @@ const Navbar = () => {
         <nav className={`nav-header ${isScrolled ? "nav-sticky" : ""} ${isWriterMode ? "nav-header--writer" : ""}`}>
             <div className="nav-container">
                 {/* ── ส่วนโลโก้: อัปเดตสลับข้อความ Reader/Writer Mode ตามพิกัด URL ── */}
-                <div className="nav-logo" onClick={() => navigate(isWriterMode ? "/dashboard" : "/")}>
+                <div className="nav-logo" onClick={() => navigate(isWriterMode ? "/writer/dashboard" : "/")}>
                     <img src="/logo192.png" alt="Logo" className="logo-img" />
                     <div className="navbar__logo-text">
                         <span className="navbar__logo-story">Story</span>
@@ -124,11 +124,11 @@ const Navbar = () => {
                     {isWriterMode ? (
                         <>
                             {/* เมนูที่ปรากฏเมื่ออยู่ในโหมดนักเขียน */}
-                            <li className={`nav-item ${location.pathname === "/dashboard" ? "active" : ""}`}>
-                                <Link to="/dashboard">Dashboard นักเขียน</Link>
+                            <li className={`nav-item ${location.pathname === "/writer/dashboard" ? "active" : ""}`}>
+                                <Link to="/writer/dashboard">Dashboard นักเขียน</Link>
                             </li>
-                            <li className={`nav-item ${location.pathname === "/create" ? "active" : ""}`}>
-                                <Link to="/create">สร้างเรื่องใหม่</Link>
+                            <li className={`nav-item ${location.pathname === "/writer/create" ? "active" : ""}`}>
+                                <Link to="/writer/create">สร้างเรื่องใหม่</Link>
                             </li>
                         </>
                     ) : (
@@ -136,9 +136,6 @@ const Navbar = () => {
                             {/* เมนูที่ปรากฏเมื่ออยู่ในโหมดนักอ่านตามปกติ */}
                             <li className={`nav-item ${location.pathname === "/" ? "active" : ""}`}>
                                 <Link to="/">หน้าแรก</Link>
-                            </li>
-                            <li className={`nav-item ${location.pathname === "/category" ? "active" : ""}`}>
-                                <Link to="/category">หมวดหมู่</Link>
                             </li>
                             <li className={`nav-item ${location.pathname === "/bookshelf" ? "active" : ""}`}>
                                 <Link to="/bookshelf">ชั้นหนังสือ</Link>
@@ -219,7 +216,7 @@ const Navbar = () => {
                                         <hr className="nav-dropdown__divider" />
                                         
                                         {/* 🎯 ทางลัดเพิ่มเติมภายใน Dropdown โปรไฟล์ */}
-                                        <button type="button" className="nav-dropdown__link-btn" onClick={() => { navigate(isWriterMode ? "/" : "/dashboard"); setIsDropdownOpen(false); }}>
+                                        <button type="button" className="nav-dropdown__link-btn" onClick={() => { navigate(isWriterMode ? "/" : "/writer/dashboard"); setIsDropdownOpen(false); }}>
                                             {isWriterMode ? "📖 เข้าสู่หน้าหลักนักอ่าน" : "✍️ เข้าสู่สตูดิโอนักเขียน"}
                                         </button>
                                         

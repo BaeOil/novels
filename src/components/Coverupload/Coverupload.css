@@ -62,14 +62,14 @@
 
 .cup__placeholder-text {
   font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--pink-500);
   line-height: 1.4;
 }
 
 .cup__placeholder-hint {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--gray-300);
 }
 

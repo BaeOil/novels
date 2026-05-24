@@ -25,7 +25,6 @@ const NOVEL_MENU = [
   {
     id: "chapters",
     label: "จัดการตอน",
-    path: "/writer/:novelId/chapters",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M2 4h14M2 8h10M2 12h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
@@ -35,7 +34,6 @@ const NOVEL_MENU = [
   {
     id: "write",
     label: "เขียนเนื้อหา",
-    path: "/writer/:novelId/scene/:sceneId",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M3 13.5L5.5 11l7-7 2 2-7 7-2.5 2.5H3v-2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none"/>
@@ -46,7 +44,6 @@ const NOVEL_MENU = [
   {
     id: "story-tree",
     label: "Story Tree",
-    path: "/writer/:novelId/storytree",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <circle cx="9" cy="3" r="2" fill="currentColor" opacity=".8"/>

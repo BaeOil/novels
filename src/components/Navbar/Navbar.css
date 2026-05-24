@@ -50,14 +50,14 @@
 }
 
 .navbar__logo-story {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 18px;
   font-weight: 700;
   color: var(--pink-500);
 }
 
 .navbar__logo-verse {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 18px;
   font-weight: 500;
   color: var(--ink);

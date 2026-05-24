@@ -65,7 +65,7 @@
 
 /* Title */
 .novel-detail__title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: clamp(28px, 4vw, 42px);
   font-weight: 700;
   color: var(--ink);

@@ -54,14 +54,14 @@
 }
 
 .admin-sidebar__logo-story {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 15px;
   font-weight: 700;
   color: #e91e63;
 }
 
 .admin-sidebar__logo-verse {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 15px;
   font-weight: 500;
   color: #333;
@@ -180,7 +180,7 @@
 }
 
 .manageusers-header__title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 26px;
   font-weight: 700;
   color: #333;
@@ -262,7 +262,7 @@
   font-size: 24px;
   font-weight: 700;
   color: #333;
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
 }
 
 /* Search and Filter */
@@ -510,7 +510,7 @@
   margin: 0;
   font-size: 20px;
   color: #333;
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
 }
 
 .modal-close {

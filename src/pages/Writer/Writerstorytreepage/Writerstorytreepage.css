@@ -158,7 +158,7 @@
 }
 
 .wst-canvas-title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 32px;
   font-weight: 700;
   color: var(--ink);
@@ -380,7 +380,7 @@
 }
 
 .wst-sidebar__novel-title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Open Sans', serif;
   font-size: 15px;
   font-weight: 700;
   color: var(--ink);
