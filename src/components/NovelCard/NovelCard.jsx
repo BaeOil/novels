@@ -28,35 +28,41 @@ const NovelCard = ({ novel, onClick }) => {
       {/* Body */}
       <div className="novel-card__body">
         
-        {/* 🎯 1. แทรกส่วนแสดงหมวดหมู่ (Categories Tag) จากหลังบ้านตรงนี้ */}
-        <div className="novel-card__categories" style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "8px" }}>
-          {novel.categories && novel.categories.map((catName, idx) => (
-            <span 
-              key={idx} 
-              className="novel-card__tag"
-              style={{
-                background: idx % 2 === 0 ? "rgba(43, 108, 176, 0.1)" : "rgba(233, 30, 140, 0.1)", 
-                color: idx % 2 === 0 ? "#2B6CB0" : "#E91E8C",      
-                fontSize: "11px",
-                fontWeight: "bold",
-                padding: "2px 10px",
-                borderRadius: "20px",
-                border: "1px solid rgba(0,0,0,0.02)"
-              }}
-            >
-              {catName}
-            </span>
-          ))}
-        </div>
+        {/* Categories Tag */}
+        {novel.categories && novel.categories.length > 0 && (
+          <div className="novel-card__categories">
+            {novel.categories.slice(0, 2).map((catName, idx) => (
+              <span key={idx} className="novel-card__tag">
+                {catName}
+              </span>
+            ))}
+          </div>
+        )}
 
         <h3 className="novel-card__title">{novel.title}</h3>
         <p className="novel-card__synopsis">{novel.synopsis}</p>
+
+        {/* Stats Bar */}
+        <div className="novel-card__stats-bar">
+          <div className="novel-card__stat">
+            <div className="novel-card__stat-value">{fmt(novel.stats.views)}</div>
+            <div className="novel-card__stat-label">Views</div>
+          </div>
+          <div className="novel-card__stat">
+            <div className="novel-card__stat-value">{novel.stats.paths}</div>
+            <div className="novel-card__stat-label">Choices</div>
+          </div>
+          <div className="novel-card__stat">
+            <div className="novel-card__stat-value">{novel.stats.endings}</div>
+            <div className="novel-card__stat-label">Endings</div>
+          </div>
+        </div>
 
         {/* Footer: author + likes */}
         <div className="novel-card__footer">
           <div className="novel-card__author">
             <span className="novel-card__author-avatar">{novel.author.avatarEmoji || "✍️"}</span>
-            <span className="novel-card__author-name">โดย {novel.author.displayName}</span>
+            <span className="novel-card__author-name">{novel.author.displayName}</span>
           </div>
           <button
             className={`novel-card__like-btn ${liked ? "novel-card__like-btn--on" : ""}`}
@@ -64,28 +70,11 @@ const NovelCard = ({ novel, onClick }) => {
             aria-label={liked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
             aria-pressed={liked}
           >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M7 12S2 8.5 2 5.5A2.5 2.5 0 017 4a2.5 2.5 0 015 1.5C12 8.5 7 12 7 12z"
-                stroke="currentColor" strokeWidth="1.5" fill={liked ? "currentColor" : "none"}/>
+                stroke="currentColor" strokeWidth="1.2" fill={liked ? "currentColor" : "none"}/>
             </svg>
-            <span>{fmt(novel.stats.views)}</span>
           </button>
-        </div>
-
-        {/* 📊 2. แถมกล่องสถิติระบุจำนวนเส้นทาง/ฉากจบ ด้านล่างสุดให้เหมือนพิมพ์เขียวดีไซน์ */}
-        <div className="novel-card__stats-bar" style={{ display: "flex", justifyContent: "space-between", marginTop: "10px", paddingTop: "8px", borderTop: "1px solid #edf2f7", fontSize: "11px", color: "#718096" }}>
-          <div style={{ textAlign: "center", flex: 1 }}>
-            <div style={{ fontWeight: "bold", color: "#2d3748" }}>{fmt(novel.stats.views)}</div>
-            <div style={{ fontSize: "10px", opacity: 0.8 }}>Views</div>
-          </div>
-          <div style={{ textAlign: "center", flex: 1, borderLeft: "1px solid #edf2f7", borderRight: "1px solid #edf2f7" }}>
-            <div style={{ fontWeight: "bold", color: "#2d3748" }}>{novel.stats.paths}</div>
-            <div style={{ fontSize: "10px", opacity: 0.8 }}>Choices</div>
-          </div>
-          <div style={{ textAlign: "center", flex: 1 }}>
-            <div style={{ fontWeight: "bold", color: "#2d3748" }}>{novel.stats.endings}</div>
-            <div style={{ fontSize: "10px", opacity: 0.8 }}>Endings</div>
-          </div>
         </div>
 
       </div>

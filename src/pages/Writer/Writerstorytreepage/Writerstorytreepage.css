@@ -231,6 +231,50 @@
   animation: wst-ring-pulse 2.2s ease-in-out infinite;
 }
 
+.wst-node-card {
+  width: 260px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  font-family: 'Sarabun', sans-serif;
+}
+
+.wst-node-card__title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0;
+  color: inherit;
+}
+
+.wst-node-card__desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.84);
+  min-height: 42px;
+  max-height: 70px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.wst-node-card__chapter {
+  font-size: 11px;
+  color: rgba(71, 85, 105, 0.9);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 8px 10px;
+  border-radius: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @keyframes wst-ring-pulse {
   0%, 100% { opacity: 0.2; }
   50%       { opacity: 0.5; }

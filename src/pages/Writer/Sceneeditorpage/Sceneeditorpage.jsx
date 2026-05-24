@@ -94,6 +94,9 @@ const ChoiceCard = ({
   const [targetLabel, setTargetLabel] = useState(choice.targetLabel || resolvedScene?.label || resolvedScene?.chapterTitle || "");
   const [subScene, setSubScene] = useState(initialTargetSubScene);
   const [selectedChapterId, setSelectedChapterId] = useState(initialChapterId);
+  
+  // State ควบคุมโหมดการแก้ไข (ถ้าเป็นตัวเลือกใหม่ให้เป็นโหมดแก้ไขทันที)
+  const [isEditing, setIsEditing] = useState(!choice.text);
 
   useEffect(() => {
     setText(choice.text ?? choice.label ?? choice.Label ?? "");
@@ -172,6 +175,10 @@ const ChoiceCard = ({
     });
   };
 
+  const handleSaveEdit = () => {
+    setIsEditing(false);
+  };
+
   const COLORS = ["var(--pink-500)", "#F59E0B", "#6366F1"];
 
   return (
@@ -187,99 +194,115 @@ const ChoiceCard = ({
       </div>
 
       <div className="se-choice__body">
-        <button
-          className="se-choice__del"
-          onClick={() => onDelete(choice.id)}
-          aria-label="ลบตัวเลือก"
-          title="ลบตัวเลือกนี้"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-        </button>
-
-        <div className="se-choice__config">
-          <div className="se-choice__config-col">
-            <div className="se-choice__config-label">ข้อความตัวเลือก</div>
-            <input
-              className="se-input"
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                onUpdate?.({ ...choice, text: e.target.value });
-              }}
-              placeholder="ตัวอย่าง: สำรวจแบบไม่ย่อท้อ..."
-            />
+        {/* === โหมดแสดงผล (อ่านอย่างเดียว) === */}
+        {!isEditing ? (
+          <div className="se-choice__view">
+            <div className="se-choice__view-row">
+              <span className="se-choice__view-label">ข้อความ :</span>
+              <span className="se-choice__view-value">
+                {text || <span className="se-choice__view-value--empty">ยังไม่ได้ระบุข้อความ...</span>}
+              </span>
+            </div>
+            <div className="se-choice__view-row">
+              <span className="se-choice__view-label">ปลายทาง :</span>
+              <span className="se-choice__view-value">
+                {subScene ? targetLabel : <span className="se-choice__view-value--empty">ยังไม่ได้เลือกฉากปลายทาง...</span>}
+              </span>
+            </div>
+            <div className="se-choice__actions">
+              <button className="se-choice__btn-action se-choice__btn-action--del" onClick={() => onDelete(choice.id)}>ลบตัวเลือก</button>
+              <button className="se-choice__btn-action se-choice__btn-action--edit" onClick={() => setIsEditing(true)}>✏️ แก้ไข</button>
+            </div>
           </div>
-
-          <div className="se-choice__config-col">
-            <div className="se-choice__config-label">ลิงก์ปลายทาง</div>
-            
-            <div className="se-choice__radios">
-              <label className="se-radio">
-                <input
-                  type="radio"
-                  name={`tt-${choice.id}`}
-                  value="same"
-                  checked={targetType === "same"}
-                  onChange={() => handleScopeChange("same")}
-                />
-                <span className="se-radio__dot" />
-                ฉากในตอนเดียวกัน
-              </label>
-
-              <label className="se-radio">
-                <input
-                  type="radio"
-                  name={`tt-${choice.id}`}
-                  value="other"
-                  checked={targetType === "other"}
-                  onChange={() => handleScopeChange("other")}
-                />
-                <span className="se-radio__dot" />
-                ฉากในตอนอื่น
-              </label>
+        ) : (
+          /* === โหมดแก้ไขข้อมูล === */
+          <div className="se-choice__config">
+            <div className="se-choice__config-col">
+              <div className="se-choice__config-label">ข้อความตัวเลือก</div>
+              <input
+                className="se-input"
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  onUpdate?.({ ...choice, text: e.target.value });
+                }}
+                placeholder="ตัวอย่าง: สำรวจแบบไม่ย่อท้อ..."
+              />
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {targetType === "other" && (
+            <div className="se-choice__config-col">
+              <div className="se-choice__config-label">ลิงก์ปลายทาง</div>
+              
+              <div className="se-choice__radios">
+                <label className="se-radio">
+                  <input
+                    type="radio"
+                    name={`tt-${choice.id}`}
+                    value="same"
+                    checked={targetType === "same"}
+                    onChange={() => handleScopeChange("same")}
+                  />
+                  <span className="se-radio__dot" />
+                  ฉากในตอนเดียวกัน
+                </label>
+
+                <label className="se-radio">
+                  <input
+                    type="radio"
+                    name={`tt-${choice.id}`}
+                    value="other"
+                    checked={targetType === "other"}
+                    onChange={() => handleScopeChange("other")}
+                  />
+                  <span className="se-radio__dot" />
+                  ฉากในตอนอื่น
+                </label>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {targetType === "other" && (
+                  <select
+                    className="se-select"
+                    value={effectiveChapterId || ""}
+                    onChange={(e) => handleChapterChange(e.target.value)}
+                  >
+                    <option value="">เลือกตอนปลายทาง...</option>
+                    {otherChapterOptions.map((ch) => (
+                      <option key={`chapter-target-${ch.chapterId}`} value={ch.chapterId}>
+                        {ch.chapterTitle || `ตอน ${ch.chapterId}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
                 <select
                   className="se-select"
-                  value={effectiveChapterId || ""}
-                  onChange={(e) => handleChapterChange(e.target.value)}
+                  value={subScene}
+                  onChange={(e) => handleSubSceneChange(e.target.value)}
                 >
-                  <option value="">เลือกตอนปลายทาง...</option>
-                  {otherChapterOptions.map((ch) => (
-                    <option key={`chapter-target-${ch.chapterId}`} value={ch.chapterId}>
-                      {ch.chapterTitle || `ตอน ${ch.chapterId}`}
+                  <option value="">เลือกฉากปลายทาง...</option>
+                  {sceneOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
                     </option>
                   ))}
                 </select>
-              )}
-
-              <select
-                className="se-select"
-                value={subScene}
-                onChange={(e) => handleSubSceneChange(e.target.value)}
-              >
-                <option value="">เลือกฉากปลายทาง...</option>
-                {sceneOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              </div>
+            </div>
+            
+            <div className="se-choice__actions">
+              <button className="se-choice__btn-action se-choice__btn-action--del" onClick={() => onDelete(choice.id)}>ลบทิ้ง</button>
+              <button className="se-choice__btn-action se-choice__btn-action--save" onClick={handleSaveEdit}>✓ ตกลง</button>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
 // ─────────────────────────────────────────────
-// Scene Tree Sidebar Component (คำนวณลำดับตอนและฉากอัตโนมัติ)
+// Scene Tree Sidebar Component
 // ─────────────────────────────────────────────
 const SceneTreeSidebar = ({
   chapters,
@@ -294,7 +317,6 @@ const SceneTreeSidebar = ({
   setIsPublished,
   isEnding,
   setIsEnding,
-  triggerAutoSave
 }) => {
   const [expandedChapters, setExpandedChapters] = useState([]);
 
@@ -317,9 +339,6 @@ const SceneTreeSidebar = ({
 
   const safeChapters = Array.isArray(chapters) ? chapters : [];
 
-  // ─────────────────────────────────────────────
-  // คำนวณหาลำดับ "ตอนที่เท่าไหร่" และ "ฉากที่เท่าไหร่" ของฉากปัจจุบันที่แก้ไขอยู่
-  // ─────────────────────────────────────────────
   const currentChIndex = safeChapters.findIndex((c) => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(currentChapterId));
   const currentChDisplayNumber = currentChIndex !== -1 
     ? (safeChapters[currentChIndex].chapterNumber || safeChapters[currentChIndex].order_index || (currentChIndex + 1)) 
@@ -332,7 +351,6 @@ const SceneTreeSidebar = ({
   return (
     <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto" }}>
       
-      {/* 1. เส้นทางของตอนนี้ (กล่องสีชมพู) */}
       <div className="se-tree__header" style={{ marginBottom: "12px" }}>เส้นทางของตอนนี้</div>
       <div 
         className="se-tree__current-path" 
@@ -352,7 +370,6 @@ const SceneTreeSidebar = ({
         </div>
       </div>
 
-      {/* 2. ตั้งค่าสถานะ (Toggles) */}
       <div className="se-tree__toggles" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -363,7 +380,6 @@ const SceneTreeSidebar = ({
             checked={isPublished}
             onChange={(value) => {
               setIsPublished(value);
-              triggerAutoSave();
             }}
             id={`toggle-publish-sidebar`}
           />
@@ -378,7 +394,6 @@ const SceneTreeSidebar = ({
             checked={isEnding}
             onChange={(value) => {
               setIsEnding(value);
-              triggerAutoSave();
             }}
             id={`toggle-ending-sidebar`}
           />
@@ -387,7 +402,6 @@ const SceneTreeSidebar = ({
 
       <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '0 0 20px 0' }} />
 
-      {/* 3. ภาพรวมของนิยาย */}
       <div className="se-tree__header" style={{ marginBottom: "16px" }}>ภาพรวมของนิยาย</div>
       <div className="se-tree__list" style={{ flex: 1 }}>
         {safeChapters.map((ch, chapterIndex) => {
@@ -495,8 +509,6 @@ const SceneEditorPage = ({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
-
-  const autoSaveTimer = useRef(null);
   const token = localStorage.getItem("token");
 
   const fetchSceneData = useCallback(async () => {
@@ -556,17 +568,18 @@ const SceneEditorPage = ({
     fetchSceneData();
   }, [fetchSceneData]);
 
-  const handleSave = async (overridePublishStatus = null) => {
+  const handleSave = async (overridePublishStatus = null, returnToManager = false) => {
     setIsSaving(true);
     try {
       const currentPublishState = overridePublishStatus !== null ? overridePublishStatus : isPublished;
       
       const payload = {
-        title: sceneTitle.trim(),
+        title: sceneTitle.trim() || "ฉากร่างใหม่",
         content: content,
+        type: isEnding ? "ending" : "normal",
         status: currentPublishState ? "published" : "draft",
         is_ending: isEnding,
-        choices: choices, 
+        choices: choices,
       };
 
       const headers = { "Content-Type": "application/json" };
@@ -584,27 +597,20 @@ const SceneEditorPage = ({
       }
 
       setLastSaved(new Date());
+      if (returnToManager && typeof onNavigate === "function") {
+        onNavigate("chapters", { novelId });
+      }
     } catch (err) {
       console.error("Save scene error:", err);
+      setErrorMsg(err.message || "ไม่สามารถบันทึกข้อมูลฉากได้");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const triggerAutoSave = useCallback(() => {
-    clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => {
-      handleSave();
-    }, 2000);
-  }, [sceneTitle, content, isPublished, isEnding, choices]);
-
-  useEffect(() => {
-    return () => clearTimeout(autoSaveTimer.current);
-  }, [triggerAutoSave]);
-
   const handlePublish = () => {
     setIsPublished(true);
-    handleSave(true);
+    handleSave(true, false);
   };
 
   const addChoice = () => {
@@ -617,17 +623,14 @@ const SceneEditorPage = ({
       targetLabel: "เลือกตอน...",
     };
     setChoices((prev) => [...prev, newChoice]);
-    triggerAutoSave();
   };
 
   const updateChoice = (updated) => {
     setChoices((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    triggerAutoSave();
   };
 
   const deleteChoice = (choiceId) => {
     setChoices((prev) => prev.filter((c) => c.id !== choiceId));
-    triggerAutoSave();
   };
 
   const handleAddScene = async (chId) => {
@@ -642,9 +645,9 @@ const SceneEditorPage = ({
         body: JSON.stringify({
           novel_id: parseInt(novelId, 10),
           chapter_id: parseInt(chId, 10),
-          title: "ฉากใหม่ยังไม่มีชื่อ",
-          content: "",
-          type: "normal",
+          title: "ฉากร่างใหม่",
+          content: "ร่างฉากนี้ยังไม่พร้อม",
+          type: "draft",
         }),
       });
 
@@ -685,6 +688,19 @@ const SceneEditorPage = ({
     ? `บันทึกแล้ว ${lastSaved.getHours().toString().padStart(2, "0")}:${lastSaved.getMinutes().toString().padStart(2, "0")} น.`
     : null;
 
+  // ─────────────────────────────────────────────
+  // คำนวณลำดับเพื่อแสดงใน Breadcrumb ด้านบน
+  // ─────────────────────────────────────────────
+  const safeChapters = Array.isArray(chapters) ? chapters : [];
+  const currentChIndex = safeChapters.findIndex((c) => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(chapterId));
+  const currentChDisplayNumber = currentChIndex !== -1 
+    ? (safeChapters[currentChIndex].chapterNumber || safeChapters[currentChIndex].order_index || (currentChIndex + 1)) 
+    : "";
+
+  const currentChapterScenes = currentChIndex !== -1 ? (Array.isArray(safeChapters[currentChIndex].scenes) ? safeChapters[currentChIndex].scenes : []) : [];
+  const currentScIndex = currentChapterScenes.findIndex((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(sceneId));
+  const currentScDisplayNumber = currentScIndex !== -1 ? (currentScIndex + 1) : "";
+
   if (isLoading) {
     return (
       <div className="se-page" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
@@ -709,9 +725,15 @@ const SceneEditorPage = ({
           <nav className="se-header__breadcrumb" aria-label="breadcrumb">
             <span className="se-header__bc-novel">{novelTitle}</span>
             <span className="se-header__bc-sep">›</span>
-            <span className="se-header__bc-chapter">{chapterTitle}</span>
+            <span className="se-header__bc-chapter">
+              {currentChDisplayNumber ? `ตอนที่ ${currentChDisplayNumber} : ` : ""}
+              {chapterTitle}
+            </span>
             <span className="se-header__bc-sep">›</span>
-            <span className="se-header__bc-scene">{sceneLabel}</span>
+            <span className="se-header__bc-scene">
+              {currentChDisplayNumber && currentScDisplayNumber ? `ฉากที่ ${currentChDisplayNumber}.${currentScDisplayNumber} : ` : ""}
+              {sceneLabel}
+            </span>
           </nav>
         </div>
 
@@ -719,7 +741,7 @@ const SceneEditorPage = ({
           {isSaving && <span className="se-header__saving">กำลังบันทึก...</span>}
           {!isSaving && savedText && <span className="se-header__saved">✓ {savedText}</span>}
 
-          <button className="se-header__btn se-header__btn--save" onClick={() => handleSave()}>
+          <button className="se-header__btn se-header__btn--save" onClick={() => handleSave(null, true)}>
             บันทึก
           </button>
 
@@ -746,7 +768,6 @@ const SceneEditorPage = ({
           setIsPublished={setIsPublished}
           isEnding={isEnding}
           setIsEnding={setIsEnding}
-          triggerAutoSave={triggerAutoSave}
         />
 
         {/* Editor (ฝั่งขวา) */}
@@ -763,7 +784,6 @@ const SceneEditorPage = ({
                 value={sceneTitle}
                 onChange={(e) => {
                   setSceneTitle(e.target.value);
-                  triggerAutoSave();
                 }}
                 placeholder="ชื่อฉาก..."
               />
@@ -777,7 +797,6 @@ const SceneEditorPage = ({
                 value={content}
                 onChange={(value) => {
                   setContent(value);
-                  triggerAutoSave();
                 }}
                 modules={quillModules}
                 formats={quillFormats}

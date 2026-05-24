@@ -1002,3 +1002,95 @@
 .se-quill .ql-editor p {
   margin-bottom: 1rem;
 }
+/* =========================================
+   ส่วนเสริมสำหรับ Choice Card แบบ Read/Edit Mode
+   และปุ่ม Header โฉมใหม่
+========================================= */
+
+/* ปุ่มบันทึกดีไซน์ใหม่ */
+.se-header__btn--save {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transition: all 0.2s ease;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: 8px;
+}
+.se-header__btn--save:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+/* Choice Card View Mode */
+.se-choice__view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+.se-choice__view-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.se-choice__view-label {
+  font-weight: 600;
+  color: var(--gray-600);
+  min-width: 80px;
+  font-size: 14px;
+}
+.se-choice__view-value {
+  color: var(--ink);
+  font-size: 15px;
+  flex: 1;
+}
+.se-choice__view-value--empty {
+  color: #ef4444;
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* ปุ่มจัดการใน Choice Card */
+.se-choice__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  border-top: 1px dashed var(--gray-200);
+  padding-top: 12px;
+  justify-content: flex-end;
+}
+.se-choice__btn-action {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+.se-choice__btn-action--edit {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+.se-choice__btn-action--edit:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+.se-choice__btn-action--save {
+  background: var(--pink-50);
+  color: var(--pink-600);
+  border-color: var(--pink-200);
+}
+.se-choice__btn-action--save:hover {
+  background: var(--pink-100);
+}
+.se-choice__btn-action--del {
+  background: transparent;
+  color: #ef4444;
+}
+.se-choice__btn-action--del:hover {
+  background: #fee2e2;
+}

@@ -14,7 +14,7 @@
 // ══════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useMemo } from "react";
-import ReactFlow from "reactflow";
+import ReactFlow, { Handle, Position } from "reactflow";
 import axios from "axios";
 import "reactflow/dist/style.css";
 import "./Writerstorytreepage.css";
@@ -29,25 +29,20 @@ const CANVAS_MARGIN = 36;
 
 const WRITER_NODE_STATUS = {
   START: "start",
-  UNLOCKED: "unlocked",
-  LOCKED: "locked",
-  ENDING_UNLOCKED: "ending_unlocked",
-  ENDING_LOCKED: "ending_locked",
+  NORMAL: "normal",
+  ENDING: "ending",
 };
 
 const WRITER_NODE_STYLE = {
-  [WRITER_NODE_STATUS.START]: { stroke: "#E91E8C", fill: "#FFF0F5", text: "#B00057" },
-  [WRITER_NODE_STATUS.UNLOCKED]: { stroke: "#4CAF82", fill: "#F0FBF5", text: "#1F5C3E" },
-  [WRITER_NODE_STATUS.LOCKED]: { stroke: "#C8C3D4", fill: "#F9F9FB", text: "#6B6578" },
-  [WRITER_NODE_STATUS.ENDING_UNLOCKED]: { stroke: "#F59E0B", fill: "#FFFBEB", text: "#92400E" },
-  [WRITER_NODE_STATUS.ENDING_LOCKED]: { stroke: "#C8C3D4", fill: "#F9F9FB", text: "#9E9589" },
+  [WRITER_NODE_STATUS.START]: { stroke: "#6D28D9", fill: "#EEF2FF", text: "#4C1D95" },
+  [WRITER_NODE_STATUS.NORMAL]: { stroke: "#3B82F6", fill: "#EFF6FF", text: "#1E40AF" },
+  [WRITER_NODE_STATUS.ENDING]: { stroke: "#F97316", fill: "#FFF7ED", text: "#C2410C" },
 };
 
 const WRITER_LEGEND = [
-  { label: "จุดเริ่มต้น", color: "#E91E8C" },
-  { label: "ปลดล็อกแล้ว", color: "#4CAF82" },
-  { label: "ตอนจบปลดล็อก", color: "#F59E0B" },
-  { label: "ยังไม่ปลดล็อก", color: "#C8C3D4" },
+  { label: "จุดเริ่มต้น", color: "#6D28D9" },
+  { label: "ฉากปกติ", color: "#3B82F6" },
+  { label: "ฉากจบ", color: "#F97316" },
 ];
 
 const normalizeId = (value) => {
@@ -55,47 +50,49 @@ const normalizeId = (value) => {
   return String(value);
 };
 
+const stripHtml = (value) => {
+  if (typeof value !== "string") return value;
+  return value
+    .replace(/<\/?[^>]+(>|$)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const getNodeId = (node) => normalizeId(node?.ID ?? node?.id ?? node?.SceneID ?? node?.scene_id);
-const getNodeType = (node) => (node?.Type ?? node?.type ?? "").toLowerCase();
-const getNodeTitle = (node) => node?.Title || node?.title || node?.Label || node?.label || `ฉากที่ ${getNodeId(node)}`;
-const getNodeContent = (node) => node?.Content || node?.content || node?.Excerpt || node?.excerpt || "รายละเอียดฉากนี้ยังไม่มี";
-const getNodeChapter = (node) => node?.ChapterTitle || node?.chapter_title || node?.chapter_title || "ไม่ระบุบท";
+const getNodeType = (node) => stripHtml((node?.Type ?? node?.type ?? "")).toLowerCase();
+const getNodeTitle = (node) => stripHtml(node?.Title || node?.title || node?.Label || node?.label || `ฉากที่ ${getNodeId(node)}`);
+const getNodeContent = (node) => stripHtml(node?.Content || node?.content || node?.Excerpt || node?.excerpt || "รายละเอียดฉากนี้ยังไม่มี");
+const getNodeChapter = (node) => stripHtml(node?.ChapterTitle || node?.chapter_title || node?.chapter || node?.chapterName || node?.chapter_name || "");
+const getChoiceLabel = (choice) => stripHtml(choice?.Label || choice?.label || choice?.choice_text || choice?.text || "ไม่มีชื่อ");
 
 const formatNodeStatus = (node) => {
   const type = getNodeType(node);
-  const isUnlocked = node.IsUnlocked ?? node.is_unlocked ?? false;
   if (type === "start") return WRITER_NODE_STATUS.START;
-  if (type === "ending") {
-    return isUnlocked ? WRITER_NODE_STATUS.ENDING_UNLOCKED : WRITER_NODE_STATUS.ENDING_LOCKED;
-  }
-  return isUnlocked ? WRITER_NODE_STATUS.UNLOCKED : WRITER_NODE_STATUS.LOCKED;
+  if (type === "ending") return WRITER_NODE_STATUS.ENDING;
+  return WRITER_NODE_STATUS.NORMAL;
 };
 
 const StoryNode = ({ data }) => {
   const status = data.status;
-  const style = WRITER_NODE_STYLE[status] || WRITER_NODE_STYLE[WRITER_NODE_STATUS.LOCKED];
+  const style = WRITER_NODE_STYLE[status] || WRITER_NODE_STYLE[WRITER_NODE_STATUS.NORMAL];
   const title = getNodeTitle(data);
   const description = getNodeContent(data);
   const chapter = getNodeChapter(data);
   const prefix = status === WRITER_NODE_STATUS.START
     ? "▶ "
-    : status === WRITER_NODE_STATUS.ENDING_UNLOCKED || status === WRITER_NODE_STATUS.ENDING_LOCKED
+    : status === WRITER_NODE_STATUS.ENDING
       ? "🏆 "
-      : status === WRITER_NODE_STATUS.LOCKED
-        ? "🔒 "
-        : "📘 ";
+      : "📘 ";
 
   return (
     <div className="wst-node-card" style={{ borderColor: style.stroke, background: style.fill, color: style.text }}>
+      <Handle type="target" position={Position.Top} />
       <div className="wst-node-card__title">{prefix}{title}</div>
       <div className="wst-node-card__desc">{description}</div>
-      <div className="wst-node-card__chapter">{chapter}</div>
+      {chapter ? <div className="wst-node-card__chapter">{chapter}</div> : null}
+      <Handle type="source" position={Position.Bottom} />
     </div>
   );
-};
-
-const nodeTypes = {
-  writerNode: StoryNode,
 };
 
 const LegendBar = () => (
@@ -159,11 +156,29 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
       inDegree[id] = 0;
     });
 
+    // Resolve edge endpoints more robustly: backend may use different field names or
+    // partial ids. Try direct match first, then fallback to searching nodeIds.
+    const findMatchingNodeId = (raw) => {
+      const candidate = normalizeId(raw);
+      if (!candidate) return "";
+      if (adjacency[candidate] !== undefined) return candidate;
+      // try exact equality or contains/endsWith heuristics
+      for (const id of nodeIds) {
+        const sid = normalizeId(id);
+        if (sid === candidate) return sid;
+        if (sid.endsWith(candidate)) return sid;
+        if (sid.includes(candidate) && candidate.length > 1) return sid;
+      }
+      return "";
+    };
+
     const edgeList = edges
       .map((edge, index) => {
-        const source = normalizeId(edge.FromID ?? edge.from_id ?? edge.from ?? edge.From ?? edge.source ?? edge.Source);
-        const target = normalizeId(edge.ToID ?? edge.to_id ?? edge.to ?? edge.To ?? edge.target ?? edge.Target);
-        if (adjacency[source] && inDegree[target] !== undefined) {
+        const rawSource = edge.FromID ?? edge.from_id ?? edge.from ?? edge.From ?? edge.source ?? edge.Source;
+        const rawTarget = edge.ToID ?? edge.to_id ?? edge.to ?? edge.To ?? edge.target ?? edge.Target;
+        const source = findMatchingNodeId(rawSource);
+        const target = findMatchingNodeId(rawTarget);
+        if (source && adjacency[source] && inDegree[target] !== undefined) {
           adjacency[source].push(target);
           inDegree[target] += 1;
         }
@@ -217,11 +232,11 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
       .forEach((level) => {
         const columnNodes = columns[level];
         const total = columnNodes.length;
-        const offset = ((total - 1) * (NODE_HEIGHT + NODE_VERTICAL_GAP)) / 2;
+        const offset = ((total - 1) * (NODE_WIDTH + NODE_HORIZONTAL_GAP)) / 2;
 
         columnNodes.forEach((sceneId, index) => {
-          const x = CANVAS_MARGIN + level * (NODE_WIDTH + NODE_HORIZONTAL_GAP);
-          const y = CANVAS_MARGIN + index * (NODE_HEIGHT + NODE_VERTICAL_GAP) - offset;
+          const x = CANVAS_MARGIN + index * (NODE_WIDTH + NODE_HORIZONTAL_GAP) - offset;
+          const y = CANVAS_MARGIN + level * (NODE_HEIGHT + NODE_VERTICAL_GAP);
           positions[sceneId] = { x, y };
         });
       });
@@ -248,17 +263,15 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     });
 
     const positionedEdges = edgeList
-      .map((edge) => {
-        return {
-          ...edge,
-          active: nodeStatuses[edge.source] !== WRITER_NODE_STATUS.LOCKED && nodeStatuses[edge.source] !== WRITER_NODE_STATUS.ENDING_LOCKED,
-        };
-      });
+      .map((edge) => ({
+        ...edge,
+        active: true,
+      }));
 
     const chapterGroups = new Map();
     const chapterOrder = [];
     positionedNodes.forEach((item) => {
-      const chapter = getNodeChapter(item.scene) || "ไม่ระบุบท";
+      const chapter = getNodeChapter(item.scene) || "อื่นๆ";
       if (!chapterGroups.has(chapter)) {
         chapterGroups.set(chapter, []);
         chapterOrder.push(chapter);
@@ -276,30 +289,43 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     };
   }, [nodes, edges, sceneMap, treeData]);
 
-  const flowNodes = positionedNodes.map((item) => ({
+  const nodeTypes = useMemo(() => ({ writerNode: StoryNode }), []);
+
+  const flowNodes = useMemo(() => positionedNodes.map((item) => ({
     id: item.id,
     type: "writerNode",
     position: { x: item.x, y: item.y },
     data: { ...item.scene, status: item.status },
     draggable: false,
-  }));
+  })), [positionedNodes]);
 
-  const validNodeIds = new Set(positionedNodes.map((item) => item.id));
+  const validNodeIds = useMemo(() => new Set(positionedNodes.map((item) => item.id)), [positionedNodes]);
 
-  const flowEdges = positionedEdges
+  const flowEdges = useMemo(() => positionedEdges
     .filter((edge) => edge.source && edge.target && edge.source !== "undefined" && edge.target !== "undefined" && validNodeIds.has(edge.source) && validNodeIds.has(edge.target))
     .map((edge) => ({
       id: edge.id,
-      source: edge.source,
-      target: edge.target,
+      source: String(edge.source),
+      target: String(edge.target),
       animated: edge.active,
-      label: edge.label,
+      label: getChoiceLabel(edge),
       labelBgPadding: [6, 4],
       labelBgBorderRadius: 4,
-      labelStyle: { fill: "#4a5568", fontWeight: 500, fontSize: 11 },
-      style: { stroke: edge.active ? "#4CAF82" : "#CBD5E1", strokeWidth: 2 },
+      labelStyle: { fill: "#475569", fontWeight: 500, fontSize: 11 },
+      style: { stroke: edge.active ? "#3B82F6" : "#CBD5E1", strokeWidth: 2 },
       type: "smoothstep",
-    }));
+    })), [positionedEdges, validNodeIds]);
+
+  useEffect(() => {
+    try {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug("WriterStoryTree: nodes, edges, flowNodes, flowEdges:", nodes, edges, flowNodes, flowEdges);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [nodes, edges, flowNodes, flowEdges]);
 
   useEffect(() => {
     if (!selectedSceneId && positionedNodes.length > 0) {
@@ -424,7 +450,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
           <div className="wst-sidebar__stats">
             <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากทั้งหมด</span><span className="wst-sidebar__stat-val">{stats?.TotalScenes ?? stats?.total_scenes ?? 0}</span></div>
-            <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ปลดล็อกแล้ว</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.VisitedScenes ?? stats?.visited_scenes ?? 0}</span></div>
+            <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากที่สำรวจแล้ว</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.VisitedScenes ?? stats?.visited_scenes ?? 0}</span></div>
             <div className="wst-sidebar__progress-track"><div className="wst-sidebar__progress-fill" style={{ width: `${Math.round(((stats?.VisitedScenes ?? stats?.visited_scenes ?? 0) / Math.max(1, (stats?.TotalScenes ?? stats?.total_scenes ?? 1))) * 100)}%` }} /></div>
             <div className="wst-sidebar__stat-row" style={{ marginTop: 10 }}><span className="wst-sidebar__stat-label">จำนวน Choice</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.DiscoveredChoices ?? stats?.discovered_choices ?? 0}</span></div>
             <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากจบ</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.UnlockedEndings ?? stats?.unlocked_endings ?? 0}/{stats?.TotalEndings ?? stats?.total_endings ?? 0}</span></div>
@@ -456,13 +482,6 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                 </div>
 
                 <div className="wst-sidebar__detail-item">
-                  <span className="wst-sidebar__detail-label">สถานะ:</span>
-                  <span className="wst-sidebar__detail-value">
-                    {selectedScene.IsUnlocked ?? selectedScene.is_unlocked ? "🟢 ปลดล็อก" : "🔒 ล็อก"}
-                  </span>
-                </div>
-
-                <div className="wst-sidebar__detail-item">
                   <span className="wst-sidebar__detail-label">เนื้อหา:</span>
                   <p className="wst-sidebar__detail-content">{getNodeContent(selectedScene)}</p>
                 </div>
@@ -472,7 +491,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                     <span className="wst-sidebar__choices-label">🔤 ตัวเลือกขาเข้า ({incomingChoices.length}):</span>
                     <ul className="wst-sidebar__choices-list">
                       {incomingChoices.map((choice, idx) => (
-                        <li key={idx} className="wst-sidebar__choice-item">{choice.Label || choice.label || "ไม่มีชื่อ"}</li>
+                        <li key={idx} className="wst-sidebar__choice-item">{getChoiceLabel(choice)}</li>
                       ))}
                     </ul>
                   </div>
@@ -483,7 +502,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                     <span className="wst-sidebar__choices-label">🔤 ตัวเลือกขาออก ({outgoingChoices.length}):</span>
                     <ul className="wst-sidebar__choices-list">
                       {outgoingChoices.map((choice, idx) => (
-                        <li key={idx} className="wst-sidebar__choice-item">{choice.Label || choice.label || "ไม่มีชื่อ"}</li>
+                        <li key={idx} className="wst-sidebar__choice-item">{getChoiceLabel(choice)}</li>
                       ))}
                     </ul>
                   </div>
@@ -509,7 +528,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                   {chapter.scenes.map((scene) => {
                     const id = getNodeId(scene);
                     const status = formatNodeStatus(scene);
-                    const statusColor = status === WRITER_NODE_STATUS.START ? "#E91E8C" : status === WRITER_NODE_STATUS.UNLOCKED ? "#4CAF82" : status === WRITER_NODE_STATUS.ENDING_UNLOCKED ? "#F59E0B" : "#C8C3D4";
+                    const statusColor = status === WRITER_NODE_STATUS.START ? "#6D28D9" : status === WRITER_NODE_STATUS.ENDING ? "#F97316" : "#3B82F6";
                     return (
                       <button
                         type="button"

@@ -1,11 +1,8 @@
 .wdb {
   width: 100%;
   max-width: 1280px;
-
   margin: 0 auto;
-
   padding: 36px 48px 60px;
-
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -16,9 +13,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-
   width: 100%;
-
   gap: 20px;
 }
 
@@ -61,18 +56,14 @@
   box-shadow: 0 6px 18px rgba(233,30,140,0.38);
 }
 
-/* ── Stats grid 4 cards ── */
+/* ── Stats grid ── */
 .wdb__stats {
   display: grid;
-
   grid-template-columns: repeat(4, minmax(220px, 1fr));
-
   gap: 20px;
-
   width: 100%;
 }
 
-/* Stat card */
 .scard {
   background: var(--white);
   border-radius: 14px;
@@ -89,7 +80,6 @@
   box-shadow: var(--shadow-md);
 }
 
-/* Color accent dot (top-right) */
 .scard::after {
   content: '';
   position: absolute;
@@ -151,36 +141,33 @@
 .wdb__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 40px;
 }
 
-/* ── Novel Card ── */
+/* ── Novel Card (บีบกระชับ) ── */
 .nvc {
   display: flex;
   flex-direction: column;
   background: white;
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   transition: transform 0.2s, box-shadow 0.2s;
   position: relative;
 }
 
 .nvc:hover {
   transform: translateY(-4px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* ── Cover Image ── */
+/* ── Cover Image Area ── */
 .nvc__cover {
   position: relative;
   width: 100%;
-  height: 240px;
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 230px;
+  background: #f3f4f6;
   overflow: hidden;
 }
 
@@ -191,91 +178,164 @@
 }
 
 .nvc__cover-emoji {
-  font-size: 64px;
+  font-size: 44px;
 }
 
-/* ── Status Badge ── */
+/* ── Status Badge (สีทึบ 100% เด่นชัดแน่นอน ไม่เบี้ยว) ── */
 .nvc__status {
   position: absolute;
   top: 8px;
-  right: 8px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #666;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff !important; /* บังคับตัวหนังสือขาวล้วน */
+  z-index: 3;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  white-space: nowrap;
 }
 
 .nvc__status--pub {
-  background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
+  background: #22c55e !important; /* เขียวทึบ */
 }
 
 .nvc__status--draft {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffc107;
+  background: #f59e0b !important; /* ส้มทึบ */
 }
 
-/* ── Card Body ── */
+/* ปุ่มลบกากบาทมุมขวาบน */
+.nvc__cover-del {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-size: 10px;
+  z-index: 3;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s;
+}
+
+.nvc__cover-del:hover {
+  background: #ef4444;
+}
+
+/* 🎯 แถบเงาดำด้านล่างรูปภาพ เพื่อดันให้ไอคอนและตัวหนังสือเห็นชัดเจน */
+.nvc__overlay-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* ไล่เฉดจากดำเข้มด้านล่างขึ้นไปโปร่งใส เพื่อให้อ่านออกทุกลักษณะรูปภาพ */
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.3) 60%, rgba(0, 0, 0, 0) 100%);
+  padding: 30px 10px 8px; 
+  display: flex;
+  justify-content: space-around;
+  color: white !important;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 2;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.nvc__overlay-info span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Card Body (กระชับพื้นที่ ไม่ยืด) ── */
 .nvc__body {
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
+  gap: 4px;
   flex-grow: 1;
 }
 
 .nvc__title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   color: #1f2937;
-  margin: 0 0 6px 0;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .nvc__date {
   font-size: 11px;
-  color: #999;
-  margin: 0 0 8px 0;
+  color: #9ca3af;
+  margin: 0;
 }
 
-/* ── Stats ── */
+/* หมวดหมู่ */
+.nvc__categories-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.nvc__tag {
+  background: linear-gradient(135deg, #fdf2f8 0%, #f3e8ff 100%);
+  color: #6b21a8;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  border: 1px solid #f3e8ff;
+}
+
+.nvc__tag-more {
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 1px 5px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Stats Row */
 .nvc__stats {
   display: flex;
-  gap: 8px;
-  margin: 8px 0;
-  font-size: 12px;
-  color: #666;
+  gap: 10px;
+  margin: 4px 0;
+  font-size: 11px;
+  color: #6b7280;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 6px;
 }
 
-.nvc__stats span {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-/* ── Action Buttons ── */
+/* Action Buttons */
 .nvc__actions {
   display: flex;
   gap: 6px;
   margin-top: auto;
+  padding-top: 2px;
 }
 
 .nvc__btn {
   flex: 1;
-  padding: 6px 8px;
+  padding: 5px;
   border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  white-space: nowrap;
 }
 
 .nvc__btn--edit {
@@ -298,105 +358,47 @@
   color: white;
 }
 
-.nvc__btn--del {
-  padding: 6px;
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.nvc__btn--del:hover {
-  background: #fca5a5;
-  color: white;
-}
-
-/* ── Confirm Overlay ── */
+/* Confirm Overlay */
 .nvc__confirm {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  border-radius: 12px;
+  gap: 10px;
   z-index: 10;
 }
 
 .nvc__confirm-text {
   color: white;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: center;
+  font-size: 12px;
 }
 
 .nvc__confirm-btns {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .nvc__confirm-yes,
 .nvc__confirm-no {
-  padding: 6px 16px;
+  padding: 4px 10px;
   border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+  border-radius: 4px;
+  font-size: 11px;
 }
 
-.nvc__confirm-yes {
-  background: #dc2626;
-  color: white;
-}
-
-.nvc__confirm-yes:hover {
-  background: #b91c1c;
-}
-
-.nvc__confirm-no {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
-.nvc__confirm-no:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* ── Empty State Card ── */
 .wdb__empty-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 24px;
+  gap: 6px;
+  padding: 20px;
   background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
   border: 2px dashed #f472b6;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
-  min-height: 300px;
-}
-
-.wdb__empty-card:hover {
-  background: linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 100%);
-  border-color: #ec4899;
-}
-
-.wdb__empty-icon {
-  font-size: 48px;
-  opacity: 0.6;
-}
-
-.wdb__empty-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #ec4899;
-}
-
-.wdb__empty-sub {
-  font-size: 12px;
-  color: #f472b6;
+  min-height: 320px;
 }

@@ -24,22 +24,24 @@ const FALLBACK_CATEGORIES = [
 
 const validate = (form) => {
     const errors = {};
-    if (!form.title.trim())
+    if (!form.title.trim()) {
         errors.title = "กรุณากรอกชื่อเรื่อง";
-    if (!form.tagline.trim())
+    }
+    if (!form.tagline.trim()) {
         errors.tagline = "กรุณากรอกคำโปรย";
-    if (form.tagline.length > 200)
+    }
+    if (form.tagline.length > 200) {
         errors.tagline = "คำโปรยต้องไม่เกิน 200 ตัวอักษร";
-    if (form.categories.length === 0)
+    }
+    if (form.categories.length === 0) {
         errors.categories = "กรุณาเลือกหมวดหมู่อย่างน้อย 1 หมวด";
-    
-    const plainDescription = form.description
-        .replace(/<(.|\n)*?>/g, "")
-        .trim();
+    }
 
-    if (!plainDescription)
+    const plainDescription = form.description ? form.description.replace(/<(.|\n)*?>/g, "").trim() : "";
+    if (!plainDescription) {
         errors.description = "กรุณากรอกแนะนำเรื่อง";
-    
+    }
+
     return errors;
 };
 
@@ -58,6 +60,7 @@ const EditNovelPage = ({ onNavigate }) => {
         isPublished: true,
         isCompleted: false,
     });
+    const [originalStatus, setOriginalStatus] = useState("draft");
 
     const [errors, setErrors] = useState({});
     const [submissionError, setSubmissionError] = useState(null);
@@ -67,7 +70,6 @@ const EditNovelPage = ({ onNavigate }) => {
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [showCancelModal, setShowCancelModal] = useState(false);
 
-    // ── Load categories ──────────────────────────────────
     useEffect(() => {
         const loadCategories = async () => {
             setCategoriesLoading(true);
@@ -95,33 +97,84 @@ const EditNovelPage = ({ onNavigate }) => {
         loadCategories();
     }, []);
 
-    // ── Load novel data ──────────────────────────────────
     useEffect(() => {
         const loadNovel = async () => {
-            if (!novelId) return;
-            setIsLoading(true);
-            try {
-                const response = await fetch(`${API_BASE_URL}/novels/${novelId}`);
-                if (!response.ok) throw new Error("failed to fetch novel");
-                const result = await response.json();
-                const novelData = result.data || result;
-
-                setForm({
-                    title: novelData.title || "",
-                    tagline: novelData.tagline || "",
-                    categories: novelData.categories || [],
-                    description: novelData.description || "",
-                    coverFile: null,
-                    coverPreview: novelData.cover_url || null,
-                    isPublished: novelData.status === "published",
-                    isCompleted: novelData.is_completed || false,
-                });
-            } catch (err) {
-                console.error("Load novel error:", err);
-                setSubmissionError("ไม่สามารถโหลดข้อมูลนิยายได้");
-            } finally {
-                setIsLoading(false);
+            console.log("EditNovelPage: mounted, novelId=", novelId);
+            if (!novelId) {
+                console.warn("EditNovelPage: no novelId in route params", { novelId });
+                return;
             }
+            setIsLoading(true);
+
+            // Try a couple of fallback strategies in case the path id isn't numeric
+            const candidates = [novelId];
+            const digits = (novelId || "").match(/\d+/)?.[0];
+            if (digits && digits !== novelId) candidates.push(digits);
+
+            let lastErr = null;
+
+            console.log("EditNovelPage: candidates=", candidates);
+            for (const idCandidate of candidates) {
+                try {
+                    console.log("EditNovelPage: attempting fetch for id", idCandidate);
+                    console.debug("EditNovelPage: attempting novel fetch", { idCandidate });
+                    const response = await fetch(`${API_BASE_URL}/novels/${idCandidate}`);
+                    console.log("EditNovelPage: fetch response status", { idCandidate, status: response.status });
+                    if (!response.ok) {
+                        lastErr = new Error(`novel fetch failed (${response.status})`);
+                        console.error("EditNovelPage: fetch returned non-ok", { idCandidate, status: response.status });
+                        // try next candidate
+                        continue;
+                    }
+                    const result = await response.json();
+                    console.log("EditNovelPage: raw API result", result);
+                    let novelData = result.data || result.novel || result;
+                    // Some API responses wrap the actual novel under `data.novel` or `novel`
+                    if (novelData && typeof novelData === "object" && novelData.novel && typeof novelData.novel === "object") {
+                        console.log("EditNovelPage: unwrapping nested novel from novelData.novel");
+                        novelData = novelData.novel;
+                    }
+                    console.log("EditNovelPage: resolved novelData", novelData);
+
+                    const categoryNames = Array.isArray(novelData.categories)
+                        ? novelData.categories.map((category) => {
+                            if (!category) return null;
+                            if (typeof category === "string") return category;
+                            return category.name || category.title || category.label || null;
+                        }).filter(Boolean)
+                        : [];
+
+                    const coverPreview = novelData.cover_image || novelData.coverImage || novelData.cover_url || novelData.coverUrl || null;
+
+                    setForm({
+                        title: novelData.title || "",
+                        tagline: novelData.captions || novelData.tagline || "",
+                        categories: categoryNames,
+                        description: novelData.introduction || novelData.description || "",
+                        coverFile: null,
+                        coverPreview,
+                        isPublished: ["published", "publish"].includes((novelData.status || "").toLowerCase()),
+                        isCompleted: novelData.is_completed || novelData.isCompleted || false,
+                    });
+                    console.debug("EditNovelPage: populating form with fetched novel data", {
+                        title: novelData.title,
+                        tagline: novelData.captions || novelData.tagline,
+                        isPublished: ["published", "publish"].includes((novelData.status || "").toLowerCase()),
+                    });
+                    setOriginalStatus(novelData.status || "draft");
+                    lastErr = null;
+                    break; // success
+                } catch (err) {
+                    console.error("Load novel attempt failed for id", idCandidate, err);
+                    lastErr = err;
+                }
+            }
+
+            if (lastErr) {
+                setSubmissionError("ไม่สามารถโหลดข้อมูลนิยายได้ — ตรวจสอบ novelId หรือเซิร์ฟเวอร์");
+            }
+
+            setIsLoading(false);
         };
         loadNovel();
     }, [novelId]);
@@ -146,31 +199,72 @@ const EditNovelPage = ({ onNavigate }) => {
             return;
         }
 
+        if (form.isPublished && originalStatus !== "published") {
+            const confirmPublish = window.confirm(
+                "คุณกำลังเปลี่ยนสถานะนิยายเป็นเผยแพร่\n\nเมื่อตีพิมพ์แล้วนักอ่านจะมองเห็นเรื่องนี้\n\nต้องการดำเนินการต่อหรือไม่?"
+            );
+            if (!confirmPublish) {
+                setIsSubmitting(false);
+                return;
+            }
+        }
+
         setIsSubmitting(true);
         setSubmissionError(null);
 
         try {
-            const formData = new FormData();
-            formData.append("title", form.title);
-            formData.append("tagline", form.tagline);
-            formData.append("categories", JSON.stringify(form.categories));
-            formData.append("description", form.description);
-            formData.append("isPublished", form.isPublished);
-            formData.append("isCompleted", form.isCompleted);
-            
+            let coverImageUrl = null;
+
             if (form.coverFile) {
-                formData.append("cover", form.coverFile);
+                const imageFormData = new FormData();
+                imageFormData.append("image", form.coverFile);
+
+                const uploadRes = await fetch(`${API_BASE_URL}/upload/image`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                    body: imageFormData,
+                });
+
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    coverImageUrl = uploadData.data?.full_url || uploadData.full_url || null;
+                    console.log("EditNovelPage: cover upload result", uploadData, "using url", coverImageUrl);
+                } else {
+                    console.error("EditNovelPage: cover upload failed", uploadRes.status);
+                }
+            }
+
+            const selectedCategoryIds = categories
+                .filter((cat) => form.categories.includes(cat.name))
+                .map((cat) => cat.id);
+
+            const novelPayload = {
+                title: form.title,
+                captions: form.tagline,
+                introduction: form.description,
+                status: form.isPublished ? "published" : "draft",
+                category_ids: selectedCategoryIds,
+            };
+
+            if (coverImageUrl) {
+                novelPayload.cover_image = coverImageUrl;
             }
 
             const response = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
                 method: "PUT",
                 headers: {
-                    "Authorization": `Bearer ${token}`
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
                 },
-                body: formData
+                body: JSON.stringify(novelPayload),
             });
 
-            if (!response.ok) throw new Error("Update failed");
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || errorData.error || "Update failed");
+            }
 
             alert("✅ อัพเดทข้อมูลนิยายสำเร็จ!");
             navigate(`/writer/${novelId}/chapters`);
@@ -195,7 +289,7 @@ const EditNovelPage = ({ onNavigate }) => {
 
     if (isLoading) {
         return (
-            <div className="enp" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+            <div className="cnp" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
                 <div style={{ textAlign: "center" }}>
                     <p>🔄 กำลังโหลดข้อมูลนิยาย...</p>
                 </div>
@@ -204,98 +298,98 @@ const EditNovelPage = ({ onNavigate }) => {
     }
 
     return (
-        <div className="enp">
-            <div className="enp__header">
-                <h1 className="enp__title">แก้ไขข้อมูลนิยาย</h1>
-                <p className="enp__sub">ปรับปรุงข้อมูลเบื้องต้นของนิยายของคุณ</p>
+        <div className="cnp">
+            <div className="cnp__header">
+                <h1 className="cnp__title">แก้ไขข้อมูลนิยาย</h1>
+                <p className="cnp__sub">ปรับปรุงข้อมูลเบื้องต้นของนิยายของคุณ</p>
             </div>
 
-            <div className="enp__form-wrap">
-                <div className="enp__card">
+            <div className="cnp__form-wrap">
+                <div className="cnp__card">
                     {submissionError && (
-                        <div className="enp__error-banner" role="alert" style={{ marginBottom: "16px" }}>
+                        <div className="cnp__error-banner" role="alert" style={{ marginBottom: "16px" }}>
                             {submissionError}
                         </div>
                     )}
 
-                    <div className="enp__section-header">
-                        <h2 className="enp__section-title">รายละเอียดนิยาย</h2>
-                        <p className="enp__section-sub">ข้อมูลที่คุณแก้ไขจะแสดงให้นักอ่านเห็น</p>
+                    <div className="cnp__section-header">
+                        <h2 className="cnp__section-title">รายละเอียดนิยาย</h2>
+                        <p className="cnp__section-sub">ข้อมูลเหล่านี้จะแสดงให้นักอ่านเห็นในหน้ารายละเอียดนิยาย</p>
                     </div>
 
-                    <div className="enp__columns">
-                        <div className="enp__left">
-                            {/* ชื่อเรื่อง */}
-                            <div className="enp__field">
-                                <label className="enp__label" htmlFor="inp-title">
-                                    ชื่อเรื่อง <span className="enp__required">*</span>
+                    <div className="cnp__columns">
+                        <div className="cnp__left">
+                            <div className="cnp__field" id="field-title">
+                                <label className="cnp__label" htmlFor="inp-title">
+                                    ชื่อเรื่อง <span className="cnp__required">*</span>
                                 </label>
                                 <input
                                     id="inp-title"
                                     type="text"
-                                    className={`enp__input ${errors.title ? "enp__input--error" : ""}`}
+                                    className={`cnp__input ${errors.title ? "cnp__input--error" : ""}`}
+                                    placeholder="ตั้งชื่อเรื่องของคุณ...."
                                     value={form.title}
                                     onChange={(e) => setField("title", e.target.value)}
                                     maxLength={100}
+                                    aria-required="true"
                                 />
-                                {errors.title && <p className="enp__error" role="alert">{errors.title}</p>}
+                                {errors.title && <p className="cnp__error" role="alert">{errors.title}</p>}
                             </div>
 
-                            {/* คำโปรย */}
-                            <div className="enp__field">
-                                <label className="enp__label" htmlFor="inp-tagline">
-                                    คำโปรย <span className="enp__required">*</span>
+                            <div className="cnp__field" id="field-tagline">
+                                <label className="cnp__label" htmlFor="inp-tagline">
+                                    คำโปรย <span className="cnp__required">*</span>
                                 </label>
                                 <textarea
                                     id="inp-tagline"
-                                    className={`enp__textarea enp__textarea--sm ${errors.tagline ? "enp__input--error" : ""}`}
+                                    className={`cnp__textarea cnp__textarea--sm ${errors.tagline ? "cnp__input--error" : ""}`}
+                                    placeholder="บอกเล่าเรื่องราวของคุณสั้นๆ"
                                     value={form.tagline}
                                     onChange={(e) => setField("tagline", e.target.value)}
                                     maxLength={200}
+                                    aria-required="true"
                                 />
-                                <div className="enp__char-row">
-                                    <p className={`enp__char-count ${taglineLen > 180 ? "enp__char-count--warn" : ""}`}>
+                                <div className="cnp__char-row">
+                                    <p className={`cnp__char-count ${taglineLen > 180 ? "cnp__char-count--warn" : ""}`}>
                                         {taglineLen} / 200 ตัวอักษร
                                     </p>
-                                    {errors.tagline && <p className="enp__error" role="alert">{errors.tagline}</p>}
+                                    {errors.tagline && <p className="cnp__error" role="alert">{errors.tagline}</p>}
                                 </div>
                             </div>
 
-                            {/* หมวดหมู่ */}
-                            <div className="enp__field">
-                                <label className="enp__label">
-                                    หมวดหมู่ <span className="enp__required">*</span>
+                            <div className="cnp__field" id="field-categories">
+                                <label className="cnp__label">
+                                    หมวดหมู่ <span className="cnp__required">*</span>
                                 </label>
                                 <MultiSelect
                                     options={categoryOptions}
                                     value={form.categories}
                                     onChange={(val) => setField("categories", val)}
-                                    placeholder={categoriesLoading ? "กำลังโหลด..." : "เลือกหมวดหมู่..."}
+                                    placeholder={categoriesLoading ? "กำลังโหลดหมวดหมู่..." : "เลือกหมวดหมู่..."}
                                     max={5}
                                 />
-                                {errors.categories && <p className="enp__error" role="alert">{errors.categories}</p>}
+                                {errors.categories && <p className="cnp__error" role="alert">{errors.categories}</p>}
                             </div>
 
-                            {/* แนะนำเรื่อง */}
-                            <div className="enp__field">
-                                <label className="enp__label">
-                                    แนะนำเรื่อง <span className="enp__required">*</span>
+                            <div className="cnp__field" id="field-description">
+                                <label className="cnp__label" htmlFor="inp-description">
+                                    แนะนำเรื่อง <span className="cnp__required">*</span>
                                 </label>
-                                <div className={`enp__quill-wrap ${errors.description ? "enp__quill-wrap--error" : ""}`}>
+                                <div className={`cnp__quill-wrap ${errors.description ? "cnp__quill-wrap--error" : ""}`}>
                                     <ReactQuill
                                         theme="snow"
                                         value={form.description}
                                         onChange={(value) => setField("description", value)}
-                                        placeholder="แนะนำเรื่องราว..."
+                                        placeholder="แนะนำเรื่องราวเกี่ยวกับนิยายของคุณ...."
+                                        className="cnp__quill"
                                     />
                                 </div>
-                                {errors.description && <p className="enp__error" role="alert">{errors.description}</p>}
+                                {errors.description && <p className="cnp__error" role="alert">{errors.description}</p>}
                             </div>
                         </div>
 
-                        <div className="enp__right">
-                            {/* Cover upload */}
-                            <div className="enp__cover-wrap">
+                        <div className="cnp__right">
+                            <div className="cnp__cover-wrap">
                                 <CoverUpload
                                     value={form.coverPreview}
                                     onChange={(file, preview) => {
@@ -305,33 +399,32 @@ const EditNovelPage = ({ onNavigate }) => {
                                 />
                             </div>
 
-                            {/* Settings */}
-                            <div className="enp__settings">
-                                <h3 className="enp__settings-title">การตั้งค่า</h3>
+                            <div className="cnp__settings">
+                                <h3 className="cnp__settings-title">การตั้งค่าเบื้องต้น</h3>
 
-                                <div className="enp__setting-row">
-                                    <span className="enp__setting-label">สถานะเรื่อง</span>
-                                    <div className="enp__setting-control">
+                                <div className="cnp__setting-row">
+                                    <span className="cnp__setting-label">สถานะเรื่อง</span>
+                                    <div className="cnp__setting-control">
                                         <Toggle
                                             id="toggle-published"
                                             checked={form.isPublished}
                                             onChange={(val) => setField("isPublished", val)}
                                         />
-                                        <span className={`enp__setting-status ${form.isPublished ? "enp__setting-status--on" : ""}`}>
+                                        <span className={`cnp__setting-status ${form.isPublished ? "cnp__setting-status--on" : ""}`}>
                                             {form.isPublished ? "เผยแพร่" : "ฉบับร่าง"}
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="enp__setting-row">
-                                    <span className="enp__setting-label">สถานะจบ</span>
-                                    <div className="enp__setting-control">
+                                <div className="cnp__setting-row">
+                                    <span className="cnp__setting-label">สถานะจบ</span>
+                                    <div className="cnp__setting-control">
                                         <Toggle
                                             id="toggle-completed"
                                             checked={form.isCompleted}
                                             onChange={(val) => setField("isCompleted", val)}
                                         />
-                                        <span className={`enp__setting-status ${form.isCompleted ? "enp__setting-status--on" : ""}`}>
+                                        <span className={`cnp__setting-status ${form.isCompleted ? "cnp__setting-status--on" : ""}`}>
                                             {form.isCompleted ? "จบแล้ว" : "ยังไม่จบ"}
                                         </span>
                                     </div>
@@ -340,11 +433,10 @@ const EditNovelPage = ({ onNavigate }) => {
                         </div>
                     </div>
 
-                    {/* Footer buttons */}
-                    <div className="enp__footer">
+                    <div className="cnp__footer">
                         <button
                             type="button"
-                            className="enp__btn enp__btn--cancel"
+                            className="cnp__btn cnp__btn--cancel"
                             onClick={handleCancel}
                             disabled={isSubmitting}
                         >
@@ -353,14 +445,14 @@ const EditNovelPage = ({ onNavigate }) => {
 
                         <button
                             type="button"
-                            className="enp__btn enp__btn--submit"
+                            className="cnp__btn cnp__btn--submit"
                             onClick={handleSubmit}
                             disabled={isSubmitting}
                             aria-busy={isSubmitting}
                         >
                             {isSubmitting ? (
                                 <>
-                                    <span className="enp__spinner" />
+                                    <span className="cnp__spinner" aria-hidden="true" />
                                     กำลังอัพเดท...
                                 </>
                             ) : (
@@ -376,7 +468,6 @@ const EditNovelPage = ({ onNavigate }) => {
                 </div>
             </div>
 
-            {/* Cancel Modal */}
             {showCancelModal && (
                 <div className="modal-overlay" onClick={() => setShowCancelModal(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>

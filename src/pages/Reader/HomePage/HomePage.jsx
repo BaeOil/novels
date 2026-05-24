@@ -33,8 +33,26 @@ const HomePage = ({ onNavigate }) => {
           throw new Error(payload?.error || payload?.message || "ดึงข้อมูลไม่สำเร็จ");
         }
 
-        // ตรวจสอบโครงสร้างข้อมูลที่ส่งกลับมา
-        const dataList = payload?.data || payload || [];
+        // รองรับหลายรูปแบบของ response: { data: { novels: [] } } หรือ { data: [] } หรือ { novels: [] } หรือ []
+        const raw = payload?.data?.novels ?? payload?.data ?? payload?.novels ?? payload;
+        // DEV: log raw payload to inspect backend shape during integration
+        try {
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.debug("HomePage: raw novels payload:", raw, "full payload:", payload);
+          }
+        } catch (e) {
+          // ignore logging errors in older browsers
+        }
+        const candidates = Array.isArray(raw) ? raw : (Array.isArray(raw?.novels) ? raw.novels : []);
+
+        // ตรวจสอบโครงสร้างข้อมูลที่ส่งกลับมา และกรองเฉพาะเรื่องที่เผยแพร่
+        const dataList = candidates.filter((data) => {
+          const status = (data?.status || data?.Status || "" || "").toString().toLowerCase();
+          // ถ้า backend ไม่ส่งสถานะ ให้ถือว่าเป็นเผยแพร่ (fallback)
+          if (!status) return true;
+          return status === "published" || status === "active" || status === "publish";
+        });
 
         const formattedNovels = dataList.map((data) => {
           return {

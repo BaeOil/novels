@@ -250,13 +250,11 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
         if (userJson) {
             try {
                 const user = JSON.parse(userJson);
-                /*
                 if (user.role === "writer" || user.is_writer === true) {
-                    alert("คุณเป็นนักเขียนในระบบอยู่แล้ว สามารถสร้างผลงานได้เลยครับ 🎉");
+                    alert("คุณเป็นนักเขียนอยู่แล้ว ไม่สามารถสมัครซ้ำได้ครับ 🎉");
                     navigate("/writer/dashboard");
                     return;
                 }
-                */
             } catch (e) {
                 console.error("Failed to parse local user status:", e);
             }

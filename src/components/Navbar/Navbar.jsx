@@ -23,9 +23,10 @@ const Navbar = () => {
     const [isLoadingUser, setIsLoadingUser] = useState(false);
 
     // 🎯 🟢 ตรวจสอบว่าปัจจุบัน URL อยู่ในฝั่งโหมดนักเขียนหรือไม่
+    // Writer mode is only when user is in writer-specific routes (dashboard, /writer/*, create)
+    // Do NOT treat reader story-tree `/storytree` as writer mode.
     const isWriterMode = location.pathname.startsWith("/dashboard") || 
                          location.pathname.startsWith("/writer") || 
-                         location.pathname.startsWith("/storytree") || 
                          location.pathname.startsWith("/create");
 
     useEffect(() => {

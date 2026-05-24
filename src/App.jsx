@@ -72,7 +72,11 @@ const createNavigateHandler = (navigate, currentNovelId = null) => (page, payloa
       navigate("/writer/dashboard");
       break;
     case "create-novel":
-      navigate("/writer/create");
+      if (activeNovelId) {
+        navigate(`/writer/${activeNovelId}/edit`);
+      } else {
+        navigate("/writer/create");
+      }
       break;
     case "chapters":
       if (activeNovelId) {

@@ -1,9 +1,9 @@
 // ══════════════════════════════════════════════════════════════
-//  หน้า Dashboard ฝั่งนักเขียน — ดึงสถิติรวม + รายการนิยายจริงจากหลังบ้าน
+//  หน้า Dashboard ฝั่งนักเขียน — Redesign Layout ย้าย ตอน/ฉาก ขึ้นบนปก
 //
 //  Backend API connected (Updated to matching your Go Backend):
 //    - GET    /api/me/novels            -> รายการนิยายทั้งหมดของผู้ใช้คนนี้ (Novels List)
-//    - DELETE /api/v1/writer/novels/:id -> ลบนิยายเรื่องที่เลือก (คงไว้ตามเดิมเพื่อใช้ในอนาคต)
+//    - DELETE /api/v1/writer/novels/:id -> ลบนิยายเรื่องที่เลือก
 // ══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -83,11 +83,16 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
 
       const result = await response.json();
       
-      // ดึงอาร์เรย์ของนิยายออกมาจากโครงสร้างที่ Go ส่งมา
-      const fetchedNovels = result?.novels || result?.data?.novels || [];
+      let fetchedNovels = result?.novels || result?.data?.novels || [];
       
-      // คำนวณสถิติรวม (สแตท) จากอาร์เรย์นิยายที่ดึงมาได้
-      // 🎯 ดักจับ Key ยอดฮิตที่หลังบ้านมักจะพ่นออกมา (total_views, view_count, views)
+      if (Array.isArray(fetchedNovels)) {
+        fetchedNovels.sort((a, b) => {
+          const dateA = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0);
+          const dateB = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+      }
+
       let calculatedLikes = 0;
       let calculatedViews = 0;
       let calculatedBookmarks = 0;
@@ -120,7 +125,6 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // ── ฟังก์ชันลบนิยาย ─────────────────────────────────────────
   const handleDeleteNovel = async (novelId) => {
     try {
       const headers = buildAuthHeaders();
@@ -165,7 +169,6 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
 
   return (
     <div className="wdb">
-      {/* ── Page header ── */}
       <div className="wdb__header">
         <div>
           <h1 className="wdb__title">Dashboard</h1>
@@ -189,7 +192,6 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
         </div>
       )}
 
-      {/* ── Stat cards 4 ใบ ── */}
       <div className="wdb__stats">
         {STAT_CARDS.map((card) => (
           <div key={card.key} className={`scard ${card.colorClass}`}>
@@ -200,18 +202,15 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
         ))}
       </div>
 
-      {/* ── Novel list header ── */}
       <div className="wdb__novels-header">
         <div>
           <h2 className="wdb__novels-title">นิยายของฉัน</h2>
-          <p className="wdb__novels-count">{novels.length} เรื่องทั้งหมด</p>
+          <p className="wdb__novels-count">{novels.length} เรื่องทั้งหมด (เรียงตามอัปเดตล่าสุด)</p>
         </div>
       </div>
 
-      {/* ── Novel cards grid ── */}
       <div className="wdb__grid">
         {novels.map((novel) => {
-          // รองรับ fallback id ทั้ง id และ novel_id จากฝั่งฐานข้อมูล
           const id = novel.id || novel.novel_id;
           return (
             <NovelCard
@@ -224,7 +223,6 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
           );
         })}
 
-        {/* Empty state card — ชวนสร้างเรื่องใหม่ */}
         <button
           className="wdb__empty-card"
           onClick={() => onNavigate("create-novel")}
@@ -239,19 +237,29 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   );
 };
 
-// ── Sub-component: Novel card ────────────────────────────────
 const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const title = novel.title || "";
   const coverImage = novel.cover_image || novel.coverImage;
-  const status = novel.status || "draft";
   
-  // 🎯 ดักจับจำนวนฉากและจำนวนตอน ให้ครอบคลุมทุกรูปแบบคีย์ที่ Go มักจะส่งมา
+  const rawStatus = novel.status || "";
+  const statusStr = String(rawStatus).toLowerCase().trim();
+  const isPublished = statusStr === "published" || statusStr === "publish" || statusStr === "เผยแพร่";
+  const status = isPublished ? "published" : "draft";
+  
+  const categoryList = novel.categories || novel.Categories || [];
+  const parsedCategories = Array.isArray(categoryList)
+    ? categoryList.map(c => c.name || c.Name).filter(Boolean)
+    : [];
+
+  const maxDisplay = 2;
+  const visibleCategories = parsedCategories.slice(0, maxDisplay);
+  const remainingCount = parsedCategories.length - maxDisplay;
+
   const sceneCount = novel.total_scenes ?? novel.scene_count ?? novel.sceneCount ?? 0;
   const chapterCount = novel.total_chapters ?? novel.chapter_count ?? novel.chapterCount ?? 0;
   
-  // 🎯 ดักจับคีย์สถิติรายเรื่องให้อ่านได้ชัวร์ๆ (เผื่อหลังบ้านไม่ได้ส่งมาในก้อน stats)
   const views = novel.total_views ?? novel.view_count ?? novel.stats?.views ?? novel.views ?? 0;
   const likes = novel.total_likes ?? novel.like_count ?? novel.stats?.likes ?? novel.likes ?? 0;
   const bookmarks = novel.total_bookmarks ?? novel.bookmark_count ?? novel.stats?.bookmarks ?? novel.bookmarks ?? 0;
@@ -278,7 +286,7 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
 
   return (
     <article className="nvc">
-      {/* Cover - Fixed height */}
+      {/* ── Cover Zone ── */}
       <div className="nvc__cover">
         {coverImage ? (
           <img 
@@ -288,64 +296,69 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
             onError={(e) => {
               e.currentTarget.style.display = "none";
               const parent = e.currentTarget.parentElement;
-              if (parent) parent.style.background = "#e5e7eb";
+              if (parent) parent.innerHTML = '<div style="font-size:32px">📖</div>';
             }}
           />
         ) : (
-          <span className="nvc__cover-emoji">📖</span>
+          <div className="nvc__cover-emoji">📖</div>
         )}
+        
+        {/* ป้ายสถานะสีทึบชัดเจน อยู่มุมซ้าย */}
         <span className={`nvc__status ${status === "published" ? "nvc__status--pub" : "nvc__status--draft"}`}>
-          {status === "published" ? "● เผยแพร่" : "● ฉบับร่าง"}
+          {status === "published" ? "เผยแพร่" : "ฉบับร่าง"}
         </span>
+
+        {/* ปุ่มลบกากบาทมุมขวา */}
+        <button className="nvc__cover-del" onClick={() => setShowConfirm(true)} title="ลบนิยาย">
+          ✕
+        </button>
+
+        {/* 🎯 แถบตอน/ฉาก ฝังล่างสุด พร้อม Gradient พื้นหลังดำเงา ทำให้อ่านง่ายชัวร์ */}
+        <div className="nvc__overlay-info">
+          <span>📄 {chapterCount} ตอน</span>
+          <span>🎬 {sceneCount} ฉาก</span>
+        </div>
       </div>
 
-      {/* Body */}
+      {/* ── Body Zone ── */}
       <div className="nvc__body">
-        <h3 className="nvc__title">{title}</h3>
-        <p className="nvc__date">อัปเดต {updatedAtText} · {chapterCount} ตอน · {sceneCount} ฉาก</p>
+        <h3 className="nvc__title" title={title}>{title}</h3>
+        
+        <p className="nvc__date">อัปเดต {updatedAtText}</p>
+        
+        <div className="nvc__categories-row">
+          {visibleCategories.length > 0 ? (
+            visibleCategories.map((catName, idx) => (
+              <span key={idx} className="nvc__tag">#{catName}</span>
+            ))
+          ) : (
+            <span style={{ fontSize: "10px", color: "#9ca3af", fontStyle: "italic" }}>#ไม่มีหมวดหมู่</span>
+          )}
 
-        {/* Stats row */}
+          {remainingCount > 0 && (
+            <span className="nvc__tag-more">+{remainingCount}</span>
+          )}
+        </div>
+
         <div className="nvc__stats">
           <span>👁 {fmt(views)}</span>
           <span>💜 {fmt(likes)}</span>
-          <span>🔖 {bookmarks}</span>
+          <span>🔖 {fmt(bookmarks)}</span>
         </div>
 
-        {/* Action buttons */}
         <div className="nvc__actions">
-          <button className="nvc__btn nvc__btn--edit" onClick={onEdit}>
-            ✏️ แก้ไข
-          </button>
-          <button className="nvc__btn nvc__btn--tree" onClick={onTree}>
-            🌳 Tree
-          </button>
-          <button
-            className="nvc__btn nvc__btn--del"
-            onClick={() => setShowConfirm(true)}
-            aria-label="ลบนิยาย"
-          >
-            🗑
-          </button>
+          <button className="nvc__btn nvc__btn--edit" onClick={onEdit}>✏️ แก้ไข</button>
+          <button className="nvc__btn nvc__btn--tree" onClick={onTree}>🌳 Tree</button>
         </div>
       </div>
 
       {/* Delete confirm overlay */}
       {showConfirm && (
         <div className="nvc__confirm">
-          <p className="nvc__confirm-text">ลบ "{title}"?</p>
+          <p className="nvc__confirm-text">ต้องการลบนิยายเรื่องนี้?</p>
           <div className="nvc__confirm-btns">
-            <button 
-              className="nvc__confirm-yes"
-              onClick={() => { 
-                setShowConfirm(false); 
-                onDelete();
-              }}
-            >
-              ยืนยัน
-            </button>
-            <button className="nvc__confirm-no" onClick={() => setShowConfirm(false)}>
-              ยกเลิก
-            </button>
+            <button className="nvc__confirm-yes" onClick={() => { setShowConfirm(false); onDelete(); }}>ยืนยัน</button>
+            <button className="nvc__confirm-no" onClick={() => setShowConfirm(false)}>ยกเลิก</button>
           </div>
         </div>
       )}
