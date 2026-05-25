@@ -54,11 +54,13 @@ type ReadingRepository interface {
 	SaveReadingProgress(userID, novelID, sceneID int) error
 	InsertSceneHistory(userID, sceneID int) error
 	InsertChoiceHistory(history models.ChoiceHistory) error
+	InsertUserEnding(userID, novelID, sceneID int) error
 }
 
 type WriterRepository interface {
 	GetWriterByID(id int) (*models.Writer, error)
 	GetWriterByUserID(userID int) (*models.Writer, error)
+	GetLatestWriterApplicationByUserID(userID int) (*models.Writer, error)
 	GetUserRoleByUserID(userID int) (string, error)
 	Apply(ctx context.Context, userID uint, req dto.WriterApplyRequest, contactJSON string) error
 	GetPendingRequests(ctx context.Context) ([]dto.WriterRequestResponse, error)

@@ -67,6 +67,7 @@ func RegisterRoutes(
 	// ------------------------------------------
 	// ✍️ ท่อฝั่งคนอ่าน: ส่งใบสมัครเข้ามาในระบบ (เริ่มต้นสถานะ pending)
 	mux.Handle("/api/writers/apply", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(writerHandler.Apply))))
+	mux.Handle("/api/writers/me", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(writerHandler.GetApplicationStatus))))
 
 	// 👑 ท่อฝั่งแอดมิน: ดึงใบสมัครทั้งหมดที่ค้างท่ออยู่มาตรวจสอบ
 	mux.Handle("/api/admin/writers/requests", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(writerHandler.GetPendingRequests))))
@@ -127,6 +128,7 @@ func RegisterRoutes(
 	// ------------------------------------------
 	mux.Handle("/progress", middleware.RequestLogger(middleware.RequireAuth(handlers.ProgressHandler(reading))))
 	mux.Handle("/choice-history", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordChoiceHistoryHandler(reading))))
+	mux.Handle("/user-endings", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordUserEndingHandler(reading))))
 	mux.Handle("/likes", middleware.RequestLogger(middleware.RequireAuth(handlers.AddLikeHandler(social))))
 	mux.Handle("/comments", middleware.RequestLogger(middleware.RequireAuth(handlers.AddCommentHandler(social))))
 	mux.Handle("/follows", middleware.RequestLogger(middleware.RequireAuth(handlers.AddFollowHandler(social))))

@@ -118,3 +118,31 @@ func RecordChoiceHistoryHandler(readingService service.ReadingService) http.Hand
 		WriteJSON(w, http.StatusCreated, map[string]string{"message": "choice history recorded"})
 	}
 }
+
+func RecordUserEndingHandler(readingService service.ReadingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		type EndingRequest struct {
+			UserID  int `json:"user_id"`
+			NovelID int `json:"novel_id"`
+			SceneID int `json:"scene_id"`
+		}
+
+		var req EndingRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		if req.UserID == 0 || req.NovelID == 0 || req.SceneID == 0 {
+			WriteError(w, http.StatusBadRequest, "user_id, novel_id, and scene_id are required")
+			return
+		}
+
+		if err := readingService.RecordEnding(req.UserID, req.NovelID, req.SceneID); err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		WriteJSON(w, http.StatusCreated, map[string]string{"message": "ending recorded successfully"})
+	}
+}

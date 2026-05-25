@@ -29,10 +29,14 @@ func (s *writerService) GetWriterByUserID(userID int) (*models.Writer, error) {
 	return s.repo.GetWriterByUserID(userID)
 }
 
+func (s *writerService) GetLatestWriterApplicationByUserID(userID int) (*models.Writer, error) {
+	return s.repo.GetLatestWriterApplicationByUserID(userID)
+}
+
 // ✍️ 3. Logic ส่งคำขอสมัครเป็นนักเขียน
 var (
 	ErrAlreadyWriter = errors.New("คุณเป็นนักเขียนอยู่แล้ว ไม่สามารถสมัครซ้ำได้")
-	ErrAlreadyApply  = errors.New("คุณได้สมัครหรือเป็นนักเขียนอยู่แล้ว หากต้องการให้แอดมินตรวจสอบ กรุณาติดต่อเจ้าหน้าที่")
+	ErrAlreadyApply  = errors.New("คุณได้สมัครหรือเป็นนักเขียนอยู่แล้ว หากต้องการรอแอดมินตรวจสอบหรือยื่นใหม่หลังถูกปฏิเสธ")
 )
 
 func (s *writerService) ApplyForWriter(ctx context.Context, userID uint, req dto.WriterApplyRequest) error {
@@ -48,12 +52,11 @@ func (s *writerService) ApplyForWriter(ctx context.Context, userID uint, req dto
 		return ErrAlreadyWriter
 	}
 
-	// ป้องกันการสมัครซ้ำสำหรับผู้ใช้ที่มีบันทึกในตาราง writers แล้ว
-	existingWriter, err := s.repo.GetWriterByUserID(int(userID))
+	existingWriter, err := s.repo.GetLatestWriterApplicationByUserID(int(userID))
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	if existingWriter != nil {
+	if existingWriter != nil && existingWriter.Status != "rejected" {
 		return ErrAlreadyApply
 	}
 

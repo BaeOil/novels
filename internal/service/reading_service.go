@@ -24,3 +24,7 @@ func (s *readingService) SaveProgress(progress models.ReadingProgress) error {
 func (s *readingService) RecordChoiceHistory(history models.ChoiceHistory) error {
 	return s.repo.InsertChoiceHistory(history)
 }
+
+func (s *readingService) RecordEnding(userID, novelID, sceneID int) error {
+	return s.repo.InsertUserEnding(userID, novelID, sceneID)
+}

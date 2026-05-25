@@ -21,4 +21,5 @@ type Writer struct {
 	Bio          *string     `json:"bio,omitempty"`
 	EmailWriter  *string     `json:"email_writer,omitempty"`
 	ContactInfo  interface{} `json:"contact_info,omitempty"`
+	Status       string      `json:"status,omitempty" db:"status"`
 }

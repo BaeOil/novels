@@ -50,15 +50,16 @@ type TreeStats struct {
 }
 
 type SceneNode struct {
-	ID           int    `json:"id"`
-	Label        string `json:"label"`
-	Title        string `json:"title"`   // 🎯 ชื่อตอน/หัวข้อฉากจริงๆ เช่น "พบหญิงสาวปริศนา"
-	Content      string `json:"content"` // 🎯 เรื่องย่อท่อนสั้นๆ ประจำฉาก
-	Type         string `json:"type"`
-	IsUnlocked   bool   `json:"is_unlocked"`
-	ChapterTitle string `json:"chapter_title,omitempty"`
-	Excerpt      string `json:"excerpt,omitempty"`
-	Status       string `json:"status,omitempty"`
+	ID             int    `json:"id"`
+	Label          string `json:"label"`
+	Title          string `json:"title"`   // 🎯 ชื่อตอน/หัวข้อฉากจริงๆ เช่น "พบหญิงสาวปริศนา"
+	Content        string `json:"content"` // 🎯 เรื่องย่อท่อนสั้นๆ ประจำฉาก
+	Type           string `json:"type"`
+	IsUnlocked     bool   `json:"is_unlocked"`
+	ChapterTitle   string `json:"chapter_title,omitempty"`
+	ChapterEpisode int    `json:"chapter_episode,omitempty"`
+	Excerpt        string `json:"excerpt,omitempty"`
+	Status         string `json:"status,omitempty"`
 }
 
 type SceneEdge struct {

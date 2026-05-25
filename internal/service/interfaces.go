@@ -50,6 +50,7 @@ type ReadingService interface {
 	GetProgress(userID, novelID int) (*models.ReadingProgress, error)
 	SaveProgress(progress models.ReadingProgress) error
 	RecordChoiceHistory(history models.ChoiceHistory) error
+	RecordEnding(userID, novelID, sceneID int) error
 }
 
 type FlowService interface {
@@ -60,6 +61,7 @@ type FlowService interface {
 type WriterService interface {
 	GetWriterByID(id int) (*models.Writer, error)
 	GetWriterByUserID(userID int) (*models.Writer, error)
+	GetLatestWriterApplicationByUserID(userID int) (*models.Writer, error)
 	ApplyForWriter(ctx context.Context, userID uint, req dto.WriterApplyRequest) error
 	GetPendingRequests(ctx context.Context) ([]dto.WriterRequestResponse, error)
 	ApproveWriter(ctx context.Context, writerID uint) error

@@ -71,9 +71,11 @@ func GetStoryTreeHandler(sceneService service.SceneService) http.HandlerFunc {
 			}
 
 			node := models.SceneNode{
-				ID:         rawNode.ID,
-				Type:       rawNode.Type,
-				IsUnlocked: isNodeAccessible,
+				ID:             rawNode.ID,
+				Type:           rawNode.Type,
+				IsUnlocked:     isNodeAccessible,
+				ChapterTitle:   rawNode.ChapterTitle,
+				ChapterEpisode: rawNode.ChapterEpisode,
 			}
 
 			if isNodeAccessible {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -115,6 +116,37 @@ func (h *WriterHandler) Approve(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "อนุมัตินักเขียนเรียบร้อยแล้ว ยูสเซอร์ดังกล่าวพร้อมเขียนนิยายแล้วค่ะ!"})
+}
+
+func (h *WriterHandler) GetApplicationStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token", http.StatusUnauthorized)
+		return
+	}
+
+	writer, err := h.service.GetLatestWriterApplicationByUserID(int(userID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{"status": "none"})
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    writer.Status,
+		"writer_id": writer.WriterID,
+		"pen_name":  writer.PenName,
+	})
 }
 
 func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {

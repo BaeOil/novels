@@ -211,7 +211,7 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 	// ใช้ LEFT JOIN กับ user_scene_history เพื่อเช็คว่า User เคยมาที่นี่หรือยัง
 	// 🎯 เพิ่มการดึง content, ending_title, ending_description สำหรับแสดงข้อมูลครบถ้วน
 	query := `
-        SELECT s.scene_id, s.title, s.type, c.title AS chapter_title, s.content,
+        SELECT s.scene_id, s.title, s.type, c.title AS chapter_title, c.episode AS chapter_episode, s.content,
                s.ending_title, s.ending_description,
                CASE WHEN ush.id IS NOT NULL THEN true ELSE false END as is_unlocked
         FROM scenes s
@@ -231,7 +231,7 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 		var endingTitle sql.NullString
 		var endingDesc sql.NullString
 
-		if err := rows.Scan(&n.ID, &n.Title, &n.Type, &n.ChapterTitle, &n.Content,
+		if err := rows.Scan(&n.ID, &n.Title, &n.Type, &n.ChapterTitle, &n.ChapterEpisode, &n.Content,
 			&endingTitle, &endingDesc, &n.IsUnlocked); err != nil {
 			return nil, err
 		}

@@ -29,10 +29,22 @@ func (r *sqlWriterRepository) GetWriterByID(id int) (*models.Writer, error) {
 }
 
 func (r *sqlWriterRepository) GetWriterByUserID(userID int) (*models.Writer, error) {
-	query := `SELECT writer_id, user_id, pen_name, bio, email_writer, contact_info FROM writers WHERE user_id = $1 LIMIT 1`
+	query := `SELECT writer_id, user_id, pen_name, bio, email_writer, contact_info, status FROM writers WHERE user_id = $1 AND status = 'approved' LIMIT 1`
 
 	var w models.Writer
-	err := r.db.QueryRow(query, userID).Scan(&w.WriterID, &w.UserID, &w.PenName, &w.Bio, &w.EmailWriter, &w.ContactInfo)
+	err := r.db.QueryRow(query, userID).Scan(&w.WriterID, &w.UserID, &w.PenName, &w.Bio, &w.EmailWriter, &w.ContactInfo, &w.Status)
+	if err != nil {
+		return nil, err
+	}
+
+	return &w, nil
+}
+
+func (r *sqlWriterRepository) GetLatestWriterApplicationByUserID(userID int) (*models.Writer, error) {
+	query := `SELECT writer_id, user_id, pen_name, bio, email_writer, contact_info, status FROM writers WHERE user_id = $1 ORDER BY applied_at DESC LIMIT 1`
+
+	var w models.Writer
+	err := r.db.QueryRow(query, userID).Scan(&w.WriterID, &w.UserID, &w.PenName, &w.Bio, &w.EmailWriter, &w.ContactInfo, &w.Status)
 	if err != nil {
 		return nil, err
 	}
