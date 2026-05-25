@@ -143,7 +143,8 @@ CREATE TABLE reading_progress (
     user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
     novel_id INTEGER REFERENCES novels(novel_id) ON DELETE CASCADE,
     current_scene_id INTEGER REFERENCES scenes(scene_id) ON DELETE CASCADE,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, novel_id)
 );
 
 CREATE TABLE user_choice_history (
