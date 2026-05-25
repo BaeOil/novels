@@ -49,6 +49,7 @@ const ChoiceCard = ({
   allTargetOptions,
   currentChapterId,
   onUpdate,
+  onSave,
   onDelete,
 }) => {
   const allScenes = (Array.isArray(allTargetOptions) ? allTargetOptions : []).flatMap((ch) => {
@@ -98,6 +99,7 @@ const ChoiceCard = ({
   );
   const [subScene, setSubScene] = useState(initialTargetSubScene);
   const [selectedChapterId, setSelectedChapterId] = useState(initialChapterId);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // State ควบคุมโหมดการแก้ไข (ถ้าเป็นตัวเลือกใหม่ให้เป็นโหมดแก้ไขทันที)
   const [isEditing, setIsEditing] = useState(!choice.text);
@@ -168,6 +170,7 @@ const ChoiceCard = ({
 
   const handleSubSceneChange = (val) => {
     setSubScene(val);
+    setErrorMessage("");
     const found = findSceneByValue(val);
     if (found) setTargetLabel(found.label || found.chapterTitle);
 
@@ -180,13 +183,26 @@ const ChoiceCard = ({
   };
 
   const handleSaveEdit = () => {
-    onUpdate?.({
+    if (!text.trim()) {
+      setErrorMessage("กรุณากรอกข้อความตัวเลือก");
+      return;
+    }
+
+    if (!subScene) {
+      setErrorMessage("กรุณาเลือกฉากปลายทาง");
+      return;
+    }
+
+    setErrorMessage("");
+    const updatedChoice = {
       ...choice,
       text,
       targetType,
       targetSubScene: subScene,
       targetLabel,
-    });
+    };
+    onUpdate?.(updatedChoice);
+    onSave?.(updatedChoice);
     setIsEditing(false);
   };
 
@@ -303,8 +319,15 @@ const ChoiceCard = ({
 
             <div className="se-choice__actions">
               <button className="se-choice__btn-action se-choice__btn-action--del" onClick={() => onDelete(choice.id)}>ลบทิ้ง</button>
-              <button className="se-choice__btn-action se-choice__btn-action--save" onClick={handleSaveEdit}>✓ ตกลง</button>
+              <button className="se-choice__btn-action se-choice__btn-action--save" onClick={handleSaveEdit}>
+                ✓ ตกลง
+              </button>
             </div>
+            {errorMessage && (
+              <div className="se-choice__error" style={{ color: "#d32f2f", marginTop: "10px", fontSize: "0.88rem" }}>
+                {errorMessage}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -594,20 +617,33 @@ const SceneEditorPage = ({
     fetchSceneData();
   }, [fetchSceneData]);
 
- const handleSave = async (overridePublishStatus = null, returnToManager = false) => {
+const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null) => {
     setIsSaving(true);
     setErrorMsg(null);
     try {
       const currentPublishState = overridePublishStatus !== null ? overridePublishStatus : isPublished;
+      const currentChoices = Array.isArray(overrideChoices) ? overrideChoices : choices;
 
-      // 1. บันทึกข้อมูลตัวฉากหลัก (ชื่อฉาก และ เนื้อหา) เข้าท่อ /scenes/:id ตามเดิม
+      // 1. บันทึกข้อมูลตัวฉากหลัก พร้อมส่งตัวเลือกปัจจุบันไปให้ backend sync ด้วย
       const payload = {
         title: sceneTitle.trim() || "ฉากไม่มีชื่อ",
         content: content,
         type: isEnding ? "ending" : "normal",
         status: currentPublishState ? "published" : "draft",
         is_ending: isEnding,
-        choices: [] // ส่งอาร์เรย์ว่างไป เพราะ Go เส้นนี้ไม่เซฟตัวเลือกให้
+        choices: currentChoices.map((c) => {
+          const targetStr = String(c.targetSubScene ?? c.to_scene_id ?? c.toSceneID ?? c.toSceneId ?? "");
+          const targetParts = targetStr.includes("||") ? targetStr.split("||") : [targetStr];
+          const toSceneIdCandidate = parseInt(targetParts[targetParts.length - 1], 10);
+
+          return {
+            ...(c.id && !String(c.id).startsWith("choice-new-") ? { choice_id: parseInt(String(c.id), 10) } : {}),
+            label: c.text || c.label || c.Label || "เลือกเส้นทางนี้",
+            text: c.text || c.label || c.Label || "เลือกเส้นทางนี้",
+            targetSubScene: targetStr,
+            to_scene_id: Number.isNaN(toSceneIdCandidate) ? 0 : toSceneIdCandidate,
+          };
+        }),
       };
 
       const headers = { "Content-Type": "application/json" };
@@ -621,59 +657,12 @@ const SceneEditorPage = ({
 
       if (!response.ok) {
         const errData = await response.json().catch(() => null);
-        throw new Error(errData?.error || "ไม่สามารถบันทึกข้อมูลฉากได้");
-      }
-
-      // 2. 🔥 ยิงลูปบันทึกตัวเลือก (Choices) แยกส่งเข้าท่อเดี่ยวของ Go เรียงตัว
-      for (const c of choices) {
-        let finalToSceneId = 0;
-        
-        // ดึงสายอักขระระบุตำแหน่งปลายทางมาตรวจสอบ
-        const targetStr = String(c.targetSubScene || c.to_scene_id || "");
-
-        if (targetStr.includes("||")) {
-          // ถ้าเป็นรูปแบบ "chapterId||sceneId" ให้แกะเอาตัวหลังมาใช้
-          const parts = targetStr.split("||");
-          finalToSceneId = parseInt(parts[1], 10) || 0;
-        } else {
-          // ถ้ามีแค่ตัวเลขไอดีฉากเพียว ๆ
-          finalToSceneId = parseInt(targetStr, 10) || 0;
-        }
-
-        // หากตัวเลือกนั้นยังไม่ได้เลือกฉากปลายทาง ให้ข้ามไปก่อนเพื่อไม่ให้ระบบพัง
-        if (!finalToSceneId || finalToSceneId === 0) {
-          continue;
-        }
-
-        // จัดหน้าตาข้อมูลรูปแบบที่ยิงเข้าตาราง choices หลังบ้าน Go
-        const choiceBody = {
-          text: c.text || "เลือกเส้นทางนี้",
-          label: c.text || "เลือกเส้นทางนี้",
-          from_scene_id: parseInt(sceneId, 10),
-          to_scene_id: finalToSceneId,
-        };
-
-        // ตรวจสอบว่าเป็น Choice ที่เพิ่งกดเพิ่มใหม่ในหน้าจอ หรือมีอยู่เดิมใน DB แล้ว
-        const isNewChoice = String(c.id).startsWith("choice-new-");
-        const choiceUrl = isNewChoice ? `${API_BASE_URL}/choices` : `${API_BASE_URL}/choices/${c.id}`;
-        const choiceMethod = isNewChoice ? "POST" : "PUT";
-
-        // ยิง API ปังเข้าไปที่หลังบ้าน Go ของแต่ละชอยส์
-        const choiceResponse = await fetch(choiceUrl, {
-          method: choiceMethod,
-          headers,
-          body: JSON.stringify(choiceBody),
-        });
-
-        if (!choiceResponse.ok) {
-          const errData = await choiceResponse.json().catch(() => null);
-          throw new Error(errData?.error || errData?.message || "ไม่สามารถบันทึกตัวเลือกได้");
-        }
+        throw new Error(errData?.error || errData?.message || "ไม่สามารถบันทึกข้อมูลฉากได้");
       }
 
       // 3. บันทึกทุกอย่างเสร็จ ทำการอัปเดตเวลาและดึงข้อมูลใหม่มาแสดงผล
       setLastSaved(new Date());
-      await fetchSceneData(); 
+      await fetchSceneData();
 
       if (returnToManager && typeof onNavigate === "function") {
         onNavigate("chapters", { novelId });
@@ -704,6 +693,14 @@ const SceneEditorPage = ({
 
   const updateChoice = (updated) => {
     setChoices((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
+  const saveChoiceImmediately = async (updated) => {
+    const nextChoices = choices.map((c) => (c.id === updated.id ? updated : c));
+    if (!nextChoices.some((c) => c.id === updated.id)) {
+      nextChoices.push(updated);
+    }
+    await handleSave(null, false, nextChoices);
   };
 
   const deleteChoice = (choiceId) => {
@@ -975,6 +972,7 @@ const SceneEditorPage = ({
                   allTargetOptions={chapters}
                   currentChapterId={chapterId}
                   onUpdate={updateChoice}
+                  onSave={saveChoiceImmediately}
                   onDelete={deleteChoice}
                 />
               ))}
