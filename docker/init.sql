@@ -28,6 +28,7 @@ CREATE TABLE writers (
     bio TEXT,
     email_writer VARCHAR(255),
     contact_info JSONB,
+    avatar_url VARCHAR(255),
     status VARCHAR(20) DEFAULT 'pending',
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     approved_at TIMESTAMP
@@ -229,6 +230,7 @@ INSERT INTO writers (
     bio, 
     email_writer, 
     contact_info, 
+    avatar_url,
     status, 
     applied_at, 
     approved_at
@@ -241,6 +243,7 @@ INSERT INTO writers (
     '<h2>เกี่ยวกับนักเขียน</h2><p>นักเขียนสายแฟนตาซีผู้หลงรักในการสร้างโลกใหม่ ✨</p>', 
     'contact_jane@novelverse.com', 
     '{"twitter": "@janetheauthor", "facebook": "Jane.Fiction"}', 
+    'http://localhost:9000/novels-images/jane.jpg',
     'approved', 
     CURRENT_TIMESTAMP, 
     CURRENT_TIMESTAMP
@@ -253,6 +256,7 @@ INSERT INTO writers (
     '<h2>Dark Master Official</h2><p>นักเขียนสายสยองขวัญ สั่นประสาท 👁️</p>', 
     'contact_john@novelverse.com', 
     '{"twitter": "@darkmaster", "website": "darknovel.com"}', 
+    'http://localhost:9000/novels-images/john.jpg',
     'approved', 
     CURRENT_TIMESTAMP, 
     CURRENT_TIMESTAMP
