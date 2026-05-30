@@ -59,10 +59,19 @@ const HomePage = ({ onNavigate }) => {
             id: data.novel_id || data.id,
             title: data.title || "ไม่มีชื่อเรื่อง",
             
-            // ปรับปรุงการจัดการหมวดหมู่: ถ้าไม่มีให้ใส่ "ทั่วไป"
-            categories: data.categories && data.categories.length > 0
-              ? data.categories.map(cat => typeof cat === "object" ? cat.name : cat)
-              : ["ทั่วไป"],
+            // ปรับปรุงการจัดการหมวดหมู่: รองรับหลายรูปแบบจาก API
+            categories: (() => {
+              const cats = data.categories ?? data.Categories ?? data.CategoryIDs ?? data.category_ids ?? [];
+              if (!Array.isArray(cats) || cats.length === 0) return ["ทั่วไป"];
+              return cats
+                .map((cat) => {
+                  if (!cat) return null;
+                  if (typeof cat === "string") return cat;
+                  if (typeof cat === "number") return String(cat);
+                  return cat.name || cat.Name || cat.title || cat.label || null;
+                })
+                .filter(Boolean);
+            })(),
 
             coverImage: formatMinioUrl(data.cover_image),
             coverEmoji: data.cover_image ? "" : "📘",

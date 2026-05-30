@@ -78,13 +78,28 @@ const Navbarwriter = () => {
     // ─────────────────────────────────────
     useEffect(() => {
         const token = localStorage.getItem("token");
+        const savedUser = localStorage.getItem("user");
+
+        if (savedUser) {
+            try {
+                const parsedUser = JSON.parse(savedUser);
+                setUserData(prev => ({
+                    ...prev,
+                    username: parsedUser.username || prev.username,
+                    email: parsedUser.email || prev.email,
+                    pic_profile: parsedUser.pic_profile || prev.pic_profile,
+                    role: parsedUser.role || prev.role,
+                }));
+            } catch (err) {
+                console.warn("ไม่สามารถอ่านข้อมูลผู้ใช้จาก localStorage ได้", err);
+            }
+        }
 
         if (!token) return;
 
         setIsLoggedIn(true);
 
         fetchUserData(token);
-
         fetchNovels(token);
     }, []);
 

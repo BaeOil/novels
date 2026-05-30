@@ -602,12 +602,10 @@ const SceneCard = ({
 // ════════════════════════════════════════════════════════
 //  Sub: Chapter panel
 // ════════════════════════════════════════════════════════
-const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fetchChapters }) => {
+const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fetchChapters, onDeleteChapter }) => {
   const [scenes, setScenes] = useState([]);
   const [loading, setLoading] = useState(false);
   const token = localStorage.getItem("token");
-
-  const [editingTitle, setEditingTitle] = useState(false);
 
   const chTitle =
     chapter?.title ??
@@ -617,7 +615,12 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
   const isChapterPublished = chStatus === "published" || chStatus === "active";
 
   const [chapterTitle, setChapterTitle] = useState(chTitle);
+  const [editingTitle, setEditingTitle] = useState(false);
   const chId = chapter?.id ?? chapter?.ID ?? chapter?.chapter_id ?? chapter?.ChapterID;
+
+  useEffect(() => {
+    setChapterTitle(chTitle);
+  }, [chTitle]);
 
   const handleSaveChapterTitle = async () => {
     try {
@@ -739,13 +742,45 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
 
   return (
     <div className="cm-chapter">
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: isChapterPublished ? '#16a34a' : '#b91c1c' }}>
-          สถานะตอน: {isChapterPublished ? 'เผยแพร่' : 'ฉบับร่าง'}
-        </span>
-        <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={handleToggleChapterStatus}>
-          {isChapterPublished ? 'เปลี่ยนเป็นฉบับร่าง' : 'เผยแพร่ตอนนี้'}
-        </button>
+      <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10, flexWrap: 'wrap' }}>
+        {editingTitle ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="cm-input"
+              style={{ flex: '1 1 320px' }}
+              value={chapterTitle}
+              onChange={(e) => setChapterTitle(e.target.value)}
+              placeholder="ชื่อบท"
+            />
+            <button className="cm-btn cm-btn--sm" onClick={handleSaveChapterTitle}>
+              บันทึกชื่อบท
+            </button>
+            <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={() => { setEditingTitle(false); setChapterTitle(chTitle); }}>
+              ยกเลิก
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, flex: '1 1 auto' }}>{chapterTitle}</h2>
+            <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={() => setEditingTitle(true)}>
+              ✏️ แก้ไขชื่อบท
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: isChapterPublished ? '#16a34a' : '#b91c1c', flex: '1 1 auto' }}>
+            สถานะตอน: {isChapterPublished ? 'เผยแพร่' : 'ฉบับร่าง'}
+          </span>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={handleToggleChapterStatus}>
+              {isChapterPublished ? 'เปลี่ยนเป็นฉบับร่าง' : 'เผยแพร่ตอนนี้'}
+            </button>
+            <button className="cm-btn cm-btn--danger cm-btn--sm" onClick={() => onDeleteChapter?.(chId)}>
+              🗑 ลบตอนนี้
+            </button>
+          </div>
+        </div>
       </div>
       {loading ? (
         <div className="cm-loading-box">🔄 โหลดโครงสร้างฉาก...</div>
@@ -968,6 +1003,31 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     }
   };
 
+  const handleDeleteChapter = async (chapterId) => {
+    if (!chapterId || !window.confirm("คุณต้องการลบตอนนี้ใช่หรือไม่? การกระทำนี้จะลบฉากทั้งหมดในตอนนี้ด้วย")) return;
+    try {
+      const res = await fetch(`${API_BASE}/chapters/${chapterId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("ลบตอนล้มเหลว:", res.status, errText);
+        alert("ไม่สามารถลบตอนได้ กรุณาลองใหม่");
+        return;
+      }
+      if (String(activeChapterId) === String(chapterId)) {
+        setActiveChapterId(null);
+      }
+      await fetchNovelAndChapters();
+    } catch (err) {
+      console.error("Delete chapter error:", err);
+      alert("เกิดข้อผิดพลาดในการลบตอน");
+    }
+  };
+
   const activeChapter = chapters.find((c) => {
     const id = c.id ?? c.ID ?? c.chapter_id ?? c.ChapterID;
     return String(id) === String(activeChapterId);
@@ -1023,6 +1083,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             chapterIndex={activeChapterIndex}
             allChapters={chapters}
             fetchChapters={fetchNovelAndChapters}
+            onDeleteChapter={handleDeleteChapter}
             onWrite={(chId, scId) => onNavigate("scene-editor", { novelId: currentNovelId, chapterId: chId, sceneId: scId })}
           />
         ) : (

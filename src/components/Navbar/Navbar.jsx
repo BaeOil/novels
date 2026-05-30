@@ -35,6 +35,22 @@ const Navbar = () => {
         window.addEventListener("scroll", handleScroll);
         
         const token = localStorage.getItem("token");
+        const savedUser = localStorage.getItem("user");
+        if (savedUser) {
+            try {
+                const parsedUser = JSON.parse(savedUser);
+                setUserData(prev => ({
+                    ...prev,
+                    username: parsedUser.username || prev.username,
+                    email: parsedUser.email || prev.email,
+                    pic_profile: parsedUser.pic_profile || prev.pic_profile,
+                    role: parsedUser.role || prev.role,
+                }));
+            } catch (err) {
+                console.warn("ไม่สามารถอ่านข้อมูลผู้ใช้จาก localStorage ได้", err);
+            }
+        }
+
         if (token) {
             setIsLoggedIn(true);
             fetchUserData(token);
@@ -51,10 +67,9 @@ const Navbar = () => {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
                 }
             });
-            
+
             if (!res.ok) {
                 const errorText = await res.text();
                 throw new Error(`API Error: ${res.status} - ${errorText}`);

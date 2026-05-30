@@ -541,6 +541,7 @@ const SceneEditorPage = ({
 
   const [sceneTitle, setSceneTitle] = useState("");
   const [content, setContent] = useState("");
+  const [sceneType, setSceneType] = useState("normal");
   const [isPublished, setIsPublished] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [choices, setChoices] = useState([]);
@@ -581,8 +582,9 @@ const SceneEditorPage = ({
       );
       setSceneTitle(sceneData.sceneTitle || sceneData.scene_title || sceneData.title || "");
       setContent(sceneData.content || "");
+      setSceneType(sceneData.type || sceneData.scene_type || "normal");
       setIsPublished(sceneData.status === "published" || sceneData.isPublished || false);
-      setIsEnding(sceneData.isEnding || sceneData.is_ending || false);
+      setIsEnding(sceneData.type === "ending" || sceneData.isEnding || sceneData.is_ending || false);
 
       const normalizedChoices = (Array.isArray(sceneData.choices) ? sceneData.choices : []).map((choice) => ({
         ...choice,
@@ -628,7 +630,7 @@ const handleSave = async (overridePublishStatus = null, returnToManager = false,
       const payload = {
         title: sceneTitle.trim() || "ฉากไม่มีชื่อ",
         content: content,
-        type: isEnding ? "ending" : "normal",
+        type: isEnding ? "ending" : sceneType || "normal",
         status: currentPublishState ? "published" : "draft",
         is_ending: isEnding,
         choices: currentChoices.map((c) => {
@@ -732,7 +734,7 @@ const handleSave = async (overridePublishStatus = null, returnToManager = false,
           chapter_id: parseInt(selectedChapterForNewScene, 10),
           title: newSceneTitle.trim(),
           content: "",
-          type: "draft",
+          type: "normal",
         }),
       });
 

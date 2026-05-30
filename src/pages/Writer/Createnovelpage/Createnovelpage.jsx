@@ -174,7 +174,7 @@ const CreateNovelPage = () => {
             if (form.isCompleted) {
                 finalStatus = "completed"; 
             } else if (form.isPublished) {
-                finalStatus = "publish";
+                finalStatus = "published";
             }
 
             // 4. ประกอบร่าง Payload ให้ตรงกับ Struct Go

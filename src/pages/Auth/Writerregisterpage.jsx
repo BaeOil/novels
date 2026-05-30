@@ -241,6 +241,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     const [writerAppStatus, setWriterAppStatus] = useState("none");
     const [writerAppLoading, setWriterAppLoading] = useState(true);
     const [writerAppError, setWriterAppError] = useState(null);
+    const hasPerformedAuthCheck = useRef(false);
 
     useEffect(() => {
         const fetchWriterApplication = async () => {
@@ -280,6 +281,9 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     }, []);
 
     useEffect(() => {
+        if (hasPerformedAuthCheck.current) return;
+        hasPerformedAuthCheck.current = true;
+
         const token = localStorage.getItem("token");
         const userJson = localStorage.getItem("user");
 
