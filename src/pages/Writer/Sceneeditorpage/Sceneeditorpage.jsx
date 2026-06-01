@@ -206,7 +206,7 @@ const ChoiceCard = ({
     setIsEditing(false);
   };
 
-  const COLORS = ["var(--pink-500)", "#F59E0B", "#6366F1"];
+  const COLORS = ["#f50bc6", "#F59E0B", "#6366F1"];
 
   return (
     <div className="se-choice">
@@ -371,6 +371,20 @@ const SceneTreeSidebar = ({
     );
   };
 
+  // ฟังก์ชันคำนวณสถานะฉาก
+  const getSceneStatus = (scene, allChapters) => {
+    const sceneType = scene.type || scene.scene_type || "normal";
+    if (sceneType === "ending") return "ending";
+    if (sceneType === "start") return "start";
+    
+    // ตรวจสอบว่ามีการเชื่อมต่อ (incoming/outgoing edges) หรือไม่
+    // หากไม่มี = orphan
+    const hasConnection = scene.has_connection !== false && scene.hasConnection !== false;
+    if (!hasConnection) return "orphan";
+    
+    return "normal";
+  };
+
   const safeChapters = Array.isArray(chapters) ? chapters : [];
 
   const currentChIndex = safeChapters.findIndex((c) => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(currentChapterId));
@@ -382,31 +396,8 @@ const SceneTreeSidebar = ({
     )
     : "";
 
-  const currentChapterScenes = currentChIndex !== -1 ? (Array.isArray(safeChapters[currentChIndex].scenes) ? safeChapters[currentChIndex].scenes : []) : [];
-  const currentScIndex = currentChapterScenes.findIndex((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId));
-  const currentScDisplayNumber = currentScIndex !== -1 ? (currentScIndex + 1) : "";
-
   return (
     <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-      {/*กล่องชมพูเส้้นทางของตอนนี้
-      <div className="se-tree__header" style={{ marginBottom: "12px" }}>เส้นทางของตอนนี้</div>
-      <div 
-        className="se-tree__current-path" 
-        style={{ 
-          backgroundColor: 'var(--pink-50)', 
-          padding: '14px', 
-          borderRadius: '10px', 
-          border: '1px solid var(--pink-200)',
-          marginBottom: '20px' 
-        }}
-      >
-        <div style={{ color: 'var(--pink-600)', fontWeight: 'bold', marginBottom: '6px', fontSize: '0.95rem' }}>
-          ตอนที่ {currentChDisplayNumber || "-"}: {currentChapterTitle || "ไม่ระบุชื่อตอน"}
-        </div>
-        <div style={{ color: 'var(--gray-700)', fontSize: '0.9rem', lineHeight: '1.4', fontWeight: '500' }}>
-          ฉากที่ {currentChDisplayNumber || "-"}.{currentScDisplayNumber || "-"}: {currentSceneLabel || "ฉากไม่มีชื่อ"}
-        </div>
-      </div>  */}
       <div className="se-tree__header" style={{ marginBottom: "12px" }}>ตั้งค่าสถานะ</div>
       <div className="se-tree__toggles" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -446,7 +437,6 @@ const SceneTreeSidebar = ({
           const chapterKey = ch.id ?? ch.chapter_id ?? ch.ChapterID ?? chapterIndex;
           const isExpanded = expandedChapters.includes(chapterKey);
           const chapterScenes = Array.isArray(ch.scenes) ? ch.scenes : [];
-          const hasActiveScene = chapterScenes.some((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId));
 
           const chDisplayNum =
             ch.chapterNumber ??
@@ -477,12 +467,6 @@ const SceneTreeSidebar = ({
                   ตอนที่ {chDisplayNum} — {ch.title}
                 </span>
 
-                <span
-                  className="se-tree__ch-dot"
-                  style={{
-                    background: hasActiveScene ? "var(--pink-500)" : "#4CAF82",
-                  }}
-                />
               </button>
 
               {isExpanded && (
@@ -494,15 +478,45 @@ const SceneTreeSidebar = ({
                     const isCurrent = String(sceneIdValue) === String(currentSceneId);
 
                     const scDisplayNum = sceneIndex + 1;
+                    const sceneStatus = getSceneStatus(scene, safeChapters);
+                    
+                    // สถานะและข้อความเตือน
+                    let statusIcon = "●";
+                    let statusColor = "#ffffff"; // สีเทาเป็นค่าเริ่มต้น
+                    let tooltipMsg = "";
+                    
+                    if (sceneStatus === "start") {
+                      statusIcon = "●";
+                      statusColor = "#16A34A";
+                      tooltipMsg = "ฉากเริ่มต้น";
+                    } else if (sceneStatus === "ending") {
+                      statusIcon = "●";
+                      statusColor = "#EF4444";
+                      tooltipMsg = "ฉากจบเรื่อง";
+                    } else if (sceneStatus === "orphan") {
+                      statusIcon = "⚠";
+                      statusColor = "#FBBF24";
+                      tooltipMsg = "ยังไม่มีฉากมาเชื่อม หรือยังไม่มีฉากปลายทาง";
+                    }
 
                     return (
-                      <button
-                        key={sceneKey}
-                        className={`se-tree__scene-row ${isCurrent ? "se-tree__scene-row--active" : ""}`}
-                        onClick={() => onSelectScene(chapterIdValue, sceneIdValue)}
-                      >
-                        ฉากที่ {chDisplayNum}.{scDisplayNum} — {scene.label || scene.title || scene.sceneTitle || "ฉากไม่มีชื่อ"}
-                      </button>
+                      <div key={sceneKey} className="se-tree__scene-wrapper">
+                        <button
+                          className={`se-tree__scene-row ${isCurrent ? "se-tree__scene-row--active" : ""}`}
+                          onClick={() => onSelectScene(chapterIdValue, sceneIdValue)}
+                        >
+                          <span className="se-tree__scene-text">
+                            ฉากที่ {chDisplayNum}.{scDisplayNum} — {scene.label || scene.title || scene.sceneTitle || "ฉากไม่มีชื่อ"}
+                          </span>
+                          <span 
+                            className="se-tree__scene-status"
+                            style={{ color: statusColor }}
+                            title={tooltipMsg}
+                          >
+                            {statusIcon}
+                          </span>
+                        </button>
+                      </div>
                     );
                   })}
 
@@ -619,7 +633,7 @@ const SceneEditorPage = ({
     fetchSceneData();
   }, [fetchSceneData]);
 
-const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null) => {
+  const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null) => {
     setIsSaving(true);
     setErrorMsg(null);
     try {
@@ -803,15 +817,34 @@ const handleSave = async (overridePublishStatus = null, returnToManager = false,
 
   const safeChapters = Array.isArray(chapters) ? chapters : [];
 
-  // ใช้ id ชุดเดียวกับ Sidebar
-  const currentChapterId = chapterId;
-  const currentSceneId = sceneId;
+  // ✅ ใช้ chapterId จาก props แต่ถ้า empty ให้หาจาก chapters ตัวแรก
+  let effectiveChapterId = chapterId;
+  
+  if (!effectiveChapterId && sceneId && safeChapters.length > 0) {
+    // หากไม่มี chapterId ให้ดึงมาจาก chapters ที่มี scene นี้
+    const sceneIdStr = String(sceneId);
+    for (const ch of safeChapters) {
+      const foundScene = (ch.scenes || []).find(
+        (s) => String(s.id ?? s.scene_id ?? s.SceneID) === sceneIdStr
+      );
+      if (foundScene) {
+        effectiveChapterId = ch.id ?? ch.chapter_id ?? ch.ChapterID;
+        break;
+      }
+    }
+  }
+
+  console.log("DEBUG - effectiveChapterId:", effectiveChapterId, "sceneId:", sceneId);
+  console.log("DEBUG - chapters:", safeChapters);
 
   // หา chapter ปัจจุบัน
   const currentChIndex = safeChapters.findIndex(
-    (c) =>
-      String(c.id ?? c.chapter_id ?? c.ChapterID) ===
-      String(currentChapterId)
+    (c) => {
+      const cId = String(c.id ?? c.chapter_id ?? c.ChapterID ?? "");
+      const checkId = String(effectiveChapterId ?? "");
+      console.log("DEBUG - comparing cId:", cId, "checkId:", checkId, "match:", cId === checkId);
+      return cId === checkId;
+    }
   );
 
   // เลขตอน
@@ -822,11 +855,11 @@ const handleSave = async (overridePublishStatus = null, returnToManager = false,
         safeChapters[currentChIndex].order_index ??
         (currentChIndex + 1)
       )
-      : "";
+      : null;
 
   // scenes ของ chapter ปัจจุบัน
   const currentChapterScenes =
-    currentChIndex !== -1
+    currentChIndex !== -1 && safeChapters[currentChIndex]
       ? (
         Array.isArray(safeChapters[currentChIndex].scenes)
           ? safeChapters[currentChIndex].scenes
@@ -836,16 +869,20 @@ const handleSave = async (overridePublishStatus = null, returnToManager = false,
 
   // หา scene ปัจจุบัน
   const currentScIndex = currentChapterScenes.findIndex(
-    (s) =>
-      String(s.id ?? s.scene_id ?? s.SceneID) ===
-      String(currentSceneId)
+    (s) => {
+      const sId = String(s.id ?? s.scene_id ?? s.SceneID ?? "");
+      const checkId = String(sceneId ?? "");
+      return sId === checkId;
+    }
   );
 
   // เลขฉาก
   const currentScDisplayNumber =
     currentScIndex !== -1
       ? (currentScIndex + 1)
-      : "";
+      : null;
+
+  console.log("FINAL: currentChDisplayNumber:", currentChDisplayNumber, "currentScDisplayNumber:", currentScDisplayNumber);
 
   return (
     <div className="se-page">
@@ -868,20 +905,18 @@ const handleSave = async (overridePublishStatus = null, returnToManager = false,
             <span className="se-header__bc-sep">›</span>
 
             <span className="se-header__bc-chapter">
-              ตอน:{" "}
-              {currentChDisplayNumber
-                ? `ตอนที่ ${currentChDisplayNumber} : `
-                : ""}
+              {currentChDisplayNumber !== null && currentChDisplayNumber !== ""
+                ? `ตอนที่ ${currentChDisplayNumber}`
+                : "ตอน: ?"}{" "}
               {chapterTitle}
             </span>
 
             <span className="se-header__bc-sep">›</span>
 
             <span className="se-header__bc-scene">
-              ฉาก:{" "}
-              {currentChDisplayNumber && currentScDisplayNumber
-                ? `ฉากที่ ${currentChDisplayNumber}.${currentScDisplayNumber} : `
-                : ""}
+              {currentChDisplayNumber !== null && currentChDisplayNumber !== "" && currentScDisplayNumber !== null && currentScDisplayNumber !== ""
+                ? `ฉากที่ ${currentChDisplayNumber}.${currentScDisplayNumber}`
+                : "ฉาก: ?"}{" "}
               {sceneLabel}
             </span>
           </nav>
@@ -908,7 +943,7 @@ const handleSave = async (overridePublishStatus = null, returnToManager = false,
         <SceneTreeSidebar
           chapters={chapters}
           currentSceneId={sceneId}
-          currentChapterId={chapterId}
+          currentChapterId={effectiveChapterId}
           currentChapterTitle={chapterTitle}
           currentSceneLabel={sceneLabel}
           onSelectScene={(chId, sId) => onNavigate("scene-editor", { novelId, chapterId: chId, sceneId: sId })}

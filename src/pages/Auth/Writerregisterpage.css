@@ -371,7 +371,7 @@
   font-size: 28px;
   font-weight: 700;
   color: var(--pink-500);
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   letter-spacing: -0.3px;
 }
 
@@ -382,7 +382,7 @@
 .wr-field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 2px;
   margin-bottom: 20px;
 }
 
@@ -969,4 +969,43 @@
 .modal-btn--delete:hover {
   background: #d32f2f;
   border-color: #d32f2f;
+}
+
+.ql-editor {
+    min-height: 180px;
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+.ql-toolbar {
+    border-radius: 12px 12px 0 0;
+}
+
+.ql-container {
+    border-radius: 0 0 12px 12px;
+}
+
+.wr-input-wrap--error .ql-container {
+    border-color: #ef4444;
+}
+
+.wr-input-wrap--error .ql-toolbar {
+    border-color: #ef4444;
+}
+
+.wr-field .wr-label {
+    margin-bottom: 4px;
+}
+
+.wr-field .wr-input-wrap {
+    margin-top: 0;
+}
+
+.ql-toolbar.ql-snow {
+    margin: 0 !important;
+    padding: 6px 8px !important;
+}
+
+.ql-container.ql-snow {
+    margin: 0 !important;
 }

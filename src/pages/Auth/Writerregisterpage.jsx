@@ -3,7 +3,8 @@ import ReactDOM from "react-dom"; // 1. เพิ่มการ Import ReactDOM
 import "./WriterRegisterPage.css";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar/Navbar";
-
+import ReactQuill from "react-quill-new";
+import "quill/dist/quill.snow.css";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const STEPS = [
@@ -19,12 +20,34 @@ const GENRE_OPTIONS = [
     "LGBTQ+", "มิตรภาพ", "สืบสวน",
 ];
 
+const QUILL_MODULES = {
+    toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ["bold", "italic", "underline", "strike"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["blockquote"],
+        ["link"],
+        ["clean"]
+    ]
+};
+
+const QUILL_FORMATS = [
+    "header",
+    "bold",
+    "italic",
+    "underline",
+    "strike",
+    "list",
+    "blockquote",
+    "link"
+];
+
 // ─────────────────────────────────────────────
 //  Sub Component: Cancel Confirmation Modal
 // ─────────────────────────────────────────────
 const CancelConfirmModal = ({ isOpen, onConfirm, onCancel }) => {
     if (!isOpen) return null;
-    
+
     // 2. ใช้ ReactDOM.createPortal ครอบ เพื่อส่งกล่องนี้ไปอยู่ชั้นนอกสุดของหน้าเว็บ
     return ReactDOM.createPortal(
         <div className="wr-modal-overlay">
@@ -88,12 +111,12 @@ const AvatarUpload = ({ preview, onChange }) => {
     const handleFile = (file) => {
         if (!file) return;
         if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-            alert("รองรับไฟล์รูปภาพประเภท PNG, JPG, WEBP เท่านั้นครับ"); 
+            alert("รองรับไฟล์รูปภาพประเภท PNG, JPG, WEBP เท่านั้นครับ");
             return;
         }
-        if (file.size > 5 * 1024 * 1024) { 
-            alert("ขนาดรูปภาพต้องไม่เกิน 5MB นะครับ"); 
-            return; 
+        if (file.size > 5 * 1024 * 1024) {
+            alert("ขนาดรูปภาพต้องไม่เกิน 5MB นะครับ");
+            return;
         }
         const url = URL.createObjectURL(file);
         onChange(file, url);
@@ -184,7 +207,15 @@ const SummaryCard = ({ data }) => {
     const rows = [
         { label: "ชื่อ - นามสกุล", value: data.fullName || "—" },
         { label: "นามปากกา", value: data.penName || "—" },
-        { label: "แนะนำตัว", value: data.bio || "—" },
+        <div className="wr-summary__row">
+            <span className="wr-summary__label">แนะนำตัว</span>
+            <span
+                className="wr-summary__value"
+                dangerouslySetInnerHTML={{
+                    __html: data.bio || "—"
+                }}
+            />
+        </div>,
         { label: "ประเภทนิยายที่แต่ง", value: data.genres.length ? data.genres.join(", ") : "—" },
         { label: "อีเมล", value: data.email || "—" },
         { label: "ช่องทางติดต่อหลัก", value: data.mainContact || "—" },
@@ -316,7 +347,11 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "รูปแบบอีเมลไม่ถูกต้อง";
         }
         if (s === 2) {
-            if (!form.bio.trim()) e.bio = "กรุณาแนะนำตัวตนของคุณสั้นๆ";
+            const plainBio = form.bio.replace(/<[^>]*>/g, "").trim();
+
+            if (!plainBio) {
+                e.bio = "กรุณาแนะนำตัวตนของคุณสั้นๆ";
+            }
             if (form.genres.length === 0) e.genres = "กรุณาเลือกประเภทนิยายอย่างน้อย 1 ประเภท";
         }
         if (s === 3) {
@@ -384,7 +419,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             formData.append("genres", JSON.stringify(form.genres));
             formData.append("main_contact", form.mainContact);
             formData.append("other_links", form.otherLinks);
-            
+
             if (form.avatarFile) {
                 formData.append("avatar", form.avatarFile);
             }
@@ -403,7 +438,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             }
 
             alert("🎉 ส่งใบสมัครเป็นนักเขียนสำเร็จแล้ว! รอเจ้าหน้าที่แอดมินอนุมัตินะครับ");
-            navigate("/"); 
+            navigate("/");
             onComplete?.();
 
         } catch (error) {
@@ -525,16 +560,15 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                     <div className="wr-step-content">
                         <h2 className="wr-section-title">แนะนำตัว</h2>
 
-                        <div className="wr-field">
-                            <label className="wr-label" htmlFor="bio">แนะนำเกี่ยวกับคุณ</label>
-                            <div className={`wr-input-wrap ${errors.bio ? "wr-input-wrap--error" : ""}`}>
-                                <textarea id="bio" className="wr-textarea"
-                                    placeholder="อธิบายความเป็นตัวคุณ สไตล์งานเขียน หรือผลงานของคุณสั้นๆ...."
-                                    rows={5}
-                                    value={form.bio}
-                                    onChange={(e) => setField("bio", e.target.value)} />
-                            </div>
-                            {errors.bio && <p className="wr-field__error" role="alert">{errors.bio}</p>}
+                        <div className={`wr-input-wrap ${errors.bio ? "wr-input-wrap--error" : ""}`}>
+                            <ReactQuill
+                                theme="snow"
+                                value={form.bio}
+                                onChange={(value) => setField("bio", value)}
+                                modules={QUILL_MODULES}
+                                formats={QUILL_FORMATS}
+                                placeholder="อธิบายความเป็นตัวคุณ สไตล์งานเขียน หรือผลงานของคุณสั้นๆ..."
+                            />
                         </div>
 
                         <div className="wr-field">

@@ -19,7 +19,7 @@
 
 .wdb__title {
   font-family: 'Open Sans', serif;
-  font-size: 26px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.3px;
@@ -27,7 +27,7 @@
 }
 
 .wdb__sub {
-  font-size: 13px;
+  font-size: 18px;
   color: var(--gray-600);
 }
 
@@ -112,7 +112,7 @@
 }
 
 .scard__label {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--gray-600);
 }
 
@@ -126,14 +126,14 @@
 
 .wdb__novels-title {
   font-family: 'Open Sans', serif;
-  font-size: 20px;
+  font-size: 28px;
   font-weight: 600;
   color: var(--ink);
   margin-bottom: 3px;
 }
 
 .wdb__novels-count {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--gray-300);
 }
 

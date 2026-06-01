@@ -14,7 +14,7 @@
 // ══════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useMemo } from "react";
-import ReactFlow, { Handle, Position } from "reactflow";
+import ReactFlow, { Handle, Position, MiniMap, Controls, Background, BackgroundVariant, } from "reactflow";
 import axios from "axios";
 import "reactflow/dist/style.css";
 import "./Writerstorytreepage.css";
@@ -31,18 +31,44 @@ const WRITER_NODE_STATUS = {
   START: "start",
   NORMAL: "normal",
   ENDING: "ending",
+  ORPHAN: "orphan",
 };
 
 const WRITER_NODE_STYLE = {
-  [WRITER_NODE_STATUS.START]: { stroke: "#6D28D9", fill: "#EEF2FF", text: "#4C1D95" },
-  [WRITER_NODE_STATUS.NORMAL]: { stroke: "#3B82F6", fill: "#EFF6FF", text: "#1E40AF" },
-  [WRITER_NODE_STATUS.ENDING]: { stroke: "#F97316", fill: "#FFF7ED", text: "#C2410C" },
+  // จุดเริ่มต้น = เขียว
+  [WRITER_NODE_STATUS.START]: {
+    stroke: "#16A34A",
+    fill: "#DCFCE7",
+    text: "#166534",
+  },
+
+  // ฉากทั่วไป = ฟ้าอ่อน
+  [WRITER_NODE_STATUS.NORMAL]: {
+    stroke: "#38BDF8",
+    fill: "#E0F2FE",
+    text: "#0369A1",
+  },
+
+  // ฉากจบ = แดง
+  [WRITER_NODE_STATUS.ENDING]: {
+    stroke: "#EF4444",
+    fill: "#FEE2E2",
+    text: "#991B1B",
+  },
+
+  // ฉากไม่มีการเชื่อมต่อ
+  [WRITER_NODE_STATUS.ORPHAN]: {
+    stroke: "#94A3B8",
+    fill: "#F1F5F9",
+    text: "#475569",
+  },
 };
 
 const WRITER_LEGEND = [
-  { label: "จุดเริ่มต้น", color: "#6D28D9" },
-  { label: "ฉากปกติ", color: "#3B82F6" },
-  { label: "ฉากจบ", color: "#F97316" },
+  { label: "จุดเริ่มต้น", color: "#16A34A" },
+  { label: "ฉากทั่วไป", color: "#38BDF8" },
+  { label: "ฉากจบ", color: "#EF4444" },
+  { label: "ฉากยังไม่เชื่อมต่อ", color: "#94A3B8" },
 ];
 
 const normalizeId = (value) => {
@@ -64,6 +90,20 @@ const getNodeTitle = (node) => stripHtml(node?.Title || node?.title || node?.Lab
 const getNodeContent = (node) => stripHtml(node?.Content || node?.content || node?.Excerpt || node?.excerpt || "รายละเอียดฉากนี้ยังไม่มี");
 const getNodeChapter = (node) => stripHtml(node?.ChapterTitle || node?.chapter_title || node?.chapter || node?.chapterName || node?.chapter_name || "");
 const getChoiceLabel = (choice) => stripHtml(choice?.Label || choice?.label || choice?.choice_text || choice?.text || "ไม่มีชื่อ");
+const getChapterId = (node) =>
+  normalizeId(
+    node?.ChapterID ??
+    node?.chapter_id ??
+    node?.chapterId
+  );
+
+const getSceneId = (node) =>
+  normalizeId(
+    node?.ID ??
+    node?.id ??
+    node?.SceneID ??
+    node?.scene_id
+  );
 
 const formatNodeStatus = (node) => {
   const type = getNodeType(node);
@@ -76,20 +116,59 @@ const StoryNode = ({ data }) => {
   const status = data.status;
   const style = WRITER_NODE_STYLE[status] || WRITER_NODE_STYLE[WRITER_NODE_STATUS.NORMAL];
   const title = getNodeTitle(data);
+
+  const chapterNo =
+    data.chapterNumber ||
+    data.chapter_number;
+
+  const sceneNo =
+    data.sceneNumber ||
+    data.scene_number;
+
   const description = getNodeContent(data);
   const chapter = getNodeChapter(data);
   const prefix = status === WRITER_NODE_STATUS.START
     ? "▶ "
     : status === WRITER_NODE_STATUS.ENDING
       ? "🏆 "
-      : "📘 ";
+      : " ";
 
   return (
     <div className="wst-node-card" style={{ borderColor: style.stroke, background: style.fill, color: style.text }}>
       <Handle type="target" position={Position.Top} />
-      <div className="wst-node-card__title">{prefix}{title}</div>
-      <div className="wst-node-card__desc">{description}</div>
-      {chapter ? <div className="wst-node-card__chapter">{chapter}</div> : null}
+      <div className="wst-node-card__header">
+
+        <div className="wst-node-card__chapter">
+          ตอนที่ {chapterNo}
+        </div>
+
+        <div className="wst-node-card__scene">
+          ฉาก {chapterNo}.{sceneNo}
+        </div>
+
+      </div>
+
+      <div className="wst-node-card__title">
+        {title}
+      </div>
+
+      <div className="wst-node-card__desc">
+        {description}
+      </div>
+
+      <button
+        className="wst-node-card__edit"
+        onClick={(e) => {
+          e.stopPropagation();
+
+          data.onEdit?.(
+            getSceneId(data),
+            data.ChapterID
+          );
+        }}
+      >
+        ✏ แก้ไข
+      </button>
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
@@ -193,7 +272,15 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
     nodes.forEach((node) => {
       const id = getNodeId(node);
-      nodeStatuses[id] = formatNodeStatus(node);
+
+      const hasIncoming = inDegree[id] > 0;
+      const hasOutgoing = adjacency[id]?.length > 0;
+
+      if (!hasIncoming && !hasOutgoing) {
+        nodeStatuses[id] = WRITER_NODE_STATUS.ORPHAN;
+      } else {
+        nodeStatuses[id] = formatNodeStatus(node);
+      }
     });
 
     const queue = [];
@@ -289,15 +376,58 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     };
   }, [nodes, edges, sceneMap, treeData]);
 
-  const nodeTypes = useMemo(() => ({ writerNode: StoryNode }), []);
+  const scenePositionMap = useMemo(() => {
+    const map = new Map();
 
-  const flowNodes = useMemo(() => positionedNodes.map((item) => ({
-    id: item.id,
-    type: "writerNode",
-    position: { x: item.x, y: item.y },
-    data: { ...item.scene, status: item.status },
-    draggable: false,
-  })), [positionedNodes]);
+    chapters.forEach((chapter, chapterIndex) => {
+      chapter.scenes.forEach((scene, sceneIndex) => {
+        map.set(getNodeId(scene), {
+          chapterNumber: chapterIndex + 1,
+          sceneNumber: sceneIndex + 1,
+          chapterTitle: chapter.title,
+        });
+      });
+    });
+
+    return map;
+  }, [chapters]);
+
+  const nodeTypes = useMemo(
+    () => ({ writerNode: StoryNode }),
+    []
+  );
+
+  const flowNodes = useMemo(
+    () =>
+      positionedNodes.map((item) => {
+        const pos = scenePositionMap.get(item.id);
+
+        return {
+          id: item.id,
+          type: "writerNode",
+          position: {
+            x: item.x,
+            y: item.y,
+          },
+          data: {
+            ...item.scene,
+            status: item.status,
+            chapterNumber: pos?.chapterNumber,
+            sceneNumber: pos?.sceneNumber,
+
+            onEdit: (sceneId, chapterId) => {
+              onNavigate?.("scene-editor", {
+                novelId,
+                chapterId,
+                sceneId,
+              });
+            },
+          },
+          draggable: false,
+        };
+      }),
+    [positionedNodes, scenePositionMap]
+  );
 
   const validNodeIds = useMemo(() => new Set(positionedNodes.map((item) => item.id)), [positionedNodes]);
 
@@ -342,16 +472,41 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
   const handleNodeDoubleClick = (_, node) => {
     const sceneId = node?.id;
     if (!sceneId) return;
+
+    const sceneData = sceneMap.get(sceneId);
+
+    const chapterId =
+      sceneData?.ChapterID ??
+      sceneData?.chapter_id ??
+      sceneData?.chapterId;
+
     setSelectedSceneId(sceneId);
+
     if (onNavigate) {
-      onNavigate("scene-editor", { novelId, sceneId });
+      onNavigate("scene-editor", {
+        novelId,
+        chapterId,
+        sceneId,
+      });
     }
   };
 
   const handleSidebarSceneClick = (sceneId) => {
+    const sceneData = sceneMap.get(String(sceneId));
+
+    const chapterId =
+      sceneData?.ChapterID ??
+      sceneData?.chapter_id ??
+      sceneData?.chapterId;
+
     setSelectedSceneId(sceneId);
+
     if (onNavigate) {
-      onNavigate("scene-editor", { novelId, sceneId });
+      onNavigate("scene-editor", {
+        novelId,
+        chapterId,
+        sceneId,
+      });
     }
   };
 
@@ -391,11 +546,12 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     return sourceId === selectedSceneId;
   });
 
+
   return (
     <div className="wst-page">
       <header className="wst-topbar">
         <div className="wst-topbar__left">
-          <button className="wst-topbar__back" onClick={() => onNavigate && onNavigate("chapters") }>
+          <button className="wst-topbar__back" onClick={() => onNavigate && onNavigate("chapters")}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L5 7L9 11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
             จัดการตอน
           </button>
@@ -427,11 +583,45 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
                     panOnScroll
                     nodesDraggable={false}
                     nodesConnectable={false}
-                    elementsSelectable={true}
+                    elementsSelectable
                     minZoom={0.3}
                     maxZoom={1.6}
                     className="wst-reactflow"
-                  />
+                  >
+                    <MiniMap
+                      zoomable
+                      pannable
+                      nodeColor={(node) => {
+                        const status = node.data?.status;
+
+                        switch (status) {
+                          case WRITER_NODE_STATUS.START:
+                            return "#16A34A";
+
+                          case WRITER_NODE_STATUS.ENDING:
+                            return "#EF4444";
+
+                          case WRITER_NODE_STATUS.ORPHAN:
+                            return "#94A3B8";
+
+                          default:
+                            return "#38BDF8";
+                        }
+                      }}
+                    />
+
+                    <Controls
+                      showZoom
+                      showFitView
+                      showInteractive={false}
+                    />
+
+                    <Background
+                      variant={BackgroundVariant.Dots}
+                      gap={24}
+                      size={1}
+                    />
+                  </ReactFlow>
                 </div>
               ) : (
                 <div className="wst-empty-state">ไม่พบข้อมูลโครงสร้างเนื้อเรื่อง</div>
@@ -459,68 +649,157 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
           {selectedScene && (
             <>
               <div className="wst-sidebar__divider" />
-              <div className="wst-sidebar__details-section">
-                <h4 className="wst-sidebar__details-title">รายละเอียดฉากที่เลือก</h4>
-                
-                <div className="wst-sidebar__detail-item">
-                  <span className="wst-sidebar__detail-label">ชื่อฉาก:</span>
-                  <span className="wst-sidebar__detail-value">{getNodeTitle(selectedScene)}</span>
-                </div>
-              {/*แสดงชื่อตอน 
-                <div className="wst-sidebar__detail-item">
-                  <span className="wst-sidebar__detail-label">ตอน:</span>
-                  <span className="wst-sidebar__detail-value">{getNodeChapter(selectedScene)}</span>
-                </div> */}
-
-                <div className="wst-sidebar__detail-item">
-                  <span className="wst-sidebar__detail-label">ประเภท:</span>
-                  <span className="wst-sidebar__detail-value">
-                    {getNodeType(selectedScene) === "start" ? "จุดเริ่มต้น" 
-                     : getNodeType(selectedScene) === "ending" ? "ฉากจบ" 
-                     : "ฉากทั่วไป"}
-                  </span>
-                </div>
-
-                <div className="wst-sidebar__detail-item">
-                  <span className="wst-sidebar__detail-label">เนื้อหา:</span>
-                  <p className="wst-sidebar__detail-content">{getNodeContent(selectedScene)}</p>
-                </div>
-
-                {incomingChoices.length > 0 && (
-                  <div className="wst-sidebar__choices-section">
-                    <span className="wst-sidebar__choices-label">ตัวเลือกต้นทางที่เชื่อมมาฉากนี้ ({incomingChoices.length}):</span>
-                    <ul className="wst-sidebar__choices-list">
-                      {incomingChoices.map((choice, idx) => (
-                        <li key={idx} className="wst-sidebar__choice-item">{getChoiceLabel(choice)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {outgoingChoices.length > 0 && (
-                  <div className="wst-sidebar__choices-section">
-                    <span className="wst-sidebar__choices-label">ตัวเลือกปลายทาง ({outgoingChoices.length}):</span>
-                    <ul className="wst-sidebar__choices-list">
-                      {outgoingChoices.map((choice, idx) => (
-                        <li key={idx} className="wst-sidebar__choice-item">{getChoiceLabel(choice)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {/* ปุ่มแก้ไขฉาก (นำไปสู่ Scene Editor) 
-                <button 
-                  className="wst-sidebar__edit-btn"
-                  onClick={() => handleNodeDoubleClick(selectedSceneId)}
-                >
-                  ✏️ แก้ไขฉากนี้
-                </button> */}
-              </div>
+              <SceneDetailsCard
+                scene={selectedScene}
+                scenePositionMap={scenePositionMap}
+                selectedSceneId={selectedSceneId}
+                onEdit={(sceneId) => {
+                  const sceneData = sceneMap.get(sceneId);
+                  const chapterId = sceneData?.ChapterID ?? sceneData?.chapter_id ?? sceneData?.chapterId;
+                  onNavigate?.("scene-editor", {
+                    novelId,
+                    chapterId,
+                    sceneId,
+                  });
+                }}
+                incomingChoices={incomingChoices}
+                outgoingChoices={outgoingChoices}
+              />
             </>
           )}
 
-          
+
         </aside>
       </div>
+    </div>
+  );
+};
+
+const SceneDetailsCard = ({
+  scene,
+  scenePositionMap,
+  selectedSceneId,
+  onEdit,
+  incomingChoices,
+  outgoingChoices
+}) => {
+  const sceneId = getNodeId(scene);
+  const pos = scenePositionMap.get(sceneId);
+  const type = getNodeType(scene);
+
+  const typeLabel = type === "start" ? "จุดเริ่มต้น"
+    : type === "ending" ? "ฉากจบ"
+      : "ฉากทั่วไป";
+
+  const typeColor = type === "start" ? "#16A34A"
+    : type === "ending" ? "#EF4444"
+      : "#38BDF8";
+
+  const typeIcon = type === "start" ? "▶"
+    : type === "ending" ? "🏆"
+      : "📖";
+
+  const sceneNumber = pos ? `${pos.chapterNumber}.${pos.sceneNumber}` : "?";
+  const sceneTitle = getNodeTitle(scene);
+  const chapterTitle = pos ? `ตอนที่ ${pos.chapterNumber}: ${pos.chapterTitle}` : getNodeChapter(scene);
+
+  return (
+    <div className="wst-scene-details">
+      {/* Header Section */}
+      <div className="wst-scene-details__header">
+        <div className="wst-scene-details__header-left">
+          <h4 className="wst-scene-details__scene-number">ฉากที่ {sceneNumber}</h4>
+          <span
+            className="wst-scene-details__type-badge"
+            style={{
+              borderColor: typeColor,
+              color: typeColor
+            }}
+          >
+            {typeIcon} {typeLabel}
+          </span>
+        </div>
+        <button
+          className="wst-scene-details__edit-btn"
+          onClick={() => onEdit?.(selectedSceneId)}
+          title="แก้ไขฉากนี้"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 14h3.5L13.85 3.65l-3.5-3.5L2 10.5V14z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M10.5 2l3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          แก้ไข
+        </button>
+      </div>
+
+      {/* Title */}
+      <h3 className="wst-scene-details__title">{sceneTitle}</h3>
+
+      {/* Meta Info */}
+      <div className="wst-scene-details__meta">
+        <div className="wst-scene-details__meta-item">
+          <span className="wst-scene-details__meta-label">ตอน</span>
+          <span className="wst-scene-details__meta-value">{chapterTitle}</span>
+        </div>
+        <div className="wst-scene-details__meta-item">
+          <span className="wst-scene-details__meta-label">ประเภท</span>
+          <span className="wst-scene-details__meta-value">{typeLabel}</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="wst-scene-details__content-section">
+        <h5 className="wst-scene-details__section-title">📖 เนื้อหา</h5>
+        <p className="wst-scene-details__content">{getNodeContent(scene)}</p>
+      </div>
+
+      {/* Incoming Choices */}
+      {incomingChoices && incomingChoices.length > 0 && (
+        <div className="wst-scene-details__choices-section">
+          <div className="wst-scene-details__choices-header">
+            <h5 className="wst-scene-details__section-title">
+              ตัวเลือกต้นทางที่เชื่อมมาฉากนี้
+            </h5>
+            <span className="wst-scene-details__count">{incomingChoices.length}</span>
+          </div>
+          <div className="wst-scene-details__choices-list">
+            {incomingChoices.map((choice, idx) => (
+              <div key={idx} className="wst-scene-details__choice-pill wst-scene-details__choice-pill--in">
+                <span className="wst-scene-details__choice-arrow">←</span>
+                <span className="wst-scene-details__choice-text">{getChoiceLabel(choice)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Outgoing Choices */}
+      {outgoingChoices && outgoingChoices.length > 0 && (
+        <div className="wst-scene-details__choices-section">
+          <div className="wst-scene-details__choices-header">
+            <h5 className="wst-scene-details__section-title">
+              ตัวเลือกปลายทาง
+            </h5>
+            <span className="wst-scene-details__count">{outgoingChoices.length}</span>
+          </div>
+          <div className="wst-scene-details__choices-list">
+            {outgoingChoices.map((choice, idx) => (
+              <div key={idx} className="wst-scene-details__choice-pill wst-scene-details__choice-pill--out">
+                <span className="wst-scene-details__choice-text">{getChoiceLabel(choice)}</span>
+                <span className="wst-scene-details__choice-arrow">→</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {(!incomingChoices || incomingChoices.length === 0) &&
+        (!outgoingChoices || outgoingChoices.length === 0) && (
+          <div className="wst-scene-details__empty-state">
+            <p>ฉากนี้ยังไม่มีตัวเลือกเชื่อมต่อ</p>
+          </div>
+        )}
     </div>
   );
 };

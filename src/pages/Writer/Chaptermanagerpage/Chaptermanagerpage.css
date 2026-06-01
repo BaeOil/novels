@@ -65,8 +65,8 @@
 }
 
 .cm-banner__cover {
-  width: 64px;
-  height: 88px;
+  width: 128px;
+  height: 176px;
   border-radius: 10px;
   flex-shrink: 0;
   display: flex;
@@ -805,4 +805,232 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* ──────────────────────────────────────────── */
+/* Chapter Header Panel - Input และ Button */
+/* ──────────────────────────────────────────── */
+
+.cm-chapter__header-edit-input {
+  flex: 1;
+  min-width: 200px;
+  border: 1px solid #e5e7eb;  /* 🆕 เปลี่ยนจาก 1.5px เป็น 1px */
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: 'Sarabun', sans-serif;
+  color: #1f2937;
+  background: #ffffff;
+  outline: none;
+  transition: all .2s ease;
+}
+
+.cm-chapter__header-edit-input:focus {
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.08);
+  background: #fdf9fb;
+}
+
+.cm-chapter__header-edit-input::placeholder {
+  color: #d1d5db;
+}
+
+/* ──────────────────────────────────────────── */
+/* Sidebar New Form - Input และ Select */
+/* ──────────────────────────────────────────── */
+
+.cm-sidebar__new-form .cm-input,
+.cm-sidebar__new-form .cm-select {
+  border: 1px solid #fecaca !important;  
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: 'Sarabun', sans-serif;
+  color: #1f2937;
+  outline: none;
+  transition: all .2s ease;
+}
+
+.cm-sidebar__new-form .cm-input:focus,
+.cm-sidebar__new-form .cm-select:focus {
+  border-color: #ec4899 !important;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.08);
+  background: #fdf9fb;
+}
+
+.cm-sidebar__new-form .cm-input::placeholder {
+  color: #d1d5db;
+}
+
+/* ──────────────────────────────────────────── */
+/* Buttons ในหัวข้อตอนและ Sidebar Form */
+/* ──────────────────────────────────────────── */
+
+/* ปุ่มบันทึก (สีเขียว) */
+.cm-chapter__header-edit-row .cm-btn:nth-child(2),
+.cm-sidebar__new-form .cm-btn:not(.cm-btn--outline) {
+  background: #10b981;  /* 🆕 สีเขียวอ่อน */
+  color: #ffffff;
+  border: 1px solid #10b981;
+  font-weight: 600;
+  transition: all .2s ease;
+}
+
+.cm-chapter__header-edit-row .cm-btn:nth-child(2):hover,
+.cm-sidebar__new-form .cm-btn:not(.cm-btn--outline):hover {
+  background: #059669;
+  border-color: #059669;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+}
+
+/* ปุ่มยกเลิก (สีแดง) */
+.cm-chapter__header-edit-row .cm-btn--outline,
+.cm-sidebar__new-form .cm-btn--outline {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  font-weight: 600;
+  transition: all .2s ease;
+}
+
+.cm-chapter__header-edit-row .cm-btn--outline:hover,
+.cm-sidebar__new-form .cm-btn--outline:hover {
+  background: #fecaca;
+  border-color: #dc2626;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+
+/* ──────────────────────────────────────────── */
+/* ปรับปุ่มแก้ไชชื่อตอน */
+/* ──────────────────────────────────────────── */
+
+.cm-chapter__header-info .cm-btn {
+  background: #ffffff;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  font-weight: 600;
+  padding: 6px 12px;
+  font-size: 12px;
+  transition: all .2s ease;
+}
+
+.cm-chapter__header-info .cm-btn:hover {
+  background: #ec4899;
+  color: #ffffff;
+  border-color: #ec4899;
+  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.2);
+}
+
+/* ──────────────────────────────────────────── */
+/* ปรับ Input ทั่วไป */
+/* ──────────────────────────────────────────── */
+
+.cm-input,
+.cm-select {
+  border: 1px solid #e5e7eb !important;  /* 🆕 เปลี่ยนจาก 1.5px เป็น 1px */
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #1f2937;
+  outline: none;
+  transition: all .2s ease;
+}
+
+.cm-input:focus,
+.cm-select:focus {
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.08);
+}
+
+.cm-input::placeholder {
+  color: #d1d5db;
+}
+
+/* ──────────────────────────────────────────── */
+/* Chapter Header Panel (หัวข้อตอนใหญ่) */
+/* ──────────────────────────────────────────── */
+
+.cm-chapter__header-panel {
+  background: #fff5f9;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #fbcfe8;
+}
+
+.cm-chapter__header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+}
+
+.cm-chapter__header-episode {
+  font-size: 36px;
+  font-weight: 900;
+  color: #ec4899;
+  min-width: 60px;
+  text-align: center;
+}
+
+.cm-chapter__header-info {
+  flex: 1;
+}
+
+.cm-chapter__header-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.cm-chapter__header-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cm-chapter__header-edit-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.cm-chapter__header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+
+.cm-chapter__header-badge {
+  display: inline-block;
+  background: rgb(254, 243, 199);
+  color: #be123c;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cm-chapter__header-date {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+
+/* ──────────────────────────────────────────── */
+/* Scene Card - Choices Badge */
+/* ──────────────────────────────────────────── */
+
+.cm-scene__choices-badge {
+  font-weight: 600 !important;
+  min-width: 100px;
 }
