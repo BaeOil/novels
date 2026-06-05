@@ -139,51 +139,54 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
   const [novelDetail, setNovelDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [restartLoading, setRestartLoading] = useState(false);
+  const [restartError, setRestartError] = useState(null);
 
-  useEffect(() => {
+  const loadAllData = async () => {
     if (!activeNovelId || activeNovelId === "undefined") {
       setError("ไม่พบรหัสนิยายเพื่อโหลดผังเส้นทาง");
       setLoading(false);
       return;
     }
 
-    const loadAllData = async () => {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
+    try {
       try {
-        try {
-          const novelRes = await fetch(`${BASE_URL}/novels/${activeNovelId}`);
-          if (novelRes.ok) {
-            const novelJson = await novelRes.json();
-            setNovelDetail(novelJson?.data?.novel || novelJson?.data || novelJson);
-          }
-        } catch (e) {
-          console.warn("ดึงข้อมูลนิยายหลักไม่สำเร็จ:", e);
+        const novelRes = await fetch(`${BASE_URL}/novels/${activeNovelId}`);
+        if (novelRes.ok) {
+          const novelJson = await novelRes.json();
+          setNovelDetail(novelJson?.data?.novel || novelJson?.data || novelJson);
         }
-
-        const query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
-        const response = await fetch(`${BASE_URL}/novels/${activeNovelId}/story-tree${query}`);
-        if (!response.ok) {
-          throw new Error("ไม่สามารถเรียกดูแผนผังนิยายกิ่งไม้จากฐานข้อมูลได้");
-        }
-
-        const resData = await response.json();
-        const actualTreeData = resData.data || resData;
-        if (actualTreeData) {
-          setTreeData(actualTreeData);
-        } else {
-          throw new Error("รูปแบบ JSON ของผังต้นไม้ที่ระบบส่งมาไม่ถูกต้อง");
-        }
-      } catch (err) {
-        console.error("StoryTree Fetch Error:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      } catch (e) {
+        console.warn("ดึงข้อมูลนิยายหลักไม่สำเร็จ:", e);
       }
-    };
 
+      const query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
+      const response = await fetch(`${BASE_URL}/novels/${activeNovelId}/story-tree${query}`);
+      if (!response.ok) {
+        throw new Error("ไม่สามารถเรียกดูแผนผังนิยายกิ่งไม้จากฐานข้อมูลได้");
+      }
+
+      const resData = await response.json();
+      const actualTreeData = resData.data || resData;
+      if (actualTreeData) {
+        setTreeData(actualTreeData);
+      } else {
+        throw new Error("รูปแบบ JSON ของผังต้นไม้ที่ระบบส่งมาไม่ถูกต้อง");
+      }
+    } catch (err) {
+      console.error("StoryTree Fetch Error:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadAllData();
-  }, [activeNovelId, userId]);
+  }, [activeNovelId, effectiveUserId]);
 
   const { computedNodes, computedEdges, autoStats } = useMemo(() => {
     if (!treeData || !treeData.nodes) return { computedNodes: [], computedEdges: [], autoStats: null };
@@ -193,6 +196,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
     const startNode = rawNodes.find(n => n.type === "start") || rawNodes[0];
     const startNodeIdStr = startNode ? String(startNode.id) : null;
+    const currentSceneIdStr = treeData.current_scene_id ? String(treeData.current_scene_id) : null;
     const hasBackendCurrent = rawNodes.some(n => n.is_current === true);
 
     const parentMap = {};
@@ -242,16 +246,21 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       const parents = parentMap[nodeIdStr] || [];
       const isAnyParentActive = parents.some(pId => activeNodeIds.has(pId));
 
-      const isCurrentNode = node.is_current || (!hasBackendCurrent && nodeIdStr === startNodeIdStr);
+      const isCurrentNode = node.is_current || (currentSceneIdStr ? nodeIdStr === currentSceneIdStr : (!hasBackendCurrent && nodeIdStr === startNodeIdStr));
 
       if (node.type === "start") {
         computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.VISITED;
       } else if (node.type === "ending") {
-        computedStatus = node.is_unlocked ? NODE_STATUS.ENDING_UNLOCKED : NODE_STATUS.ENDING_LOCKED;
+        // 🔧 เช็ค isCurrentNode สำหรับ ending node ด้วย
+        if (isCurrentNode) {
+          computedStatus = NODE_STATUS.CURRENT;
+        } else {
+          computedStatus = node.is_unlocked ? NODE_STATUS.ENDING_UNLOCKED : NODE_STATUS.ENDING_LOCKED;
+        }
       } else {
         if (isCurrentNode) {
           computedStatus = NODE_STATUS.CURRENT;
-        } else if (node.is_unlocked || isAnyParentActive) {
+        } else if (node.is_unlocked) {
           computedStatus = NODE_STATUS.VISITED;
         } else {
           computedStatus = NODE_STATUS.LOCKED;
@@ -317,6 +326,56 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
     };
   }, [treeData]);
 
+  const handleRestartConfirmOpen = () => {
+    setRestartError(null);
+    setShowRestartConfirm(true);
+  };
+
+  const handleRestartConfirmClose = () => {
+    setRestartError(null);
+    setShowRestartConfirm(false);
+    setRestartLoading(false);
+  };
+
+  const handleRestart = async () => {
+    if (!activeNovelId) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setRestartError("กรุณาเข้าสู่ระบบก่อนเริ่มอ่านใหม่");
+      return;
+    }
+
+    setRestartLoading(true);
+    setRestartError(null);
+
+    try {
+      const response = await fetch(`${BASE_URL}/novels/${activeNovelId}/restart`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+      }
+
+      const startSceneId = payload?.data?.start_scene_id || payload?.data?.StartSceneID || payload?.start_scene_id || payload?.startSceneId;
+      setShowRestartConfirm(false);
+      if (startSceneId) {
+        onNavigate?.("reading", { novelId: activeNovelId, sceneId: startSceneId });
+      } else {
+        onNavigate?.("reading", { novelId: activeNovelId });
+      }
+    } catch (err) {
+      setRestartError(err.message || "ไม่สามารถเริ่มอ่านใหม่ได้ในขณะนี้");
+    } finally {
+      setRestartLoading(false);
+    }
+  };
+
   const handleNodeClick = (_, node) => {
     const currentStatus = node.data?.computedStatus;
     const clickable = currentStatus === NODE_STATUS.CURRENT ||
@@ -332,6 +391,71 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       });
     }
   };
+
+  if (!effectiveUserId) {
+    return (
+      <div className="stp">
+        <div className="stp__container">
+          <button className="stp__back" onClick={() => onNavigate && onNavigate("novel-detail", { novelId: activeNovelId })}>
+            ← กลับรายละเอียด
+          </button>
+
+          <div className="stp__header">
+            <h1 className="stp__title">
+              ผังเส้นทาง
+              <span className="stp__title-sep"> — </span>
+              <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span>
+            </h1>
+
+            <div className="stp__legend">
+              {[
+                { color: "#E91E8C", label: "จุดปัจจุบัน" },
+                { color: "#4CAF82", label: "ปลดล็อกแล้ว" },
+                { color: "#F7C940", label: "ตอนจบปลดแล้ว" },
+                { color: "#C8C3D4", label: "ยังไม่ปลดล็อก" },
+              ].map((item) => (
+                <div key={item.label} className="stp__legend-item">
+                  <span className="stp__legend-dot" style={{ background: item.color }} />
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="stp__main">
+            <div className="stp__flow-wrapper stp__placeholder-wrapper">
+              <div className="stp__placeholder-card">
+                <span className="stp__placeholder-tag">ล็อกอินก่อน</span>
+                <h2 className="stp__placeholder-title">ล็อกอินเพื่อดูสตอรี่แมพทั้งหมด</h2>
+                <p className="stp__placeholder-text">
+                  ระบบจะแสดงผังโครงสร้างหน้าให้เห็นชัดเจน แต่การเปิดโหนดและสถานะต่าง ๆ จะต้องเข้าสู่ระบบก่อน
+                </p>
+
+                {typeof onNavigate === "function" ? (
+                  <button className="stp__placeholder-button" onClick={() => onNavigate("login")}>ไปที่หน้าเข้าสู่ระบบ</button>
+                ) : (
+                  <a className="stp__placeholder-button" href="/login-register">ไปที่หน้าเข้าสู่ระบบ</a>
+                )}
+              </div>
+            </div>
+
+            <aside className="stp__sidebar">
+              <div className="stp__stat-card stp__placeholder-sidecard">
+                <div className="stp__stat-card-title">โครงสร้างหน้าสตอรี่แมพ</div>
+                <div className="stp__stat-item">
+                  <span className="stp__stat-label">สถานะ</span>
+                  <span className="stp__stat-value stp__stat-value--pink">ล็อกอินเพื่อเปิด</span>
+                </div>
+                <p className="stp__placeholder-note">
+                  หน้านี้จะแสดง layout และโครงสร้างผังเรื่องแบบกว้าง ๆ แต่เนื้อหาโหนดจะยังไม่เปิดจนกว่าจะเข้าสู่ระบบ
+                </p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -388,6 +512,24 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
                 <span>{item.label}</span>
               </div>
             ))}
+          </div>
+
+          <div style={{ marginTop: "18px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handleRestartConfirmOpen}
+              style={{
+                padding: "10px 16px",
+                borderRadius: "999px",
+                border: "1px solid #E91E8C",
+                background: "#ffffff",
+                color: "#E91E8C",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              เริ่มอ่านใหม่
+            </button>
           </div>
         </div>
 
@@ -459,6 +601,70 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
             </div>
           </aside>
         </div>
+        {showRestartConfirm && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0, 0, 0, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}>
+            <div style={{
+              background: "#ffffff",
+              padding: "32px",
+              borderRadius: "18px",
+              maxWidth: "420px",
+              width: "90%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+              textAlign: "center"
+            }}>
+              <h3 style={{ marginBottom: "12px", fontSize: "1.25rem" }}>เริ่มอ่านใหม่</h3>
+              <p style={{ marginBottom: "20px", color: "#4a5568", lineHeight: 1.6 }}>
+                การเริ่มอ่านใหม่นี้จะคืนสถานะความคืบหน้าและผังเรื่องกลับไปยังจุดเริ่มต้น แต่จะยังเก็บตอนจบที่คุณค้นพบไว้
+              </p>
+              {restartError && (
+                <div style={{ marginBottom: "14px", color: "#b91c1c" }}>{restartError}</div>
+              )}
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={handleRestartConfirmClose}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: "12px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#334155",
+                    cursor: "pointer"
+                  }}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestart}
+                  disabled={restartLoading}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: "#E91E8C",
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    cursor: restartLoading ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {restartLoading ? "กำลังเริ่มใหม่..." : "ยืนยันเริ่มอ่านใหม่"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

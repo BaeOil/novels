@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import "./ReadingPage.css";
 import ReadingBreadcrumb from "../../../components/ReadingBreadcrumb/ReadingBreadcrumb";
 import ChoiceButtons from "../../../components/ChoiceButtons/ChoiceButtons";
+import RestartReadingButton from "../../../components/RestartReadingButton/RestartReadingButton";
 
 const BASE_URL = "http://localhost:8080"; 
 
@@ -213,6 +214,33 @@ const ReadingPage = ({
     }
   };
 
+  const handleRestartReading = async () => {
+    if (effectiveUserId) {
+      try {
+        const token = localStorage.getItem("token");
+        const headers = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const response = await fetch(`${BASE_URL}/progress?user_id=${effectiveUserId}&novel_id=${novelId}`, {
+          method: "DELETE",
+          headers,
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error("Reset progress failed:", response.status, errText);
+          return;
+        }
+      } catch (err) {
+        console.error("Error resetting progress:", err);
+        return;
+      }
+    }
+
+    setCurrentSceneId(null);
+    navigate(`/reading/${novelId}`);
+  };
+
   // ⏳ LOADING & ERROR STATES
   if (loading) {
     return (
@@ -337,10 +365,11 @@ const ReadingPage = ({
               <div className="rp__ending-icon" aria-hidden="true">🏆</div>
               <h2 className="rp__ending-title">จบเส้นทางเนื้อเรื่องย่อยนี้แล้ว!</h2>
               <div className="rp__ending-actions">
-                <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => handleLocalNavigate("story-tree")}>
+                <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => handleLocalNavigate("story-tree") }>
                   🌳 ดู Story Tree
                 </button>
-                <button className="rp__ending-btn rp__ending-btn--outline" onClick={() => handleLocalNavigate("novel-detail")}>
+                <RestartReadingButton onRestart={handleRestartReading} />
+                <button className="rp__ending-btn rp__ending-btn--outline" onClick={() => handleLocalNavigate("novel-detail") }>
                   กลับหน้ารายละเอียด
                 </button>
               </div>

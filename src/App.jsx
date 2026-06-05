@@ -140,6 +140,9 @@ const createNavigateHandler = (navigate, currentNovelId = null) => (page, payloa
         console.warn("⚠️ ไม่สามารถเปิดหน้าเขียนได้เนื่องจากข้อมูลไม่ครบ:", { activeNovelId, payload });
       }
       break;
+    case "login":
+      navigate("/login-register");
+      break;
     default:
       navigate("/");
       break;

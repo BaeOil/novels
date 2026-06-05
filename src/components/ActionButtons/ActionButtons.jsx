@@ -13,6 +13,8 @@ import "./ActionButtons.css";
 const ActionButtons = ({
   isBookmarked = false,
   isLiked = false,
+  readLabel = "อ่านเลย",
+  readAriaLabel = "อ่านเลย",
   onRead,
   onBookmark,
   onLike,
@@ -36,12 +38,12 @@ const ActionButtons = ({
       <button
         className="action-buttons__read"
         onClick={onRead}
-        aria-label="อ่านเลย"
+        aria-label={readAriaLabel}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M4 2.5L11.5 7L4 11.5V2.5Z" fill="white" />
         </svg>
-        อ่านเลย
+        {readLabel}
       </button>
 
       {/* Secondary: Bookmark */}

@@ -51,7 +51,11 @@ const NovelDetailPage = () => {
   const [error, setError] = useState(null);
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
+  const [nextSceneId, setNextSceneId] = useState(null);
   const [showNoContentDialog, setShowNoContentDialog] = useState(false); // 🔥 State สำหรับเปิด/ปิดกล่องแจ้งเตือนเมื่อไม่มีเนื้อหา
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [restartLoading, setRestartLoading] = useState(false);
+  const [restartError, setRestartError] = useState(null);
 
   const getCurrentUserId = () => {
     const userJson = localStorage.getItem("user");
@@ -95,7 +99,34 @@ const NovelDetailPage = () => {
         }
 
         const data = payload?.data || payload || {};
-        const nData = data.novel || {}; 
+        const nData = data.novel || {};
+
+        const resolveSceneId = (source) => {
+          if (!source) return null;
+          return source.current_scene_id ?? source.CurrentSceneID ?? source.currentSceneId ?? null;
+        };
+
+        const progressSceneId = resolveSceneId(data);
+        if (progressSceneId) {
+          setNextSceneId(String(progressSceneId));
+        }
+
+        // ถ้า API /novels/:id ยังไม่ให้ current_scene_id, ดึง story-tree เพิ่มเติม
+        if (userId > 0 && !progressSceneId) {
+          try {
+            const treeResponse = await fetch(`${API_BASE_URL}/novels/${id}/story-tree?user_id=${userId}`, { headers });
+            const treePayload = await treeResponse.json().catch(() => null);
+            if (treeResponse.ok) {
+              const treeData = treePayload?.data || treePayload || {};
+              const treeSceneId = resolveSceneId(treeData);
+              if (treeSceneId) {
+                setNextSceneId(String(treeSceneId));
+              }
+            }
+          } catch (err) {
+            console.warn("Failed to fetch current scene from story-tree:", err);
+          }
+        }
 
         // ดึงจำนวนตอนทั้งหมดจาก API chapters
         let chaptersCountFromApi = 0;
@@ -177,18 +208,21 @@ const NovelDetailPage = () => {
     fetchNovel();
   }, [id]);
 
-  // 🔥 ฟังก์ชัน handleRead ปรับปรุงใหม่เพื่อเช็คความว่างของเนื้อหา
   const handleRead = () => {
     const hasNoContent = novel.userProgress?.totalChapters === 0;
+    const hasSavedScene = !!nextSceneId;
 
     if (hasNoContent) {
-      // ถ้านิยายไม่มีบท/ฉากเลย ให้เปิดหน้าต่าง Modal แจ้งเตือน ห้ามหลุดไปหน้าอื่น
       setShowNoContentDialog(true);
       return;
     }
 
     if (novel.id) {
-      navigate(`/reading/${novel.id}`);
+      if (hasSavedScene) {
+        navigate(`/reading/${novel.id}/${nextSceneId}`);
+      } else {
+        navigate(`/reading/${novel.id}`);
+      }
     }
   };
 
@@ -198,6 +232,55 @@ const NovelDetailPage = () => {
 
   const handleLike = (isLiked) => {
     console.log("like:", isLiked);
+  };
+
+  const handleRestartConfirmOpen = () => {
+    setRestartError(null);
+    setShowRestartConfirm(true);
+  };
+
+  const handleRestartConfirmClose = () => {
+    setShowRestartConfirm(false);
+    setRestartLoading(false);
+    setRestartError(null);
+  };
+
+  const handleRestart = async () => {
+    if (!id) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setRestartError("กรุณาเข้าสู่ระบบก่อนเริ่มอ่านใหม่");
+      return;
+    }
+
+    setRestartLoading(true);
+    setRestartError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/novels/${id}/restart`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+      }
+
+      const startSceneId = payload?.data?.start_scene_id || payload?.data?.StartSceneID || payload?.start_scene_id || payload?.startSceneId;
+      if (startSceneId) {
+        navigate(`/reading/${id}/${startSceneId}`);
+      } else {
+        navigate(`/reading/${id}`);
+      }
+    } catch (err) {
+      setRestartError(err.message || "ไม่สามารถเริ่มอ่านใหม่ได้ในขณะนี้");
+    } finally {
+      setRestartLoading(false);
+    }
   };
 
   const handleStoryMap = () => {
@@ -281,10 +364,32 @@ const NovelDetailPage = () => {
             <ActionButtons
               isBookmarked={novel.isBookmarked}
               isLiked={novel.isLiked}
+              readLabel={novel.userProgress.currentChapter > 0 ? "อ่านต่อ" : "อ่านเลย"}
+              readAriaLabel={novel.userProgress.currentChapter > 0 ? "อ่านต่อ" : "อ่านเลย"}
               onRead={handleRead}
               onBookmark={handleBookmark}
               onLike={handleLike}
             />
+
+            <div className="novel-detail__restart-row" style={{ marginTop: "16px" }}>
+              <button
+                className="novel-detail__restart-button"
+                type="button"
+                onClick={handleRestartConfirmOpen}
+                style={{
+                  width: "100%",
+                  padding: "12px 18px",
+                  borderRadius: "12px",
+                  border: "1px solid #E91E8C",
+                  background: "#ffffff",
+                  color: "#E91E8C",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                เริ่มอ่านใหม่
+              </button>
+            </div>
 
             <div className="novel-detail__progress">
               <ProgressBar
@@ -398,6 +503,71 @@ const NovelDetailPage = () => {
               >
                 รับทราบ ยินดีรอคอย
               </button>
+            </div>
+          </div>
+        )}
+
+        {showRestartConfirm && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0, 0, 0, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}>
+            <div style={{
+              background: "#ffffff",
+              padding: "32px",
+              borderRadius: "18px",
+              maxWidth: "420px",
+              width: "90%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+              textAlign: "center"
+            }}>
+              <h3 style={{ marginBottom: "12px", fontSize: "1.25rem" }}>เริ่มอ่านใหม่</h3>
+              <p style={{ marginBottom: "20px", color: "#4a5568", lineHeight: 1.6 }}>
+                การเริ่มอ่านใหม่นี้จะคืนสถานะความคืบหน้าและผังเรื่องกลับไปยังจุดเริ่มต้น แต่จะยังเก็บตอนจบที่คุณค้นพบไว้
+              </p>
+              {restartError && (
+                <div style={{ marginBottom: "14px", color: "#b91c1c" }}>{restartError}</div>
+              )}
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={handleRestartConfirmClose}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: "12px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#334155",
+                    cursor: "pointer"
+                  }}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestart}
+                  disabled={restartLoading}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: "#E91E8C",
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    cursor: restartLoading ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {restartLoading ? "กำลังเริ่มใหม่..." : "ยืนยันเริ่มอ่านใหม่"}
+                </button>
+              </div>
             </div>
           </div>
         )}

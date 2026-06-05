@@ -409,6 +409,7 @@ const SceneTreeSidebar = ({
             checked={isPublished}
             onChange={(value) => {
               setIsPublished(value);
+              handleSave(value, false, null); // 🔧 บันทึกอัตโนมัติเมื่อเปลี่ยนสถานะเผยแพร่
             }}
             id={`toggle-publish-sidebar`}
           />
@@ -423,6 +424,7 @@ const SceneTreeSidebar = ({
             checked={isEnding}
             onChange={(value) => {
               setIsEnding(value);
+              handleSave(null, false, null, value); // 🔧 บันทึกอัตโนมัติเมื่อเปลี่ยนสถานะจุดจบ
             }}
             id={`toggle-ending-sidebar`}
           />
@@ -633,20 +635,25 @@ const SceneEditorPage = ({
     fetchSceneData();
   }, [fetchSceneData]);
 
-  const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null) => {
+  const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null, overrideIsEnding = null) => {
     setIsSaving(true);
     setErrorMsg(null);
     try {
       const currentPublishState = overridePublishStatus !== null ? overridePublishStatus : isPublished;
+      const currentIsEnding = overrideIsEnding !== null ? overrideIsEnding : isEnding;
       const currentChoices = Array.isArray(overrideChoices) ? overrideChoices : choices;
 
       // 1. บันทึกข้อมูลตัวฉากหลัก พร้อมส่งตัวเลือกปัจจุบันไปให้ backend sync ด้วย
       const payload = {
         title: sceneTitle.trim() || "ฉากไม่มีชื่อ",
         content: content,
-        type: isEnding ? "ending" : sceneType || "normal",
+        type: currentIsEnding
+          ? "ending"
+          : sceneType === "ending"
+            ? "normal"
+            : sceneType || "normal",
         status: currentPublishState ? "published" : "draft",
-        is_ending: isEnding,
+        is_ending: currentIsEnding,
         choices: currentChoices.map((c) => {
           const targetStr = String(c.targetSubScene ?? c.to_scene_id ?? c.toSceneID ?? c.toSceneId ?? "");
           const targetParts = targetStr.includes("||") ? targetStr.split("||") : [targetStr];
@@ -692,7 +699,8 @@ const SceneEditorPage = ({
   };
   
   const handlePublish = () => {
-    setIsPublished(true);
+    // 🔧 บันทึกฉากโดยตั้ง status เป็น "published"
+    // fetchSceneData() จะอัปเดต isPublished state โดยอัตโนมัติหลังจากบันทึก
     handleSave(true, false);
   };
 

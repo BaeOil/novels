@@ -52,6 +52,96 @@
   background-position: 12px 12px;
 }
 
+.stp__placeholder-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 520px;
+  padding: 40px;
+}
+
+.stp__placeholder-card {
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  padding: 34px 32px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 242, 255, 0.96));
+  border: 1px dashed rgba(226, 232, 240, 0.9);
+  box-shadow: 0 24px 60px rgba(113, 71, 195, 0.08);
+}
+
+.stp__placeholder-card h2 {
+  margin-bottom: 16px;
+  font-size: 1.7rem;
+  color: #111827;
+}
+
+.stp__placeholder-card p {
+  margin: 0 auto 24px;
+  max-width: 420px;
+  color: #4b5563;
+  line-height: 1.75;
+}
+
+.stp__placeholder-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border-radius: 999px;
+  border: none;
+  background: #ec4899;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.stp__placeholder-button:hover {
+  background: #db2777;
+}
+
+.stp__placeholder-sidecard {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stp__stat-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pink-500);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.stp__stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.stp__stat-label {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.stp__stat-value {
+  font-family: 'Open Sans', serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.stp__stat-value--pink {
+  color: var(--pink-500);
+}
+
 .stp__svg { display: block; }
 
 /* Node hover/focus */
@@ -263,6 +353,115 @@
 
   box-shadow:
     0 8px 24px rgba(233,30,140,0.06);
+}
+
+.stp__placeholder-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 78vh;
+  padding: 32px;
+  background: linear-gradient(180deg, rgba(252, 245, 255, 0.95), rgba(255, 250, 252, 0.98));
+}
+
+.stp__placeholder-card {
+  width: 100%;
+  max-width: 700px;
+  padding: 38px 42px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(236, 73, 153, 0.16);
+  box-shadow: 0 24px 60px rgba(133, 85, 166, 0.1);
+  text-align: center;
+}
+
+.stp__placeholder-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(236, 73, 153, 0.12);
+  color: #be185d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stp__placeholder-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 2.2vw, 2.4rem);
+  line-height: 1.1;
+  color: #111827;
+}
+
+.stp__placeholder-text {
+  max-width: 520px;
+  margin: 16px auto 28px;
+  color: #4b5563;
+  line-height: 1.8;
+}
+
+.stp__placeholder-grid {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 14px;
+  margin: 0 auto 28px;
+  max-width: 560px;
+}
+
+.placeholder-node {
+  flex: 1;
+  min-height: 116px;
+  border-radius: 20px;
+  padding: 18px 16px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 251, 0.96));
+  color: #475569;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.placeholder-node--start {
+  background: linear-gradient(180deg, rgba(236, 73, 153, 0.12), rgba(249, 240, 249, 0.96));
+  border-color: rgba(236, 73, 153, 0.28);
+  color: #9d174d;
+}
+
+.placeholder-node--locked {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.stp__placeholder-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 240px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  border: none;
+  background: #ec4899;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.stp__placeholder-button:hover {
+  background: #db2777;
+  transform: translateY(-1px);
+}
+
+.stp__placeholder-note {
+  margin-top: 18px;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.8;
 }
 
 /* ========================================

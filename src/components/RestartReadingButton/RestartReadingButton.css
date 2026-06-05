@@ -1,0 +1,28 @@
+.restart-reading-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid #ec4899;
+  background: #ffffff;
+  color: #ec4899;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.restart-reading-button:hover {
+  background: #ec4899;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.restart-reading-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f8f3f7;
+  color: #c0266d;
+  transform: none;
+}
