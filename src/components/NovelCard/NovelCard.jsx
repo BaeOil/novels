@@ -46,15 +46,15 @@ const NovelCard = ({ novel, onClick }) => {
         <div className="novel-card__stats-bar">
           <div className="novel-card__stat">
             <div className="novel-card__stat-value">{fmt(novel.stats.views)}</div>
-            <div className="novel-card__stat-label">Views</div>
+            <div className="novel-card__stat-label">views</div>
           </div>
           <div className="novel-card__stat">
             <div className="novel-card__stat-value">{novel.stats.paths}</div>
-            <div className="novel-card__stat-label">Choices</div>
+            <div className="novel-card__stat-label">Likes</div>
           </div>
           <div className="novel-card__stat">
             <div className="novel-card__stat-value">{novel.stats.endings}</div>
-            <div className="novel-card__stat-label">Endings</div>
+            <div className="novel-card__stat-label">bookshelf</div>
           </div>
         </div>
 

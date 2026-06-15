@@ -213,6 +213,31 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
   const nodes = treeData?.Nodes ?? treeData?.nodes ?? [];
   const edges = treeData?.Edges ?? treeData?.edges ?? [];
 
+  const normalizedEdges = useMemo(() => {
+    return edges.map((choice) => {
+      const fromId = normalizeId(choice.FromID ?? choice.from_id ?? choice.from ?? choice.From);
+      const toId = normalizeId(choice.ToID ?? choice.to_id ?? choice.to ?? choice.To);
+      const fromSceneNumberInChapter = choice.fromSceneNumberInChapter ?? choice.FromSceneNumberInChapter ?? choice.from_scene_number_in_chapter ?? 0;
+      const toSceneNumberInChapter = choice.toSceneNumberInChapter ?? choice.ToSceneNumberInChapter ?? choice.to_scene_number_in_chapter ?? 0;
+      const fromChapterEpisode = choice.fromChapterEpisode ?? choice.FromChapterEpisode ?? choice.from_chapter_episode ?? 0;
+      const toChapterEpisode = choice.toChapterEpisode ?? choice.ToChapterEpisode ?? choice.to_chapter_episode ?? 0;
+      const fromSceneTitle = choice.fromSceneTitle || choice.FromSceneTitle || choice.from_scene_title || "ไม่ทราบ";
+      const toSceneTitle = choice.toSceneTitle || choice.ToSceneTitle || choice.to_scene_title || "ไม่ทราบ";
+
+      return {
+        ...choice,
+        fromId,
+        toId,
+        fromSceneNumberInChapter,
+        toSceneNumberInChapter,
+        fromChapterEpisode,
+        toChapterEpisode,
+        fromSceneTitle,
+        toSceneTitle,
+      };
+    });
+  }, [edges]);
+
   const sceneMap = useMemo(() => {
     const map = new Map();
     nodes.forEach((scene) => map.set(getNodeId(scene), scene));
@@ -251,10 +276,10 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
       return "";
     };
 
-    const edgeList = edges
+    const edgeList = normalizedEdges
       .map((edge, index) => {
-        const rawSource = edge.FromID ?? edge.from_id ?? edge.from ?? edge.From ?? edge.source ?? edge.Source;
-        const rawTarget = edge.ToID ?? edge.to_id ?? edge.to ?? edge.To ?? edge.target ?? edge.Target;
+        const rawSource = edge.fromId;
+        const rawTarget = edge.toId;
         const source = findMatchingNodeId(rawSource);
         const target = findMatchingNodeId(rawTarget);
         if (source && adjacency[source] && inDegree[target] !== undefined) {
@@ -266,6 +291,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
           source,
           target,
           label: edge.Label || edge.label || edge.choice_text || edge.text || "",
+          data: edge,
         };
       })
       .filter((edge) => edge.source && edge.target && adjacency[edge.source] !== undefined && inDegree[edge.target] !== undefined);
@@ -530,20 +556,18 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
   }
 
   const selectedScene = selectedSceneId ? sceneMap.get(selectedSceneId) : null;
-  const selectedSceneEdges = selectedSceneId ? edges.filter(e => {
-    const sourceId = String(e.FromID ?? e.from_id ?? e.from ?? e.From ?? "");
-    const targetId = String(e.ToID ?? e.to_id ?? e.to ?? e.To ?? "");
-    return sourceId === selectedSceneId || targetId === selectedSceneId;
+  const selectedSceneEdges = selectedSceneId ? normalizedEdges.filter((e) => {
+    const sourceId = e.fromId;
+    const targetId = e.toId;
+    return String(sourceId) === selectedSceneId || String(targetId) === selectedSceneId;
   }) : [];
 
-  const incomingChoices = selectedSceneEdges.filter(e => {
-    const targetId = String(e.ToID ?? e.to_id ?? e.to ?? e.To ?? "");
-    return targetId === selectedSceneId;
+  const incomingChoices = selectedSceneEdges.filter((e) => {
+    return String(e.toId) === selectedSceneId;
   });
 
-  const outgoingChoices = selectedSceneEdges.filter(e => {
-    const sourceId = String(e.FromID ?? e.from_id ?? e.from ?? e.From ?? "");
-    return sourceId === selectedSceneId;
+  const outgoingChoices = selectedSceneEdges.filter((e) => {
+    return String(e.fromId) === selectedSceneId;
   });
 
 
@@ -634,16 +658,16 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
         <aside className="wst-sidebar">
           <div className="wst-sidebar__top">
-            <h3 className="wst-sidebar__novel-title">สถิติผังเส้นทาง</h3>
-            <p className="wst-sidebar__updated">ข้อมูลจาก backend แบบเรียลไทม์</p>
+            <h3 className="wst-sidebar__novel-title">ภาพรวมโครงสร้าง</h3>
+            <p className="wst-sidebar__updated">ข้อมูลรายละเอียดฉาก</p>
           </div>
 
           <div className="wst-sidebar__stats">
             <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากทั้งหมด</span><span className="wst-sidebar__stat-val">{stats?.TotalScenes ?? stats?.total_scenes ?? 0}</span></div>
-            <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากที่สำรวจแล้ว</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.VisitedScenes ?? stats?.visited_scenes ?? 0}</span></div>
+            <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากที่ยังไม่เชื่อมต่อ</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.VisitedScenes ?? stats?.visited_scenes ?? 0}</span></div>
             <div className="wst-sidebar__progress-track"><div className="wst-sidebar__progress-fill" style={{ width: `${Math.round(((stats?.VisitedScenes ?? stats?.visited_scenes ?? 0) / Math.max(1, (stats?.TotalScenes ?? stats?.total_scenes ?? 1))) * 100)}%` }} /></div>
-            <div className="wst-sidebar__stat-row" style={{ marginTop: 10 }}><span className="wst-sidebar__stat-label">จำนวน Choice</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.DiscoveredChoices ?? stats?.discovered_choices ?? 0}</span></div>
-            <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากจบ</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.UnlockedEndings ?? stats?.unlocked_endings ?? 0}/{stats?.TotalEndings ?? stats?.total_endings ?? 0}</span></div>
+            <div className="wst-sidebar__stat-row" style={{ marginTop: 10 }}><span className="wst-sidebar__stat-label">จำนวนตัวเลือกทั้งหมด</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.TotalChoicePoints ?? stats?.total_choice_points ?? 0}</span></div>
+            <div className="wst-sidebar__stat-row"><span className="wst-sidebar__stat-label">ฉากจบ</span><span className="wst-sidebar__stat-val wst-sidebar__stat-val--pink">{stats?.TotalEndings ?? stats?.total_endings ?? 0}</span></div>
           </div>
 
           {selectedScene && (
@@ -702,6 +726,51 @@ const SceneDetailsCard = ({
   const sceneNumber = pos ? `${pos.chapterNumber}.${pos.sceneNumber}` : "?";
   const sceneTitle = getNodeTitle(scene);
   const chapterTitle = pos ? `ตอนที่ ${pos.chapterNumber}: ${pos.chapterTitle}` : getNodeChapter(scene);
+
+  // บรรทัด 730–744 — แก้ให้อ่าน normalized fields ก่อน
+const formatChoiceSourceInfo = (choice) => {
+  if (!choice) return "";
+  const fromTitle =
+    choice.fromSceneTitle ||           // ✅ normalized key
+    choice.from_scene_title ||
+    choice.FromSceneTitle ||
+    "ไม่ทราบ";
+  const fromChapter =
+    choice.fromChapterEpisode ??       // ✅ normalized key
+    choice.from_chapter_episode ??
+    choice.FromChapterEpisode ??
+    0;
+  const fromSceneNum =
+    choice.fromSceneNumberInChapter ?? // ✅ normalized key
+    choice.from_scene_number_in_chapter ??
+    choice.FromSceneNumberInChapter ??
+    scenePositionMap.get(normalizeId(choice.fromId ?? choice.from_id))?.sceneNumber ??
+    0;
+  return `ฉากที่ ${fromChapter}.${fromSceneNum} (${fromTitle})`;
+};
+
+const formatChoiceDestinationInfo = (choice) => {
+  if (!choice) return "";
+  const toTitle =
+    choice.toSceneTitle ||             // ✅ normalized key
+    choice.to_scene_title ||
+    choice.ToSceneTitle ||
+    "ไม่ทราบ";
+  const toChapter =
+    choice.toChapterEpisode ??         // ✅ normalized key
+    choice.to_chapter_episode ??
+    choice.ToChapterEpisode ??
+    0;
+  const toSceneNum =
+    choice.toSceneNumberInChapter ??   // ✅ normalized key
+    choice.to_scene_number_in_chapter ??
+    choice.ToSceneNumberInChapter ??
+    scenePositionMap.get(normalizeId(choice.toId ?? choice.to_id))?.sceneNumber ??
+    0;
+  return `ฉากที่ ${toChapter}.${toSceneNum} (${toTitle})`;
+};
+   
+
 
   return (
     <div className="wst-scene-details">
@@ -764,9 +833,14 @@ const SceneDetailsCard = ({
           </div>
           <div className="wst-scene-details__choices-list">
             {incomingChoices.map((choice, idx) => (
-              <div key={idx} className="wst-scene-details__choice-pill wst-scene-details__choice-pill--in">
-                <span className="wst-scene-details__choice-arrow">←</span>
-                <span className="wst-scene-details__choice-text">{getChoiceLabel(choice)}</span>
+              <div key={idx} className="wst-scene-details__choice-item wst-scene-details__choice-item--in">
+                <div className="wst-scene-details__choice-main">
+                  <span className="wst-scene-details__choice-arrow">←</span>
+                  <span className="wst-scene-details__choice-text">{getChoiceLabel(choice)}</span>
+                </div>
+                <div className="wst-scene-details__choice-meta">
+                  <span className="wst-scene-details__choice-source">จาก: {formatChoiceSourceInfo(choice)}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -784,9 +858,14 @@ const SceneDetailsCard = ({
           </div>
           <div className="wst-scene-details__choices-list">
             {outgoingChoices.map((choice, idx) => (
-              <div key={idx} className="wst-scene-details__choice-pill wst-scene-details__choice-pill--out">
-                <span className="wst-scene-details__choice-text">{getChoiceLabel(choice)}</span>
-                <span className="wst-scene-details__choice-arrow">→</span>
+              <div key={idx} className="wst-scene-details__choice-item wst-scene-details__choice-item--out">
+                <div className="wst-scene-details__choice-main">
+                  <span className="wst-scene-details__choice-text">{getChoiceLabel(choice)}</span>
+                  <span className="wst-scene-details__choice-arrow">→</span>
+                </div>
+                <div className="wst-scene-details__choice-meta">
+                  <span className="wst-scene-details__choice-destination">ไป: {formatChoiceDestinationInfo(choice)}</span>
+                </div>
               </div>
             ))}
           </div>

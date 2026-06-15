@@ -3,6 +3,32 @@
 .rp {
     min-height: 100vh;
     background: var(--white);
+    color: var(--ink);
+}
+
+.rp--theme-light {
+    background: #fff;
+    color: #111827;
+}
+
+.rp--theme-cream {
+    background: #f9f2e9;
+    color: #1f2937;
+}
+
+.rp--theme-slate {
+    background: #1f293b;
+    color: #f8fafc;
+}
+
+.rp--theme-dark {
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+.rp--theme-slate .rp__container,
+.rp--theme-dark .rp__container {
+    background: transparent;
 }
 
 /* ── Sticky progress bar ── */
@@ -147,6 +173,26 @@
     font-size: 18px;
     line-height: 2;
     color: var(--ink);
+}
+
+.rp__body--light {
+    background: #ffffff;
+    color: #111827;
+}
+
+.rp__body--cream {
+    background: #fff7ed;
+    color: #1f2937;
+}
+
+.rp__body--slate {
+    background: #1e293b;
+    color: #f8fafc;
+}
+
+.rp__body--dark {
+    background: #0f172a;
+    color: #f8fafc;
 }
 
 .rp__paragraph {

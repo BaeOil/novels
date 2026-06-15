@@ -371,21 +371,11 @@ const NovelDetailPage = () => {
               onLike={handleLike}
             />
 
-            <div className="novel-detail__restart-row" style={{ marginTop: "16px" }}>
+            <div className="novel-detail__restart-row">
               <button
                 className="novel-detail__restart-button"
                 type="button"
                 onClick={handleRestartConfirmOpen}
-                style={{
-                  width: "100%",
-                  padding: "12px 18px",
-                  borderRadius: "12px",
-                  border: "1px solid #E91E8C",
-                  background: "#ffffff",
-                  color: "#E91E8C",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
               >
                 เริ่มอ่านใหม่
               </button>

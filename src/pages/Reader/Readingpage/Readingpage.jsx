@@ -4,6 +4,7 @@ import "./ReadingPage.css";
 import ReadingBreadcrumb from "../../../components/ReadingBreadcrumb/ReadingBreadcrumb";
 import ChoiceButtons from "../../../components/ChoiceButtons/ChoiceButtons";
 import RestartReadingButton from "../../../components/RestartReadingButton/RestartReadingButton";
+import ReadingSettings from "../../../components/ReadingSettings/ReadingSettings";
 
 const BASE_URL = "http://localhost:8080"; 
 
@@ -38,7 +39,44 @@ const ReadingPage = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [readProgress, setReadProgress] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState(null);
+
+  const getSavedReadingSettings = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("readingSettings"));
+      return {
+        fontFamily: stored?.fontFamily || "Sarabun",
+        fontSize: stored?.fontSize || 18,
+        theme: stored?.theme || "light",
+      };
+    } catch (err) {
+      return {
+        fontFamily: "Sarabun",
+        fontSize: 18,
+        theme: "light",
+      };
+    }
+  };
+
+  const savedReadingSettings = getSavedReadingSettings();
+  const [fontFamily, setFontFamily] = useState(savedReadingSettings.fontFamily);
+  const [fontSize, setFontSize] = useState(savedReadingSettings.fontSize);
+  const [theme, setTheme] = useState(savedReadingSettings.theme);
   const contentRef = useRef(null);
+
+  const getFontFamilyString = (value) => {
+    switch (value) {
+      case "Sarabun":
+        return "'Sarabun', sans-serif";
+      case "Open Sans":
+        return "'Open Sans', sans-serif";
+      case "Prompt":
+        return "'Prompt', sans-serif";
+      case "Kanit":
+        return "'Kanit', sans-serif";
+      default:
+        return "'Sarabun', sans-serif";
+    }
+  };
 
   useEffect(() => {
     if (sceneId) {
@@ -214,6 +252,42 @@ const ReadingPage = ({
     }
   };
 
+  const saveReadingSettings = (newSettings) => {
+    const payload = {
+      fontFamily,
+      fontSize,
+      theme,
+      ...newSettings,
+    };
+    localStorage.setItem("readingSettings", JSON.stringify(payload));
+  };
+
+  const handleFontFamilyChange = (value) => {
+    setFontFamily(value);
+    saveReadingSettings({ fontFamily: value });
+  };
+
+  const handleDecreaseFont = () => {
+    setFontSize((prev) => {
+      const next = Math.max(14, prev - 2);
+      saveReadingSettings({ fontSize: next });
+      return next;
+    });
+  };
+
+  const handleIncreaseFont = () => {
+    setFontSize((prev) => {
+      const next = Math.min(26, prev + 2);
+      saveReadingSettings({ fontSize: next });
+      return next;
+    });
+  };
+
+  const handleThemeChange = (value) => {
+    setTheme(value);
+    saveReadingSettings({ theme: value });
+  };
+
   const handleRestartReading = async () => {
     if (effectiveUserId) {
       try {
@@ -288,7 +362,7 @@ const ReadingPage = ({
   // 📖 RENDER DISPLAY 
   // ==========================================
   return (
-    <div className="rp">
+    <div className={`rp rp--theme-${theme}`}>
       <div className="rp__progress-bar" style={{ width: `${readProgress}%` }} role="progressbar" />
 
       <div className="rp__container">
@@ -300,6 +374,16 @@ const ReadingPage = ({
         />
 
         <article className={`rp__article ${isTransitioning ? "rp__article--out" : "rp__article--in"}`} ref={contentRef}>
+
+          <ReadingSettings
+            fontFamily={fontFamily}
+            onFontFamilyChange={handleFontFamilyChange}
+            fontSize={fontSize}
+            onDecreaseFont={handleDecreaseFont}
+            onIncreaseFont={handleIncreaseFont}
+            theme={theme}
+            onThemeChange={handleThemeChange}
+          />
 
           <div className="rp__header-group" style={{ textAlign: "center", marginBottom: "25px" }}>
             <div className="rp__novel-subtitle" style={{ fontSize: "1.1rem", color: "#666", marginBottom: "6px" }}>
@@ -341,8 +425,9 @@ const ReadingPage = ({
           </div>
 
           <div
-            className="rp__body"
+            className={`rp__body rp__body--${theme}`}
             aria-label="เนื้อหา"
+            style={{ fontFamily: getFontFamilyString(fontFamily), fontSize: `${fontSize}px` }}
             dangerouslySetInnerHTML={{ __html: content }}
           />
 

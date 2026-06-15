@@ -34,13 +34,13 @@ const NovelCoverCard = ({ novel }) => {
           <StatBadge value={stats.views} label="ยอดอ่าน" />
         </div>
         <div role="listitem">
-          <StatBadge value={stats.paths} label="เส้นทาง" />
+          <StatBadge value={stats.paths} label="ตอน" />
         </div>
         <div role="listitem">
-          <StatBadge value={stats.choicePoints} label="จุดเลือก" />
+          <StatBadge value={stats.choicePoints} label="ตัวเลือก" />
         </div>
         <div role="listitem">
-          <StatBadge value={stats.endings} label="ตอนจบ" />
+          <StatBadge value={stats.endings} label="ฉากจบ" />
         </div>
       </div>
     </div>
