@@ -243,6 +243,7 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 	query := `
         SELECT s.scene_id, s.title, s.type, c.title AS chapter_title, c.episode AS chapter_episode, s.content,
                s.ending_title, s.ending_description,
+               ROW_NUMBER() OVER (PARTITION BY s.chapter_id ORDER BY s.scene_id) AS scene_number_in_chapter,
                CASE WHEN ush.id IS NOT NULL OR ue.id IS NOT NULL THEN true ELSE false END as is_unlocked
         FROM scenes s
         LEFT JOIN chapters c ON s.chapter_id = c.chapter_id
@@ -263,7 +264,7 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 		var endingDesc sql.NullString
 
 		if err := rows.Scan(&n.ID, &n.Title, &n.Type, &n.ChapterTitle, &n.ChapterEpisode, &n.Content,
-			&endingTitle, &endingDesc, &n.IsUnlocked); err != nil {
+			&endingTitle, &endingDesc, &n.SceneNumberInChapter, &n.IsUnlocked); err != nil {
 			return nil, err
 		}
 

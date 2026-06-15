@@ -70,7 +70,6 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 
 		visitedCount := 0
 		totalScenes := len(tree.Nodes)
-		unlockedEndings := 0
 		totalEndings := 0
 
 		unlockedNodesMap := make(map[int]bool)
@@ -78,16 +77,12 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 		for _, rawNode := range tree.Nodes {
 			if rawNode.Type == "ending" {
 				totalEndings++
-				if rawNode.IsUnlocked {
-					unlockedEndings++
-				}
 			}
 
 			// 🎯 บังคับเปิดไฟ: ถ้าเป็นโหนดที่ปลดล็อกแล้ว หรือเป็นโหนดไอดี 1 หรือไทป์สตาร์ท
 			isNodeAccessible := rawNode.IsUnlocked || rawNode.ID == 1 || rawNode.Type == "start"
 
 			if isNodeAccessible {
-				visitedCount++
 				unlockedNodesMap[rawNode.ID] = true
 			}
 
@@ -127,8 +122,21 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 		}
 
 		// =================================================================
-		// 🎯 ส่วนที่ 3: คำนวณสถิติ
+		// 🎯 ส่วนที่ 3: คำนวณสถิติสำหรับผู้เขียน
 		// =================================================================
+		// นับฉากที่ไม่มี incoming edge และไม่ใช่ start scene
+		incomingEdgeCount := make(map[int]int)
+		for _, edge := range tree.Edges {
+			incomingEdgeCount[edge.ToID]++
+		}
+
+		for _, node := range tree.Nodes {
+			// นับฉากที่ไม่มี incoming edge และไม่ใช่ start scene
+			if incomingEdgeCount[node.ID] == 0 && node.Type != "start" {
+				visitedCount++
+			}
+		}
+
 		totalChoices := len(tree.Edges)
 		discoveredChoices := 0
 
@@ -143,7 +151,7 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 			TotalScenes:       totalScenes,
 			DiscoveredChoices: discoveredChoices,
 			TotalChoicePoints: totalChoices,
-			UnlockedEndings:   unlockedEndings,
+			UnlockedEndings:   0, // ไม่ใช้สำหรับผู้เขียน
 			TotalEndings:      totalEndings,
 		}
 

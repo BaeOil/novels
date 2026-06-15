@@ -50,21 +50,30 @@ type TreeStats struct {
 }
 
 type SceneNode struct {
-	ID             int    `json:"id"`
-	Label          string `json:"label"`
-	Title          string `json:"title"`   // 🎯 ชื่อตอน/หัวข้อฉากจริงๆ เช่น "พบหญิงสาวปริศนา"
-	Content        string `json:"content"` // 🎯 เรื่องย่อท่อนสั้นๆ ประจำฉาก
-	Type           string `json:"type"`
-	IsUnlocked     bool   `json:"is_unlocked"`
-	IsCurrent      bool   `json:"is_current"` // 🎯 ฉากปัจจุบันที่ผู้เล่นอ่านค้างอยู่
-	ChapterTitle   string `json:"chapter_title,omitempty"`
-	ChapterEpisode int    `json:"chapter_episode,omitempty"`
-	Excerpt        string `json:"excerpt,omitempty"`
-	Status         string `json:"status,omitempty"`
+	ID                   int    `json:"id"`
+	Label                string `json:"label"`
+	Title                string `json:"title"`   // 🎯 ชื่อตอน/หัวข้อฉากจริงๆ เช่น "พบหญิงสาวปริศนา"
+	Content              string `json:"content"` // 🎯 เรื่องย่อท่อนสั้นๆ ประจำฉาก
+	Type                 string `json:"type"`
+	IsUnlocked           bool   `json:"is_unlocked"`
+	IsCurrent            bool   `json:"is_current"` // 🎯 ฉากปัจจุบันที่ผู้เล่นอ่านค้างอยู่
+	ChapterTitle         string `json:"chapter_title,omitempty"`
+	ChapterEpisode       int    `json:"chapter_episode,omitempty"`
+	SceneNumberInChapter int    `json:"scene_number_in_chapter,omitempty"`
+	Excerpt              string `json:"excerpt,omitempty"`
+	Status               string `json:"status,omitempty"`
 }
 
 type SceneEdge struct {
-	FromID int    `json:"from_id"`
-	ToID   int    `json:"to_id"`
-	Label  string `json:"label"`
+	FromID                   int    `json:"from_id"`
+	ToID                     int    `json:"to_id"`
+	Label                    string `json:"label"`
+	FromSceneTitle           string `json:"from_scene_title,omitempty"`
+	ToSceneTitle             string `json:"to_scene_title,omitempty"`
+	FromChapterTitle         string `json:"from_chapter_title,omitempty"`
+	ToChapterTitle           string `json:"to_chapter_title,omitempty"`
+	FromChapterEpisode       int    `json:"from_chapter_episode,omitempty"`
+	ToChapterEpisode         int    `json:"to_chapter_episode,omitempty"`
+	FromSceneNumberInChapter int    `json:"from_scene_number_in_chapter,omitempty"`
+	ToSceneNumberInChapter   int    `json:"to_scene_number_in_chapter,omitempty"`
 }

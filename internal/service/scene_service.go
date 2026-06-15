@@ -448,12 +448,14 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 		}
 	}
 
-	// 2. 🟢 สร้าง Map เพื่อจดจำสถานะ (ประกาศตัวแปรที่นี่)
+	// 2. 🟢 สร้าง Map เพื่อจดจำสถานะและข้อมูลฉาก (ประกาศตัวแปรที่นี่)
 	unlockedMap := make(map[int]bool)
+	sceneInfoMap := make(map[int]models.SceneNode)
 
 	for i := range nodes {
 		// จดใส่ Map ไว้ว่า ID นี้ Unlock หรือยัง
 		unlockedMap[nodes[i].ID] = nodes[i].IsUnlocked
+		sceneInfoMap[nodes[i].ID] = nodes[i]
 
 		// ถ้ายังไม่ Unlock ให้เปลี่ยนชื่อเป็น "🔒..."
 		if !nodes[i].IsUnlocked {
@@ -467,14 +469,32 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 		return models.StoryTreeResponse{}, err
 	}
 
-	// 4. 🟢 ใช้ unlockedMap ที่สร้างไว้ด้านบน มาเช็คเพื่อซ่อน Label บนเส้น
-	for i := range edges {
-		toID := edges[i].ToID
+	// 🎯 สร้างเส้นเชื่อมพร้อมข้อมูลฉากต้นทางและปลายทาง
+	enrichedEdges := make([]models.SceneEdge, 0, len(edges))
+
+	for _, edge := range edges {
+		toID := edge.ToID
+		fromID := edge.FromID
 
 		// ถ้าฉากปลายทางยังไม่เคยถูกปลดล็อก ให้ซ่อนชื่อทางเลือกเป็น ???
 		if !unlockedMap[toID] {
-			edges[i].Label = "???"
+			edge.Label = "???"
 		}
+
+		// เติมข้อมูลฉากต้นทางและปลายทาง
+		fromScene := sceneInfoMap[fromID]
+		toScene := sceneInfoMap[toID]
+
+		edge.FromSceneTitle = fromScene.Title
+		edge.ToSceneTitle = toScene.Title
+		edge.FromChapterTitle = fromScene.ChapterTitle
+		edge.ToChapterTitle = toScene.ChapterTitle
+		edge.FromChapterEpisode = fromScene.ChapterEpisode
+		edge.ToChapterEpisode = toScene.ChapterEpisode
+		edge.FromSceneNumberInChapter = fromScene.SceneNumberInChapter
+		edge.ToSceneNumberInChapter = toScene.SceneNumberInChapter
+
+		enrichedEdges = append(enrichedEdges, edge)
 	}
 
 	secureNodes := make([]models.SceneNode, 0, len(nodes))
@@ -482,10 +502,11 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 		isNodeAccessible := rawNode.IsUnlocked || rawNode.Type == "start"
 
 		node := models.SceneNode{
-			ID:           rawNode.ID,
-			Type:         rawNode.Type,
-			IsUnlocked:   isNodeAccessible,
-			ChapterTitle: rawNode.ChapterTitle,
+			ID:             rawNode.ID,
+			Type:           rawNode.Type,
+			IsUnlocked:     isNodeAccessible,
+			ChapterTitle:   rawNode.ChapterTitle,
+			ChapterEpisode: rawNode.ChapterEpisode,
 		}
 
 		if isNodeAccessible {
@@ -530,6 +551,6 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 		NovelTitle:     novelTitle,
 		CurrentSceneID: currentSceneID,
 		Nodes:          secureNodes,
-		Edges:          edges,
+		Edges:          enrichedEdges,
 	}, nil
 }
