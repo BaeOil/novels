@@ -5,8 +5,9 @@ import "./NovelCard.css";
  * NovelCard — การ์ดนิยายแสดงในหน้าหลัก (grid layout) พร้อมแสดงหมวดหมู่และสถิติ
  */
 const NovelCard = ({ novel, onClick }) => {
-  const [liked, setLiked] = useState(novel.isLiked);
-  const fmt = (v) => v >= 1000 ? `${(v/1000).toFixed(1)} K` : v;
+  const [liked, setLiked] = useState(novel?.isLiked || false);
+  const stats = novel?.stats || { views: 0, paths: 0, endings: 0 };
+  const fmt = (v = 0) => v >= 1000 ? `${(v/1000).toFixed(1)} K` : v;
 
   const handleLike = (e) => {
     e.stopPropagation();
@@ -45,15 +46,15 @@ const NovelCard = ({ novel, onClick }) => {
         {/* Stats Bar */}
         <div className="novel-card__stats-bar">
           <div className="novel-card__stat">
-            <div className="novel-card__stat-value">{fmt(novel.stats.views)}</div>
+            <div className="novel-card__stat-value">{fmt(stats.views)}</div>
             <div className="novel-card__stat-label">views</div>
           </div>
           <div className="novel-card__stat">
-            <div className="novel-card__stat-value">{novel.stats.paths}</div>
+            <div className="novel-card__stat-value">{stats.paths}</div>
             <div className="novel-card__stat-label">Likes</div>
           </div>
           <div className="novel-card__stat">
-            <div className="novel-card__stat-value">{novel.stats.endings}</div>
+            <div className="novel-card__stat-value">{stats.endings}</div>
             <div className="novel-card__stat-label">bookshelf</div>
           </div>
         </div>

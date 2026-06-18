@@ -515,7 +515,7 @@ const Navbarwriter = () => {
                                 </li>
 
                                 <li className="nav-item">
-                                    <Link to="/category">
+                                    <Link to="/categories">
                                         หมวดหมู่
                                     </Link>
                                 </li>
