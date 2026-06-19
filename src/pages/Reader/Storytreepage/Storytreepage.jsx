@@ -194,10 +194,20 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
     const rawNodes = treeData.nodes;
     const rawEdges = treeData.edges || [];
 
-    const startNode = rawNodes.find(n => n.type === "start") || rawNodes[0];
+    const uniqueRawNodes = (() => {
+      const seen = new Set();
+      return rawNodes.filter((node) => {
+        const id = String(node.id);
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+    })();
+
+    const startNode = uniqueRawNodes.find(n => n.type === "start") || uniqueRawNodes[0] || rawNodes[0];
     const startNodeIdStr = startNode ? String(startNode.id) : null;
     const currentSceneIdStr = treeData.current_scene_id ? String(treeData.current_scene_id) : null;
-    const hasBackendCurrent = rawNodes.some(n => n.is_current === true);
+    const hasBackendCurrent = uniqueRawNodes.some(n => n.is_current === true);
 
     const parentMap = {};
     rawEdges.forEach(e => {
@@ -209,29 +219,30 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
     const adjList = {};
     const inDegree = {};
-    rawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
+    uniqueRawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
     rawEdges.forEach(e => {
-      const from = e.from_id || e.from; const to = e.to_id || e.to;
-      if (adjList[from] && adjList[to] !== undefined) { adjList[from].push(to); inDegree[to]++; }
+      const from = String(e.from_id || e.from);
+      const to = String(e.to_id || e.to);
+      if (adjList[from] && inDegree[to] !== undefined) { adjList[from].push(to); inDegree[to]++; }
     });
     const levels = {}; const queue = [];
-    rawNodes.forEach(n => { if (inDegree[n.id] === 0 || n.type === "start") { levels[n.id] = 0; queue.push(n.id); } });
+    uniqueRawNodes.forEach(n => { if (inDegree[n.id] === 0 || n.type === "start") { levels[n.id] = 0; queue.push(n.id); } });
     while (queue.length > 0) {
       const curr = queue.shift(); const currLevel = levels[curr] || 0;
       (adjList[curr] || []).forEach(child => { if (levels[child] === undefined) { levels[child] = currLevel + 1; queue.push(child); } });
     }
     const levelCounts = {};
-    rawNodes.forEach(n => { const lv = levels[n.id] || 0; levelCounts[lv] = (levelCounts[lv] || 0) + 1; });
+    uniqueRawNodes.forEach(n => { const lv = levels[n.id] || 0; levelCounts[lv] = (levelCounts[lv] || 0) + 1; });
     const levelCurrentTracker = {};
 
     const activeNodeIds = new Set();
-    rawNodes.forEach(n => {
+    uniqueRawNodes.forEach(n => {
       if (n.type === "start" || n.is_current || n.is_unlocked) {
         activeNodeIds.add(String(n.id));
       }
     });
 
-    const mappedNodes = rawNodes.map((node) => {
+    const mappedNodes = uniqueRawNodes.map((node) => {
       const nodeIdStr = String(node.id);
       const lv = levels[node.id] || 0;
       if (levelCurrentTracker[lv] === undefined) levelCurrentTracker[lv] = 0;
@@ -317,11 +328,11 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       computedEdges: mappedEdges,
       autoStats: {
         visitedScenes: visitedScenesCount,
-        totalScenes: rawNodes.length,
+        totalScenes: uniqueRawNodes.length,
         discoveredChoices: discoveredChoicesCount,
         totalChoices: rawEdges.length,
         unlockedEndings: unlockedEndingsCount,
-        totalEndings: rawNodes.filter(n => n.type === "ending").length || 3
+        totalEndings: uniqueRawNodes.filter(n => n.type === "ending").length || 3
       }
     };
   }, [treeData]);

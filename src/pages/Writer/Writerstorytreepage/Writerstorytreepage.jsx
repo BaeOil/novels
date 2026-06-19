@@ -213,6 +213,16 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
   const nodes = treeData?.Nodes ?? treeData?.nodes ?? [];
   const edges = treeData?.Edges ?? treeData?.edges ?? [];
 
+  const uniqueNodes = useMemo(() => {
+    const seen = new Set();
+    return nodes.filter((scene) => {
+      const id = getNodeId(scene);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [nodes]);
+
   const normalizedEdges = useMemo(() => {
     return edges.map((choice) => {
       const fromId = normalizeId(choice.FromID ?? choice.from_id ?? choice.from ?? choice.From);
@@ -240,16 +250,16 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
   const sceneMap = useMemo(() => {
     const map = new Map();
-    nodes.forEach((scene) => map.set(getNodeId(scene), scene));
+    uniqueNodes.forEach((scene) => map.set(getNodeId(scene), scene));
     return map;
-  }, [nodes]);
+  }, [uniqueNodes]);
 
   const { positionedNodes, positionedEdges, chapters, stats } = useMemo(() => {
-    if (!nodes.length) {
+    if (!uniqueNodes.length) {
       return { positionedNodes: [], positionedEdges: [], chapters: [], stats: treeData?.Stats ?? treeData?.stats ?? null };
     }
 
-    const nodeIds = nodes.map(getNodeId);
+    const nodeIds = uniqueNodes.map(getNodeId);
     const adjacency = {};
     const inDegree = {};
     const nodeStatuses = {};
@@ -296,7 +306,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
       })
       .filter((edge) => edge.source && edge.target && adjacency[edge.source] !== undefined && inDegree[edge.target] !== undefined);
 
-    nodes.forEach((node) => {
+    uniqueNodes.forEach((node) => {
       const id = getNodeId(node);
 
       const hasIncoming = inDegree[id] > 0;
