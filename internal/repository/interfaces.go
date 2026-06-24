@@ -9,6 +9,7 @@ import (
 type NovelRepository interface {
 	ListNovels() ([]models.Novel, error)
 	GetNovelByID(id int) (*models.Novel, error)
+	IncrementViews(novelID int) error
 	GetNovelsByAuthorID(authorID int) ([]models.Novel, error)
 	CreateNovel(models.Novel) (int, error)
 	UpdateNovel(models.Novel) error
@@ -34,6 +35,7 @@ type SceneRepository interface {
 	GetNodesByNovelID(novelID int) ([]models.SceneNode, error)
 	GetNodesByNovelIDForUser(novelID int, userID int) ([]models.SceneNode, error)
 	GetEdgesByNovelID(novelID int) ([]models.SceneEdge, error)
+	GetEndingsByNovelIDForUser(novelID int, userID int) ([]models.EndingScene, error)
 }
 
 type ChapterRepository interface {
@@ -46,6 +48,8 @@ type ChapterRepository interface {
 
 type SocialRepository interface {
 	AddLike(models.Like) error
+	RemoveLike(userID, novelID int) error
+	IsLikeExists(userID, novelID int) (bool, error)
 	AddComment(models.Comment) (int, error)
 	AddFollow(models.Follow) error
 	GetCommentsByNovelID(novelID int) ([]models.Comment, error)

@@ -17,6 +17,8 @@ type Novel struct {
 	Views        int        `json:"views"`
 	ChapterCount int        `json:"chapter_count,omitempty"`
 	SceneCount   int        `json:"scene_count,omitempty"`
+	LikeCount    int        `json:"like_count,omitempty"`
+	IsLiked      bool       `json:"is_liked,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }

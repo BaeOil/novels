@@ -566,3 +566,7 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 		Edges:          enrichedEdges,
 	}, nil
 }
+
+func (s *sceneService) GetEndingsByNovelID(novelID int, userID int) ([]models.EndingScene, error) {
+	return s.repo.GetEndingsByNovelIDForUser(novelID, userID)
+}

@@ -10,6 +10,7 @@ import (
 type NovelService interface {
 	ListNovels() ([]models.Novel, error)
 	GetNovelDetail(id int) (interface{}, error)
+	IncrementViews(novelID int) error
 	GetNovelsByAuthorID(authorID int) ([]models.Novel, error)
 	CreateNovel(models.Novel) (int, error)
 	UpdateNovel(models.Novel) error
@@ -29,6 +30,7 @@ type SceneService interface {
 	UpdateChoice(models.Choice) error
 	DeleteChoice(choiceID int) error
 	GetStoryTree(novelID int, userID int) (models.StoryTreeResponse, error)
+	GetEndingsByNovelID(novelID int, userID int) ([]models.EndingScene, error)
 	ValidateStoryForPublish(novelID int) error
 	Ping() error
 }
@@ -43,6 +45,8 @@ type ChapterService interface {
 
 type SocialService interface {
 	AddLike(models.Like) error
+	RemoveLike(userID, novelID int) error
+	IsLikeExists(userID, novelID int) (bool, error)
 	AddComment(models.Comment) (int, error)
 	AddFollow(models.Follow) error
 	GetCommentsByNovelID(novelID int) ([]dto.CommentDetailDTO, error)

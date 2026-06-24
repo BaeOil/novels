@@ -129,7 +129,13 @@ func RegisterRoutes(
 	mux.Handle("/progress", middleware.RequestLogger(middleware.RequireAuth(handlers.ProgressHandler(reading))))
 	mux.Handle("/choice-history", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordChoiceHistoryHandler(reading))))
 	mux.Handle("/user-endings", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordUserEndingHandler(reading))))
-	mux.Handle("/likes", middleware.RequestLogger(middleware.RequireAuth(handlers.AddLikeHandler(social))))
+	mux.Handle("/likes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			middleware.RequireAuth(handlers.RemoveLikeHandler(social)).ServeHTTP(w, r)
+			return
+		}
+		middleware.RequireAuth(handlers.AddLikeHandler(social)).ServeHTTP(w, r)
+	})))
 	mux.Handle("/comments", middleware.RequestLogger(middleware.RequireAuth(handlers.AddCommentHandler(social))))
 	mux.Handle("/follows", middleware.RequestLogger(middleware.RequireAuth(handlers.AddFollowHandler(social))))
 
@@ -161,7 +167,7 @@ func novelSubRouter(novel service.NovelService, scene service.SceneService, chap
 		case r.Method == http.MethodDelete && isNumericIDPath(path):
 			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteNovelHandler(novel, writer))).ServeHTTP(w, r)
 		case r.Method == http.MethodGet && isNumericIDPath(path):
-			handlers.GetNovelDetailHandler(novel, scene)(w, r)
+			handlers.GetNovelDetailHandler(novel, scene, social)(w, r)
 		default:
 			http.NotFound(w, r)
 		}

@@ -237,6 +237,55 @@ func (r *postgresSceneRepository) GetEdgesByNovelID(novelID int) ([]models.Scene
 	return edges, nil
 }
 
+func (r *postgresSceneRepository) GetEndingsByNovelIDForUser(novelID int, userID int) ([]models.EndingScene, error) {
+	query := `
+	SELECT s.scene_id, s.title, s.type,
+	       s.ending_title, s.ending_type, s.ending_description,
+	       CASE WHEN ue.id IS NOT NULL THEN true ELSE false END AS is_unlocked,
+	       ue.reached_at
+	FROM scenes s
+	LEFT JOIN user_endings ue ON s.scene_id = ue.scene_id AND ue.user_id = $2
+	WHERE s.novel_id = $1 AND s.type = 'ending'
+	ORDER BY s.scene_id
+	`
+
+	rows, err := r.db.Query(query, novelID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var endings []models.EndingScene
+	for rows.Next() {
+		var ending models.EndingScene
+		var endingTitle sql.NullString
+		var endingType sql.NullString
+		var endingDescription sql.NullString
+		var reachedAt sql.NullTime
+		if err := rows.Scan(&ending.SceneID, &ending.Title, &ending.Type,
+			&endingTitle, &endingType, &endingDescription,
+			&ending.IsUnlocked, &reachedAt); err != nil {
+			return nil, err
+		}
+
+		if endingTitle.Valid {
+			ending.EndingTitle = &endingTitle.String
+		}
+		if endingType.Valid {
+			ending.EndingType = &endingType.String
+		}
+		if endingDescription.Valid {
+			ending.EndingDescription = &endingDescription.String
+		}
+		if reachedAt.Valid {
+			ending.UnlockedAt = &reachedAt.Time
+		}
+
+		endings = append(endings, ending)
+	}
+	return endings, nil
+}
+
 func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID int) ([]models.SceneNode, error) {
 	// ใช้ LEFT JOIN กับ user_scene_history เพื่อเช็คว่า User เคยมาที่นี่หรือยัง
 	// 🎯 เพิ่มการดึง content, ending_title, ending_description สำหรับแสดงข้อมูลครบถ้วน

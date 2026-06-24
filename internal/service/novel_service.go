@@ -33,6 +33,10 @@ func (s *novelService) GetNovelDetail(id int) (interface{}, error) {
 	return s.repo.GetNovelByID(id)
 }
 
+func (s *novelService) IncrementViews(novelID int) error {
+	return s.repo.IncrementViews(novelID)
+}
+
 func (s *novelService) GetNovelsByAuthorID(authorID int) ([]models.Novel, error) {
 	return s.repo.GetNovelsByAuthorID(authorID)
 }

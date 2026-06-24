@@ -32,7 +32,7 @@ func extractIDFromPath(urlPath, prefix string) (int, error) {
 }
 
 // GET /novels/{id}
-func GetNovelDetailHandler(novelService service.NovelService, sceneService service.SceneService) http.HandlerFunc {
+func GetNovelDetailHandler(novelService service.NovelService, sceneService service.SceneService, socialService service.SocialService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			RespondWithError(w, http.StatusMethodNotAllowed, "method not allowed", "only GET is supported")
@@ -45,6 +45,12 @@ func GetNovelDetailHandler(novelService service.NovelService, sceneService servi
 			return
 		}
 
+		// เพิ่มยอดวิวเมื่อผู้ใช้เข้าหน้านิยาย
+		if err := novelService.IncrementViews(id); err != nil {
+			// ถ้าเพิ่มยอดวิวล้มเหลว ไม่ขัดขวางการแสดงรายละเอียดนิยาย
+			// สามารถ log เพิ่มได้ที่ middleware หรือ logger ภายนอก
+		}
+
 		// ดึงข้อมูลรายละเอียดนิยายดั้งเดิม
 		novel, err := novelService.GetNovelDetail(id)
 		if err != nil {
@@ -52,11 +58,20 @@ func GetNovelDetailHandler(novelService service.NovelService, sceneService servi
 			return
 		}
 
+		// ถ้ามี user_id มาให้ตรวจว่า user นี้กดไลค์นิยายเรื่องนี้หรือยัง
+		userID, _ := strconv.Atoi(r.URL.Query().Get("user_id"))
+		if userID > 0 {
+			liked, err := socialService.IsLikeExists(userID, id)
+			if err == nil {
+				if novelModel, ok := novel.(*models.Novel); ok {
+					novelModel.IsLiked = liked
+				}
+			}
+		}
+
 		// =================================================================
 		// 🎯 ส่วนที่เพิ่ม: คำนวณสถิติเพื่อส่งไปให้หน้ารายละเอียดนิยาย (Novel Detail)
 		// =================================================================
-		// 🟢 ดึง user_id จาก query string เผื่อเอาไว้เช็คประวัติปลดล็อกรายบุคคล
-		userID, _ := strconv.Atoi(r.URL.Query().Get("user_id"))
 
 		visitedCount := 0
 		totalScenes := 0
@@ -97,17 +112,22 @@ func GetNovelDetailHandler(novelService service.NovelService, sceneService servi
 			}
 		}
 
+		endings, err := sceneService.GetEndingsByNovelID(id, userID)
+		if err != nil {
+			endings = []models.EndingScene{}
+		}
+
 		// ประกอบร่าง Response ใหม่ ผนึกข้อมูลนิยาย และก้อนสถิติจริงส่งออกไปหา React
 		finalDetailResponse := map[string]interface{}{
 			"novel":              novel,             // ข้อมูลนิยายก้อนเดิม (ชื่อเรื่อง, คำโปรย, ยอดวิว ฯลฯ)
 			"visited_scenes":     visitedCount,      // จำนวนตอนที่อ่านแล้ว (การ์ดชมพูซ้าย)
 			"total_scenes":       totalScenes,       // จำนวนตอนทั้งหมด
-			"discovered_choices": discoveredChoices, // ช้อยส์ที่เจอ (การ์ดชมพูขวา)
+			"discovered_choices": discoveredChoices, // ช้อยส์ที่เจอ (ช้อยส์ที่ผ่านแล้ว)
 			"total_choices":      totalChoices,      // ช้อยส์ทั้งหมด
-			"unlocked_endings":   unlockedEndings,   // ฉากจบที่ปลด (ตัวเลขหน้าเลข /)
-			"total_endings":      totalEndings,      // ฉากจบทั้งหมดหลังเลข /
+			"unlocked_endings":   unlockedEndings,   // ฉากจบที่ปลด
+			"total_endings":      totalEndings,      // ฉากจบทั้งหมด
+			"endings":            endings,
 		}
-
 		RespondWithJSON(w, http.StatusOK, finalDetailResponse)
 	}
 }

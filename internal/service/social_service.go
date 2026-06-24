@@ -18,6 +18,14 @@ func (s *socialService) AddLike(like models.Like) error {
 	return s.repo.AddLike(like)
 }
 
+func (s *socialService) RemoveLike(userID, novelID int) error {
+	return s.repo.RemoveLike(userID, novelID)
+}
+
+func (s *socialService) IsLikeExists(userID, novelID int) (bool, error) {
+	return s.repo.IsLikeExists(userID, novelID)
+}
+
 func (s *socialService) AddComment(comment models.Comment) (int, error) {
 	return s.repo.AddComment(comment)
 }

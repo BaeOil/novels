@@ -16,7 +16,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			(SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id) AS chapter_count,
 			(SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id) AS scene_count,
 			w.name_lastname, w.pen_name,
-			
+			COALESCE(COUNT(DISTINCT l.id), 0) AS like_count,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -28,6 +28,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 		LEFT JOIN writers w ON n.author_id = w.writer_id
 		LEFT JOIN novel_categories nc ON n.novel_id = nc.novel_id
 		LEFT JOIN categories c ON nc.category_id = c.category_id
+		LEFT JOIN likes l ON n.novel_id = l.novel_id
 		WHERE n.status = 'published'
 		GROUP BY n.novel_id, w.writer_id
 		ORDER BY n.created_at DESC
@@ -48,7 +49,8 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,
-			&categoriesJSON, // 👈 Scan ใส่ตัวแปรนี้
+			&n.LikeCount,
+			&categoriesJSON,
 		)
 		if err != nil {
 			return nil, err
@@ -83,7 +85,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 			(SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id) AS chapter_count,
 			(SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id) AS scene_count,
 			w.name_lastname, w.pen_name,
-			
+			COALESCE(COUNT(DISTINCT l.id), 0) AS like_count,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -95,6 +97,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 		LEFT JOIN writers w ON n.author_id = w.writer_id
 		LEFT JOIN novel_categories nc ON n.novel_id = nc.novel_id
 		LEFT JOIN categories c ON nc.category_id = c.category_id
+		LEFT JOIN likes l ON n.novel_id = l.novel_id
 		WHERE n.novel_id = $1
 		GROUP BY n.novel_id, w.writer_id
 	`, id)
@@ -108,6 +111,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 		&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 		&n.ChapterCount, &n.SceneCount,
 		&authorName, &penName,
+		&n.LikeCount,
 		&categoriesJSON,
 	)
 	if err != nil {
@@ -129,6 +133,15 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 	}
 
 	return &n, nil
+}
+
+func IncrementNovelViews(db *sql.DB, novelID int) error {
+	_, err := db.Exec(`
+		UPDATE novels
+		SET views = views + 1
+		WHERE novel_id = $1
+	`, novelID)
+	return err
 }
 
 func CreateNovel(db *sql.DB, novel models.Novel) (int, error) {

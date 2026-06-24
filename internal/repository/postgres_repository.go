@@ -55,6 +55,10 @@ func (r *postgresNovelRepository) GetNovelByID(id int) (*models.Novel, error) {
 	return GetNovelByID(r.db, id)
 }
 
+func (r *postgresNovelRepository) IncrementViews(novelID int) error {
+	return IncrementNovelViews(r.db, novelID)
+}
+
 func (r *postgresNovelRepository) GetNovelsByAuthorID(authorID int) ([]models.Novel, error) {
 	return GetNovelsByAuthorID(r.db, authorID)
 }
@@ -147,6 +151,14 @@ func (r *postgresChapterRepository) DeleteChapter(chapterID int) error {
 
 func (r *postgresSocialRepository) AddLike(like models.Like) error {
 	return AddLike(r.db, like)
+}
+
+func (r *postgresSocialRepository) RemoveLike(userID, novelID int) error {
+	return RemoveLike(r.db, userID, novelID)
+}
+
+func (r *postgresSocialRepository) IsLikeExists(userID, novelID int) (bool, error) {
+	return IsLikeExists(r.db, userID, novelID)
 }
 
 func (r *postgresSocialRepository) AddComment(comment models.Comment) (int, error) {

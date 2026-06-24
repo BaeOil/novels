@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // ✅ ใช้กับ database
 type Scene struct {
 	SceneID           int      `json:"scene_id"`
@@ -30,6 +32,17 @@ type SceneResponse struct {
 	EndingType        *string  `json:"ending_type,omitempty"`
 	EndingDescription *string  `json:"ending_description,omitempty"`
 	Choices           []Choice `json:"choices"`
+}
+
+type EndingScene struct {
+	SceneID           int        `json:"scene_id"`
+	Title             string     `json:"title"`
+	Type              string     `json:"type"`
+	EndingTitle       *string    `json:"ending_title,omitempty"`
+	EndingType        *string    `json:"ending_type,omitempty"`
+	EndingDescription *string    `json:"ending_description,omitempty"`
+	IsUnlocked        bool       `json:"is_unlocked"`
+	UnlockedAt        *time.Time `json:"unlocked_at,omitempty"`
 }
 
 type StoryTreeResponse struct {

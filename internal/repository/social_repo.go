@@ -14,6 +14,27 @@ func AddLike(db *sql.DB, like models.Like) error {
 	return err
 }
 
+func RemoveLike(db *sql.DB, userID, novelID int) error {
+	_, err := db.Exec(`
+        DELETE FROM likes
+        WHERE user_id = $1 AND novel_id = $2
+    `, userID, novelID)
+	return err
+}
+
+func IsLikeExists(db *sql.DB, userID, novelID int) (bool, error) {
+	var count int
+	err := db.QueryRow(`
+        SELECT COUNT(1)
+        FROM likes
+        WHERE user_id = $1 AND novel_id = $2
+    `, userID, novelID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func AddComment(db *sql.DB, comment models.Comment) (int, error) {
 	var id int
 	err := db.QueryRow(`
