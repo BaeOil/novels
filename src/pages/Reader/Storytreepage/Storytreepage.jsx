@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import ReactFlow, {
   Background,
   Controls,
@@ -69,7 +69,7 @@ const StoryNode = ({ data }) => {
       <Handle type="target" position={Position.Left} isConnectable={false} style={{ opacity: 0, pointerEvents: 'none' }} />
 
       <div
-        className={`story-node ${currentStatus === NODE_STATUS.CURRENT ? "story-node--current" : ""}`}
+        className={`story-node ${currentStatus === NODE_STATUS.CURRENT ? "story-node--current" : ""} ${data.isHighlightedPath ? "story-node--highlighted" : ""}`}
         style={{
           borderColor: style.stroke,
           background: style.fill,
@@ -78,7 +78,7 @@ const StoryNode = ({ data }) => {
           width: "280px",
           minHeight: "120px",
           borderRadius: "10px",
-          boxShadow: "0 5px 10px -2px rgba(0, 0, 0, 0.08)",
+          boxShadow: data.isHighlightedPath ? "0 0 20px rgba(233, 30, 140, 0.25)" : "0 5px 10px -2px rgba(0, 0, 0, 0.08)",
           borderWidth: "2px",
           borderStyle: "solid",
           display: "flex",
@@ -120,6 +120,11 @@ const nodeTypes = {
 const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
   const { novelId: urlNovelId } = useParams();
   const activeNovelId = propNovelId || urlNovelId;
+  const location = useLocation();
+  const highlightSceneId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("highlight_scene") || params.get("highlightScene");
+  }, [location.search]);
 
   const getCurrentUserId = () => {
     const userJson = localStorage.getItem("user");
@@ -242,6 +247,29 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       }
     });
 
+    const highlightId = highlightSceneId ? String(highlightSceneId) : null;
+    const highlightPathNodes = new Set();
+    const highlightPathEdges = new Set();
+    if (highlightId) {
+      let currentId = highlightId;
+      highlightPathNodes.add(currentId);
+      while (currentId) {
+        const parents = parentMap[currentId] || [];
+        if (!parents.length) break;
+        const parentId = String(parents[0]);
+        highlightPathNodes.add(parentId);
+        const edge = rawEdges.find((edgeNode) => {
+          const fromId = String(edgeNode.from_id || edgeNode.from);
+          const toId = String(edgeNode.to_id || edgeNode.to);
+          return fromId === parentId && toId === currentId;
+        });
+        if (edge) {
+          highlightPathEdges.add(String(edge.id || `e-${parentId}-${currentId}`));
+        }
+        currentId = parentId;
+      }
+    }
+
     const mappedNodes = uniqueRawNodes.map((node) => {
       const nodeIdStr = String(node.id);
       const lv = levels[node.id] || 0;
@@ -258,6 +286,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       const isAnyParentActive = parents.some(pId => activeNodeIds.has(pId));
 
       const isCurrentNode = node.is_current || (currentSceneIdStr ? nodeIdStr === currentSceneIdStr : (!hasBackendCurrent && nodeIdStr === startNodeIdStr));
+      const isHighlight = highlightPathNodes.has(nodeIdStr);
 
       if (node.type === "start") {
         computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.VISITED;
@@ -282,7 +311,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
         id: nodeIdStr,
         type: "storyNode",
         position: { x: xPosition + 60, y: yPosition + 220 },
-        data: { ...node, computedStatus },
+        data: { ...node, computedStatus, isHighlightedPath: isHighlight },
       };
     });
 
@@ -294,18 +323,24 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       const isSourceActive = sourceNodeMapped?.data?.computedStatus === NODE_STATUS.CURRENT ||
         sourceNodeMapped?.data?.computedStatus === NODE_STATUS.VISITED;
 
+      const edgeId = String(edge.id || `e-${fromId}-${toId}-${idx}`);
+      const isHighlightedEdge = highlightPathEdges.has(edgeId);
       return {
-        id: String(edge.id || `e-${fromId}-${toId}-${idx}`),
+        id: edgeId,
         source: fromId,
         target: toId,
-        animated: isSourceActive,
+        animated: isHighlightedEdge || isSourceActive,
         label: edge.label || edge.choice_text || edge.text || "???",
         labelStyle: { fill: "#4a5568", fontWeight: 500, fontSize: 11 },
         labelBgPadding: [4, 4],
         labelBgRadius: 4,
         labelBgStyle: { fill: "#ffffff", fillOpacity: 1, stroke: "#cbd5e1", strokeWidth: 1 },
         labelBgBorderRadius: 4,
-        style: { stroke: isSourceActive ? "#4CAF82" : "#D0CCD7", strokeWidth: 2 },
+        style: {
+          stroke: isHighlightedEdge ? "#E91E8C" : isSourceActive ? "#4CAF82" : "#D0CCD7",
+          strokeWidth: isHighlightedEdge ? 4 : 2,
+          filter: isHighlightedEdge ? "drop-shadow(0 0 12px rgba(233, 30, 140, 0.25))" : "",
+        },
         type: "smoothstep",
       };
     });

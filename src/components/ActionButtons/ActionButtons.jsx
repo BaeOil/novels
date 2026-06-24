@@ -1,5 +1,5 @@
 // src/components/ActionButtons/ActionButtons.jsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./ActionButtons.css";
 
 /**
@@ -21,6 +21,14 @@ const ActionButtons = ({
 }) => {
   const [bookmarked, setBookmarked] = useState(isBookmarked);
   const [liked, setLiked] = useState(isLiked);
+
+  useEffect(() => {
+    setBookmarked(isBookmarked);
+  }, [isBookmarked]);
+
+  useEffect(() => {
+    setLiked(isLiked);
+  }, [isLiked]);
 
   const handleBookmark = () => {
     setBookmarked((prev) => !prev);

@@ -8,6 +8,7 @@ import ReactQuill from "react-quill-new";
 import "quill/dist/quill.snow.css";
 import "./SceneEditorPage.css";
 import Toggle from "../../../components/Toggle/Toggle";
+import EndingSettings from "../../../components/EndingSettings/EndingSettings";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -351,6 +352,9 @@ const SceneTreeSidebar = ({
   setIsPublished,
   isEnding,
   setIsEnding,
+  onTogglePublish,
+  onToggleEnding,
+  onOpenEndingSettings,
 }) => {
   const [expandedChapters, setExpandedChapters] = useState([]);
 
@@ -409,7 +413,7 @@ const SceneTreeSidebar = ({
             checked={isPublished}
             onChange={(value) => {
               setIsPublished(value);
-              handleSave(value, false, null); // 🔧 บันทึกอัตโนมัติเมื่อเปลี่ยนสถานะเผยแพร่
+              onTogglePublish?.(value);
             }}
             id={`toggle-publish-sidebar`}
           />
@@ -424,11 +428,29 @@ const SceneTreeSidebar = ({
             checked={isEnding}
             onChange={(value) => {
               setIsEnding(value);
-              handleSave(null, false, null, value); // 🔧 บันทึกอัตโนมัติเมื่อเปลี่ยนสถานะจุดจบ
+              onToggleEnding?.(value);
             }}
             id={`toggle-ending-sidebar`}
           />
         </div>
+        {isEnding && (
+          <button
+            type="button"
+            onClick={() => onOpenEndingSettings?.()}
+            style={{
+              marginTop: '8px',
+              border: 'none',
+              background: 'transparent',
+              color: '#6d28d9',
+              cursor: 'pointer',
+              fontSize: '0.82rem',
+              textAlign: 'left',
+              padding: 0,
+            }}
+          >
+            ดูรายละเอียดฉากจบ
+          </button>
+        )}
       </div>
 
       <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '0 0 20px 0' }} />
@@ -560,6 +582,11 @@ const SceneEditorPage = ({
   const [sceneType, setSceneType] = useState("normal");
   const [isPublished, setIsPublished] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [endingTitle, setEndingTitle] = useState("");
+  const [endingType, setEndingType] = useState("true");
+  const [endingDescription, setEndingDescription] = useState("");
+  const [endingDescriptionEnabled, setEndingDescriptionEnabled] = useState(false);
+  const [showEndingSettingsDialog, setShowEndingSettingsDialog] = useState(false);
   const [choices, setChoices] = useState([]);
   const [chapters, setChapters] = useState([]);
 
@@ -601,6 +628,10 @@ const SceneEditorPage = ({
       setSceneType(sceneData.type || sceneData.scene_type || "normal");
       setIsPublished(sceneData.status === "published" || sceneData.isPublished || false);
       setIsEnding(sceneData.type === "ending" || sceneData.isEnding || sceneData.is_ending || false);
+      setEndingTitle(sceneData.endingTitle || sceneData.ending_title || "");
+      setEndingType(sceneData.endingType || sceneData.ending_type || "true");
+      setEndingDescription(sceneData.endingDescription || sceneData.ending_description || "");
+      setEndingDescriptionEnabled(Boolean(sceneData.endingDescription || sceneData.ending_description));
 
       const normalizedChoices = (Array.isArray(sceneData.choices) ? sceneData.choices : []).map((choice) => ({
         ...choice,
@@ -653,6 +684,9 @@ const SceneEditorPage = ({
             ? "normal"
             : sceneType || "normal",
         status: currentPublishState ? "published" : "draft",
+        ending_title: currentIsEnding ? endingTitle : "",
+        ending_type: currentIsEnding ? endingType : "",
+        ending_description: currentIsEnding && endingDescriptionEnabled ? endingDescription : "",
         is_ending: currentIsEnding,
         choices: currentChoices.map((c) => {
           const targetStr = String(c.targetSubScene ?? c.to_scene_id ?? c.toSceneID ?? c.toSceneId ?? "");
@@ -702,6 +736,44 @@ const SceneEditorPage = ({
     // 🔧 บันทึกฉากโดยตั้ง status เป็น "published"
     // fetchSceneData() จะอัปเดต isPublished state โดยอัตโนมัติหลังจากบันทึก
     handleSave(true, false);
+  };
+
+  const handleTogglePublish = async (value) => {
+    await handleSave(value, false, null, null);
+  };
+
+  const handleToggleEnding = async (value) => {
+    if (value) {
+      // ป้องกันไม่ให้ตั้งฉากเริ่มต้นเป็นตอนจบ (backend จะปฏิเสธ)
+      if (sceneType === "start") {
+        setErrorMsg("Start scene cannot be an ending scene");
+        // ยกเลิกการเช็ก toggle กลับเป็น false
+        setIsEnding(false);
+        setTimeout(() => setErrorMsg(null), 5000);
+        return;
+      }
+
+      // เปิด dialog ให้ผู้ใช้กรอกข้อมูลก่อนบันทึก
+      setIsEnding(true);
+      setShowEndingSettingsDialog(true);
+      return;
+    }
+    // ถ้าปิดการเป็นตอนจบ ให้บันทึกสถานะใหม่ทันที
+    await handleSave(null, false, null, false);
+  };
+
+  const saveEndingSettings = async () => {
+    // Ensure we save with is_ending = true
+    // Defensive check: do not attempt to save as ending if scene is start
+    if (sceneType === "start") {
+      setErrorMsg("Start scene cannot be an ending scene");
+      setTimeout(() => setErrorMsg(null), 5000);
+      return;
+    }
+
+    setIsEnding(true);
+    await handleSave(null, false, null, true);
+    setShowEndingSettingsDialog(false);
   };
 
   const addChoice = () => {
@@ -961,9 +1033,10 @@ const SceneEditorPage = ({
           setIsPublished={setIsPublished}
           isEnding={isEnding}
           setIsEnding={setIsEnding}
+          onTogglePublish={handleTogglePublish}
+          onToggleEnding={handleToggleEnding}
+          onOpenEndingSettings={() => setShowEndingSettingsDialog(true)}
         />
-
-        {/* Editor (ฝั่งขวา) */}
         <main className="se-editor">
           <div className="se-section">
             <div className="se-section__heading">เนื้อหาฉาก</div>
@@ -1066,6 +1139,61 @@ const SceneEditorPage = ({
                 สร้าง
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog ตั้งค่าฉากจบ */}
+      {showEndingSettingsDialog && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.45)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1100,
+          padding: "20px",
+        }}>
+          <div style={{
+            width: "100%",
+            maxWidth: "640px",
+            borderRadius: "24px",
+            overflow: "hidden",
+            boxShadow: "0 18px 60px rgba(15, 23, 42, 0.18)",
+            background: "#fff",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid #e5e7eb" }}>
+              <div>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#111827" }}>ตั้งค่าฉากจบ</div>
+                <div style={{ fontSize: "0.9rem", color: "#6b7280", marginTop: "4px" }}>กรุณาเลือกประเภทตอนจบและชื่อฉากก่อนบันทึก</div>
+              </div>
+              <button
+                onClick={() => setShowEndingSettingsDialog(false)}
+                style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "1.1rem", color: "#6b7280" }}
+                aria-label="ปิด"
+              >
+                ×
+              </button>
+            </div>
+            <EndingSettings
+              sceneTitle={sceneTitle || sceneLabel}
+              isEnding={isEnding}
+              endingTitle={endingTitle}
+              endingType={endingType}
+              endingDescription={endingDescription}
+              endingDescriptionEnabled={endingDescriptionEnabled}
+              onToggleEnding={setIsEnding}
+              onToggleEndingDescriptionEnabled={setEndingDescriptionEnabled}
+              onChangeEndingTitle={setEndingTitle}
+              onChangeEndingType={setEndingType}
+              onChangeEndingDescription={setEndingDescription}
+              onSave={saveEndingSettings}
+              onClose={() => setShowEndingSettingsDialog(false)}
+            />
           </div>
         </div>
       )}

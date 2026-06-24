@@ -30,13 +30,15 @@ const formatNovelCoverImage = (cover) => {
 const getNovelCategoryNames = (novel) => {
   const categories = novel?.categories || novel?.Categories || [];
   if (!Array.isArray(categories)) return [];
-  return categories
-    .map((cat) => {
-      if (!cat) return null;
-      if (typeof cat === "string") return cat;
-      return cat.name || cat.Name || cat.title || cat.label || null;
-    })
-    .filter(Boolean);
+  return Array.from(new Set(
+    categories
+      .map((cat) => {
+        if (!cat) return null;
+        if (typeof cat === "string") return cat;
+        return cat.name || cat.Name || cat.title || cat.label || null;
+      })
+      .filter(Boolean)
+  ));
 };
 
 const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {

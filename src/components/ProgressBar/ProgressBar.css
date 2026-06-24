@@ -77,6 +77,13 @@
   justify-content: center;
 }
 
+.progress-bar-card__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .progress-bar-card__map-btn {
   display: inline-flex;
   align-items: center;
@@ -97,4 +104,14 @@
   border-color: var(--pink-300);
   color: var(--pink-500);
   background: var(--pink-50);
+}
+
+.progress-bar-card__ending-btn {
+  border-color: var(--pink-500);
+  color: var(--pink-500);
+}
+
+.progress-bar-card__ending-btn:hover {
+  background: #fff0f6;
+  border-color: var(--pink-400);
 }

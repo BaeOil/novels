@@ -6,6 +6,8 @@ import NovelCoverCard from "../../../components/NovelCoverCard/NovelCoverCard";
 import GenreTag from "../../../components/GenreTag/GenreTag";
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import ProgressBar from "../../../components/ProgressBar/ProgressBar";
+import EndingCollection from "../../../components/EndingCollection/EndingCollection";
+
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -22,7 +24,7 @@ const initialNovelState = {
   synopsis: "",
   stats: {
     views: 0,
-    paths: 0,
+    likes: 0,
     choicePoints: 0,
     endings: 0,
   },
@@ -51,6 +53,8 @@ const NovelDetailPage = () => {
   const [error, setError] = useState(null);
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
+  const [endings, setEndings] = useState([]);
+  const [showEndingModal, setShowEndingModal] = useState(false);
   const [nextSceneId, setNextSceneId] = useState(null);
   const [showNoContentDialog, setShowNoContentDialog] = useState(false); // 🔥 State สำหรับเปิด/ปิดกล่องแจ้งเตือนเมื่อไม่มีเนื้อหา
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
@@ -169,8 +173,12 @@ const NovelDetailPage = () => {
         setNovel({
           id: nData.novel_id || nData.id || id,
           title: nData.title || "ไม่พบชื่อเรื่อง",
-          categories: nData.categories && nData.categories.length > 0
-            ? nData.categories.map(cat => typeof cat === "object" ? cat.name : cat)
+          categories: Array.isArray(nData.categories)
+            ? Array.from(new Set(
+                nData.categories
+                  .map(cat => typeof cat === "object" ? cat.name : cat)
+                  .filter(Boolean)
+              ))
             : ["ทั่วไป"],
           coverImage: formatMinioUrl(nData.cover_image) || null,
           author: {
@@ -180,8 +188,8 @@ const NovelDetailPage = () => {
           synopsis: nData.captions || nData.introduction || "ไม่มีเรื่องย่อ",
           
           stats: {
-            views: nData.views || 0, 
-            paths: totalScenes, 
+            views: nData.views || 0,
+            likes: nData.like_count || nData.likeCount || 0,
             choicePoints: totalChoices,
             endings: totalEndings,
           },
@@ -194,9 +202,10 @@ const NovelDetailPage = () => {
             totalChoices: totalChoices,          
           },
           synopsis_detail: nData.introduction || "ยังไม่มีรายละเอียดเพิ่มเติม",
-          isLiked: false,
+          isLiked: nData.is_liked || nData.isLiked || false,
           isBookmarked: false,
         });
+        setEndings(data.endings || []);
       } catch (err) {
         console.error("Fetch error:", err);
         setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -230,8 +239,52 @@ const NovelDetailPage = () => {
     console.log("bookmark:", isBookmarked);
   };
 
-  const handleLike = (isLiked) => {
-    console.log("like:", isLiked);
+  const [likeProcessing, setLikeProcessing] = useState(false);
+
+  const handleLike = async (isLiked) => {
+    if (!id) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login-register");
+      return;
+    }
+
+    if (likeProcessing) return;
+    setLikeProcessing(true);
+
+    try {
+      const method = isLiked ? "POST" : "DELETE";
+      const url = isLiked ? `${API_BASE_URL}/likes` : `${API_BASE_URL}/likes?novel_id=${id}`;
+      const body = isLiked ? JSON.stringify({ novel_id: parseInt(id, 10) }) : undefined;
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body,
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+      }
+
+      setNovel((prev) => ({
+        ...prev,
+        isLiked: isLiked,
+        stats: {
+          ...prev.stats,
+          likes: Math.max(0, prev.stats.likes + (isLiked ? 1 : -1)),
+        },
+      }));
+    } catch (err) {
+      console.error("Failed to update like status:", err);
+      setNovel((prev) => ({ ...prev, isLiked: !isLiked }));
+    } finally {
+      setLikeProcessing(false);
+    }
   };
 
   const handleRestartConfirmOpen = () => {
@@ -283,10 +336,15 @@ const NovelDetailPage = () => {
     }
   };
 
-  const handleStoryMap = () => {
+  const handleStoryMap = (sceneId) => {
     if (novel.id) {
-      navigate(`/storytree/${novel.id}`);
+      const query = sceneId ? `?highlight_scene=${sceneId}` : "";
+      navigate(`/storytree/${novel.id}${query}`);
     }
+  };
+
+  const handleEndingCollection = () => {
+    setShowEndingModal(true);
   };
 
   const handleSendCommentMock = () => {
@@ -388,7 +446,8 @@ const NovelDetailPage = () => {
                 totalChapters={novel.userProgress.totalChapters}
                 discoveredChoices={novel.userProgress.discoveredChoices}
                 totalChoices={novel.userProgress.totalChoices}
-                onStoryMapClick={handleStoryMap} 
+                onStoryMapClick={handleStoryMap}
+                onEndingCollectionClick={handleEndingCollection}
               />
             </div>
           </main>
@@ -403,6 +462,13 @@ const NovelDetailPage = () => {
             dangerouslySetInnerHTML={{ __html: novel.synopsis_detail }}
           />
         </section>
+
+        <EndingCollection
+          isOpen={showEndingModal}
+          endings={endings}
+          onClose={() => setShowEndingModal(false)}
+          onViewStoryMap={(sceneId) => handleStoryMap(sceneId)}
+        />
 
         <section className="novel-detail__comments-section" aria-labelledby="comments-heading">
           <div className="novel-detail__comments-header">

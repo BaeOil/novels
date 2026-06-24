@@ -18,6 +18,7 @@ const ProgressBar = ({
   discoveredChoices = 0,
   totalChoices = 0,
   onStoryMapClick,
+  onEndingCollectionClick,
 }) => {
   return (
     <div className="progress-bar-card" role="region" aria-label="ความคืบหน้าการอ่าน">
@@ -49,19 +50,33 @@ const ProgressBar = ({
 
       {/* Story Map button */}
       <div className="progress-bar-card__footer">
-        <button
-          className="progress-bar-card__map-btn"
-          onClick={onStoryMapClick}
-          aria-label="ดู Story Map"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <circle cx="3" cy="7" r="1.8" fill="currentColor" opacity="0.7"/>
-            <circle cx="11" cy="3" r="1.8" fill="currentColor" opacity="0.7"/>
-            <circle cx="11" cy="11" r="1.8" fill="currentColor" opacity="0.7"/>
-            <path d="M4.8 6.4L9.2 3.8M4.8 7.6L9.2 10.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-          Story Map
-        </button>
+        <div className="progress-bar-card__actions">
+          <button
+            className="progress-bar-card__map-btn"
+            onClick={onStoryMapClick}
+            aria-label="ดู Story Map"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <circle cx="3" cy="7" r="1.8" fill="currentColor" opacity="0.7"/>
+              <circle cx="11" cy="3" r="1.8" fill="currentColor" opacity="0.7"/>
+              <circle cx="11" cy="11" r="1.8" fill="currentColor" opacity="0.7"/>
+              <path d="M4.8 6.4L9.2 3.8M4.8 7.6L9.2 10.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            Story Map
+          </button>
+          <button
+            className="progress-bar-card__map-btn progress-bar-card__ending-btn"
+            onClick={onEndingCollectionClick}
+            aria-label="Ending Collection"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M3.5 4.5h7v5h-7z" fill ="currentColor" opacity="0.15"/>
+              <path d="M3.5 4.5L7 7.25L10.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3.5 9.5L7 6.75L10.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            ดู Ending Collection
+          </button>
+        </div>
       </div>
     </div>
   );
