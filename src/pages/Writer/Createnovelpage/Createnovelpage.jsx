@@ -67,6 +67,7 @@ const CreateNovelPage = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [categories, setCategories] = useState([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [categoriesLoaded, setCategoriesLoaded] = useState(false);
     const [categoriesError, setCategoriesError] = useState(null);
     const navigate = useNavigate();
     const [showCancelModal, setShowCancelModal] = useState(false);
@@ -93,6 +94,7 @@ const CreateNovelPage = () => {
                     id: category.category_id || category.id,
                     name: category.name,
                 })));
+                setCategoriesLoaded(true);
             } catch (err) {
                 console.error("Category load error:", err);
                 setCategories(FALLBACK_CATEGORIES.map((name, index) => ({ id: index + 1, name })));
@@ -169,6 +171,10 @@ const CreateNovelPage = () => {
                 .filter(cat => form.categories.includes(cat.name))
                 .map(cat => cat.id);
 
+            if (!categoriesLoaded) {
+                throw new Error("ไม่สามารถโหลดหมวดหมู่ได้ กรุณารีเฟรชหน้าเพื่ออัปเดต");
+            }
+
             // 3. รวบตรรกะสถานะ (Status) ให้เป็น String เดียว
             let finalStatus = "draft"; 
             if (form.isCompleted) {
@@ -182,7 +188,7 @@ const CreateNovelPage = () => {
                 title: form.title,
                 captions: form.tagline,             
                 introduction: form.description,     
-                category_ids: selectedCategoryIds,  
+                    category_ids: selectedCategoryIds,  
                 cover_image: coverImageUrl,         
                 status: finalStatus,  
             };

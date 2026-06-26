@@ -68,6 +68,7 @@ const EditNovelPage = ({ onNavigate }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [categoriesLoaded, setCategoriesLoaded] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
 
     useEffect(() => {
@@ -87,6 +88,7 @@ const EditNovelPage = ({ onNavigate }) => {
                     id: category.category_id || category.id,
                     name: category.name,
                 })));
+                setCategoriesLoaded(true);
             } catch (err) {
                 console.error("Category load error:", err);
                 setCategories(FALLBACK_CATEGORIES.map((name, index) => ({ id: index + 1, name })));
@@ -245,8 +247,10 @@ const EditNovelPage = ({ onNavigate }) => {
                 captions: form.tagline,
                 introduction: form.description,
                 status: form.isPublished ? "published" : "draft",
-                category_ids: selectedCategoryIds,
             };
+            if (categoriesLoaded) {
+                novelPayload.category_ids = selectedCategoryIds;
+            }
 
             if (coverImageUrl) {
                 novelPayload.cover_image = coverImageUrl;

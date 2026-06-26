@@ -185,6 +185,14 @@ const LoginForm = ({ onSwitchToRegister }) => {
         console.log("💾 Saving token to LocalStorage");
         localStorage.setItem('token', data.token);
       }
+      if (data.refresh_token) {
+        console.log("💾 Saving refresh token to LocalStorage");
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+      if (data.refresh_token) {
+        console.log("💾 Saving refresh token to LocalStorage");
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
       if (data.user) {
         console.log("💾 Saving user data to LocalStorage");
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -421,10 +429,18 @@ const RegisterForm = ({ onSwitchToLogin }) => {
         console.log("💾 Token received successfully! Storing to LocalStorage.");
         localStorage.setItem('token', data.token);
       }
-      
+      if (data.refresh_token) {
+        console.log("💾 Refresh token received successfully! Storing to LocalStorage.");
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+      if (data.user) {
+        console.log("💾 User data received successfully! Storing to LocalStorage.");
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+
       setIsLoading(false);
-      console.log("🏁 Registration workflow completed. Switching to login tab...");
-      onSwitchToLogin();
+      console.log("🏁 Registration workflow completed. Redirecting to home...");
+      window.location.href = '/';
     } catch (err) {
       console.error("💥 CRITICAL CATCH: Register process threw an exception:", err);
       setErrors({ general: `ไม่สามารถติดต่อเซิร์ฟเวอร์ได้: ${err.message}` });

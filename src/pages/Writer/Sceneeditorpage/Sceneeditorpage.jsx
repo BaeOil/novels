@@ -3,7 +3,7 @@
 //  [ ปรับแต่งเชื่อมต่อ Go หลังบ้าน ผ่าน /scenes/:id และ /story-tree ]
 // ══════════════════════════════════════════════════════════════
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import ReactQuill from "react-quill-new";
 import "quill/dist/quill.snow.css";
 import "./SceneEditorPage.css";
@@ -15,20 +15,20 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 // ─────────────────────────────────────────────
 // React Quill config
 // ─────────────────────────────────────────────
-const quillModules = {
-  toolbar: [
-    [{ header: [1, 2, 3, false] }],
-    ["bold", "italic", "underline", "strike"],
-    [{ color: [] }, { background: [] }],
-    [{ list: "ordered" }, { list: "bullet" }],
-    [{ align: [] }],
-    ["link", "image"],
-    ["clean"],
-  ],
-};
+const QUILL_TOOLBAR_OPTIONS = [
+  [{ header: [1, 2, 3, false] }],
+  [{ size: ["small", false, "large", "huge"] }],
+  ["bold", "italic", "underline", "strike"],
+  [{ color: [] }, { background: [] }],
+  [{ list: "ordered" }, { list: "bullet" }],
+  [{ align: [] }],
+  ["link", "image"],
+  ["clean"],
+];
 
 const quillFormats = [
   "header",
+  "size",
   "bold",
   "italic",
   "underline",
@@ -581,6 +581,14 @@ const SceneEditorPage = ({
   const [content, setContent] = useState("");
   const [sceneType, setSceneType] = useState("normal");
   const [isPublished, setIsPublished] = useState(false);
+
+  const charCount = useMemo(() => {
+    const textOnly = content
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return textOnly.length;
+  }, [content]);
   const [isEnding, setIsEnding] = useState(false);
   const [endingTitle, setEndingTitle] = useState("");
   const [endingType, setEndingType] = useState("true");
@@ -603,6 +611,75 @@ const SceneEditorPage = ({
   const [selectedChapterForNewScene, setSelectedChapterForNewScene] = useState(null);
 
   const token = localStorage.getItem("token");
+  const quillRef = useRef(null);
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState("");
+
+  const normalizeMinioUrl = useCallback((url) => {
+    if (!url) return url;
+    return url.replace("http://minio:9000", "http://localhost:9000");
+  }, []);
+
+  const handleQuillImageUpload = useCallback(() => {
+    const input = document.createElement("input");
+    input.setAttribute("type", "file");
+    input.setAttribute("accept", "image/*");
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      setImageUploadError("");
+      setIsImageUploading(true);
+
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const headers = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const uploadRes = await fetch(`${API_BASE_URL}/upload/image`, {
+          method: "POST",
+          body: formData,
+          headers,
+        });
+
+        if (!uploadRes.ok) {
+          const errJson = await uploadRes.json().catch(() => null);
+          throw new Error(errJson?.error || errJson?.message || "ไม่สามารถอัปโหลดรูปภาพได้");
+        }
+
+        const uploadData = await uploadRes.json();
+        const imageUrl = normalizeMinioUrl(uploadData?.data?.full_url || uploadData?.full_url);
+        const editor = quillRef.current?.getEditor?.();
+        const range = editor?.getSelection?.() || { index: (content?.length || 0) };
+
+        if (editor) {
+          editor.insertEmbed(range.index ?? 0, "image", imageUrl);
+          editor.setSelection((range.index ?? 0) + 1);
+        }
+      } catch (err) {
+        console.error("Scene editor image upload error:", err);
+        setImageUploadError(err?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+      } finally {
+        setIsImageUploading(false);
+      }
+    };
+  }, [content, normalizeMinioUrl, token]);
+
+  const quillModules = useMemo(
+    () => ({
+      toolbar: {
+        container: QUILL_TOOLBAR_OPTIONS,
+        handlers: {
+          image: handleQuillImageUpload,
+        },
+      },
+    }),
+    [handleQuillImageUpload]
+  );
 
   const fetchSceneData = useCallback(async () => {
     setIsLoading(true);
@@ -1059,6 +1136,7 @@ const SceneEditorPage = ({
             <div className="se-field">
               <label className="se-label">เนื้อเรื่อง</label>
               <ReactQuill
+                ref={quillRef}
                 theme="snow"
                 value={content}
                 onChange={(value) => {
@@ -1069,6 +1147,19 @@ const SceneEditorPage = ({
                 placeholder="เริ่มเขียนเนื้อหาฉากของคุณ..."
                 className="se-quill"
               />
+              <div className="se-field__hint" style={{ marginTop: "8px", color: "var(--gray-600)" }}>
+                จำนวนตัวอักษร: {charCount}
+              </div>
+              {isImageUploading && (
+                <div className="se-field__hint" style={{ color: "#2563eb", marginTop: "8px" }}>
+                  กำลังอัปโหลดรูปภาพไปยัง MinIO...
+                </div>
+              )}
+              {imageUploadError && (
+                <div className="se-field__error" style={{ color: "#dc2626", marginTop: "8px" }}>
+                  {imageUploadError}
+                </div>
+              )}
             </div>
           </div>
 

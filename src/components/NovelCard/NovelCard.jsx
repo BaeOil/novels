@@ -6,7 +6,9 @@ import "./NovelCard.css";
  */
 const NovelCard = ({ novel, onClick }) => {
   const [liked, setLiked] = useState(novel?.isLiked || false);
-  const stats = novel?.stats || { views: 0, paths: 0, endings: 0 };
+  const views = novel?.views ?? novel?.view_count ?? novel?.stats?.views ?? 0;
+  const likes = novel?.like_count ?? novel?.total_likes ?? novel?.stats?.likes ?? 0;
+  const bookmarks = novel?.bookshelf_count ?? novel?.bookmark_count ?? novel?.total_bookmarks ?? novel?.stats?.bookmarks ?? 0;
   const fmt = (v = 0) => v >= 1000 ? `${(v/1000).toFixed(1)} K` : v;
 
   const handleLike = (e) => {
@@ -46,15 +48,15 @@ const NovelCard = ({ novel, onClick }) => {
         {/* Stats Bar */}
         <div className="novel-card__stats-bar">
           <div className="novel-card__stat">
-            <div className="novel-card__stat-value">{fmt(stats.views)}</div>
+            <div className="novel-card__stat-value">{fmt(views)}</div>
             <div className="novel-card__stat-label">views</div>
           </div>
           <div className="novel-card__stat">
-            <div className="novel-card__stat-value">{stats.paths}</div>
+            <div className="novel-card__stat-value">{fmt(likes)}</div>
             <div className="novel-card__stat-label">Likes</div>
           </div>
           <div className="novel-card__stat">
-            <div className="novel-card__stat-value">{stats.endings}</div>
+            <div className="novel-card__stat-value">{fmt(bookmarks)}</div>
             <div className="novel-card__stat-label">bookshelf</div>
           </div>
         </div>

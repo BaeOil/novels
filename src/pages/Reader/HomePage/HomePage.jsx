@@ -82,10 +82,15 @@ const HomePage = ({ onNavigate }) => {
             },
 
             synopsis: data.captions || data.introduction || "ไม่มีคำโปรย",
+
+            views: data.views || data.view_count || 0,
+            like_count: data.like_count || data.likeCount || data.likes || 0,
+            bookshelf_count: data.bookshelf_count || data.bookmark_count || data.bookmarks || 0,
             
             // กำหนดค่าสถิติจาก API หากไม่มีให้เริ่มที่ 0
             stats: {
-              views: data.views || 0,
+              views: data.views || data.view_count || 0,
+              likes: data.like_count || data.likeCount || data.likes || 0,
               paths: data.paths_count || 0, // ปรับตามชื่อ field ใน database ของคุณ
               choicePoints: data.choice_points || 0,
               endings: data.endings_count || 1,

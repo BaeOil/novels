@@ -101,7 +101,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
         fetchedNovels.forEach(novel => {
           calculatedViews += novel.total_views ?? novel.view_count ?? novel.stats?.views ?? novel.views ?? 0;
           calculatedLikes += novel.total_likes ?? novel.like_count ?? novel.stats?.likes ?? novel.likes ?? 0;
-          calculatedBookmarks += novel.total_bookmarks ?? novel.bookmark_count ?? novel.stats?.bookmarks ?? novel.bookmarks ?? 0;
+          calculatedBookmarks += novel.total_bookmarks ?? novel.bookmark_count ?? novel.bookshelf_count ?? novel.stats?.bookmarks ?? novel.bookmarks ?? 0;
         });
       }
 

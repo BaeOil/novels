@@ -345,6 +345,64 @@ const getRoleFromToken = () => {
   }
 };
 
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  const parts = token.split('.');
+  if (parts.length !== 3) return true;
+
+  try {
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payload.length % 4) payload += '=';
+    const decoded = atob(payload);
+    const json = decodeURIComponent(decoded.split('').map((c) => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`).join(''));
+    const parsed = JSON.parse(json);
+    if (!parsed.exp) return true;
+    const expiry = Number(parsed.exp) * 1000;
+    return Date.now() >= expiry;
+  } catch (error) {
+    return true;
+  }
+};
+
+const refreshAuthToken = async () => {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    if (!res.ok) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
+      return false;
+    }
+
+    const data = await res.json();
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
+    if (data.refresh_token) {
+      localStorage.setItem('refresh_token', data.refresh_token);
+    }
+    if (data.user) {
+      localStorage.setItem('user', JSON.stringify(data.user));
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Failed to refresh auth token:', error);
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
+    return false;
+  }
+};
+
 // ======================================================
 // NavbarWrapper - เลือก Navbar ตามสิทธิ์ผู้ใช้
 // ======================================================
@@ -400,8 +458,43 @@ const WriterRegisterPageRoute = () => {
 
 // ======================================================
 // Main Application Component
-// ======================================================
+// =====================================================
 function App() {
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('token');
+      const refreshToken = localStorage.getItem('refresh_token');
+
+      if (!token && !refreshToken) {
+        if (active) setAuthChecked(true);
+        return;
+      }
+
+      if (!token || isTokenExpired(token)) {
+        const refreshed = await refreshAuthToken();
+        if (!refreshed) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
+        }
+      }
+
+      if (active) setAuthChecked(true);
+    };
+
+    initializeAuth();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!authChecked) {
+    return null;
+  }
+
   return (
     <Router>
       <NavbarWrapper />

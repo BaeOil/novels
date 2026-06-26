@@ -5,7 +5,7 @@ const endingTypeMeta = {
   good: { label: "True Ending", color: "#C8960C", icon: "👑", bg: "#FEF8E0", glow: "#F5C842" },
   bad: { label: "Bad Ending", color: "#9B2020", icon: "💀", bg: "#FDECEA", glow: "#E05C5C" },
   secret: { label: "Secret Ending", color: "#6D28D9", icon: "🌙", bg: "#EDE9FE", glow: "#8B5CF6" },
-  unknown: { label: "Unknown Ending", color: "#4B5563", icon: "❓", bg: "#F3F4F6", glow: "#9CA3AF" },
+  good: { label: "Good Ending", color: "#4B5563", icon: "❓", bg: "#F3F4F6", glow: "#9CA3AF" },
 };
 
 const filterOptions = [
@@ -13,7 +13,7 @@ const filterOptions = [
   { value: "true", label: "True Ending" },
   { value: "bad", label: "Bad Ending" },
   { value: "secret", label: "Secret Ending" },
-  { value: "unknown", label: "Unknown" },
+  { value: "good", label: "Good Ending" },
 ];
 
 const EndingCollection = ({ isOpen, endings, onClose, onViewStoryMap }) => {
