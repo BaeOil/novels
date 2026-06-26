@@ -26,8 +26,28 @@ func (s *socialService) IsLikeExists(userID, novelID int) (bool, error) {
 	return s.repo.IsLikeExists(userID, novelID)
 }
 
+func (s *socialService) AddToBookshelf(userID, novelID int) error {
+	return s.repo.AddToBookshelf(userID, novelID)
+}
+
+func (s *socialService) RemoveFromBookshelf(userID, novelID int) error {
+	return s.repo.RemoveFromBookshelf(userID, novelID)
+}
+
+func (s *socialService) GetBookshelfCountByNovelID(novelID int) (int, error) {
+	return s.repo.GetBookshelfCountByNovelID(novelID)
+}
+
+func (s *socialService) GetBookshelfCountsByAuthorID(authorID int) ([]models.Novel, error) {
+	return s.repo.GetBookshelfCountsByAuthorID(authorID)
+}
+
 func (s *socialService) AddComment(comment models.Comment) (int, error) {
 	return s.repo.AddComment(comment)
+}
+
+func (s *socialService) RemoveComment(commentID, userID int) error {
+	return s.repo.RemoveComment(commentID, userID)
 }
 
 func (s *socialService) AddFollow(follow models.Follow) error {

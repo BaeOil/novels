@@ -3,22 +3,23 @@ package models
 import "time"
 
 type Novel struct {
-	ID           int        `json:"novel_id"`
-	Title        string     `json:"title"`
-	Captions     *string    `json:"captions"`
-	Introduction *string    `json:"introduction"`
-	CategoryIDs  []int      `json:"category_ids,omitempty"`
-	Categories   []Category `json:"categories"`
-	CoverImage   *string    `json:"cover_image"`
-	Status       string     `json:"status"`
-	AuthorID     int        `json:"author_id"`
-	AuthorName   string     `json:"author_name"`
-	PenName      string     `json:"pen_name"`
-	Views        int        `json:"views"`
-	ChapterCount int        `json:"chapter_count,omitempty"`
-	SceneCount   int        `json:"scene_count,omitempty"`
-	LikeCount    int        `json:"like_count,omitempty"`
-	IsLiked      bool       `json:"is_liked,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID             int        `json:"novel_id"`
+	Title          string     `json:"title"`
+	Captions       *string    `json:"captions"`
+	Introduction   *string    `json:"introduction"`
+	CategoryIDs    []int      `json:"category_ids,omitempty"`
+	Categories     []Category `json:"categories"`
+	CoverImage     *string    `json:"cover_image"`
+	Status         string     `json:"status"`
+	AuthorID       int        `json:"author_id"`
+	AuthorName     string     `json:"author_name"`
+	PenName        string     `json:"pen_name"`
+	Views          int        `json:"views"`
+	ChapterCount   int        `json:"chapter_count,omitempty"`
+	SceneCount     int        `json:"scene_count,omitempty"`
+	LikeCount      int        `json:"like_count,omitempty"`
+	BookshelfCount int        `json:"bookshelf_count,omitempty"`
+	IsLiked        bool       `json:"is_liked,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }

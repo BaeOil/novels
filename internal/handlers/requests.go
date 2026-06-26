@@ -188,6 +188,21 @@ func (r *LikeRequest) Validate() error {
 	return nil
 }
 
+type BookshelfRequest struct {
+	UserID  int `json:"user_id"`
+	NovelID int `json:"novel_id"`
+}
+
+func (r *BookshelfRequest) Validate() error {
+	if r.UserID == 0 {
+		return errors.New("user_id is required")
+	}
+	if r.NovelID == 0 {
+		return errors.New("novel_id is required")
+	}
+	return nil
+}
+
 type CommentRequest struct {
 	UserID  int    `json:"user_id"`
 	NovelID int    `json:"novel_id"`

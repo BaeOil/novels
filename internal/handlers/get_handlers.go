@@ -323,6 +323,72 @@ func GetWriterDetailHandler(writerService service.WriterService) http.HandlerFun
 	}
 }
 
+func GetWriterBookshelfCountsHandler(socialService service.SocialService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			RespondWithError(w, http.StatusMethodNotAllowed, "method not allowed", "only GET is supported")
+			return
+		}
+
+		path := strings.TrimPrefix(r.URL.Path, "/writer/")
+		parts := strings.Split(strings.TrimSuffix(path, "/"), "/")
+		if len(parts) != 2 || parts[1] != "bookshelf-counts" {
+			RespondWithError(w, http.StatusBadRequest, "invalid path format", "expected /writer/{id}/bookshelf-counts")
+			return
+		}
+
+		id, err := strconv.Atoi(parts[0])
+		if err != nil || id <= 0 {
+			RespondWithError(w, http.StatusBadRequest, "invalid writer id", err.Error())
+			return
+		}
+
+		novels, err := socialService.GetBookshelfCountsByAuthorID(id)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, "failed to fetch bookshelf counts", err.Error())
+			return
+		}
+
+		RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+			"author_id": id,
+			"novels":    novels,
+		})
+	}
+}
+
+func GetWriterTotalViewsHandler(writerService service.WriterService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			RespondWithError(w, http.StatusMethodNotAllowed, "method not allowed", "only GET is supported")
+			return
+		}
+
+		path := strings.TrimPrefix(r.URL.Path, "/writer/")
+		parts := strings.Split(strings.TrimSuffix(path, "/"), "/")
+		if len(parts) != 2 || parts[1] != "total-views" {
+			RespondWithError(w, http.StatusBadRequest, "invalid path format", "expected /writer/{id}/total-views")
+			return
+		}
+
+		id, err := strconv.Atoi(parts[0])
+		if err != nil || id <= 0 {
+			RespondWithError(w, http.StatusBadRequest, "invalid writer id", err.Error())
+			return
+		}
+
+		writer, err := writerService.GetWriterByID(id)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, "writer not found", err.Error())
+			return
+		}
+
+		RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+			"author_id":        id,
+			"total_view_count": writer.TotalViewCount,
+		})
+	}
+}
+
 // POST /upload - Upload image to MinIO and Update Database
 func UploadImageHandler(mediaService service.MediaService, novelService service.NovelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

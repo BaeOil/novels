@@ -17,6 +17,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			(SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id) AS scene_count,
 			w.name_lastname, w.pen_name,
 			COALESCE(COUNT(DISTINCT l.id), 0) AS like_count,
+			(SELECT COALESCE(COUNT(*), 0) FROM bookshelves b WHERE b.novel_id = n.novel_id) AS bookshelf_count,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -49,7 +50,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,
-			&n.LikeCount,
+			&n.LikeCount, &n.BookshelfCount,
 			&categoriesJSON,
 		)
 		if err != nil {
@@ -69,6 +70,9 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			if err != nil {
 				return nil, err
 			}
+			for _, cat := range n.Categories {
+				n.CategoryIDs = append(n.CategoryIDs, cat.CategoryID)
+			}
 		}
 
 		novels = append(novels, n)
@@ -86,6 +90,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 			(SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id) AS scene_count,
 			w.name_lastname, w.pen_name,
 			COALESCE(COUNT(DISTINCT l.id), 0) AS like_count,
+			(SELECT COALESCE(COUNT(*), 0) FROM bookshelves b WHERE b.novel_id = n.novel_id) AS bookshelf_count,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -111,7 +116,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 		&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 		&n.ChapterCount, &n.SceneCount,
 		&authorName, &penName,
-		&n.LikeCount,
+		&n.LikeCount, &n.BookshelfCount,
 		&categoriesJSON,
 	)
 	if err != nil {
@@ -129,6 +134,9 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 		err = json.Unmarshal(categoriesJSON, &n.Categories)
 		if err != nil {
 			return nil, err
+		}
+		for _, cat := range n.Categories {
+			n.CategoryIDs = append(n.CategoryIDs, cat.CategoryID)
 		}
 	}
 
@@ -249,6 +257,8 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 			(SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id) AS chapter_count,
 			(SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id) AS scene_count,
 			w.name_lastname, w.pen_name,
+			(SELECT COALESCE(COUNT(*), 0) FROM likes l WHERE l.novel_id = n.novel_id) AS like_count,
+			(SELECT COALESCE(COUNT(*), 0) FROM bookshelves b WHERE b.novel_id = n.novel_id) AS bookshelf_count,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -280,6 +290,7 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 			&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,
+			&n.LikeCount, &n.BookshelfCount,
 			&categoriesJSON,
 		)
 		if err != nil {

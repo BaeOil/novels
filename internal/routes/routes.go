@@ -36,6 +36,7 @@ func RegisterRoutes(
 	// ผูกลิงก์สมัครสมาชิกกับล็อกอินออกจากระบบเข้าท่อหลัก
 	mux.Handle("/api/register", middleware.RequestLogger(http.HandlerFunc(authHandler.Register)))
 	mux.Handle("/api/login", middleware.RequestLogger(http.HandlerFunc(authHandler.Login)))
+	mux.Handle("/api/refresh", middleware.RequestLogger(http.HandlerFunc(authHandler.Refresh)))
 	mux.Handle("/api/logout", middleware.RequestLogger(http.HandlerFunc(authHandler.Logout)))
 
 	// ดึงข้อมูลผู้ใช้ปัจจุบัน (ต้องมี Token ที่ถูกต้อง)
@@ -136,10 +137,35 @@ func RegisterRoutes(
 		}
 		middleware.RequireAuth(handlers.AddLikeHandler(social)).ServeHTTP(w, r)
 	})))
-	mux.Handle("/comments", middleware.RequestLogger(middleware.RequireAuth(handlers.AddCommentHandler(social))))
+	mux.Handle("/bookshelves", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.GetBookshelfCountHandler(social)(w, r)
+			return
+		}
+		if r.Method == http.MethodDelete {
+			middleware.RequireAuth(handlers.RemoveFromBookshelfHandler(social)).ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPost {
+			middleware.RequireAuth(handlers.AddToBookshelfHandler(social)).ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	mux.Handle("/comments", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			middleware.RequireAuth(handlers.RemoveCommentHandler(social)).ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPost {
+			middleware.RequireAuth(handlers.AddCommentHandler(social)).ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
 	mux.Handle("/follows", middleware.RequestLogger(middleware.RequireAuth(handlers.AddFollowHandler(social))))
 
-	mux.Handle("/writer/", middleware.RequestLogger(http.HandlerFunc(writerSubRouter(writer))))
+	mux.Handle("/writer/", middleware.RequestLogger(http.HandlerFunc(writerSubRouter(writer, social))))
 	mux.Handle("/upload/image", middleware.RequestLogger(middleware.RequireAuth(handlers.UploadImageHandler(media, novel))))
 }
 
@@ -217,14 +243,22 @@ func sceneSubRouter(scene service.SceneService, social service.SocialService) ht
 	}
 }
 
-func writerSubRouter(writer service.WriterService) http.HandlerFunc {
+func writerSubRouter(writer service.WriterService, social service.SocialService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/writer/"), "/")
-		if r.Method == http.MethodGet && isNumericIDPath(path) {
+		switch {
+		case r.Method == http.MethodGet && isNumericIDPath(path):
 			handlers.GetWriterDetailHandler(writer)(w, r)
 			return
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/bookshelf-counts"):
+			handlers.GetWriterBookshelfCountsHandler(social)(w, r)
+			return
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/total-views"):
+			handlers.GetWriterTotalViewsHandler(writer)(w, r)
+			return
+		default:
+			http.NotFound(w, r)
 		}
-		http.NotFound(w, r)
 	}
 }
 

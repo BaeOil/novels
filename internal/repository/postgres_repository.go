@@ -161,8 +161,28 @@ func (r *postgresSocialRepository) IsLikeExists(userID, novelID int) (bool, erro
 	return IsLikeExists(r.db, userID, novelID)
 }
 
+func (r *postgresSocialRepository) AddToBookshelf(userID, novelID int) error {
+	return AddToBookshelf(r.db, userID, novelID)
+}
+
+func (r *postgresSocialRepository) RemoveFromBookshelf(userID, novelID int) error {
+	return RemoveFromBookshelf(r.db, userID, novelID)
+}
+
+func (r *postgresSocialRepository) GetBookshelfCountByNovelID(novelID int) (int, error) {
+	return GetBookshelfCountByNovelID(r.db, novelID)
+}
+
+func (r *postgresSocialRepository) GetBookshelfCountsByAuthorID(authorID int) ([]models.Novel, error) {
+	return GetBookshelfCountsByAuthorID(r.db, authorID)
+}
+
 func (r *postgresSocialRepository) AddComment(comment models.Comment) (int, error) {
 	return AddComment(r.db, comment)
+}
+
+func (r *postgresSocialRepository) RemoveComment(commentID, userID int) error {
+	return RemoveComment(r.db, commentID, userID)
 }
 
 func (r *postgresSocialRepository) AddFollow(follow models.Follow) error {

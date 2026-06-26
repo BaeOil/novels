@@ -39,9 +39,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		Password: r.FormValue("password"),
 	}
 
-	// เช็คความสะอาดของข้อมูลเบื้องต้น (Validation)
-	if req.Username == "" || req.Email == "" || req.Password == "" {
-		http.Error(w, "กรุณากรอกข้อมูลให้ครบถ้วน", http.StatusBadRequest)
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -62,19 +61,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		avatarURL = uploadedURL
 	}
 
-	user, err := h.authService.Register(r.Context(), req, avatarURL)
+	res, err := h.authService.Register(r.Context(), req, avatarURL)
 	if err != nil {
 		http.Error(w, "สมัครสมาชิกไม่สำเร็จ: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// ตอบกลับสถานะสำเร็จให้หน้าบ้าน React
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "สมัครสมาชิกสำเร็จแล้ว",
-		"user_id": user.ID,
-	})
+	json.NewEncoder(w).Encode(res)
 }
 
 // 🔑 2. ท่อเข้าสู่ระบบ (Login) - รับข้อมูลรูปแบบ JSON
@@ -110,7 +105,31 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
-// 🔓 3. ท่อออกจากระบบ (Logout) - ปิดเซสชันฝั่ง frontend
+// � 3. ท่อรีเฟรชโทเค็น (Refresh Token)
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req dto.RefreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	res, err := h.authService.RefreshToken(r.Context(), req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(res)
+}
+
+// 🔓 4. ท่อออกจากระบบ (Logout) - ปิดเซสชันฝั่ง frontend
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

@@ -50,7 +50,12 @@ type SocialRepository interface {
 	AddLike(models.Like) error
 	RemoveLike(userID, novelID int) error
 	IsLikeExists(userID, novelID int) (bool, error)
+	AddToBookshelf(userID, novelID int) error
+	RemoveFromBookshelf(userID, novelID int) error
+	GetBookshelfCountByNovelID(novelID int) (int, error)
+	GetBookshelfCountsByAuthorID(authorID int) ([]models.Novel, error)
 	AddComment(models.Comment) (int, error)
+	RemoveComment(commentID, userID int) error
 	AddFollow(models.Follow) error
 	GetCommentsByNovelID(novelID int) ([]models.Comment, error)
 	GetCommentsBySceneID(sceneID int) ([]models.Comment, error)

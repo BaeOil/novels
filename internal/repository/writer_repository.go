@@ -17,10 +17,49 @@ func NewWriterRepository(db *sql.DB) WriterRepository {
 
 // 🟢 ปรับปรุงฟังก์ชันนี้ให้ตรงตามสัญญา (want GetWriterByID(int) (*models.Writer, error))
 func (r *sqlWriterRepository) GetWriterByID(id int) (*models.Writer, error) {
-	query := `SELECT writer_id, user_id, pen_name, bio, email_writer, contact_info, avatar_url FROM writers WHERE writer_id = $1`
+	query := `
+SELECT
+	writer_id,
+	user_id,
+	name_lastname,
+	pen_name,
+	bio,
+	email_writer,
+	contact_info,
+	avatar_url,
+	COALESCE(
+		(
+			SELECT COUNT(*)
+			FROM likes l
+			JOIN novels n ON n.novel_id = l.novel_id
+			WHERE n.author_id = w.writer_id
+		),
+		0
+		) AS total_like_count,
+	COALESCE(
+		(
+			SELECT SUM(n.views)
+			FROM novels n
+			WHERE n.author_id = w.writer_id
+		),
+		0
+		) AS total_view_count
+FROM writers w
+WHERE writer_id = $1`
 
 	var w models.Writer
-	err := r.db.QueryRow(query, id).Scan(&w.WriterID, &w.UserID, &w.PenName, &w.Bio, &w.EmailWriter, &w.ContactInfo, &w.AvatarURL)
+	err := r.db.QueryRow(query, id).Scan(
+		&w.WriterID,
+		&w.UserID,
+		&w.NameLastname,
+		&w.PenName,
+		&w.Bio,
+		&w.EmailWriter,
+		&w.ContactInfo,
+		&w.AvatarURL,
+		&w.TotalLikeCount,
+		&w.TotalViewCount,
+	)
 	if err != nil {
 		return nil, err
 	}

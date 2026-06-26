@@ -35,6 +35,61 @@ func IsLikeExists(db *sql.DB, userID, novelID int) (bool, error) {
 	return count > 0, nil
 }
 
+func AddToBookshelf(db *sql.DB, userID, novelID int) error {
+	_, err := db.Exec(`
+        INSERT INTO bookshelves (user_id, novel_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, novel_id) DO NOTHING
+    `, userID, novelID)
+	return err
+}
+
+func RemoveFromBookshelf(db *sql.DB, userID, novelID int) error {
+	_, err := db.Exec(`
+        DELETE FROM bookshelves
+        WHERE user_id = $1 AND novel_id = $2
+    `, userID, novelID)
+	return err
+}
+
+func GetBookshelfCountByNovelID(db *sql.DB, novelID int) (int, error) {
+	var count int
+	err := db.QueryRow(`
+        SELECT COUNT(*)
+        FROM bookshelves
+        WHERE novel_id = $1
+    `, novelID).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func GetBookshelfCountsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
+	rows, err := db.Query(`
+        SELECT n.novel_id, n.title, COALESCE(COUNT(b.id), 0) AS bookshelf_count
+        FROM novels n
+        LEFT JOIN bookshelves b ON n.novel_id = b.novel_id
+        WHERE n.author_id = $1
+        GROUP BY n.novel_id, n.title
+        ORDER BY n.created_at DESC
+    `, authorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var novels []models.Novel
+	for rows.Next() {
+		var n models.Novel
+		if err := rows.Scan(&n.ID, &n.Title, &n.BookshelfCount); err != nil {
+			return nil, err
+		}
+		novels = append(novels, n)
+	}
+	return novels, nil
+}
+
 func AddComment(db *sql.DB, comment models.Comment) (int, error) {
 	var id int
 	err := db.QueryRow(`
@@ -46,6 +101,24 @@ func AddComment(db *sql.DB, comment models.Comment) (int, error) {
 		return 0, err
 	}
 	return id, nil
+}
+
+func RemoveComment(db *sql.DB, commentID, userID int) error {
+	res, err := db.Exec(`
+        DELETE FROM comments
+        WHERE comment_id = $1 AND user_id = $2
+    `, commentID, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func AddFollow(db *sql.DB, follow models.Follow) error {
