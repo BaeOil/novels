@@ -1,17 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import './Manageusers.css';
-
-// ─────────────────────────────────────────────
-//  Modal Components
-// ─────────────────────────────────────────────
 
 // Action confirmation modal
 const ActionConfirmModal = ({
   isOpen,
   title,
   message,
- confirmText,
+  confirmText,
   confirmClass,
   onConfirm,
   onCancel
@@ -167,92 +162,10 @@ const EditUserModal = ({ isOpen, user, onCancel }) => {
 };
 
 // ─────────────────────────────────────────────
-//  Admin Sidebar Component
-// ─────────────────────────────────────────────
-
-const AdminSidebar = ({ currentPage, onNavigate }) => {
-  const navigate = useNavigate();
-
-  const MENU_ITEMS = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard แอดมิน',
-      icon: '📊',
-    },
-    {
-      id: 'manage-users',
-      label: 'จัดการผู้ใช้งาน',
-      icon: '👥',
-    },
-    {
-      id: 'manage-novels',
-      label: 'จัดการนิยาย',
-      icon: '📚',
-    },
-    {
-      id: 'reports',
-      label: 'รายงาน',
-      icon: '📈',
-    },
-    {
-      id: 'logout',
-      label: 'ออกจากระบบ',
-      icon: '➜]',
-    },
-  ];
-
-  return (
-    <aside className="admin-sidebar">
-      <div className="admin-sidebar__logo">
-        <div className="admin-sidebar__logo-icon">📱</div>
-
-        <div className="admin-sidebar__logo-text">
-          <span className="admin-sidebar__logo-story">Story</span>
-          <span className="admin-sidebar__logo-verse">Verse</span>
-          <span className="admin-sidebar__logo-mode">ADMIN CONSOLE</span>
-        </div>
-      </div>
-
-      <nav className="admin-sidebar__nav">
-        {MENU_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={`admin-sidebar__item ${currentPage === item.id ? 'admin-sidebar__item--active' : ''}`}
-            onClick={() => {
-              if (item.id === 'logout') {
-                navigate('/login-register');
-              } else {
-                onNavigate(item.id);
-              }
-            }}
-          >
-            <span className="admin-sidebar__item-icon">{item.icon}</span>
-            <span className="admin-sidebar__item-label">{item.label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="admin-sidebar__spacer" />
-
-      <div className="admin-sidebar__bottom">
-        <div className="admin-sidebar__profile">
-          <div className="admin-sidebar__profile-av">👨‍💼</div>
-
-          <div>
-            <div className="admin-sidebar__profile-name">Admin User</div>
-            <div className="admin-sidebar__profile-role">ผู้ดูแล</div>
-          </div>
-        </div>
-      </div>
-    </aside>
-  );
-};
-
-// ─────────────────────────────────────────────
 //  Main Component
 // ─────────────────────────────────────────────
 
-const Manageusers = ({ onNavigate = () => {} }) => {
+const Manageusers = ({ onNavigate = () => { } }) => {
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -388,123 +301,126 @@ const Manageusers = ({ onNavigate = () => {} }) => {
   };
 
   return (
-    <div className="admin-layout">
-      <AdminSidebar
-        currentPage="manage-users"
-        onNavigate={onNavigate}
+    <div className="manageusers-container">
+      <div className="manageusers-header">
+        <h1 className="manageusers-header__title">
+          ตรวจสอบคำขอนักเขียน
+        </h1>
+
+        <p className="manageusers-header__sub">
+          คำขอทั้งหมด {requests.length} รายการ
+        </p>
+      </div>
+
+      <div className="table-container">
+        <table className="users-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ชื่อผู้ใช้</th>
+              <th>อีเมล</th>
+              <th>บทบาท</th>
+              <th>สถานะ</th>
+              <th>จัดการ</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {requests.map((request, index) => (
+              <tr key={request.writer_id}>
+                <td>{index + 1}</td>
+                <td>{request.username}</td>
+                <td>{request.email_writer || request.username}</td>
+
+                <td>
+                  <span className="role-badge role-reader">
+                    Reader
+                  </span>
+                </td>
+
+                <td>
+                  <span className="status-badge status-pending">
+                    {request.status}
+                  </span>
+                </td>
+
+                <td>
+                  <div className="action-buttons">
+
+                    <button
+                      className="btn-edit"
+                      onClick={() => handleEditUser(request)}
+                    >
+                      👁 ดู
+                    </button>
+
+                    <button
+                      className="btn-approve"
+                      onClick={() =>
+                        handleActionClick(
+                          request.writer_id,
+                          request.username,
+                          "approve"
+                        )
+                      }
+                    >
+                      ✔ ยืนยัน
+                    </button>
+
+                    <button
+                      className="btn-reject"
+                      onClick={() =>
+                        handleActionClick(
+                          request.writer_id,
+                          request.username,
+                          "reject"
+                        )
+                      }
+                    >
+                      ✖ ปฏิเสธ
+                    </button>
+
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <EditUserModal
+        isOpen={editModal.isOpen}
+        user={editModal.user}
+        onCancel={handleCancelEdit}
       />
 
-      <div className="manageusers-container">
-        <div className="manageusers-header">
-          <h1 className="manageusers-header__title">
-            ตรวจสอบคำขอนักเขียน
-          </h1>
-
-          <p className="manageusers-header__sub">
-            คำขอทั้งหมด {requests.length} รายการ
-          </p>
-        </div>
-
-        <div className="table-container">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>ชื่อผู้ใช้</th>
-                <th>อีเมล</th>
-                <th>บทบาท</th>
-                <th>สถานะ</th>
-                <th>จัดการ</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {requests.map((request, index) => (
-                <tr key={request.writer_id}>
-                  <td>{index + 1}</td>
-                  <td>{request.username}</td>
-                  <td>{request.email_writer || request.username}</td>
-
-                  <td>
-                    <span className="role-badge role-reader">Reader</span>
-                  </td>
-
-                  <td>
-                    <span className="status-badge status-pending">
-                      {request.status}
-                    </span>
-                  </td>
-
-                  <td>
-                    <div className="action-buttons">
-
-                      <button
-                        className="btn-edit"
-                        onClick={() => handleEditUser(request)}
-                      >
-                        👁 ดู
-                      </button>
-
-                      <button
-                        className="btn-approve"
-                        onClick={() =>
-                          handleActionClick(request.writer_id, request.username, 'approve')
-                        }
-                      >
-                        ✔ ยืนยัน
-                      </button>
-
-                      <button
-                        className="btn-reject"
-                        onClick={() =>
-                          handleActionClick(request.writer_id, request.username, 'reject')
-                        }
-                      >
-                        ✖ ปฏิเสธ
-                      </button>
-
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <EditUserModal
-          isOpen={editModal.isOpen}
-          user={editModal.user}
-          onCancel={handleCancelEdit}
-        />
-
-        <ActionConfirmModal
-          isOpen={actionModal.isOpen}
-          title={
-            actionModal.action === 'approve'
-              ? 'ยืนยันการอนุมัติ'
-              : 'ยืนยันการปฏิเสธ'
-          }
-          message={
-            actionModal.action === 'approve'
-              ? `คุณต้องการอนุมัติ ${actionModal.userName} ใช่หรือไม่?`
-              : `คุณต้องการปฏิเสธ ${actionModal.userName} ใช่หรือไม่?`
-          }
-          confirmText={
-            actionModal.action === 'approve'
-              ? 'ยืนยัน'
-              : 'ปฏิเสธ'
-          }
-          confirmClass={
-            actionModal.action === 'approve'
-              ? 'modal-btn--approve'
-              : 'modal-btn--reject'
-          }
-          onConfirm={handleConfirmAction}
-          onCancel={handleCancelAction}
-        />
-      </div>
+      <ActionConfirmModal
+        isOpen={actionModal.isOpen}
+        title={
+          actionModal.action === "approve"
+            ? "ยืนยันการอนุมัติ"
+            : "ยืนยันการปฏิเสธ"
+        }
+        message={
+          actionModal.action === "approve"
+            ? `คุณต้องการอนุมัติ ${actionModal.userName} ใช่หรือไม่?`
+            : `คุณต้องการปฏิเสธ ${actionModal.userName} ใช่หรือไม่?`
+        }
+        confirmText={
+          actionModal.action === "approve"
+            ? "ยืนยัน"
+            : "ปฏิเสธ"
+        }
+        confirmClass={
+          actionModal.action === "approve"
+            ? "modal-btn--approve"
+            : "modal-btn--reject"
+        }
+        onConfirm={handleConfirmAction}
+        onCancel={handleCancelAction}
+      />
     </div>
   );
-};
+}
 
 export default Manageusers;

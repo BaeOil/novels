@@ -11,6 +11,7 @@ import {
 import Navbar from "./components/Navbar/Navbar";
 import NavbarWriter from "./components/Navbarwriter/Navbarwriter";
 import WriterSidebar from "./components/WriterSidebar/WriterSidebar";
+import AdminNavbar from "./components/NavbarAdmin/AdminNavbar";
 
 import HomePage from "./pages/Reader/HomePage/HomePage";
 import NovelDetailPage from "./pages/Reader/NovelDetailPage/NovelDetailPage";
@@ -428,11 +429,12 @@ const refreshAuthToken = async () => {
 // ======================================================
 const NavbarWrapper = () => {
   const showNavbar = useNavbar();
-  
   if (!showNavbar) return null;
-  
+
   const role = getRoleFromToken();
-  return role === 'writer' ? <NavbarWriter /> : <Navbar />;
+  if (role === "admin") return <AdminNavbar />;
+  if (role === "writer") return <NavbarWriter />;
+  return <Navbar />;
 };
 
 // ======================================================
