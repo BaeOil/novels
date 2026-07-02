@@ -25,6 +25,7 @@ const initialNovelState = {
   stats: {
     views: 0,
     likes: 0,
+    bookshelfCount: 0,
     choicePoints: 0,
     endings: 0,
   },
@@ -60,6 +61,7 @@ const NovelDetailPage = () => {
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [restartLoading, setRestartLoading] = useState(false);
   const [restartError, setRestartError] = useState(null);
+  const [bookmarkProcessing, setBookmarkProcessing] = useState(false);
 
   const getCurrentUserId = () => {
     const userJson = localStorage.getItem("user");
@@ -70,6 +72,24 @@ const NovelDetailPage = () => {
     } catch (err) {
       console.warn("Failed to parse user from localStorage:", err);
       return 0;
+    }
+  };
+
+  const fetchBookmarkedStatus = async (currentNovelId, userId, headers) => {
+    if (!currentNovelId || !userId) return false;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookshelves?user_id=${userId}`, { headers });
+      if (!response.ok) return false;
+
+      const payload = await response.json().catch(() => null);
+      const bookshelfItems = payload?.data?.bookshelf || payload?.bookshelf || payload?.novels || payload?.data || [];
+      const items = Array.isArray(bookshelfItems) ? bookshelfItems : [];
+
+      return items.some((item) => String(item.novel_id ?? item.id ?? item.novel?.id ?? "") === String(currentNovelId));
+    } catch (err) {
+      console.warn("Failed to fetch bookshelf status:", err);
+      return false;
     }
   };
 
@@ -158,6 +178,7 @@ const NovelDetailPage = () => {
 
         // ดักจับข้อมูลความคืบหน้าจากหลังบ้าน
         const progressSource = data.progress || data.user_progress || data.userProgress || data || {};
+        const isBookmarked = userId > 0 ? await fetchBookmarkedStatus(id, userId, headers) : false;
         
         const totalScenes = progressSource.total_scenes ?? progressSource.totalScenes ?? chaptersCountFromApi ?? 0;
         const visitedScenes = progressSource.visited_scenes ?? progressSource.visitedScenes ?? 0;
@@ -190,6 +211,8 @@ const NovelDetailPage = () => {
           stats: {
             views: nData.views || 0,
             likes: nData.like_count || nData.likeCount || 0,
+            bookshelfCount:
+              nData.bookshelf_count || nData.bookmark_count || nData.total_bookmarks || 0,
             choicePoints: totalChoices,
             endings: totalEndings,
           },
@@ -203,7 +226,7 @@ const NovelDetailPage = () => {
           },
           synopsis_detail: nData.introduction || "ยังไม่มีรายละเอียดเพิ่มเติม",
           isLiked: nData.is_liked || nData.isLiked || false,
-          isBookmarked: false,
+          isBookmarked: isBookmarked,
         });
         setEndings(data.endings || []);
       } catch (err) {
@@ -235,8 +258,46 @@ const NovelDetailPage = () => {
     }
   };
 
-  const handleBookmark = (isBookmarked) => {
-    console.log("bookmark:", isBookmarked);
+  const handleBookmark = async (isBookmarked) => {
+    if (!id) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login-register");
+      return;
+    }
+
+    if (bookmarkProcessing) return;
+    setBookmarkProcessing(true);
+
+    try {
+      const method = isBookmarked ? "POST" : "DELETE";
+      const url = `${API_BASE_URL}/bookshelves${isBookmarked ? "" : `?novel_id=${id}`}`;
+      const body = isBookmarked ? JSON.stringify({ novel_id: parseInt(id, 10) }) : undefined;
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body,
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+      }
+
+      setNovel((prev) => ({
+        ...prev,
+        isBookmarked: isBookmarked,
+      }));
+    } catch (err) {
+      console.error("Failed to update bookshelf status:", err);
+      setNovel((prev) => ({ ...prev, isBookmarked: !isBookmarked }));
+    } finally {
+      setBookmarkProcessing(false);
+    }
   };
 
   const [likeProcessing, setLikeProcessing] = useState(false);

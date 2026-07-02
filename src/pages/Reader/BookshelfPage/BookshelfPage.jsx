@@ -13,7 +13,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 
 const FILTER_OPTIONS = [
     { value: "all", label: "ทั้งหมด" },
-    { value: "want_to_read", label: "อยากอ่าน" },
+    { value: "want_to_read", label: "ยังไม่อ่าน" },
     { value: "reading", label: "กำลังอ่าน" },
     { value: "finished", label: "อ่านจบแล้ว" },
 ];
@@ -21,6 +21,11 @@ const FILTER_OPTIONS = [
 const formatMinioUrl = (url) => {
     if (!url) return "https://via.placeholder.com/320x420";
     return url.replace("http://minio:9000", "http://localhost:9000");
+};
+
+const getBookshelfApiUrl = (userId) => {
+    const base = `${API_BASE_URL}/bookshelves`;
+    return userId ? `${base}?user_id=${userId}` : base;
 };
 
 const normalizeCategoryName = (value) => {
@@ -34,6 +39,25 @@ const stripHtml = (html = "") => {
     const div = document.createElement("div");
     div.innerHTML = html;
     return div.textContent || "";
+};
+
+const normalizeReadingStatus = (statusValue, endingCount, currentSceneId) => {
+    const rawStatus = String(statusValue || "").trim().toLowerCase();
+    if (rawStatus === "want_to_read" || rawStatus === "reading" || rawStatus === "finished") {
+        return rawStatus;
+    }
+    if (rawStatus === "unread" || rawStatus === "wanttoread") {
+        return "want_to_read";
+    }
+    if (rawStatus === "in_progress" || rawStatus === "inprogress" || rawStatus === "reading") {
+        return "reading";
+    }
+    if (rawStatus === "complete" || rawStatus === "completed" || rawStatus === "finished") {
+        return "finished";
+    }
+    if (endingCount > 0) return "finished";
+    if (currentSceneId > 0) return "reading";
+    return "want_to_read";
 };
 
 const normalizeBook = (item) => ({
@@ -88,10 +112,11 @@ const normalizeBook = (item) => ({
         item.novel?.cover_image
     ),
 
-    reading_status:
-        item.reading_status ||
-        item.status ||
-        "want_to_read",
+    reading_status: normalizeReadingStatus(
+        item.reading_status || item.status || item.novel?.status,
+        item.ending_count ?? item.endingCount ?? 0,
+        item.current_scene_id ?? item.currentSceneId ?? item.novel?.current_scene_id ?? item.novel?.CurrentSceneID ?? 0
+    ),
 
     latestChapter:
         item.latest_chapter ||
@@ -100,6 +125,19 @@ const normalizeBook = (item) => ({
         item.chapter_title ||
         "ยังไม่มีตอน",
 
+    lastReadSceneTitle:
+        item.last_read_scene_title ||
+        item.lastReadSceneTitle ||
+        item.last_read_at ||
+        "ยังไม่มีประวัติการอ่าน",
+
+    lastReadAt:
+        item.last_read_at ||
+        item.lastReadAt ||
+        item.updated_at ||
+        item.updatedAt ||
+        null,
+
     // ---------- Statistics ----------
 
     totalRoutes:
@@ -107,6 +145,27 @@ const normalizeBook = (item) => ({
         item.total_paths ||
         item.totalRoutes ||
         item.route_count ||
+        0,
+
+    currentSceneId:
+        item.current_scene_id ||
+        item.currentSceneId ||
+        0,
+
+    visitedCount:
+        item.visited_count ||
+        item.VisitedCount ||
+        0,
+
+    endingCount:
+        item.ending_count ||
+        item.endingCount ||
+        0,
+
+    totalScenes:
+        item.total_scenes ||
+        item.totalScenes ||
+        item.scene_count ||
         0,
 
     views:
@@ -123,7 +182,7 @@ const normalizeBook = (item) => ({
 
 const statusLabels = {
     all: "ทั้งหมด",
-    want_to_read: "อยากอ่าน",
+    want_to_read: "ยังไม่อ่าน",
     reading: "กำลังอ่าน",
     finished: "อ่านจบแล้ว",
 };
@@ -156,36 +215,29 @@ const BookshelfPage = () => {
                 const headers = { "Content-Type": "application/json" };
                 if (token) headers.Authorization = `Bearer ${token}`;
 
-                const bookshelfUrl = `${API_BASE_URL}/bookshelf${userId ? `?user_id=${userId}` : ""}`;
-                const shelfRes = await axios.get(bookshelfUrl, { headers });
+                const shelfRes = await axios.get(getBookshelfApiUrl(userId), { headers });
                 const shelfPayload =
                     shelfRes.data?.data?.bookshelf ||
                     shelfRes.data?.bookshelf ||
                     shelfRes.data?.novels ||
                     shelfRes.data ||
                     [];
-                let bookList = Array.isArray(shelfPayload) ? shelfPayload : [];
+                const bookList = Array.isArray(shelfPayload) ? shelfPayload : [];
 
                 if (bookList.length === 0) {
-                    const novelRes = await axios.get(`${API_BASE_URL}/novels`, { headers });
-                    const novelPayload =
-                        novelRes.data?.data ||
-                        novelRes.data?.novels ||
-                        novelRes.data ||
-                        [];
-                    bookList = Array.isArray(novelPayload) ? novelPayload : [];
-                }
-
-                if (bookList.length === 0) {
-                    throw new Error("empty");
+                    if (active) {
+                        setBooks([]);
+                    }
+                    return;
                 }
 
                 if (active) {
                     setBooks(bookList.map(normalizeBook));
                 }
-            } catch {
+            } catch (err) {
+                console.error("Bookshelf API error:", err);
                 if (active) {
-                    setBooks(BOOKSHELF_MOCK_DATA.map(normalizeBook));
+                    setBooks([]);
                 }
             } finally {
                 if (active) setLoading(false);
@@ -275,7 +327,8 @@ const BookshelfPage = () => {
                                             <h2 className="bookshelf-card__title">{book.title}</h2>
                                             <p className="bookshelf-card__author">{book.author}</p>
                                             <p className="bookshelf-card__latest">
-                                                📖 ตอนล่าสุด : {book.latestChapter}
+                                                📖 ล่าสุดอ่าน: {book.lastReadSceneTitle || book.latestChapter}
+                                                {book.lastReadAt ? ` · ${new Date(book.lastReadAt).toLocaleString()}` : ""}
                                             </p>
 
                                             <div className="bookshelf-card__stats">
@@ -297,8 +350,8 @@ const BookshelfPage = () => {
                                         </div>
 
 
-                                        <span className={`bookshelf-card__status bookshelf-card__status--${book.reading_status}`}>
-                                            {statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
+                                        <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
+                                            {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
                                         </span>
                                     </div>
                                     </article>

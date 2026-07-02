@@ -1,5 +1,5 @@
 // src/components/ActionButtons/ActionButtons.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import "./ActionButtons.css";
 
 /**
@@ -19,31 +19,19 @@ const ActionButtons = ({
   onBookmark,
   onLike,
 }) => {
-  const [bookmarked, setBookmarked] = useState(isBookmarked);
-  const [liked, setLiked] = useState(isLiked);
-
-  useEffect(() => {
-    setBookmarked(isBookmarked);
-  }, [isBookmarked]);
-
-  useEffect(() => {
-    setLiked(isLiked);
-  }, [isLiked]);
-
   const handleBookmark = () => {
-    setBookmarked((prev) => !prev);
-    onBookmark?.(!bookmarked);
+    onBookmark?.(!isBookmarked);
   };
 
   const handleLike = () => {
-    setLiked((prev) => !prev);
-    onLike?.(!liked);
+    onLike?.(!isLiked);
   };
 
   return (
     <div className="action-buttons" role="group" aria-label="การกระทำสำหรับนิยาย">
       {/* Primary: Read */}
       <button
+        type="button"
         className="action-buttons__read"
         onClick={onRead}
         aria-label={readAriaLabel}
@@ -56,17 +44,18 @@ const ActionButtons = ({
 
       {/* Secondary: Bookmark */}
       <button
-        className={`action-buttons__bookmark ${bookmarked ? "action-buttons__bookmark--active" : ""}`}
+        type="button"
+        className={`action-buttons__bookmark ${isBookmarked ? "action-buttons__bookmark--active" : ""}`}
         onClick={handleBookmark}
-        aria-label={bookmarked ? "ลบออกจากชั้นหนังสือ" : "เพิ่มเข้าชั้นหนังสือ"}
-        aria-pressed={bookmarked}
+        aria-label={isBookmarked ? "ลบออกจากชั้นหนังสือ" : "เพิ่มเข้าชั้นหนังสือ"}
+        aria-pressed={isBookmarked}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path
             d="M3 2h8a1 1 0 011 1v9l-4-2-4 2V3a1 1 0 011-1z"
             stroke="currentColor"
             strokeWidth="1.5"
-            fill={bookmarked ? "currentColor" : "none"}
+            fill={isBookmarked ? "currentColor" : "none"}
           />
         </svg>
         เพิ่มเข้าชั้นหนังสือ
@@ -74,17 +63,18 @@ const ActionButtons = ({
 
       {/* Secondary: Like */}
       <button
-        className={`action-buttons__like ${liked ? "action-buttons__like--active" : ""}`}
+        type="button"
+        className={`action-buttons__like ${isLiked ? "action-buttons__like--active" : ""}`}
         onClick={handleLike}
-        aria-label={liked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
-        aria-pressed={liked}
+        aria-label={isLiked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
+        aria-pressed={isLiked}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path
             d="M7 12S2 8.5 2 5.5A2.5 2.5 0 017 4a2.5 2.5 0 015 1.5C12 8.5 7 12 7 12z"
             stroke="currentColor"
             strokeWidth="1.5"
-            fill={liked ? "currentColor" : "none"}
+            fill={isLiked ? "currentColor" : "none"}
           />
         </svg>
         ถูกใจ

@@ -201,7 +201,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
         setTreeData(response.data?.data || response.data || null);
       } catch (err) {
         console.error("Error fetching story tree:", err);
-        setError("ไม่สามารถโหลดข้อมูล Story Tree ได้ กรุณาลองใหม่อีกครั้ง");
+        setError("ไม่สามารถโหลดข้อมูล โครงสร้างเนื้อเรื่อง ได้ กรุณาลองใหม่อีกครั้ง");
       } finally {
         setIsLoading(false);
       }
@@ -597,7 +597,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
       <div className="wst-body">
         <div className="wst-canvas-area">
           <div className="wst-canvas-heading">
-            <h1 className="wst-canvas-title">Story Tree</h1>
+            <h1 className="wst-canvas-title">โครงสร้างเนื้อเรื่อง</h1>
             <p className="wst-canvas-sub">{title} · ดูภาพรวมโครงสร้างเนื้อเรื่อง</p>
           </div>
 

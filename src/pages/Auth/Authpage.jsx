@@ -112,7 +112,7 @@ const DecorPanel = () => (
           <circle cx="10.5" cy="11" r="1.5" fill="currentColor" opacity=".7"/>
           <path d="M5 6.3L9 3.7M5 7.7L9 10.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
         </svg>
-        Story Tree
+        โครงสร้างเนื้อเรื่อง
       </div>
       <div className="auth-decor__pill">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">

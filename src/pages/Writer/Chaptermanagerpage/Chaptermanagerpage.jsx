@@ -1104,7 +1104,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             className="cm-btn cm-btn--outline cm-btn--tree"
             onClick={() => onNavigate("story-tree", { novelId: currentNovelId })}
           >
-            📊 ดูโครงสร้าง (Story Tree)
+            📊 โครงสร้างเนื้อเรื่อง
           </button>
         </div>
 

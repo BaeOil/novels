@@ -129,7 +129,7 @@ const EndingCollection = ({ isOpen, endings, onClose, onViewStoryMap }) => {
                   className="ending-detail-popup__button ending-detail-popup__button--primary"
                   onClick={() => onViewStoryMap?.(selected.scene_id || selected.id)}
                 >
-                  ดูแผนผังเส้นทาง
+                  แผนผังการอ่าน
                 </button>
                 <button type="button" className="ending-detail-popup__button ending-detail-popup__button--secondary" onClick={() => setSelected(null)}>
                   กลับ Collection

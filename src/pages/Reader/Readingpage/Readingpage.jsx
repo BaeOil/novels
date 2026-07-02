@@ -451,7 +451,7 @@ const ReadingPage = ({
               <h2 className="rp__ending-title">จบเส้นทางเนื้อเรื่องย่อยนี้แล้ว!</h2>
               <div className="rp__ending-actions">
                 <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => handleLocalNavigate("story-tree") }>
-                  🌳 ดู Story Tree
+                  🌳 ดู โครงสร้างเนื้อเรื่อง
                 </button>
                 <RestartReadingButton onRestart={handleRestartReading} />
                 <button className="rp__ending-btn rp__ending-btn--outline" onClick={() => handleLocalNavigate("novel-detail") }>

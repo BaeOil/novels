@@ -3,6 +3,8 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
 const Navbar = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -97,11 +99,15 @@ const Navbar = () => {
         }
     };
 
-    const handleLogout = async () => {
+    const handleLogout = async (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        console.log("🚪 Logout clicked");
+
         try {
             const token = localStorage.getItem("token");
             if (token) {
-                await fetch('/api/logout', {
+                await fetch(`${API_BASE_URL}/api/logout`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -112,21 +118,18 @@ const Navbar = () => {
         } catch (err) {
             console.error("Logout error:", err);
         } finally {
-            // ✅ ทำความสะอาด localStorage
             localStorage.removeItem("token");
+            localStorage.removeItem("refresh_token");
             localStorage.removeItem("user");
             localStorage.removeItem("user_email");
-            
-            // ✅ Reset states
+            localStorage.removeItem("selectedNovel");
+
             setIsLoggedIn(false);
             setIsDropdownOpen(false);
             setUserData({ username: "", email: "", pic_profile: "", role: "" });
-            
-            // ✅ Navigate ไปหน้าแรก
-            navigate("/");
-            
-            // ✅ Reload เพื่อให้ NavbarWrapper ถูก re-render
-            window.location.href = "/";
+
+            navigate("/", { replace: true });
+            window.location.replace("/");
         }
     };
 
@@ -248,7 +251,7 @@ const Navbar = () => {
                                        
                                         
                                         <hr className="nav-dropdown__divider" />
-                                        <button type="button" className="nav-dropdown__logout-btn" onClick={handleLogout}>
+                                        <button type="button" className="nav-dropdown__logout-btn" onClick={(e) => handleLogout(e)}>
                                             🚪 ออกจากระบบ
                                         </button>
                                     </div>

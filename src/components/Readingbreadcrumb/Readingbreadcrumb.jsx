@@ -20,14 +20,14 @@ const ReadingBreadcrumb = ({ novelTitle, chapterTitle, onBack, onStoryMap }) => 
       </svg>
       <span className="rbreadcrumb__chapter">{chapterTitle}</span>
     </div>
-    <button className="rbreadcrumb__map" onClick={onStoryMap} aria-label="ดู Story Map">
+    <button className="rbreadcrumb__map" onClick={onStoryMap} aria-label="แผนผังการอ่าน">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <circle cx="3" cy="7" r="1.8" fill="currentColor" opacity="0.7"/>
         <circle cx="11" cy="3" r="1.8" fill="currentColor" opacity="0.7"/>
         <circle cx="11" cy="11" r="1.8" fill="currentColor" opacity="0.7"/>
         <path d="M4.8 6.4L9.2 3.8M4.8 7.6L9.2 10.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
       </svg>
-      Story Map
+      แผนผังการอ่าน
     </button>
   </div>
 );

@@ -10,6 +10,8 @@ import {
     LogOut
 } from "lucide-react";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
 const AdminNavbar = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -48,12 +50,34 @@ const AdminNavbar = () => {
 
     const isActive = (path) => location.pathname === path;
 
-    const handleLogout = () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        localStorage.removeItem("selectedNovel");
-        navigate("/");
-        window.location.href = "/";
+    const handleLogout = async (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        console.log("🚪 Admin logout clicked");
+
+        try {
+            const token = localStorage.getItem("token");
+            if (token) {
+                await fetch(`${API_BASE_URL}/api/logout`, {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                }).catch((err) => console.warn("Logout API warning:", err));
+            }
+        } catch (err) {
+            console.error("Logout error:", err);
+        } finally {
+            localStorage.removeItem("token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("user");
+            localStorage.removeItem("user_email");
+            localStorage.removeItem("selectedNovel");
+            setIsDropdownOpen(false);
+            navigate("/", { replace: true });
+            window.location.replace("/");
+        }
     };
 
     return (
@@ -136,7 +160,7 @@ const AdminNavbar = () => {
                                 <button
                                     type="button"
                                     className="admin-dropdown__logout-btn"
-                                    onClick={handleLogout}
+                                    onClick={(e) => handleLogout(e)}
                                 >
                                     <LogOut size={17} />
                                     <span>ออกจากระบบ</span>

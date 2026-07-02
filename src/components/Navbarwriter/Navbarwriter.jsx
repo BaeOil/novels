@@ -389,7 +389,11 @@ const Navbarwriter = () => {
     // ─────────────────────────────────────
     // Logout
     // ─────────────────────────────────────
-    const handleLogout = async () => {
+    const handleLogout = async (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        console.log("🚪 Writer logout clicked");
+
         try {
             const token = localStorage.getItem("token");
             if (token) {
@@ -404,13 +408,12 @@ const Navbarwriter = () => {
         } catch (err) {
             console.error("Logout error:", err);
         } finally {
-            // ✅ ทำความสะอาด localStorage
             localStorage.removeItem("token");
+            localStorage.removeItem("refresh_token");
             localStorage.removeItem("user");
             localStorage.removeItem("selectedNovel");
             localStorage.removeItem("user_email");
-            
-            // ✅ Reset states
+
             setSelectedNovel(null);
             setIsLoggedIn(false);
             setIsDropdownOpen(false);
@@ -420,12 +423,9 @@ const Navbarwriter = () => {
                 pic_profile: "",
                 role: "",
             });
-            
-            // ✅ Navigate ไปหน้าแรก
-            navigate("/");
-            
-            // ✅ Reload เพื่อให้ NavbarWrapper ถูก re-render
-            window.location.href = "/";
+
+            navigate("/", { replace: true });
+            window.location.replace("/");
         }
     };
 
@@ -580,7 +580,7 @@ const Navbarwriter = () => {
                                             handleNovelMenu("tree")
                                         }
                                     >
-                                        Story Tree
+                                        โครงสร้างเนื้อเรื่อง
                                     </button>
                                 </li>
 
@@ -656,7 +656,7 @@ const Navbarwriter = () => {
 
                                     <button
                                         className="nav-dropdown__logout-btn"
-                                        onClick={handleLogout}
+                                        onClick={(e) => handleLogout(e)}
                                     >
                                         🚪 ออกจากระบบ
                                     </button>

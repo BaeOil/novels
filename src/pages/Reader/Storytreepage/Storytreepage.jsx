@@ -93,7 +93,7 @@ const StoryNode = ({ data }) => {
           </div>
 
           <div className="story-node__desc" style={{ fontSize: "11px", color: isLocked ? "#a0aec0" : "#4a5568", lineHeight: "1.5", minHeight: "40px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-            {isLocked ? "ผ่านเงื่อนไขในฉากก่อนหน้าเพื่อปลดล็อกผังเส้นทางคลังสายนี้" : sceneDescription}
+            {isLocked ? "ผ่านเงื่อนไขในฉากก่อนหน้าเพื่อปลดล็อกแผนผังการอ่านทางเลือกนี้" : sceneDescription}
           </div>
         </div>
 
@@ -150,7 +150,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
   const loadAllData = async () => {
     if (!activeNovelId || activeNovelId === "undefined") {
-      setError("ไม่พบรหัสนิยายเพื่อโหลดผังเส้นทาง");
+      setError("ไม่พบรหัสนิยายเพื่อโหลดแผนผังการอ่าน");
       setLoading(false);
       return;
     }
@@ -209,13 +209,32 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       });
     })();
 
-    const startNode = uniqueRawNodes.find(n => n.type === "start") || uniqueRawNodes[0] || rawNodes[0];
+    // Filter nodes/edges to only those that are connected (appear in any edge as source or target)
+    const connectedNodeIds = new Set();
+    rawEdges.forEach(e => {
+      const from = String(e.from_id || e.from);
+      const to = String(e.to_id || e.to);
+      if (from) connectedNodeIds.add(from);
+      if (to) connectedNodeIds.add(to);
+    });
+
+    // Ensure the start node is always included even if it has no edges
+    const startCandidate = uniqueRawNodes.find(n => n.type === "start") || uniqueRawNodes[0] || rawNodes[0];
+    const startCandidateId = startCandidate ? String(startCandidate.id) : null;
+    const connectedRawNodes = uniqueRawNodes.filter(n => connectedNodeIds.has(String(n.id)) || (startCandidateId && String(n.id) === startCandidateId));
+    const filteredEdges = rawEdges.filter(e => {
+      const from = String(e.from_id || e.from);
+      const to = String(e.to_id || e.to);
+      return connectedNodeIds.has(from) && connectedNodeIds.has(to);
+    });
+
+    const startNode = connectedRawNodes.find(n => n.type === "start") || connectedRawNodes[0] || uniqueRawNodes.find(n => n.type === "start") || uniqueRawNodes[0] || rawNodes[0];
     const startNodeIdStr = startNode ? String(startNode.id) : null;
     const currentSceneIdStr = treeData.current_scene_id ? String(treeData.current_scene_id) : null;
     const hasBackendCurrent = uniqueRawNodes.some(n => n.is_current === true);
 
     const parentMap = {};
-    rawEdges.forEach(e => {
+    filteredEdges.forEach(e => {
       const from = String(e.from_id || e.from);
       const to = String(e.to_id || e.to);
       if (!parentMap[to]) parentMap[to] = [];
@@ -224,24 +243,25 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
     const adjList = {};
     const inDegree = {};
-    uniqueRawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
-    rawEdges.forEach(e => {
+    // Build adjacency only for connected nodes/edges
+    connectedRawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
+    filteredEdges.forEach(e => {
       const from = String(e.from_id || e.from);
       const to = String(e.to_id || e.to);
       if (adjList[from] && inDegree[to] !== undefined) { adjList[from].push(to); inDegree[to]++; }
     });
     const levels = {}; const queue = [];
-    uniqueRawNodes.forEach(n => { if (inDegree[n.id] === 0 || n.type === "start") { levels[n.id] = 0; queue.push(n.id); } });
+    connectedRawNodes.forEach(n => { if (inDegree[n.id] === 0 || n.type === "start") { levels[n.id] = 0; queue.push(n.id); } });
     while (queue.length > 0) {
       const curr = queue.shift(); const currLevel = levels[curr] || 0;
       (adjList[curr] || []).forEach(child => { if (levels[child] === undefined) { levels[child] = currLevel + 1; queue.push(child); } });
     }
     const levelCounts = {};
-    uniqueRawNodes.forEach(n => { const lv = levels[n.id] || 0; levelCounts[lv] = (levelCounts[lv] || 0) + 1; });
+    connectedRawNodes.forEach(n => { const lv = levels[n.id] || 0; levelCounts[lv] = (levelCounts[lv] || 0) + 1; });
     const levelCurrentTracker = {};
 
     const activeNodeIds = new Set();
-    uniqueRawNodes.forEach(n => {
+    connectedRawNodes.forEach(n => {
       if (n.type === "start" || n.is_current || n.is_unlocked) {
         activeNodeIds.add(String(n.id));
       }
@@ -270,7 +290,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       }
     }
 
-    const mappedNodes = uniqueRawNodes.map((node) => {
+    const mappedNodes = connectedRawNodes.map((node) => {
       const nodeIdStr = String(node.id);
       const lv = levels[node.id] || 0;
       if (levelCurrentTracker[lv] === undefined) levelCurrentTracker[lv] = 0;
@@ -315,7 +335,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       };
     });
 
-    const mappedEdges = rawEdges.map((edge, idx) => {
+    const mappedEdges = filteredEdges.map((edge, idx) => {
       const fromId = String(edge.from_id || edge.from);
       const toId = String(edge.to_id || edge.to);
       const sourceNodeMapped = mappedNodes.find(n => n.id === fromId);
@@ -363,11 +383,11 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       computedEdges: mappedEdges,
       autoStats: {
         visitedScenes: visitedScenesCount,
-        totalScenes: uniqueRawNodes.length,
+        totalScenes: connectedRawNodes.length,
         discoveredChoices: discoveredChoicesCount,
-        totalChoices: rawEdges.length,
+        totalChoices: filteredEdges.length,
         unlockedEndings: unlockedEndingsCount,
-        totalEndings: uniqueRawNodes.filter(n => n.type === "ending").length || 3
+        totalEndings: connectedRawNodes.filter(n => n.type === "ending").length || 3
       }
     };
   }, [treeData]);
@@ -448,7 +468,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
           <div className="stp__header">
             <h1 className="stp__title">
-              ผังเส้นทาง
+              แผนผังการอ่าน
               <span className="stp__title-sep"> — </span>
               <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span>
             </h1>
@@ -507,7 +527,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
     return (
       <div style={{ padding: "100px", textAlign: "center", color: "#666" }}>
         <div style={{ width: "40px", height: "40px", border: "4px solid #f3f3f3", borderTop: "4px solid #E91E8C", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
-        <p style={{ fontSize: "1.1rem" }}>กำลังเตรียมข้อมูลผังเส้นทาง...</p>
+        <p style={{ fontSize: "1.1rem" }}>กำลังเตรียมข้อมูลแผนผังการอ่าน...</p>
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -541,7 +561,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
         <div className="stp__header">
           <h1 className="stp__title">
-            ผังเส้นทาง
+            แผนผังการอ่าน
             <span className="stp__title-sep">{" "}—{" "}</span>
             <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{finalTitle}</span>
           </h1>
@@ -615,7 +635,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
               <div style={{ textAlign: "center", color: "#718096", padding: "20px" }}>
                 <span style={{ fontSize: "40px" }}>🍁</span>
                 <p style={{ marginTop: "12px", fontSize: "15px", fontWeight: "500" }}>นิยายเรื่องนี้ยังไม่มีการเพิ่มตอนหรือฉากเนื้อเรื่อง</p>
-                <p style={{ fontSize: "13px", opacity: 0.8 }}>โปรดติดตามชมแผนผังเส้นทางอีกครั้งเมื่อนักเขียนเริ่มลงเนื้อหา</p>
+                <p style={{ fontSize: "13px", opacity: 0.8 }}>โปรดติดตามชมแผนผังการอ่านอีกครั้งเมื่อนักเขียนเริ่มลงเนื้อหา</p>
               </div>
             )}
           </div>

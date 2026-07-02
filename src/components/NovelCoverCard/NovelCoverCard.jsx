@@ -37,7 +37,7 @@ const NovelCoverCard = ({ novel }) => {
           <StatBadge value={stats.likes} label="ถูกใจ" />
         </div>
         <div role="listitem">
-          <StatBadge value={stats.choicePoints} label="ตัวเลือก" />
+          <StatBadge value={stats.bookshelfCount} label="ชั้นหนังสือ" />
         </div>
         <div role="listitem">
           <StatBadge value={stats.endings} label="ฉากจบ" />
