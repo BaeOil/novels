@@ -25,6 +25,10 @@ func (s *readingService) ResetProgress(userID, novelID int) error {
 	return s.repo.ResetReadingProgress(userID, novelID)
 }
 
+func (s *readingService) GetReadingHistory(userID int) ([]models.Novel, error) {
+	return s.repo.GetReadingHistory(userID)
+}
+
 func (s *readingService) RecordChoiceHistory(history models.ChoiceHistory) error {
 	return s.repo.InsertChoiceHistory(history)
 }

@@ -52,6 +52,7 @@ type SocialRepository interface {
 	IsLikeExists(userID, novelID int) (bool, error)
 	AddToBookshelf(userID, novelID int) error
 	RemoveFromBookshelf(userID, novelID int) error
+	GetBookshelfByUserID(userID int) ([]models.Novel, error)
 	GetBookshelfCountByNovelID(novelID int) (int, error)
 	GetBookshelfCountsByAuthorID(authorID int) ([]models.Novel, error)
 	AddComment(models.Comment) (int, error)
@@ -65,6 +66,7 @@ type ReadingRepository interface {
 	GetReadingProgress(userID, novelID int) (*models.ReadingProgress, error)
 	SaveReadingProgress(userID, novelID, sceneID int) error
 	ResetReadingProgress(userID, novelID int) error
+	GetReadingHistory(userID int) ([]models.Novel, error)
 	InsertSceneHistory(userID, sceneID int) error
 	InsertChoiceHistory(history models.ChoiceHistory) error
 	InsertUserEnding(userID, novelID, sceneID int) error

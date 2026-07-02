@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -93,9 +94,17 @@ func AddToBookshelfHandler(socialService service.SocialService) http.HandlerFunc
 		}
 
 		var req BookshelfRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
 			WriteError(w, http.StatusBadRequest, "invalid request body")
 			return
+		}
+
+		novelIDStr := r.URL.Query().Get("novel_id")
+		if req.NovelID == 0 && novelIDStr != "" {
+			novelID, err := strconv.Atoi(novelIDStr)
+			if err == nil {
+				req.NovelID = novelID
+			}
 		}
 
 		req.UserID = int(userID)
@@ -128,6 +137,15 @@ func RemoveFromBookshelfHandler(socialService service.SocialService) http.Handle
 
 		novelIDStr := r.URL.Query().Get("novel_id")
 		if novelIDStr == "" {
+			var req BookshelfRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+				WriteError(w, http.StatusBadRequest, "invalid request body")
+				return
+			}
+			novelIDStr = strconv.Itoa(req.NovelID)
+		}
+
+		if novelIDStr == "" {
 			WriteError(w, http.StatusBadRequest, "novel_id is required")
 			return
 		}
@@ -144,6 +162,41 @@ func RemoveFromBookshelfHandler(socialService service.SocialService) http.Handle
 		}
 
 		WriteJSON(w, http.StatusOK, map[string]string{"message": "removed from bookshelf"})
+	}
+}
+
+func GetBookshelfHandler(socialService service.SocialService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		userIDStr := r.URL.Query().Get("user_id")
+		if userIDStr == "" {
+			if userID, ok := middleware.GetUserIDFromContext(r.Context()); ok && userID != 0 {
+				userIDStr = strconv.Itoa(int(userID))
+			}
+		}
+
+		if userIDStr == "" {
+			WriteError(w, http.StatusBadRequest, "user_id is required")
+			return
+		}
+
+		userID, err := strconv.Atoi(userIDStr)
+		if err != nil || userID == 0 {
+			WriteError(w, http.StatusBadRequest, "invalid user_id")
+			return
+		}
+
+		novels, err := socialService.GetBookshelfByUserID(userID)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, map[string]any{"bookshelf": novels})
 	}
 }
 

@@ -128,6 +128,13 @@ func RegisterRoutes(
 	// 🟢 Reading Flow & Social (คุมพฤติกรรม)
 	// ------------------------------------------
 	mux.Handle("/progress", middleware.RequestLogger(middleware.RequireAuth(handlers.ProgressHandler(reading))))
+	mux.Handle("/history", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.GetReadingHistoryHandler(reading)(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	}))))
 	mux.Handle("/choice-history", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordChoiceHistoryHandler(reading))))
 	mux.Handle("/user-endings", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordUserEndingHandler(reading))))
 	mux.Handle("/likes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +146,11 @@ func RegisterRoutes(
 	})))
 	mux.Handle("/bookshelves", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			handlers.GetBookshelfCountHandler(social)(w, r)
+			if r.URL.Query().Get("novel_id") != "" {
+				handlers.GetBookshelfCountHandler(social)(w, r)
+				return
+			}
+			handlers.GetBookshelfHandler(social)(w, r)
 			return
 		}
 		if r.Method == http.MethodDelete {

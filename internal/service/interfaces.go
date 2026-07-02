@@ -49,6 +49,7 @@ type SocialService interface {
 	IsLikeExists(userID, novelID int) (bool, error)
 	AddToBookshelf(userID, novelID int) error
 	RemoveFromBookshelf(userID, novelID int) error
+	GetBookshelfByUserID(userID int) ([]models.Novel, error)
 	GetBookshelfCountByNovelID(novelID int) (int, error)
 	GetBookshelfCountsByAuthorID(authorID int) ([]models.Novel, error)
 	AddComment(models.Comment) (int, error)
@@ -62,6 +63,7 @@ type ReadingService interface {
 	GetProgress(userID, novelID int) (*models.ReadingProgress, error)
 	SaveProgress(progress models.ReadingProgress) error
 	ResetProgress(userID, novelID int) error
+	GetReadingHistory(userID int) ([]models.Novel, error)
 	RecordChoiceHistory(history models.ChoiceHistory) error
 	RecordEnding(userID, novelID, sceneID int) error
 }

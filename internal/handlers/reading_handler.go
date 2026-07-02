@@ -60,6 +60,29 @@ func GetProgressHandler(readingService service.ReadingService) http.HandlerFunc 
 	}
 }
 
+func GetReadingHistoryHandler(readingService service.ReadingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		userID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || userID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		novels, err := readingService.GetReadingHistory(int(userID))
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, map[string]any{"history": novels})
+	}
+}
+
 func ProgressHandler(readingService service.ReadingService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {

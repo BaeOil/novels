@@ -169,6 +169,10 @@ func (r *postgresSocialRepository) RemoveFromBookshelf(userID, novelID int) erro
 	return RemoveFromBookshelf(r.db, userID, novelID)
 }
 
+func (r *postgresSocialRepository) GetBookshelfByUserID(userID int) ([]models.Novel, error) {
+	return GetBookshelfByUserID(r.db, userID)
+}
+
 func (r *postgresSocialRepository) GetBookshelfCountByNovelID(novelID int) (int, error) {
 	return GetBookshelfCountByNovelID(r.db, novelID)
 }

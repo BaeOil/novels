@@ -34,6 +34,10 @@ func (s *socialService) RemoveFromBookshelf(userID, novelID int) error {
 	return s.repo.RemoveFromBookshelf(userID, novelID)
 }
 
+func (s *socialService) GetBookshelfByUserID(userID int) ([]models.Novel, error) {
+	return s.repo.GetBookshelfByUserID(userID)
+}
+
 func (s *socialService) GetBookshelfCountByNovelID(novelID int) (int, error) {
 	return s.repo.GetBookshelfCountByNovelID(novelID)
 }
