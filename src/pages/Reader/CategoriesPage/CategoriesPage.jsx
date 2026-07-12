@@ -37,6 +37,7 @@ const normalizeNovel = (data) => {
   return {
     id: data.id || data.novel_id || data._id,
     title: data.title || data.name || "ไม่มีชื่อเรื่อง",
+    status: String(data.status || data.Status || "").trim() || "draft",
     categories,
     coverImage: data.cover_image || data.coverImage || null,
     coverEmoji: !data.cover_image && !data.coverImage ? "📘" : "",

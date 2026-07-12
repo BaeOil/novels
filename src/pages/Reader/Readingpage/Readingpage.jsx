@@ -5,6 +5,8 @@ import ReadingBreadcrumb from "../../../components/ReadingBreadcrumb/ReadingBrea
 import ChoiceButtons from "../../../components/ChoiceButtons/ChoiceButtons";
 import RestartReadingButton from "../../../components/RestartReadingButton/RestartReadingButton";
 import ReadingSettings from "../../../components/ReadingSettings/ReadingSettings";
+import ActionButtons from "../../../components/ActionButtons/ActionButtons";
+import Comments from "../../../components/Comments/Comments";
 
 const BASE_URL = "http://localhost:8080"; 
 
@@ -39,6 +41,34 @@ const ReadingPage = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [readProgress, setReadProgress] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState(null);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkProcessing, setBookmarkProcessing] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [sceneComments, setSceneComments] = useState({});
+  const comments = sceneComments[currentSceneId] || [];
+
+  const fetchSceneComments = async (sceneId) => {
+    if (!sceneId) return;
+
+    try {
+      const response = await fetch(`${BASE_URL}/scenes/${sceneId}/comments`);
+      if (!response.ok) {
+        throw new Error(`failed to load comments (${response.status})`);
+      }
+      const payload = await response.json().catch(() => null);
+      const fetchedComments =
+        Array.isArray(payload?.data?.comments) ? payload.data.comments :
+        Array.isArray(payload?.comments) ? payload.comments :
+        [];
+      setSceneComments((prev) => ({
+        ...prev,
+        [sceneId]: fetchedComments,
+      }));
+    } catch (err) {
+      console.warn("Failed to load scene comments:", err);
+    }
+  };
 
   const getSavedReadingSettings = () => {
     try {
@@ -78,11 +108,57 @@ const ReadingPage = ({
     }
   };
 
+  const showToast = (message) => {
+    setToastMessage(message);
+  };
+
+  const fetchBookmarkedStatus = async (currentNovelId, userId, headers) => {
+    if (!currentNovelId || !userId) return false;
+
+    try {
+      const response = await fetch(`${BASE_URL}/bookshelves?user_id=${userId}`, { headers });
+      if (!response.ok) return false;
+
+      const payload = await response.json().catch(() => null);
+      const bookshelfItems = payload?.data?.bookshelf || payload?.bookshelf || payload?.novels || payload?.data || [];
+      const items = Array.isArray(bookshelfItems) ? bookshelfItems : [];
+
+      return items.some((item) => String(item.novel_id ?? item.id ?? item.novel?.id ?? "") === String(currentNovelId));
+    } catch (err) {
+      console.warn("Failed to fetch bookshelf status:", err);
+      return false;
+    }
+  };
+
   useEffect(() => {
-    if (sceneId) {
+    if (sceneId && sceneId !== "undefined") {
       setCurrentSceneId(sceneId);
     }
   }, [sceneId]);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = window.setTimeout(() => setToastMessage(""), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
+
+  useEffect(() => {
+    const loadBookmarkStatus = async () => {
+      const token = localStorage.getItem("token");
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      if (!novelId || !effectiveUserId) {
+        setIsBookmarked(false);
+        return;
+      }
+
+      const bookmarked = await fetchBookmarkedStatus(novelId, effectiveUserId, headers);
+      setIsBookmarked(bookmarked);
+    };
+
+    loadBookmarkStatus();
+  }, [novelId, effectiveUserId]);
 
   // ==========================================
   // 🌟 ฟังก์ชันใหม่: อัปเดต Progress และปลดล็อกฉาก
@@ -173,6 +249,9 @@ const ReadingPage = ({
             setCurrentSceneId(loadedSceneId);
           }
 
+          // Load comments for this scene immediately
+          fetchSceneComments(loadedSceneId);
+
           // 🎯 เรียกใช้ฟังก์ชันอัปเดตทันทีที่โหลดฉากใหม่เสร็จ!
           updateReadingProgress(novelId, loadedSceneId, resData.data.type);
 
@@ -190,6 +269,11 @@ const ReadingPage = ({
     fetchScene();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentSceneId, novelId, userId]);
+
+  useEffect(() => {
+    if (!currentSceneId) return;
+    fetchSceneComments(currentSceneId);
+  }, [currentSceneId]);
 
   // ==========================================
   // 📊 PROGRESS BAR LOGIC
@@ -315,6 +399,99 @@ const ReadingPage = ({
     navigate(`/reading/${novelId}`);
   };
 
+  const parsePositiveInt = (value) => {
+    const numeric = Number(value);
+    return Number.isNaN(numeric) || numeric <= 0 ? null : numeric;
+  };
+
+  const getCommentSceneId = () => {
+    const maybeSceneId = currentSceneId || sceneData?.scene_id || sceneData?.id;
+    if (maybeSceneId == null) return null;
+
+    return parsePositiveInt(maybeSceneId);
+  };
+
+  const handleCommentSubmit = async (text) => {
+    const trimmed = (text || "").trim();
+    const numericNovelId = parsePositiveInt(novelId);
+    if (!trimmed || !numericNovelId) {
+      if (!trimmed) return;
+      showToast("ไม่สามารถโพสต์คอมเมนต์ได้ เนื่องจากรหัสนิยายไม่ถูกต้อง");
+      return;
+    }
+
+    const sceneIdNumber = getCommentSceneId();
+    if (!sceneIdNumber) {
+      showToast("ไม่สามารถโพสต์คอมเมนต์ได้ เนื่องจากไม่พบฉากที่กำลังอ่าน");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login-register");
+      return;
+    }
+
+    try {
+      const bodyPayload = {
+        novel_id: parseInt(novelId, 10),
+        scene_id: sceneIdNumber,
+        content: trimmed,
+      };
+
+      const response = await fetch(`${BASE_URL}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+      }
+
+      await fetchSceneComments(sceneIdNumber);
+      setCommentText("");
+      showToast("ส่งความคิดเห็นแล้ว");
+    } catch (err) {
+      console.error("Failed to post comment:", err);
+      showToast("ไม่สามารถส่งความคิดเห็นได้ในขณะนี้");
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!commentId) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login-register");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BASE_URL}/comments?comment_id=${commentId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+      }
+
+      await fetchSceneComments(currentSceneId);
+      showToast("ลบความคิดเห็นเรียบร้อยแล้ว");
+    } catch (err) {
+      console.error("Failed to delete comment:", err);
+      showToast("ไม่สามารถลบความคิดเห็นได้");
+    }
+  };
+
   // ⏳ LOADING & ERROR STATES
   if (loading) {
     return (
@@ -371,6 +548,18 @@ const ReadingPage = ({
           chapterTitle={chapter_title || (type === "start" ? "บทนำ" : "ตอนอ่านต่อ")}
           onBack={() => handleLocalNavigate("novel-detail")}
           onStoryMap={() => handleLocalNavigate("story-tree")}
+          extraAction={
+            <ActionButtons
+              isBookmarked={isBookmarked}
+              isLiked={false}
+              onBookmark={(newState) => handleBookmark(newState)}
+              showRead={false}
+              showLike={false}
+              onRead={() => {
+                if (novelId) navigate(`/reading/${novelId}/${currentSceneId || ""}`);
+              }}
+            />
+          }
         />
 
         <article className={`rp__article ${isTransitioning ? "rp__article--out" : "rp__article--in"}`} ref={contentRef}>
@@ -451,7 +640,7 @@ const ReadingPage = ({
               <h2 className="rp__ending-title">จบเส้นทางเนื้อเรื่องย่อยนี้แล้ว!</h2>
               <div className="rp__ending-actions">
                 <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => handleLocalNavigate("story-tree") }>
-                  🌳 ดู โครงสร้างเนื้อเรื่อง
+                  🌳 ดู แผนผังการอ่าน
                 </button>
                 <RestartReadingButton onRestart={handleRestartReading} />
                 <button className="rp__ending-btn rp__ending-btn--outline" onClick={() => handleLocalNavigate("novel-detail") }>
@@ -460,8 +649,25 @@ const ReadingPage = ({
               </div>
             </div>
           )}
+
+          <div className="mt-8">
+            <Comments
+              comments={comments}
+              currentUserId={effectiveUserId}
+              commentText={commentText}
+              onCommentTextChange={(e) => setCommentText(e.target.value)}
+              onSubmit={handleCommentSubmit}
+              onDeleteComment={handleDeleteComment}
+            />
+          </div>
         </article>
       </div>
+
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[120] rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-xl shadow-slate-900/20">
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 };

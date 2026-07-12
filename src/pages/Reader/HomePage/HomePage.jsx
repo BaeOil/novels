@@ -46,12 +46,13 @@ const HomePage = ({ onNavigate }) => {
         }
         const candidates = Array.isArray(raw) ? raw : (Array.isArray(raw?.novels) ? raw.novels : []);
 
-        // ตรวจสอบโครงสร้างข้อมูลที่ส่งกลับมา และกรองเฉพาะเรื่องที่เผยแพร่
+        // ตรวจสอบโครงสร้างข้อมูลที่ส่งกลับมา และกรองเฉพาะเรื่องที่เผยแพร่หรือจบแล้ว
         const dataList = candidates.filter((data) => {
-          const status = (data?.status || data?.Status || "" || "").toString().toLowerCase();
-          // ถ้า backend ไม่ส่งสถานะ ให้ถือว่าเป็นเผยแพร่ (fallback)
+          const status = String(data?.status || data?.Status || "").toLowerCase().trim();
+          const isCompleted = status === "completed" || status === "complete" || status === "finished" || status.startsWith("completed");
+          const isPublished = ["published", "publish", "active", "เผยแพร่", "completed-published"].includes(status);
           if (!status) return true;
-          return status === "published" || status === "active" || status === "publish";
+          return isPublished || (isCompleted && status === "completed");
         });
 
         const formattedNovels = dataList.map((data) => {
@@ -96,6 +97,7 @@ const HomePage = ({ onNavigate }) => {
               endings: data.endings_count || 1,
             },
             
+            status: String(data.status || data.Status || "").trim() || "draft",
             isLiked: data.is_liked || false,
             isBookmarked: data.is_bookmarked || false,
           };

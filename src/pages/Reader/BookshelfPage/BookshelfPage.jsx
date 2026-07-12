@@ -326,11 +326,7 @@ const BookshelfPage = () => {
 
                                             <h2 className="bookshelf-card__title">{book.title}</h2>
                                             <p className="bookshelf-card__author">{book.author}</p>
-                                            <p className="bookshelf-card__latest">
-                                                📖 ล่าสุดอ่าน: {book.lastReadSceneTitle || book.latestChapter}
-                                                {book.lastReadAt ? ` · ${new Date(book.lastReadAt).toLocaleString()}` : ""}
-                                            </p>
-
+                                            
                                             <div className="bookshelf-card__stats">
 
                                                 <div className="bookshelf-card__stat">

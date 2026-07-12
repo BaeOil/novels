@@ -22,6 +22,27 @@ const FALLBACK_CATEGORIES = [
     "ประวัติศาสตร์",
 ];
 
+const getStatusFlags = (statusValue) => {
+    const status = String(statusValue || "").toLowerCase().trim();
+    const isCompleted = status === "completed" || status === "complete" || status === "finished" || status.startsWith("completed");
+    const isPublished = status === "published" || status === "publish" || status === "active" || status === "เผยแพร่" || status === "completed-published";
+    return { isCompleted, isPublished };
+};
+
+const getStatusFromFlags = ({ isCompleted, isPublished }) => {
+    if (isCompleted && isPublished) return "completed-published";
+    if (isCompleted) return "completed-draft";
+    if (isPublished) return "published";
+    return "draft";
+};
+
+const getStatusLabel = ({ isCompleted, isPublished }) => {
+    if (isCompleted && isPublished) return "จบแล้ว + เผยแพร่";
+    if (isCompleted) return "จบแล้ว + ฉบับร่าง";
+    if (isPublished) return "เผยแพร่";
+    return "ฉบับร่าง";
+};
+
 const validate = (form) => {
     const errors = {};
     if (!form.title.trim()) {
@@ -148,6 +169,9 @@ const EditNovelPage = ({ onNavigate }) => {
 
                     const coverPreview = novelData.cover_image || novelData.coverImage || novelData.cover_url || novelData.coverUrl || null;
 
+                    const statusStr = String(novelData.status || novelData.Status || "").toLowerCase().trim();
+                    const { isCompleted, isPublished } = getStatusFlags(statusStr);
+
                     setForm({
                         title: novelData.title || "",
                         tagline: novelData.captions || novelData.tagline || "",
@@ -155,15 +179,17 @@ const EditNovelPage = ({ onNavigate }) => {
                         description: novelData.introduction || novelData.description || "",
                         coverFile: null,
                         coverPreview,
-                        isPublished: ["published", "publish"].includes((novelData.status || "").toLowerCase()),
-                        isCompleted: novelData.is_completed || novelData.isCompleted || false,
+                        isPublished,
+                        isCompleted,
                     });
                     console.debug("EditNovelPage: populating form with fetched novel data", {
                         title: novelData.title,
                         tagline: novelData.captions || novelData.tagline,
-                        isPublished: ["published", "publish"].includes((novelData.status || "").toLowerCase()),
+                        statusStr,
+                        isPublished,
+                        isCompleted,
                     });
-                    setOriginalStatus(novelData.status || "draft");
+                    setOriginalStatus(statusStr || "draft");
                     lastErr = null;
                     break; // success
                 } catch (err) {
@@ -201,7 +227,8 @@ const EditNovelPage = ({ onNavigate }) => {
             return;
         }
 
-        if (form.isPublished && originalStatus !== "published") {
+        const wasPublished = ["published", "completed-published", "publish", "active", "เผยแพร่"].includes(String(originalStatus || "").toLowerCase().trim());
+        if (form.isPublished && !wasPublished) {
             const confirmPublish = window.confirm(
                 "คุณกำลังเปลี่ยนสถานะนิยายเป็นเผยแพร่\n\nเมื่อตีพิมพ์แล้วนักอ่านจะมองเห็นเรื่องนี้\n\nต้องการดำเนินการต่อหรือไม่?"
             );
@@ -242,11 +269,16 @@ const EditNovelPage = ({ onNavigate }) => {
                 .filter((cat) => form.categories.includes(cat.name))
                 .map((cat) => cat.id);
 
+            const finalStatus = getStatusFromFlags({
+                isCompleted: form.isCompleted,
+                isPublished: form.isPublished,
+            });
+
             const novelPayload = {
                 title: form.title,
                 captions: form.tagline,
                 introduction: form.description,
-                status: form.isPublished ? "published" : "draft",
+                status: finalStatus,
             };
             if (categoriesLoaded) {
                 novelPayload.category_ids = selectedCategoryIds;
@@ -432,6 +464,12 @@ const EditNovelPage = ({ onNavigate }) => {
                                             {form.isCompleted ? "จบแล้ว" : "ยังไม่จบ"}
                                         </span>
                                     </div>
+                                </div>
+                                <div className="cnp__setting-row" style={{ marginTop: 8 }}>
+                                    <span className="cnp__setting-label">สถานะปัจจุบัน</span>
+                                    <span className="cnp__setting-status cnp__setting-status--on" style={{ marginLeft: 8 }}>
+                                        {getStatusLabel({ isCompleted: form.isCompleted, isPublished: form.isPublished })}
+                                    </span>
                                 </div>
                             </div>
                         </div>

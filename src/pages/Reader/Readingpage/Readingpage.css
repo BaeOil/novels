@@ -50,6 +50,12 @@
     padding: 32px 32px 80px;
 }
 
+.rp__action-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: 12px 0 18px;
+}
+
 /* ── Loading ── */
 .rp__loading {
     min-height: 60vh;
@@ -287,3 +293,4 @@
         font-size: 3.2em;
     }
 }
+/* Comments moved to reusable component `src/components/Comments/Comments.css` */

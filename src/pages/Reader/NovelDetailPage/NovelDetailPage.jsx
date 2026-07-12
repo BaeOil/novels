@@ -7,6 +7,7 @@ import GenreTag from "../../../components/GenreTag/GenreTag";
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import ProgressBar from "../../../components/ProgressBar/ProgressBar";
 import EndingCollection from "../../../components/EndingCollection/EndingCollection";
+import Comments from "../../../components/Comments/Comments";
 
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -170,10 +171,11 @@ const NovelDetailPage = () => {
           if (commentsResponse.ok) {
             const commentsPayload = await commentsResponse.json();
             const commentsData = commentsPayload?.data?.comments || commentsPayload?.comments || [];
-            setComments(commentsData);
+            setComments(Array.isArray(commentsData) ? commentsData : []);
           }
         } catch (err) {
           console.warn("Failed to fetch comments:", err);
+          setComments([]);
         }
 
         // ดักจับข้อมูลความคืบหน้าจากหลังบ้าน
@@ -408,11 +410,54 @@ const NovelDetailPage = () => {
     setShowEndingModal(true);
   };
 
-  const handleSendCommentMock = () => {
-    if (!commentText.trim()) return;
-    console.log("ส่งความคิดเห็นข้อความสำเร็จ:", commentText);
-    alert(`ระบบบันทึกคอมเมนต์จำลอง: "${commentText}" (รอเชื่อมต่อหลังบ้านสมบูรณ์)`);
-    setCommentText(""); 
+  const fetchNovelComments = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/novels/${id}/comments`);
+      if (!response.ok) throw new Error(`failed to load comments: ${response.status}`);
+
+      const payload = await response.json().catch(() => null);
+      const commentsData = payload?.comments || payload?.data?.comments || [];
+      setComments(Array.isArray(commentsData) ? commentsData : []);
+    } catch (err) {
+      console.warn("Failed to load novel comments:", err);
+      setComments([]);
+    }
+  };
+
+  const handleSendComment = async (text) => {
+    const value = typeof text === "string" ? text : commentText;
+    if (!value.trim()) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login-register");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          novel_id: parseInt(id, 10),
+          content: value,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+      }
+
+      setCommentText("");
+      await fetchNovelComments();
+    } catch (err) {
+      console.error("Failed to post comment:", err);
+      alert(`ไม่สามารถส่งความคิดเห็นได้: ${err.message || "ระบบขัดข้อง"}`);
+    }
   };
 
   if (loading) {
@@ -531,62 +576,39 @@ const NovelDetailPage = () => {
           onViewStoryMap={(sceneId) => handleStoryMap(sceneId)}
         />
 
-        <section className="novel-detail__comments-section" aria-labelledby="comments-heading">
-          <div className="novel-detail__comments-header">
-            <h2 id="comments-heading" className="novel-detail__section-title">
-              ความคิดเห็น
-            </h2>
-            <span className="novel-detail__comments-count">
-              {comments.length} ความคิดเห็น
-            </span>
-          </div>
+        <Comments
+          comments={comments}
+          currentUserId={getCurrentUserId()}
+          commentText={commentText}
+          onCommentTextChange={(e) => setCommentText(e.target.value)}
+          onSubmit={(text) => handleSendComment(text)}
+          onDeleteComment={async (commentId) => {
+            const token = localStorage.getItem("token");
+            if (!token) {
+              navigate("/login-register");
+              return;
+            }
 
-          <div className="novel-detail__comment-form">
-            <textarea
-              placeholder="เขียนความคิดเห็นของคุณ..."
-              className="novel-detail__comment-input"
-              rows={4}
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-            />
-            <button 
-              className="novel-detail__comment-button" 
-              onClick={handleSendCommentMock} 
-            >
-              ส่งความคิดเห็น
-            </button>
-          </div>
+            try {
+              const response = await fetch(`${API_BASE_URL}/comments?comment_id=${commentId}`, {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
 
-          <div className="novel-detail__comments-list">
-            {comments.length === 0 ? (
-              <div className="novel-detail__comments-empty">
-                ยังไม่มีความคิดเห็น เป็นคนแรกที่คอมเมนต์เลย 💖
-              </div>
-            ) : (
-              comments.map((comment) => (
-                <article
-                  key={comment.comment_id || comment.id}
-                  className="novel-detail__comment-card"
-                >
-                  <div className="novel-detail__comment-avatar">💬</div>
-                  <div className="novel-detail__comment-body">
-                    <div className="novel-detail__comment-top">
-                      <span className="novel-detail__comment-user">
-                        {comment.username || "ผู้ใช้งานนิรนาม"}
-                      </span>
-                      <span className="novel-detail__comment-date">
-                        {comment.created_at ? new Date(comment.created_at).toLocaleDateString() : "ไม่ระบุวันที่"}
-                      </span>
-                    </div>
-                    <p className="novel-detail__comment-content">
-                      {comment.content}
-                    </p>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
+              if (!response.ok) {
+                const payload = await response.json().catch(() => null);
+                throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+              }
+
+              await fetchNovelComments();
+            } catch (err) {
+              console.error("Failed to delete comment:", err);
+              alert(`ไม่สามารถลบความคิดเห็นได้: ${err.message || "ระบบขัดข้อง"}`);
+            }
+          }}
+        />
 
         {/* 🌟 กล่องแจ้งเตือนกรณีไม่มีเนื้อหา (No Content Modal Pop-up) */}
         {showNoContentDialog && (

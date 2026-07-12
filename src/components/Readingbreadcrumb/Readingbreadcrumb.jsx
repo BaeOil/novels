@@ -5,7 +5,7 @@ import "./ReadingBreadcrumb.css";
 /**
  * ReadingBreadcrumb — แถบ breadcrumb + Story Map button บนหน้าอ่านนิยาย
  */
-const ReadingBreadcrumb = ({ novelTitle, chapterTitle, onBack, onStoryMap }) => (
+const ReadingBreadcrumb = ({ novelTitle, chapterTitle, onBack, onStoryMap, extraAction }) => (
   <div className="rbreadcrumb">
     <button className="rbreadcrumb__back" onClick={onBack} aria-label="กลับ">
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -20,6 +20,7 @@ const ReadingBreadcrumb = ({ novelTitle, chapterTitle, onBack, onStoryMap }) => 
       </svg>
       <span className="rbreadcrumb__chapter">{chapterTitle}</span>
     </div>
+    {extraAction && <div className="rbreadcrumb__extra">{extraAction}</div>}
     <button className="rbreadcrumb__map" onClick={onStoryMap} aria-label="แผนผังการอ่าน">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <circle cx="3" cy="7" r="1.8" fill="currentColor" opacity="0.7"/>

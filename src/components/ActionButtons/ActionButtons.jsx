@@ -18,6 +18,8 @@ const ActionButtons = ({
   onRead,
   onBookmark,
   onLike,
+  showRead = true,
+  showLike = true,
 }) => {
   const handleBookmark = () => {
     onBookmark?.(!isBookmarked);
@@ -30,17 +32,19 @@ const ActionButtons = ({
   return (
     <div className="action-buttons" role="group" aria-label="การกระทำสำหรับนิยาย">
       {/* Primary: Read */}
-      <button
-        type="button"
-        className="action-buttons__read"
-        onClick={onRead}
-        aria-label={readAriaLabel}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M4 2.5L11.5 7L4 11.5V2.5Z" fill="white" />
-        </svg>
-        {readLabel}
-      </button>
+      {showRead && (
+        <button
+          type="button"
+          className="action-buttons__read"
+          onClick={onRead}
+          aria-label={readAriaLabel}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M4 2.5L11.5 7L4 11.5V2.5Z" fill="white" />
+          </svg>
+          {readLabel}
+        </button>
+      )}
 
       {/* Secondary: Bookmark */}
       <button
@@ -62,23 +66,25 @@ const ActionButtons = ({
       </button>
 
       {/* Secondary: Like */}
-      <button
-        type="button"
-        className={`action-buttons__like ${isLiked ? "action-buttons__like--active" : ""}`}
-        onClick={handleLike}
-        aria-label={isLiked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
-        aria-pressed={isLiked}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path
-            d="M7 12S2 8.5 2 5.5A2.5 2.5 0 017 4a2.5 2.5 0 015 1.5C12 8.5 7 12 7 12z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            fill={isLiked ? "currentColor" : "none"}
-          />
-        </svg>
-        ถูกใจ
-      </button>
+      {showLike && (
+        <button
+          type="button"
+          className={`action-buttons__like ${isLiked ? "action-buttons__like--active" : ""}`}
+          onClick={handleLike}
+          aria-label={isLiked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
+          aria-pressed={isLiked}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path
+              d="M7 12S2 8.5 2 5.5A2.5 2.5 0 017 4a2.5 2.5 0 015 1.5C12 8.5 7 12 7 12z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              fill={isLiked ? "currentColor" : "none"}
+            />
+          </svg>
+          ถูกใจ
+        </button>
+      )}
     </div>
   );
 };

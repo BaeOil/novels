@@ -39,6 +39,30 @@
     background-position: center;
 }
 
+.novel-card__status {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 5px 10px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffffff;
+    z-index: 2;
+}
+
+.novel-card__status--published {
+    background: #22c55e;
+}
+
+.novel-card__status--completed {
+    background: #f59e0b;
+}
+
+.novel-card__status--draft {
+    background: #6b7280;
+}
+
 .novel-card__cover-img {
     width: 100%;
     height: 100%;

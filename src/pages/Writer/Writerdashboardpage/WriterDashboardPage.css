@@ -200,8 +200,12 @@
   background: #22c55e !important; /* เขียวทึบ */
 }
 
+.nvc__status--completed {
+  background: #f59e0b !important; /* เหลืองทอง */
+}
+
 .nvc__status--draft {
-  background: #f59e0b !important; /* ส้มทึบ */
+  background: #6b7280 !important; /* เทา */
 }
 
 /* ปุ่มลบกากบาทมุมขวาบน */

@@ -11,6 +11,11 @@ const NovelCard = ({ novel, onClick }) => {
   const bookmarks = novel?.bookshelf_count ?? novel?.bookmark_count ?? novel?.total_bookmarks ?? novel?.stats?.bookmarks ?? 0;
   const fmt = (v = 0) => v >= 1000 ? `${(v/1000).toFixed(1)} K` : v;
 
+  const rawStatus = novel?.status || novel?.Status || "";
+  const statusStr = String(rawStatus).toLowerCase().trim();
+  const isCompleted = statusStr === "completed" || statusStr === "complete" || statusStr === "finished" || statusStr.startsWith("completed");
+  const shouldShowStatusBadge = isCompleted;
+
   const handleLike = (e) => {
     e.stopPropagation();
     setLiked(!liked);
@@ -26,6 +31,11 @@ const NovelCard = ({ novel, onClick }) => {
         {novel.coverImage
           ? <img src={novel.coverImage} alt={novel.title} className="novel-card__cover-img"/>
           : <span className="novel-card__cover-emoji">{novel.coverEmoji || "📘"}</span>}
+        {shouldShowStatusBadge && (
+          <span className="novel-card__status novel-card__status--completed">
+            จบแล้ว
+          </span>
+        )}
       </div>
 
       {/* Body */}

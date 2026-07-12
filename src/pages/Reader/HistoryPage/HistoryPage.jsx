@@ -63,17 +63,16 @@ const normalizeBook = (item) => ({
   lastReadSceneTitle:
     item.last_read_scene_title || item.lastReadSceneTitle || item.latestChapter || "ยังไม่ระบุ",
   // prefer numeric fields when available
-  lastReadChapterNumber: extractNumber(item.last_read_chapter_number || item.lastReadChapterNumber || item.chapter_episode || item.chapter_order || item.chapterNumber || item.chapter_number || item.episode),
-  lastReadSceneNumber: extractNumber(item.last_read_scene_number || item.lastReadSceneNumber || item.scene_number || item.scene_order || item.sceneIndex || item.scene_index),
+  lastReadChapterNumber: item.last_read_chapter_number || item.chapterNumber || item.chapter_number || item.order_index || null,
+  lastReadSceneNumber: item.last_read_scene_number || item.sceneNumber || item.scene_number || item.scene_index || null,
   // fallback: try to parse numbers from title text
   lastReadParsed: (() => {
     const t = item.last_read_scene_title || item.lastReadSceneTitle || item.latestChapter || "";
     return extractChapterAndSceneFromTitle(t || "");
   })(),
   // textual chapter/scene names
-  lastReadChapterTitle: item.last_read_chapter_title || item.chapter_title || item.chapterName || item.chapter_name || item.latestChapterTitle || null,
-  lastReadSceneName: item.last_read_scene_name || item.scene_name || item.sceneTitle || item.title || null,
-  // previous choice that led here
+  lastReadChapterTitle: item.last_read_chapter_title || item.chapterTitle || item.chapter_title || item.chapter_name || null,
+  lastReadSceneName: item.last_read_scene_name || item.scene_name || item.sceneTitle || item.scene_title || item.scene_label || item.label || null,
   lastChoiceText: item.last_choice_text || item.prev_choice_text || item.previous_choice || item.choice_text || item.choiceLabel || item.via_choice || item.viaChoice || null,
   currentSceneId: item.current_scene_id || item.currentSceneId || item.novel?.current_scene_id || 0,
 });
@@ -282,34 +281,37 @@ const HistoryPage = ({ onNavigate }) => {
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{book.title}</div>
-                              <div style={{ fontSize: 12, color: "#6B7280" }}>{book.categories.slice(0, 2).join(" · ")}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: status.bg, color: status.color, borderRadius: 9999, padding: "6px 12px", fontSize: 12, fontWeight: 700 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: status.dot, display: "inline-block" }} />
-                            {status.label}
-                          </span>
-                          <div style={{ fontSize: 12, color: "#6B7280" }}>
-                            {
-                              (() => {
-                                const chapter = book.lastReadChapterNumber ?? book.lastReadParsed?.chapter;
-                                const scene = book.lastReadSceneNumber ?? book.lastReadParsed?.scene;
-                                if (chapter || scene) {
-                                  return `${chapter ? `ตอนที่ ${chapter}` : ""}${chapter && scene ? " · " : ""}${scene ? `ฉากที่ ${scene}` : ""}`;
-                                }
-                                return book.lastReadSceneTitle ? `${book.lastReadSceneTitle}` : "";
-                              })()
-                            }
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{book.title}</div>
+                            <div style={{ fontSize: 12, color: "#6B7280" }}>{book.categories.slice(0, 2).join(" · ")}</div>
                           </div>
                         </div>
                       </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: status.bg, color: status.color, borderRadius: 9999, padding: "6px 12px", fontSize: 12, fontWeight: 700 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: status.dot, display: "inline-block" }} />
+                          {status.label}
+                        </span>
+                        <div style={{ fontSize: 12, color: "#6B7280" }}>
+                            {(() => {
+                              // กวาดหา "ลำดับตอน" จากทุกชื่อตัวแปรที่เป็นไปได้
+                              const chNum = book.lastReadChapterNumber || book.chapterNumber || book.chapter_number || book.order_index || book.lastReadParsed?.chapter || book.lastReadParsed?.chapterNumber || book.last_read_chapter_number;
+                              
+                              // กวาดหา "ชื่อตอน" จากทุกชื่อตัวแปรที่เป็นไปได้
+                              const chTitle = book.lastReadChapterTitle || book.chapterTitle || book.chapter_title || book.last_read_chapter_title || book.lastReadParsed?.chapterTitle || book.lastReadParsed?.chapter_title;
+                              
+                              if (chNum && chTitle) return `ตอนที่ ${chNum} : ${chTitle}`;
+                              if (chNum) return `ตอนที่ ${chNum}`;
+                              if (chTitle) return chTitle;
+                              
+                              return "ยังไม่ระบุตอน";
+                            })()}
+                          </div>
+                      </div>
+                    </div>
 
                     <div
                       style={{
@@ -321,34 +323,46 @@ const HistoryPage = ({ onNavigate }) => {
                         fontSize: 13,
                       }}
                     >
+                      {/* --- ส่วนที่ 1: ฉากล่าสุด --- */}
                       <div>
                         <div style={{ fontSize: 12, marginBottom: 4 }}>ฉากล่าสุด</div>
                         <div style={{ fontWeight: 700, color: "#111827" }}>
                           {(() => {
-                            const chapter = book.lastReadChapterNumber ?? book.lastReadParsed?.chapter;
-                            const scene = book.lastReadSceneNumber ?? book.lastReadParsed?.scene;
-                            const chapterTitle = book.lastReadChapterTitle || null;
-                            const sceneTitle = book.lastReadSceneName || book.lastReadSceneTitle || null;
-                            if (chapter || scene) {
-                              const chapterPart = chapter ? `ตอนที่ ${chapter}${chapterTitle ? ` ${chapterTitle}` : ""}` : (chapterTitle || "");
-                              const scenePart = scene ? `ฉากที่ ${scene}${sceneTitle ? ` ${sceneTitle}` : ""}` : (sceneTitle || "");
-                              return `${chapterPart}${chapterPart && scenePart ? " · " : ""}${scenePart}`;
+                            // กวาดหา "ลำดับฉาก" จากทุกชื่อตัวแปรที่เป็นไปได้
+                            const scNum = book.lastReadSceneNumber || book.sceneNumber || book.scene_number || book.scene_index || book.lastReadParsed?.scene || book.lastReadParsed?.sceneNumber || book.last_read_scene_number;
+                            
+                            // กวาดหา "ชื่อฉาก" จากทุกชื่อตัวแปรที่เป็นไปได้
+                            const scTitle = book.lastReadSceneName || book.lastReadSceneTitle || book.sceneTitle || book.scene_title || book.last_read_scene_name || book.scene_name || book.lastReadParsed?.sceneTitle || book.lastReadParsed?.scene_title || book.label || book.lastReadParsed?.label || book.sceneLabel || book.scene_label;
+
+                            // เช็กป้องกันไม่ให้ชื่อฉากไปซ้ำกับชื่อเรื่องหลัก
+                            const isNovelTitle = scTitle === book.title || scTitle === book.novelTitle || scTitle === book.novel_title;
+
+                            if (scTitle && scTitle !== "ยังไม่ระบุ" && !isNovelTitle) {
+                              return scNum ? `ฉากที่ ${scNum} : ${scTitle}` : scTitle;
                             }
-                            // fallback to raw title
-                            return sceneTitle || book.lastReadSceneTitle || "ยังไม่ระบุ";
+
+                            if (scNum) {
+                              return `ฉากที่ ${scNum}`;
+                            }
+                            
+                            return "ยังไม่ระบุฉาก";
                           })()}
                         </div>
                       </div>
-
+                      {/* ทางเลือกก่อนหน้า */}
                       {book.lastChoiceText ? (
-                        <div style={{ marginTop: 8, fontSize: 13, color: "#6B7280" }}>
+                        <div style={{ marginTop: 8, fontSize: 13, color: "#6B7280", gridColumn: "1 / -1" }}>
                           <strong style={{ color: "#374151", fontWeight: 700 }}>ทางเลือกก่อนหน้า:</strong> {book.lastChoiceText}
                         </div>
                       ) : null}
+
+                      {/* --- ส่วนที่ 2: ตอนจบที่ค้นพบ --- */}
                       <div>
                         <div style={{ fontSize: 12, marginBottom: 4 }}>ตอนจบที่ค้นพบ</div>
                         <div style={{ fontWeight: 700, color: "#111827" }}>
-                          {book.endingCount}/{book.totalEndings}
+                          {book.totalEndings > 0 && book.endingCount >= book.totalEndings
+                            ? `${book.endingCount}/${book.totalEndings}`
+                            : `${book.endingCount}/?`}
                         </div>
                       </div>
                     </div>

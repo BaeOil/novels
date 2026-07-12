@@ -34,6 +34,27 @@ const FALLBACK_CATEGORIES = [
     "ดราม่า", "ตลก", "ชีวิต", "ไซไฟ", "ประวัติศาสตร์",
 ];
 
+const getStatusFlags = (statusValue) => {
+    const status = String(statusValue || "").toLowerCase().trim();
+    const isCompleted = status === "completed" || status === "complete" || status === "finished" || status.startsWith("completed");
+    const isPublished = status === "published" || status === "publish" || status === "active" || status === "เผยแพร่" || status === "completed-published";
+    return { isCompleted, isPublished };
+};
+
+const getStatusFromFlags = ({ isCompleted, isPublished }) => {
+    if (isCompleted && isPublished) return "completed-published";
+    if (isCompleted) return "completed-draft";
+    if (isPublished) return "published";
+    return "draft";
+};
+
+const getStatusLabel = ({ isCompleted, isPublished }) => {
+    if (isCompleted && isPublished) return "จบแล้ว + เผยแพร่";
+    if (isCompleted) return "จบแล้ว + ฉบับร่าง";
+    if (isPublished) return "เผยแพร่";
+    return "ฉบับร่าง";
+};
+
 // ── Validation rules ─────────────────────────────────────────
 const validate = (form) => {
     const errors = {};
@@ -176,12 +197,10 @@ const CreateNovelPage = () => {
             }
 
             // 3. รวบตรรกะสถานะ (Status) ให้เป็น String เดียว
-            let finalStatus = "draft"; 
-            if (form.isCompleted) {
-                finalStatus = "completed"; 
-            } else if (form.isPublished) {
-                finalStatus = "published";
-            }
+            const finalStatus = getStatusFromFlags({
+                isCompleted: form.isCompleted,
+                isPublished: form.isPublished,
+            });
 
             // 4. ประกอบร่าง Payload ให้ตรงกับ Struct Go
             const novelPayload = {
@@ -394,6 +413,12 @@ const CreateNovelPage = () => {
                                             {form.isCompleted ? "จบแล้ว" : "ยังไม่จบ"}
                                         </span>
                                     </div>
+                                </div>
+                                <div className="cnp__setting-row" style={{ marginTop: 8 }}>
+                                    <span className="cnp__setting-label">สถานะปัจจุบัน</span>
+                                    <span className="cnp__setting-status cnp__setting-status--on" style={{ marginLeft: 8 }}>
+                                        {getStatusLabel({ isCompleted: form.isCompleted, isPublished: form.isPublished })}
+                                    </span>
                                 </div>
                             </div>
 

@@ -57,7 +57,9 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
 
   const chapterCount = chapters?.length ?? 0;
   const categoryNames = getNovelCategoryNames(novel);
-  const isPublishedNovel = status === "published" || status === "active";
+  const statusKey = String(status).toLowerCase().trim();
+  const isCompletedNovel = statusKey === "completed" || statusKey === "complete" || statusKey === "finished" || statusKey.startsWith("completed");
+  const isPublishedNovel = isCompletedNovel || statusKey === "published" || statusKey === "active" || statusKey === "completed-published";
 
   // 🎯 คำนวณจำนวนฉากจริงจากก้อนข้อมูลบทเรียนย่อยสะสมที่โหลดมาได้จริงใน Client หน้าบ้าน
   const sceneCount = novel?.scene_count ?? novel?.sceneCount ?? novel?.total_scenes ?? novel?.totalScenes ?? chapters?.reduce((total, ch) => {
@@ -115,7 +117,7 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
             {/* 🎯 ยอดรวมฉากตามจริงทั้งหมดแกะจากโมเดล */}
             <span>{sceneCount} ฉาก</span>
           </div>
-          {!isPublishedNovel && (
+          {!isPublishedNovel && !isCompletedNovel && (
             <div className="cm-banner__draft-note">
               ✨ นิยายยังเป็นฉบับร่าง — ผู้เขียนและผู้ดูแลเท่านั้นที่เห็นเรื่องนี้ และทุกตอนจะยังไม่แสดงให้ผู้อ่านเห็น
             </div>
@@ -127,12 +129,12 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
         <span
           className="cm-banner__status"
           style={{
-            backgroundColor: status === "published" || status === "active" ? "#e6fffa" : "#fff5f5",
-            color: status === "published" || status === "active" ? "#319795" : "#e53e3e",
-            border: status === "published" || status === "active" ? "1px solid #b2f5ea" : "1px solid #fed7d7"
+            backgroundColor: isCompletedNovel ? "#fff7ed" : statusKey === "published" || statusKey === "active" || statusKey === "completed-published" ? "#e6fffa" : "#fff5f5",
+            color: isCompletedNovel ? "#b45309" : statusKey === "published" || statusKey === "active" || statusKey === "completed-published" ? "#319795" : "#e53e3e",
+            border: isCompletedNovel ? "1px solid #fdba74" : statusKey === "published" || statusKey === "active" || statusKey === "completed-published" ? "1px solid #b2f5ea" : "1px solid #fed7d7"
           }}
         >
-          ● {isPublishedNovel ? "เผยแพร่แล้ว" : "ฉบับร่าง"}
+          ● {isCompletedNovel ? (statusKey === "completed-published" ? "จบแล้ว + เผยแพร่" : statusKey === "completed-draft" ? "จบแล้ว + ฉบับร่าง" : "จบแล้ว") : isPublishedNovel ? "เผยแพร่แล้ว" : "ฉบับร่าง"}
         </span>
         <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={onEdit}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "4px" }}>
