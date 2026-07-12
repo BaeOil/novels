@@ -9,7 +9,12 @@ import "./Toggle.css";
  * @param {string}   label     - ป้ายกำกับ (optional)
  * @param {string}   id        - id สำหรับ accessibility
  */
-const Toggle = ({ checked = false, onChange, label, id }) => {
+const Toggle = ({ checked = false, onChange, label, id, disabled = false }) => {
+  const handleClick = () => {
+    if (disabled) return;
+    onChange?.(!checked);
+  };
+
   return (
     <label className="toggle-wrap" htmlFor={id}>
       <button
@@ -17,17 +22,19 @@ const Toggle = ({ checked = false, onChange, label, id }) => {
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-disabled={disabled}
         aria-label={label}
-        className={`toggle ${checked ? "toggle--on" : "toggle--off"}`}
-        onClick={() => onChange?.(!checked)}
+        disabled={disabled}
+        className={`toggle ${checked ? "toggle--on" : "toggle--off"} ${disabled ? "toggle--disabled" : ""}`}
+        onClick={handleClick}
       >
         <span className="toggle__thumb" />
       </button>
-      {label && (
+      {label ? (
         <span className={`toggle__label ${checked ? "toggle__label--on" : ""}`}>
-          {checked ? "เผยแพร่" : "ยังไม่จบ"}
+          {label}
         </span>
-      )}
+      ) : null}
     </label>
   );
 };

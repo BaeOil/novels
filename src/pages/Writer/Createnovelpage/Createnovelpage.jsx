@@ -14,6 +14,7 @@ import MultiSelect from "../../../components/MultiSelect/MultiSelect";
 import CoverUpload from "../../../components/CoverUpload/CoverUpload";
 import Toggle from "../../../components/Toggle/Toggle";
 import { useNavigate } from "react-router-dom";
+import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -25,8 +26,9 @@ const INITIAL_FORM = {
     description: "",      
     coverFile: null,      
     coverPreview: null,
-    isPublished: true,    // เปิดเผยแพร่เป็นค่าเริ่มต้น
-    isCompleted: false,   // ยังไม่จบเป็นค่าเริ่มต้น
+    isPublished: false,
+    isCompleted: false,
+    statusMode: "draft",
 };
 
 const FALLBACK_CATEGORIES = [
@@ -34,25 +36,23 @@ const FALLBACK_CATEGORIES = [
     "ดราม่า", "ตลก", "ชีวิต", "ไซไฟ", "ประวัติศาสตร์",
 ];
 
-const getStatusFlags = (statusValue) => {
-    const status = String(statusValue || "").toLowerCase().trim();
-    const isCompleted = status === "completed" || status === "complete" || status === "finished" || status.startsWith("completed");
-    const isPublished = status === "published" || status === "publish" || status === "active" || status === "เผยแพร่" || status === "completed-published";
-    return { isCompleted, isPublished };
+const getStatusFlags = ({ status, is_published, is_completed, isPublished, isCompleted }) => {
+    const statusInfo = getNovelStatusInfo({
+        status,
+        is_published,
+        is_completed,
+        isPublished,
+        isCompleted,
+    });
+    return { isCompleted: statusInfo.isCompleted, isPublished: statusInfo.isPublished };
 };
 
 const getStatusFromFlags = ({ isCompleted, isPublished }) => {
-    if (isCompleted && isPublished) return "completed-published";
-    if (isCompleted) return "completed-draft";
-    if (isPublished) return "published";
-    return "draft";
+    return getNovelStatusInfo({ is_completed: isCompleted, is_published: isPublished }).mode;
 };
 
 const getStatusLabel = ({ isCompleted, isPublished }) => {
-    if (isCompleted && isPublished) return "จบแล้ว + เผยแพร่";
-    if (isCompleted) return "จบแล้ว + ฉบับร่าง";
-    if (isPublished) return "เผยแพร่";
-    return "ฉบับร่าง";
+    return getNovelStatusInfo({ is_completed: isCompleted, is_published: isPublished }).label;
 };
 
 // ── Validation rules ─────────────────────────────────────────
@@ -128,6 +128,20 @@ const CreateNovelPage = () => {
     }, []);
 
     const categoryOptions = categories.map((cat) => cat.name);
+
+    const updateFormStatus = (nextCompleted, nextPublished) => {
+        setForm((prev) => {
+            const nextMode = nextCompleted
+                ? (nextPublished ? "completed-published" : "completed-draft")
+                : (nextPublished ? "published" : "draft");
+            return {
+                ...prev,
+                isCompleted: nextCompleted,
+                isPublished: nextPublished,
+                statusMode: nextMode,
+            };
+        });
+    };
 
     // ── Field change helper ──────────────────────────────────
     const setField = (key, value) => {
@@ -205,11 +219,13 @@ const CreateNovelPage = () => {
             // 4. ประกอบร่าง Payload ให้ตรงกับ Struct Go
             const novelPayload = {
                 title: form.title,
-                captions: form.tagline,             
-                introduction: form.description,     
-                    category_ids: selectedCategoryIds,  
-                cover_image: coverImageUrl,         
-                status: finalStatus,  
+                captions: form.tagline,
+                introduction: form.description,
+                category_ids: selectedCategoryIds,
+                cover_image: coverImageUrl,
+                status: finalStatus,
+                is_published: form.isPublished,
+                is_completed: form.isCompleted,
             };
 
             const response = await fetch(`${API_BASE_URL}/novels`, {
@@ -392,7 +408,7 @@ const CreateNovelPage = () => {
                                         <Toggle
                                             id="toggle-published"
                                             checked={form.isPublished}
-                                            onChange={(val) => setField("isPublished", val)}
+                                            onChange={(val) => updateFormStatus(form.isCompleted, val)}
                                         />
                                         <span className={`cnp__setting-status ${form.isPublished ? "cnp__setting-status--on" : ""}`}>
                                             {form.isPublished ? "เผยแพร่" : "ฉบับร่าง"}
@@ -407,7 +423,7 @@ const CreateNovelPage = () => {
                                         <Toggle
                                             id="toggle-completed"
                                             checked={form.isCompleted}
-                                            onChange={(val) => setField("isCompleted", val)}
+                                            onChange={(val) => updateFormStatus(val, form.isPublished)}
                                         />
                                         <span className={`cnp__setting-status ${form.isCompleted ? "cnp__setting-status--on" : ""}`}>
                                             {form.isCompleted ? "จบแล้ว" : "ยังไม่จบ"}

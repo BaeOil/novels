@@ -6,8 +6,10 @@ import "./BookshelfPage.css";
 import {
     Eye,
     Heart,
-    GitBranch
-} from "lucide-react";
+    GitBranch,
+    Trash2,
+    Clock
+} from "lucide-react";  
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -58,6 +60,14 @@ const normalizeReadingStatus = (statusValue, endingCount, currentSceneId) => {
     if (endingCount > 0) return "finished";
     if (currentSceneId > 0) return "reading";
     return "want_to_read";
+};
+const formatRelative = (iso) => {
+    if (!iso) return "ยังไม่เคยอ่าน";
+    const diff = (Date.now() - new Date(iso)) / 1000;
+    if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} นาทีที่แล้ว`;
+    if (diff < 86400) return `${Math.max(1, Math.floor(diff / 3600))} ชั่วโมงที่แล้ว`;
+    if (diff < 604800) return `${Math.max(1, Math.floor(diff / 86400))} วันที่แล้ว`;
+    return new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 };
 
 const normalizeBook = (item) => ({
@@ -255,6 +265,30 @@ const BookshelfPage = () => {
         return books.filter((book) => book.reading_status === filter);
     }, [books, filter]);
 
+    const handleRemoveBook = async (bookId, title) => {
+        if (window.confirm(`คุณต้องการนำ "${title}" ออกจากชั้นหนังสือใช่หรือไม่?`)) {
+            try {
+                const token = localStorage.getItem("token");
+                const headers = { "Content-Type": "application/json" };
+                if (token) headers.Authorization = `Bearer ${token}`;
+
+                // ยิง API Method DELETE ไปที่ /bookshelves พร้อมส่ง novel_id ไปใน body หรือ params
+                // (ปกติส่งผ่าน URL query หรือ body ขึ้นอยู่กับ handlers ของคุณ แต่ส่วนใหญ่ส่งเป็น params/body)
+                await axios.delete(`${API_BASE_URL}/bookshelves`, {
+                    headers,
+                    data: { novel_id: bookId } // ส่ง novel_id ไปบอกหลังบ้านว่าจะลบเล่มไหน
+                });
+
+                // ลบเสร็จแล้ว ให้อัปเดต State หน้าจอทันทีเพื่อตัดรายชื่อการ์ดเล่มนั้นออก
+                setBooks(prev => prev.filter(b => b.id !== bookId));
+                
+            } catch (err) {
+                console.error("Remove from bookshelf error:", err);
+                alert("ไม่สามารถลบนิยายออกจากชั้นหนังสือได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
+            }
+        }
+    };
+
     return (
         <div className="bookshelf-page">
             <div className="bookshelf-page__container">
@@ -293,70 +327,104 @@ const BookshelfPage = () => {
                             )}
                         </div>
 
-                        <div className="bookshelf-page__grid">
-                            {filteredBooks.length === 0 ? (
-                                <div className="bookshelf-page__empty">
-                                    ไม่มีนิยายในสถานะนี้ ขยับไปลองสถานะอื่นได้
-                                </div>
-                            ) : (
-                                filteredBooks.map((book) => (
-                                    <article
-                                        key={book.id}
-                                        className="bookshelf-card"
-                                        onClick={() => navigate(`/novel/${book.id}`)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") navigate(`/novel/${book.id}`);
-                                        }}
-                                        tabIndex={0}
-                                        role="button"
-                                    >
-                                        <div className="bookshelf-card__cover">
-                                            <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
-                                        </div>
-                                        <div className="bookshelf-card__body">
-                                            <div className="bookshelf-card__tags history-card__tags--small">
-                                                {book.categories.slice(0, 2).map((category) => (
-                                                    <GenreTag
-                                                        key={`${book.id}-${category}`}
-                                                        label={category}
-                                                        variant="primary"
-                                                    />
-                                                ))}
+                        {filteredBooks.length === 0 ? (
+                            <div className="bookshelf-page__empty">
+                                ไม่มีนิยายในสถานะนี้ ขยับไปลองสถานะอื่นได้
+                            </div>
+                        ) : (
+                            <div className="bookshelf-page__grid">
+                                {filteredBooks.map((book) => {
+                                    const percent = book.totalRoutes ? Math.round((book.visitedCount / book.totalRoutes) * 100) : 0;
+                                    const isFinished = book.reading_status === 'finished';
+                                    const displayPercent = isFinished ? 100 : percent;
+
+                                    return (
+                                        <article
+                                            key={book.id}
+                                            className="bookshelf-card"
+                                            onClick={() => navigate(`/novel/${book.id}`)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") navigate(`/novel/${book.id}`);
+                                            }}
+                                            tabIndex={0}
+                                            role="button"
+                                        >
+                                            <div className="bookshelf-card__cover">
+                                                <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
+                                                <button 
+                                                    className="bookshelf-card__remove-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRemoveBook(book.id, book.title);
+                                                    }}
+                                                    title="นำออกจากชั้นหนังสือ"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </div>
-
-                                            <h2 className="bookshelf-card__title">{book.title}</h2>
-                                            <p className="bookshelf-card__author">{book.author}</p>
-                                            
-                                            <div className="bookshelf-card__stats">
-
-                                                <div className="bookshelf-card__stat">
-                                                    <GitBranch size={17} color="#F526A2"/>
-                                                    <span>{book.totalRoutes}</span>
+                                            <div className="bookshelf-card__body">
+                                                <div className="bookshelf-card__tags--small">
+                                                    {book.categories.slice(0, 2).map((category) => (
+                                                        <GenreTag
+                                                            key={`${book.id}-${category}`}
+                                                            label={category}
+                                                            variant="primary"
+                                                        />
+                                                    ))}
                                                 </div>
 
-                                                <div className="bookshelf-card__stat">
-                                                    <Eye size={17} color="#F526A2"/>
-                                                    <span>{book.views}</span>
+                                                <h2 className="bookshelf-card__title">{book.title}</h2>
+                                                <p className="bookshelf-card__author">{book.author}</p>
+                                                
+                                                <div className="bookshelf-card__latest-read">
+                                                    <Clock size={14} color="#64748b" />
+                                                    <span>อ่านล่าสุด {formatRelative(book.lastReadAt)}</span>
                                                 </div>
 
-                                                <div className="bookshelf-card__stat">
-                                                    <Heart size={17} color="#F526A2"/>
-                                                    <span>{book.likes}</span>
+                                                <div className="bookshelf-card__stats">
+                                                    <div className="bookshelf-card__stat">
+                                                        <GitBranch size={17} color="#F526A2" />
+                                                        <span>{book.totalRoutes}</span>
+                                                    </div>
+                                                    <div className="bookshelf-card__stat">
+                                                        <Eye size={17} color="#F526A2" />
+                                                        <span>{book.views}</span>
+                                                    </div>
+                                                    <div className="bookshelf-card__stat">
+                                                        <Heart size={17} color="#F526A2" />
+                                                        <span>{book.likes}</span>
+                                                    </div>
                                                 </div>
-                                        </div>
 
+                                                <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
+                                                    {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
+                                                </span>
 
-                                        <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
-                                            {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
-                                        </span>
-                                    </div>
-                                    </article>
-                        ))
+                                                <div className="bookshelf-card__progress">
+                                                    <div className="bookshelf-card__progress-text">
+                                                        <span>ความคืบหน้า</span>
+                                                        <span style={{ color: isFinished ? '#16a34a' : 'inherit' }}>{displayPercent}%</span>
+                                                    </div>
+                                                    <div className="bookshelf-card__progress-bar">
+                                                        <div 
+                                                            className="bookshelf-card__progress-fill" 
+                                                            style={{ 
+                                                                width: `${displayPercent}%`,
+                                                                background: isFinished ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, #f526a2, #ff7bc8)'
+                                                            }} 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    );
+                                })}
+                                </div>
                             )}
-                    </div>
+                            
             </>
                 )}
-        </div>
+            </div>
         </div >
     );
 };

@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import "./WriterDashboardPage.css";
+import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -243,11 +244,9 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
   const title = novel.title || "";
   const coverImage = novel.cover_image || novel.coverImage;
   
-  const rawStatus = novel.status || novel.Status || "";
-  const statusStr = String(rawStatus).toLowerCase().trim();
-  const isCompleted = statusStr === "completed" || statusStr === "complete" || statusStr === "finished" || statusStr.startsWith("completed");
-  const isPublished = ["published", "publish", "เผยแพร่", "active", "completed-published"].includes(statusStr);
-  const status = isCompleted ? "completed" : isPublished ? "published" : "draft";
+  const statusInfo = getNovelStatusInfo(novel);
+  const statusVariant = statusInfo.isCompleted ? "completed" : statusInfo.isPublished ? "published" : "draft";
+  const status = statusVariant;
   
   const categoryList = novel.categories || novel.Categories || [];
   const parsedCategories = Array.isArray(categoryList)
@@ -306,7 +305,7 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
         
         {/* ป้ายสถานะสีทึบชัดเจน อยู่มุมซ้าย */}
         <span className={`nvc__status ${status === "published" ? "nvc__status--pub" : status === "completed" ? "nvc__status--completed" : "nvc__status--draft"}`}>
-          {status === "published" ? "เผยแพร่" : status === "completed" ? "จบแล้ว" : "ฉบับร่าง"}
+          {statusInfo.mode === "completed-published" ? "จบแล้ว + เผยแพร่" : statusInfo.mode === "completed-draft" ? "จบแล้ว + ฉบับร่าง" : status === "published" ? "เผยแพร่" : "ฉบับร่าง"}
         </span>
 
         {/* ปุ่มลบกากบาทมุมขวา */}

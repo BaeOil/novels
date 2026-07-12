@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./NovelCard.css";
+import { getNovelStatusInfo } from "../../utils/novelStatus";
 
 /**
  * NovelCard — การ์ดนิยายแสดงในหน้าหลัก (grid layout) พร้อมแสดงหมวดหมู่และสถิติ
@@ -11,10 +12,8 @@ const NovelCard = ({ novel, onClick }) => {
   const bookmarks = novel?.bookshelf_count ?? novel?.bookmark_count ?? novel?.total_bookmarks ?? novel?.stats?.bookmarks ?? 0;
   const fmt = (v = 0) => v >= 1000 ? `${(v/1000).toFixed(1)} K` : v;
 
-  const rawStatus = novel?.status || novel?.Status || "";
-  const statusStr = String(rawStatus).toLowerCase().trim();
-  const isCompleted = statusStr === "completed" || statusStr === "complete" || statusStr === "finished" || statusStr.startsWith("completed");
-  const shouldShowStatusBadge = isCompleted;
+  const statusInfo = getNovelStatusInfo(novel);
+  const shouldShowStatusBadge = statusInfo.isCompleted;
 
   const handleLike = (e) => {
     e.stopPropagation();
@@ -33,7 +32,7 @@ const NovelCard = ({ novel, onClick }) => {
           : <span className="novel-card__cover-emoji">{novel.coverEmoji || "📘"}</span>}
         {shouldShowStatusBadge && (
           <span className="novel-card__status novel-card__status--completed">
-            จบแล้ว
+            {statusInfo.badgeLabel}
           </span>
         )}
       </div>

@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import NovelCard from "../../../components/NovelCard/NovelCard";
 import CategoryCard from "../../../components/CategoryCard/CategoryCard";
+import { getNovelStatusInfo } from "../../../utils/novelStatus";
 import "./CategoriesPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -34,10 +35,14 @@ const normalizeNovel = (data) => {
   const authorName = data.author_name || data.pen_name || data.author?.name || data.author?.displayName || "ไม่ทราบผู้แต่ง";
   const authorAvatar = data.author_avatar || data.author?.avatar || data.author?.avatarUrl || "";
 
+  const statusInfo = getNovelStatusInfo(data);
+
   return {
     id: data.id || data.novel_id || data._id,
     title: data.title || data.name || "ไม่มีชื่อเรื่อง",
-    status: String(data.status || data.Status || "").trim() || "draft",
+    status: statusInfo.mode || "draft",
+    is_published: statusInfo.isPublished,
+    is_completed: statusInfo.isCompleted,
     categories,
     coverImage: data.cover_image || data.coverImage || null,
     coverEmoji: !data.cover_image && !data.coverImage ? "📘" : "",

@@ -24,6 +24,8 @@
 .toggle--on  { background: var(--pink-500); }
 .toggle--off { background: var(--gray-300); }
 
+.toggle--disabled { opacity: 0.6; cursor: not-allowed; }
+
 .toggle:focus-visible {
   outline: 2px solid var(--pink-500);
   outline-offset: 2px;
@@ -54,4 +56,9 @@
 .toggle__label--on {
   color: var(--pink-500);
   font-weight: 600;
+}
+
+/* When the button is disabled, ensure outer label doesn't show pointer */
+.toggle-wrap .toggle[disabled] {
+  cursor: not-allowed;
 }

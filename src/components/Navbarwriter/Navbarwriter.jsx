@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Navbarwriter.css";
+import { getNovelStatusInfo } from "../../utils/novelStatus";
 
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -792,10 +793,7 @@ const Navbarwriter = () => {
                                                 </div>
 
                                                 <div className="novel-popup__meta">
-                                                    {novel.status ===
-                                                        "published"
-                                                        ? "เผยแพร่"
-                                                        : "ฉบับร่าง"}
+                                                    {getNovelStatusInfo(novel).label}
                                                 </div>
 
                                                 {isActive && (

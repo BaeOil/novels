@@ -6,6 +6,7 @@ import MultiSelect from "../../../components/MultiSelect/MultiSelect";
 import CoverUpload from "../../../components/CoverUpload/CoverUpload";
 import Toggle from "../../../components/Toggle/Toggle";
 import { useNavigate, useParams } from "react-router-dom";
+import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -22,25 +23,23 @@ const FALLBACK_CATEGORIES = [
     "ประวัติศาสตร์",
 ];
 
-const getStatusFlags = (statusValue) => {
-    const status = String(statusValue || "").toLowerCase().trim();
-    const isCompleted = status === "completed" || status === "complete" || status === "finished" || status.startsWith("completed");
-    const isPublished = status === "published" || status === "publish" || status === "active" || status === "เผยแพร่" || status === "completed-published";
-    return { isCompleted, isPublished };
+const getStatusFlags = ({ status, is_published, is_completed, isPublished, isCompleted }) => {
+    const statusInfo = getNovelStatusInfo({
+        status,
+        is_published,
+        is_completed,
+        isPublished,
+        isCompleted,
+    });
+    return { isCompleted: statusInfo.isCompleted, isPublished: statusInfo.isPublished };
 };
 
 const getStatusFromFlags = ({ isCompleted, isPublished }) => {
-    if (isCompleted && isPublished) return "completed-published";
-    if (isCompleted) return "completed-draft";
-    if (isPublished) return "published";
-    return "draft";
+    return getNovelStatusInfo({ is_completed: isCompleted, is_published: isPublished }).mode;
 };
 
 const getStatusLabel = ({ isCompleted, isPublished }) => {
-    if (isCompleted && isPublished) return "จบแล้ว + เผยแพร่";
-    if (isCompleted) return "จบแล้ว + ฉบับร่าง";
-    if (isPublished) return "เผยแพร่";
-    return "ฉบับร่าง";
+    return getNovelStatusInfo({ is_completed: isCompleted, is_published: isPublished }).label;
 };
 
 const validate = (form) => {
@@ -78,8 +77,9 @@ const EditNovelPage = ({ onNavigate }) => {
         description: "",
         coverFile: null,
         coverPreview: null,
-        isPublished: true,
+        isPublished: false,
         isCompleted: false,
+        statusMode: "draft",
     });
     const [originalStatus, setOriginalStatus] = useState("draft");
 
@@ -87,6 +87,7 @@ const EditNovelPage = ({ onNavigate }) => {
     const [submissionError, setSubmissionError] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [canPublish, setCanPublish] = useState(true);
     const [categories, setCategories] = useState([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [categoriesLoaded, setCategoriesLoaded] = useState(false);
@@ -105,10 +106,20 @@ const EditNovelPage = ({ onNavigate }) => {
                         ? result.data
                         : [];
                 if (categoriesData.length === 0) throw new Error("categories response invalid");
-                setCategories(categoriesData.map((category) => ({
+                // dedupe by name to avoid duplicate keys in UI
+                const mapped = categoriesData.map((category) => ({
                     id: category.category_id || category.id,
                     name: category.name,
-                })));
+                }));
+                const seen = new Set();
+                const deduped = [];
+                for (const c of mapped) {
+                    if (!c.name) continue;
+                    if (seen.has(c.name)) continue;
+                    seen.add(c.name);
+                    deduped.push(c);
+                }
+                setCategories(deduped);
                 setCategoriesLoaded(true);
             } catch (err) {
                 console.error("Category load error:", err);
@@ -160,17 +171,23 @@ const EditNovelPage = ({ onNavigate }) => {
                     console.log("EditNovelPage: resolved novelData", novelData);
 
                     const categoryNames = Array.isArray(novelData.categories)
-                        ? novelData.categories.map((category) => {
+                        ? Array.from(new Set(novelData.categories.map((category) => {
                             if (!category) return null;
                             if (typeof category === "string") return category;
                             return category.name || category.title || category.label || null;
-                        }).filter(Boolean)
+                        }).filter(Boolean)))
                         : [];
 
                     const coverPreview = novelData.cover_image || novelData.coverImage || novelData.cover_url || novelData.coverUrl || null;
 
                     const statusStr = String(novelData.status || novelData.Status || "").toLowerCase().trim();
-                    const { isCompleted, isPublished } = getStatusFlags(statusStr);
+                    const { isCompleted, isPublished } = getStatusFlags({
+                        status: statusStr,
+                        is_published: novelData.is_published,
+                        is_completed: novelData.is_completed,
+                        isPublished: novelData.isPublished,
+                        isCompleted: novelData.isCompleted,
+                    });
 
                     setForm({
                         title: novelData.title || "",
@@ -181,6 +198,7 @@ const EditNovelPage = ({ onNavigate }) => {
                         coverPreview,
                         isPublished,
                         isCompleted,
+                        statusMode: getStatusFromFlags({ isCompleted, isPublished }),
                     });
                     console.debug("EditNovelPage: populating form with fetched novel data", {
                         title: novelData.title,
@@ -189,7 +207,16 @@ const EditNovelPage = ({ onNavigate }) => {
                         isPublished,
                         isCompleted,
                     });
-                    setOriginalStatus(statusStr || "draft");
+                    setOriginalStatus(getStatusFromFlags({ isCompleted, isPublished }));
+                    // Check publish readiness once we have the novel loaded
+                    (async () => {
+                        const check = await checkPublishable(novelData.novel_id || novelData.novelId || novelData.id || idCandidate);
+                        setCanPublish(check.ok);
+                        if (!check.ok) {
+                            // don't surface as fatal error; show hint near toggle instead
+                            console.debug("EditNovelPage: publish check failed", check.message);
+                        }
+                    })();
                     lastErr = null;
                     break; // success
                 } catch (err) {
@@ -207,7 +234,22 @@ const EditNovelPage = ({ onNavigate }) => {
         loadNovel();
     }, [novelId]);
 
-    const categoryOptions = categories.map((cat) => cat.name);
+    // Ensure options are unique strings to avoid duplicate React keys
+    const categoryOptions = Array.from(new Set(categories.map((cat) => cat.name)));
+
+    const updateFormStatus = (nextCompleted, nextPublished) => {
+        setForm((prev) => {
+            const nextMode = nextCompleted
+                ? (nextPublished ? "completed-published" : "completed-draft")
+                : (nextPublished ? "published" : "draft");
+            return {
+                ...prev,
+                isCompleted: nextCompleted,
+                isPublished: nextPublished,
+                statusMode: nextMode,
+            };
+        });
+    };
 
     const setField = (key, value) => {
         setForm((prev) => ({ ...prev, [key]: value }));
@@ -227,7 +269,7 @@ const EditNovelPage = ({ onNavigate }) => {
             return;
         }
 
-        const wasPublished = ["published", "completed-published", "publish", "active", "เผยแพร่"].includes(String(originalStatus || "").toLowerCase().trim());
+        const wasPublished = getNovelStatusInfo({ status: originalStatus }).isPublished;
         if (form.isPublished && !wasPublished) {
             const confirmPublish = window.confirm(
                 "คุณกำลังเปลี่ยนสถานะนิยายเป็นเผยแพร่\n\nเมื่อตีพิมพ์แล้วนักอ่านจะมองเห็นเรื่องนี้\n\nต้องการดำเนินการต่อหรือไม่?"
@@ -279,6 +321,8 @@ const EditNovelPage = ({ onNavigate }) => {
                 captions: form.tagline,
                 introduction: form.description,
                 status: finalStatus,
+                is_published: form.isPublished,
+                is_completed: form.isCompleted,
             };
             if (categoriesLoaded) {
                 novelPayload.category_ids = selectedCategoryIds;
@@ -288,6 +332,7 @@ const EditNovelPage = ({ onNavigate }) => {
                 novelPayload.cover_image = coverImageUrl;
             }
 
+            console.debug("EditNovelPage: PUT payload", novelPayload);
             const response = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
                 method: "PUT",
                 headers: {
@@ -297,12 +342,42 @@ const EditNovelPage = ({ onNavigate }) => {
                 body: JSON.stringify(novelPayload),
             });
 
+            // Attempt to parse JSON body for both success and error to avoid silent success
+            const respBody = await response.json().catch(() => null);
+            console.debug("EditNovelPage: PUT response", { status: response.status, body: respBody });
+
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || errorData.error || "Update failed");
+                const errorMessage = respBody?.message || respBody?.error || "Update failed";
+                throw new Error(errorMessage);
             }
 
-            alert("✅ อัพเดทข้อมูลนิยายสำเร็จ!");
+            // Verify server acknowledged update
+            if (respBody && respBody.message) {
+                alert("✅ " + respBody.message);
+            } else {
+                alert("✅ อัพเดทข้อมูลนิยายสำเร็จ!");
+            }
+
+            // Verify persisted values by re-fetching the novel before navigating
+            try {
+                const verifyRes = await fetch(`${API_BASE_URL}/novels/${novelId}`);
+                if (verifyRes.ok) {
+                    const verifyData = await verifyRes.json().catch(() => null);
+                    const novelFresh = verifyData?.data || verifyData?.novel || verifyData || {};
+                    const freshPublished = Boolean(novelFresh.is_published || novelFresh.isPublished);
+                    const freshCompleted = Boolean(novelFresh.is_completed || novelFresh.isCompleted);
+                    const freshTitle = novelFresh.title || "";
+                    if (freshPublished !== form.isPublished || freshCompleted !== form.isCompleted || freshTitle !== form.title) {
+                        const msg = "อัพเดทสำเร็จแต่ค่าที่กลับมาไม่ตรงกับที่คาดไว้ (ยังไม่ได้บันทึก)";
+                        console.error("EditNovelPage: verification mismatch", { novelFresh, expected: novelPayload });
+                        setSubmissionError(msg);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn("EditNovelPage: verification fetch failed", err);
+            }
+
             navigate(`/writer/${novelId}/chapters`);
         } catch (error) {
             console.error("Submit error:", error);
@@ -310,6 +385,49 @@ const EditNovelPage = ({ onNavigate }) => {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const checkPublishable = async (id) => {
+        try {
+            const headers = {};
+            const token = localStorage.getItem("token");
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            const res = await fetch(`${API_BASE_URL}/novels/${id}/start`, { headers });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                return { ok: false, message: err.message || "เรื่องนี้ยังไม่พร้อมเผยแพร่ (ไม่มีฉากเริ่มต้นหรือยังไม่มีทางเลือก)" };
+            }
+            const data = await res.json().catch(() => null);
+            // Expect choices array on the start scene
+            const choices = data?.data?.choices || data?.choices || [];
+            if (!choices || choices.length < 1) {
+                return { ok: false, message: "Start scene ต้องมีอย่างน้อยหนึ่งทางเลือกก่อนเผยแพร่" };
+            }
+            return { ok: true };
+        } catch (err) {
+            return { ok: false, message: err.message || "ไม่สามารถตรวจสอบสถานะการเผยแพร่ได้" };
+        }
+    };
+
+    const handleTogglePublish = async (nextPublished) => {
+        // If enabling publish, verify story readiness first
+        if (nextPublished && !form.isPublished) {
+            setSubmissionError(null);
+            setIsSubmitting(true);
+            const check = await checkPublishable(novelId);
+            setIsSubmitting(false);
+            if (!check.ok) {
+                setSubmissionError("❌ ไม่สามารถเผยแพร่: " + check.message);
+                return;
+            }
+        }
+        updateFormStatus(form.isCompleted, nextPublished);
+    };
+
+    const handleToggleCompleted = (nextCompleted) => {
+        // Completed can be toggled locally; backend will validate on submit
+        setSubmissionError(null);
+        updateFormStatus(nextCompleted, form.isPublished);
     };
 
     const handleCancel = () => {
@@ -444,13 +562,19 @@ const EditNovelPage = ({ onNavigate }) => {
                                         <Toggle
                                             id="toggle-published"
                                             checked={form.isPublished}
-                                            onChange={(val) => setField("isPublished", val)}
+                                            onChange={(val) => handleTogglePublish(val)}
+                                            disabled={!canPublish && !form.isPublished}
                                         />
                                         <span className={`cnp__setting-status ${form.isPublished ? "cnp__setting-status--on" : ""}`}>
                                             {form.isPublished ? "เผยแพร่" : "ฉบับร่าง"}
                                         </span>
                                     </div>
                                 </div>
+                                {!canPublish && !form.isPublished && (
+                                    <p className="cnp__hint" style={{ color: "#b45309", marginTop: 6 }}>
+                                        ต้องมีฉากเริ่มต้นและทางเลือกอย่างน้อย 1 ทางก่อนจึงจะเผยแพร่ได้
+                                    </p>
+                                )}
 
                                 <div className="cnp__setting-row">
                                     <span className="cnp__setting-label">สถานะจบ</span>
@@ -458,7 +582,7 @@ const EditNovelPage = ({ onNavigate }) => {
                                         <Toggle
                                             id="toggle-completed"
                                             checked={form.isCompleted}
-                                            onChange={(val) => setField("isCompleted", val)}
+                                            onChange={(val) => handleToggleCompleted(val)}
                                         />
                                         <span className={`cnp__setting-status ${form.isCompleted ? "cnp__setting-status--on" : ""}`}>
                                             {form.isCompleted ? "จบแล้ว" : "ยังไม่จบ"}

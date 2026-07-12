@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import "./Chaptermanagerpage.css";
+import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
 const API_BASE = "http://localhost:8080";
 
@@ -52,14 +53,14 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
   const coverEmoji = novel.cover_emoji || "📖";
 
   // 🎯 ดึงสถานะและวันที่อัปเดตจาก DTO จริง
-  const status = novel?.status || novel?.Status || "draft";
   const updatedAt = novel.updated_at || novel.created_at;
 
   const chapterCount = chapters?.length ?? 0;
   const categoryNames = getNovelCategoryNames(novel);
-  const statusKey = String(status).toLowerCase().trim();
-  const isCompletedNovel = statusKey === "completed" || statusKey === "complete" || statusKey === "finished" || statusKey.startsWith("completed");
-  const isPublishedNovel = isCompletedNovel || statusKey === "published" || statusKey === "active" || statusKey === "completed-published";
+  const statusInfo = getNovelStatusInfo(novel);
+  const statusKey = statusInfo.mode;
+  const isCompletedNovel = statusInfo.isCompleted;
+  const isPublishedNovel = statusInfo.isPublished;
 
   // 🎯 คำนวณจำนวนฉากจริงจากก้อนข้อมูลบทเรียนย่อยสะสมที่โหลดมาได้จริงใน Client หน้าบ้าน
   const sceneCount = novel?.scene_count ?? novel?.sceneCount ?? novel?.total_scenes ?? novel?.totalScenes ?? chapters?.reduce((total, ch) => {
@@ -129,12 +130,12 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
         <span
           className="cm-banner__status"
           style={{
-            backgroundColor: isCompletedNovel ? "#fff7ed" : statusKey === "published" || statusKey === "active" || statusKey === "completed-published" ? "#e6fffa" : "#fff5f5",
-            color: isCompletedNovel ? "#b45309" : statusKey === "published" || statusKey === "active" || statusKey === "completed-published" ? "#319795" : "#e53e3e",
-            border: isCompletedNovel ? "1px solid #fdba74" : statusKey === "published" || statusKey === "active" || statusKey === "completed-published" ? "1px solid #b2f5ea" : "1px solid #fed7d7"
+            backgroundColor: isCompletedNovel ? "#fff7ed" : statusInfo.mode === "published" || statusInfo.mode === "completed-published" ? "#e6fffa" : "#fff5f5",
+            color: isCompletedNovel ? "#b45309" : statusInfo.mode === "published" || statusInfo.mode === "completed-published" ? "#319795" : "#e53e3e",
+            border: isCompletedNovel ? "1px solid #fdba74" : statusInfo.mode === "published" || statusInfo.mode === "completed-published" ? "1px solid #b2f5ea" : "1px solid #fed7d7"
           }}
         >
-          ● {isCompletedNovel ? (statusKey === "completed-published" ? "จบแล้ว + เผยแพร่" : statusKey === "completed-draft" ? "จบแล้ว + ฉบับร่าง" : "จบแล้ว") : isPublishedNovel ? "เผยแพร่แล้ว" : "ฉบับร่าง"}
+          ● {statusInfo.label}
         </span>
         <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={onEdit}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "4px" }}>
@@ -365,6 +366,12 @@ const SceneCard = ({
 
   const sceneChoices = (scene?.choices ?? scene?.Choices) || [];
 
+  const sceneType = (scene?.type || scene?.Type || "").toString().toLowerCase();
+  const isEnding = sceneType === "ending" || Boolean(scene?.ending_title || scene?.EndingTitle || scene?.EndingTitle || scene?.endingTitle);
+  const endingTitle = scene?.ending_title ?? scene?.EndingTitle ?? scene?.endingTitle ?? null;
+  const endingType = scene?.ending_type ?? scene?.EndingType ?? scene?.endingType ?? null;
+  const endingDescription = scene?.ending_description ?? scene?.EndingDescription ?? scene?.endingDescription ?? null;
+
   const stripHtmlTags = (html) => {
     if (!html) return "";
     return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -478,7 +485,19 @@ const SceneCard = ({
         <div className="cm-scene__info">
           <div className="cm-scene__title-row">
             <h4 className="cm-scene__title">{sceneTitle}</h4>
+            {isEnding && (
+              <span className="cm-scene__ending-badge" title={endingTitle || "ฉากจบ"}>
+                🏁 ฉากจบ
+              </span>
+            )}
           </div>
+
+          {isEnding && (
+            <div className="cm-scene__ending-info">
+              {endingTitle ? <strong>{endingTitle}</strong> : <em>ฉากจบ (ไม่มีหัวข้อ)</em>}
+              {endingType ? <span className="cm-scene__ending-type"> &nbsp;·&nbsp; {endingType}</span> : null}
+            </div>
+          )}
 
           <p className="cm-scene__excerpt">
             {cleanTextPreview

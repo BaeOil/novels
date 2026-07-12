@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 import NovelCard from "../../../components/NovelCard/NovelCard";
+import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -48,14 +49,13 @@ const HomePage = ({ onNavigate }) => {
 
         // ตรวจสอบโครงสร้างข้อมูลที่ส่งกลับมา และกรองเฉพาะเรื่องที่เผยแพร่หรือจบแล้ว
         const dataList = candidates.filter((data) => {
-          const status = String(data?.status || data?.Status || "").toLowerCase().trim();
-          const isCompleted = status === "completed" || status === "complete" || status === "finished" || status.startsWith("completed");
-          const isPublished = ["published", "publish", "active", "เผยแพร่", "completed-published"].includes(status);
-          if (!status) return true;
-          return isPublished || (isCompleted && status === "completed");
+          const statusInfo = getNovelStatusInfo(data);
+          if (!statusInfo.rawStatus) return true;
+          return statusInfo.mode === "published" || statusInfo.mode === "completed-published";
         });
 
         const formattedNovels = dataList.map((data) => {
+          const statusInfo = getNovelStatusInfo(data);
           return {
             id: data.novel_id || data.id,
             title: data.title || "ไม่มีชื่อเรื่อง",
@@ -97,7 +97,9 @@ const HomePage = ({ onNavigate }) => {
               endings: data.endings_count || 1,
             },
             
-            status: String(data.status || data.Status || "").trim() || "draft",
+            status: statusInfo.mode || "draft",
+            is_published: statusInfo.isPublished,
+            is_completed: statusInfo.isCompleted,
             isLiked: data.is_liked || false,
             isBookmarked: data.is_bookmarked || false,
           };

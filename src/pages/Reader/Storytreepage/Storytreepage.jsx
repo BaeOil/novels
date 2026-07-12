@@ -462,9 +462,27 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
     return (
       <div className="stp">
         <div className="stp__container">
-          <button className="stp__back" onClick={() => onNavigate && onNavigate("novel-detail", { novelId: activeNovelId })}>
-            ← กลับรายละเอียด
-          </button>
+          <div className="stp__actions">
+
+            <button
+              className="stp__back"
+              onClick={() =>
+                onNavigate &&
+                onNavigate("novel-detail", { novelId: activeNovelId })
+              }
+            >
+              ← กลับรายละเอียด
+            </button>
+
+            <button
+              className="stp__restart-btn"
+              type="button"
+              onClick={handleRestartConfirmOpen}
+            >
+              🔄 เริ่มอ่านใหม่
+            </button>
+
+          </div>
 
           <div className="stp__header">
             <h1 className="stp__title">
@@ -555,9 +573,27 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
   return (
     <div className="stp">
       <div className="stp__container">
-        <button className="stp__back" onClick={() => onNavigate && onNavigate("novel-detail", { novelId: activeNovelId })}>
-          ← กลับรายละเอียด
-        </button>
+        <div className="stp__actions">
+
+          <button
+            className="stp__back"
+            onClick={() =>
+              onNavigate &&
+              onNavigate("novel-detail", { novelId: activeNovelId })
+            }
+          >
+            ← กลับรายละเอียด
+          </button>
+
+          <button
+            className="stp__restart-btn"
+            type="button"
+            onClick={handleRestartConfirmOpen}
+          >
+            ↻ เริ่มอ่านใหม่
+          </button>
+
+        </div>
 
         <div className="stp__header">
           <h1 className="stp__title">
@@ -579,29 +615,26 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
               </div>
             ))}
           </div>
-
-          <div style={{ marginTop: "18px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={handleRestartConfirmOpen}
-              style={{
-                padding: "10px 16px",
-                borderRadius: "999px",
-                border: "1px solid #E91E8C",
-                background: "#ffffff",
-                color: "#E91E8C",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              เริ่มอ่านใหม่
-            </button>
-          </div>
         </div>
 
         <div className="stp__main">
-          {/* กำหนดขนาดกว้างสูงแบบ inline และครอบเงื่อนไขให้แน่ใจว่าเรนเดอร์ React Flow ตอนมีข้อมูลชัวร์ๆ ป้องกัน Warning ตัวที่สองครับ */}
-          <div className="stp__flow-wrapper" style={{ width: "100%", height: "650px", background: "#f8f9fa", borderRadius: "8px", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {/* Top stats bar (numbers only, above the graph) */}
+          <div className="stp__top-stats" role="region" aria-label="สถิติการสำรวจ">
+            <div className="stp__top-stat-item --compact">
+              <div className="stp__top-stat-label">เส้นทางที่ผ่านแล้ว</div>
+              <div className="stp__top-stat-value">{stats.visitedScenes}/{stats.totalScenes}</div>
+            </div>
+            <div className="stp__top-stat-item --compact">
+              <div className="stp__top-stat-label">ทางเลือกที่ค้นพบ</div>
+              <div className="stp__top-stat-value">{stats.discoveredChoices}/{stats.totalChoices}</div>
+            </div>
+            <div className="stp__top-stat-item --compact">
+              <div className="stp__top-stat-label">ฉากจบที่ปลดล็อก</div>
+              <div className="stp__top-stat-value">{stats.unlockedEndings}/{stats.totalEndings}</div>
+            </div>
+          </div>
+
+          <div className="stp__flow-wrapper" style={{ width: "100%", background: "#f8f9fa", borderRadius: "8px", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {computedNodes.length > 0 ? (
               <ReactFlow
                 nodes={computedNodes}
@@ -639,33 +672,6 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
               </div>
             )}
           </div>
-
-          <aside className="stp__sidebar">
-            <div className="stp__stat-card">
-              <div className="stp__stat-card-title">สถิติการสำรวจ</div>
-
-              {[
-                { label: "เส้นทางที่ผ่านแล้ว", val: stats.visitedScenes, total: stats.totalScenes },
-                { label: "ทางเลือกที่ค้นพบ", val: stats.discoveredChoices, total: stats.totalChoices },
-                { label: "ฉากจบที่ปลดล็อก", val: stats.unlockedEndings, total: stats.totalEndings },
-              ].map((stat, i) => (
-                <div key={i} style={{ marginTop: i > 0 ? 14 : 0 }}>
-                  <div className="stp__stat-item">
-                    <span className="stp__stat-label">{stat.label}</span>
-                    <span className="stp__stat-value stp__stat-value--pink">
-                      {stat.val}/{stat.total}
-                    </span>
-                  </div>
-                  <div className="stp__stat-track">
-                    <div
-                      className="stp__stat-fill stp__stat-fill--pink"
-                      style={{ width: `${stat.total > 0 ? (stat.val / stat.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
         </div>
         {showRestartConfirm && (
           <div style={{
