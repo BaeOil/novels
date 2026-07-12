@@ -51,10 +51,12 @@ CREATE TABLE novels (
     introduction TEXT,
     cover_image VARCHAR(255),
     status VARCHAR(50) DEFAULT 'draft',
-    
+    is_published BOOLEAN DEFAULT FALSE,
+    is_completed BOOLEAN DEFAULT FALSE,
+
     -- ✅ แก้ตรงนี้: ชี้ไปที่ตาราง writers แทน users
-    author_id INTEGER REFERENCES writers(writer_id) ON DELETE CASCADE, 
-    
+    author_id INTEGER REFERENCES writers(writer_id) ON DELETE CASCADE,
+
     views INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
