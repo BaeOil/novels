@@ -45,12 +45,15 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 				return
 			}
 
+			resolvedStatus, isPublished, isCompleted := resolveNovelStatus(req.Status, req.IsPublished, req.IsCompleted)
 			novelID, err := novelService.CreateNovel(models.Novel{
 				Title:        req.Title,
 				Captions:     req.Captions,
 				Introduction: req.Introduction,
 				CoverImage:   req.CoverImage,
-				Status:       req.Status,
+				Status:       resolvedStatus,
+				IsPublished:  isPublished,
+				IsCompleted:  isCompleted,
 				CategoryIDs:  req.CategoryIDs,
 				AuthorID:     writer.WriterID,
 			})
@@ -172,6 +175,8 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 		captions := novelPtr.Captions
 		introduction := novelPtr.Introduction
 		status := novelPtr.Status
+		isPublished := novelPtr.IsPublished
+		isCompleted := novelPtr.IsCompleted
 		coverImage := novelPtr.CoverImage
 		categoryIDs := novelPtr.CategoryIDs
 
@@ -190,8 +195,21 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 		if len(req.CategoryIDs) > 0 {
 			categoryIDs = req.CategoryIDs
 		}
-		if strings.TrimSpace(req.Status) != "" {
-			status = req.Status
+		if req.IsPublished != nil {
+			isPublished = *req.IsPublished
+		}
+		if req.IsCompleted != nil {
+			isCompleted = *req.IsCompleted
+		}
+		if strings.TrimSpace(req.Status) != "" || req.IsPublished != nil || req.IsCompleted != nil {
+			status, isPublished, isCompleted = resolveNovelStatus(req.Status, nil, nil)
+			if req.IsPublished != nil {
+				isPublished = *req.IsPublished
+			}
+			if req.IsCompleted != nil {
+				isCompleted = *req.IsCompleted
+			}
+			status = deriveNovelStatus(isCompleted, isPublished)
 		}
 
 		updatedNovel := models.Novel{
@@ -202,10 +220,12 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 			CategoryIDs:  categoryIDs,
 			CoverImage:   coverImage,
 			Status:       status,
+			IsPublished:  isPublished,
+			IsCompleted:  isCompleted,
 		}
 
 		// Validate story structure before publishing
-		if status == "published" && novelPtr.Status != "published" {
+		if isPublished && !novelPtr.IsPublished {
 			if err := sceneService.ValidateStoryForPublish(novelID); err != nil {
 				WriteError(w, http.StatusBadRequest, err.Error())
 				return

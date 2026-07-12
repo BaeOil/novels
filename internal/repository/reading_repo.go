@@ -120,7 +120,14 @@ func (r *postgresReadingRepository) InsertUserEnding(userID, novelID, sceneID in
 
 func (r *postgresReadingRepository) GetReadingHistory(userID int) ([]models.Novel, error) {
 	rows, err := r.db.Query(`
-		SELECT n.novel_id, n.title, n.captions, n.introduction, n.cover_image, n.status,
+		SELECT n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
+			CASE
+				WHEN n.is_completed AND n.is_published THEN 'completed-published'
+				WHEN n.is_completed THEN 'completed-draft'
+				WHEN n.is_published THEN 'published'
+				ELSE 'draft'
+			END AS status,
+			n.is_published, n.is_completed,
 		       n.author_id, n.views, n.created_at, n.updated_at,
 		       (SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id) AS chapter_count,
 		       (SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id) AS scene_count,
@@ -185,7 +192,7 @@ func (r *postgresReadingRepository) GetReadingHistory(userID int) ([]models.Nove
 		var visitedCount, endingCount, totalScenes int
 		var lastReadSceneTitle string
 		var readingStatus string
-		if err := rows.Scan(&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status,
+		if err := rows.Scan(&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status, &n.IsPublished, &n.IsCompleted,
 			&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,

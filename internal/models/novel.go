@@ -11,6 +11,8 @@ type Novel struct {
 	Categories         []Category `json:"categories"`
 	CoverImage         *string    `json:"cover_image"`
 	Status             string     `json:"status"`
+	IsPublished        bool       `json:"is_published,omitempty"`
+	IsCompleted        bool       `json:"is_completed,omitempty"`
 	AuthorID           int        `json:"author_id"`
 	AuthorName         string     `json:"author_name"`
 	PenName            string     `json:"pen_name"`

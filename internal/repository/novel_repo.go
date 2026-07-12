@@ -10,7 +10,14 @@ import (
 func GetNovels(db *sql.DB) ([]models.Novel, error) {
 	rows, err := db.Query(`
 		SELECT 
-			n.novel_id, n.title, n.captions, n.introduction, n.cover_image, n.status,
+			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
+			CASE
+				WHEN n.is_completed AND n.is_published THEN 'completed-published'
+				WHEN n.is_completed THEN 'completed-draft'
+				WHEN n.is_published THEN 'published'
+				ELSE 'draft'
+			END AS status,
+			n.is_published, n.is_completed,
 			n.author_id, n.views, n.created_at, n.updated_at,
 			-- counts
 			(SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id) AS chapter_count,
@@ -30,7 +37,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 		LEFT JOIN novel_categories nc ON n.novel_id = nc.novel_id
 		LEFT JOIN categories c ON nc.category_id = c.category_id
 		LEFT JOIN likes l ON n.novel_id = l.novel_id
-		WHERE n.status = 'published'
+		WHERE n.is_published = TRUE
 		GROUP BY n.novel_id, w.writer_id
 		ORDER BY n.created_at DESC
 	`)
@@ -46,7 +53,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 		var categoriesJSON []byte // ตัวแปรมารับค่า JSON
 
 		err := rows.Scan(
-			&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status,
+			&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status, &n.IsPublished, &n.IsCompleted,
 			&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,
@@ -83,7 +90,14 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 	row := db.QueryRow(`
 		SELECT 
-			n.novel_id, n.title, n.captions, n.introduction, n.cover_image, n.status,
+			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
+			CASE
+				WHEN n.is_completed AND n.is_published THEN 'completed-published'
+				WHEN n.is_completed THEN 'completed-draft'
+				WHEN n.is_published THEN 'published'
+				ELSE 'draft'
+			END AS status,
+			n.is_published, n.is_completed,
 			n.author_id, n.views, n.created_at, n.updated_at,
 			-- counts
 			(SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id) AS chapter_count,
@@ -112,7 +126,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 	var categoriesJSON []byte
 
 	err := row.Scan(
-		&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status,
+		&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status, &n.IsPublished, &n.IsCompleted,
 		&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 		&n.ChapterCount, &n.SceneCount,
 		&authorName, &penName,
@@ -167,10 +181,10 @@ func CreateNovel(db *sql.DB, novel models.Novel) (int, error) {
 	var id int
 	// 1. สร้างนิยาย และขอ ID ของนิยายที่เพิ่งสร้างคืนมา
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO novels (title, captions, introduction, cover_image, status, author_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO novels (title, captions, introduction, cover_image, status, is_published, is_completed, author_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING novel_id
-	`, novel.Title, novel.Captions, novel.Introduction, novel.CoverImage, novel.Status, novel.AuthorID).Scan(&id)
+	`, novel.Title, novel.Captions, novel.Introduction, novel.CoverImage, novel.Status, novel.IsPublished, novel.IsCompleted, novel.AuthorID).Scan(&id)
 	if err != nil {
 		return 0, err
 	}
@@ -216,9 +230,11 @@ func UpdateNovel(db *sql.DB, novel models.Novel) error {
 		    introduction = $3,
 		    cover_image = $4,
 		    status = $5,
+		    is_published = $6,
+		    is_completed = $7,
 		    updated_at = NOW()
-		WHERE novel_id = $6
-	`, novel.Title, novel.Captions, novel.Introduction, novel.CoverImage, novel.Status, novel.ID); err != nil {
+		WHERE novel_id = $8
+	`, novel.Title, novel.Captions, novel.Introduction, novel.CoverImage, novel.Status, novel.IsPublished, novel.IsCompleted, novel.ID); err != nil {
 		return err
 	}
 
@@ -252,7 +268,14 @@ func DeleteNovel(db *sql.DB, id int) error {
 func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 	rows, err := db.Query(`
 		SELECT 
-			n.novel_id, n.title, n.captions, n.introduction, n.cover_image, n.status,
+			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
+			CASE
+				WHEN n.is_completed AND n.is_published THEN 'completed-published'
+				WHEN n.is_completed THEN 'completed-draft'
+				WHEN n.is_published THEN 'published'
+				ELSE 'draft'
+			END AS status,
+			n.is_published, n.is_completed,
 			n.author_id, n.views, n.created_at, n.updated_at,
 			(SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id) AS chapter_count,
 			(SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id) AS scene_count,
@@ -286,7 +309,7 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 		var categoriesJSON []byte
 
 		err := rows.Scan(
-			&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status,
+			&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status, &n.IsPublished, &n.IsCompleted,
 			&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,
