@@ -293,13 +293,13 @@ const BookshelfPage = () => {
                             )}
                         </div>
 
-                        <div className="bookshelf-page__grid">
-                            {filteredBooks.length === 0 ? (
-                                <div className="bookshelf-page__empty">
-                                    ไม่มีนิยายในสถานะนี้ ขยับไปลองสถานะอื่นได้
-                                </div>
-                            ) : (
-                                filteredBooks.map((book) => (
+                        {filteredBooks.length === 0 ? (
+                            <div className="bookshelf-page__empty">
+                                ไม่มีนิยายในสถานะนี้ ขยับไปลองสถานะอื่นได้
+                            </div>
+                        ) : (
+                            <div className="bookshelf-page__grid">
+                                {filteredBooks.map((book) => (
                                     <article
                                         key={book.id}
                                         className="bookshelf-card"
@@ -314,7 +314,7 @@ const BookshelfPage = () => {
                                             <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
                                         </div>
                                         <div className="bookshelf-card__body">
-                                            <div className="bookshelf-card__tags history-card__tags--small">
+                                            <div className="bookshelf-card__tags--small">
                                                 {book.categories.slice(0, 2).map((category) => (
                                                     <GenreTag
                                                         key={`${book.id}-${category}`}
@@ -334,33 +334,34 @@ const BookshelfPage = () => {
                                             <div className="bookshelf-card__stats">
 
                                                 <div className="bookshelf-card__stat">
-                                                    <GitBranch size={17} color="#F526A2"/>
+                                                    <GitBranch size={17} color="#F526A2" />
                                                     <span>{book.totalRoutes}</span>
                                                 </div>
 
                                                 <div className="bookshelf-card__stat">
-                                                    <Eye size={17} color="#F526A2"/>
+                                                    <Eye size={17} color="#F526A2" />
                                                     <span>{book.views}</span>
                                                 </div>
 
                                                 <div className="bookshelf-card__stat">
-                                                    <Heart size={17} color="#F526A2"/>
+                                                    <Heart size={17} color="#F526A2" />
                                                     <span>{book.likes}</span>
                                                 </div>
+                                            </div>
+
+
+                                            <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
+                                                {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
+                                            </span>
                                         </div>
-
-
-                                        <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
-                                            {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
-                                        </span>
-                                    </div>
                                     </article>
-                        ))
+                                ))}
+                                </div>
                             )}
-                    </div>
+                            
             </>
                 )}
-        </div>
+            </div>
         </div >
     );
 };
