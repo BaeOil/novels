@@ -490,20 +490,6 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
               <span className="stp__title-sep"> — </span>
               <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span>
             </h1>
-
-            <div className="stp__legend">
-              {[
-                { color: "#E91E8C", label: "จุดปัจจุบัน" },
-                { color: "#4CAF82", label: "ปลดล็อกแล้ว" },
-                { color: "#F7C940", label: "ตอนจบปลดแล้ว" },
-                { color: "#C8C3D4", label: "ยังไม่ปลดล็อก" },
-              ].map((item) => (
-                <div key={item.label} className="stp__legend-item">
-                  <span className="stp__legend-dot" style={{ background: item.color }} />
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
           </div>
 
           <div className="stp__main">
@@ -601,50 +587,161 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
             <span className="stp__title-sep">{" "}—{" "}</span>
             <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{finalTitle}</span>
           </h1>
-
-          <div className="stp__legend">
-            {[
-              { color: "#E91E8C", label: "จุดปัจจุบัน" },
-              { color: "#4CAF82", label: "ปลดล็อกแล้ว" },
-              { color: "#F7C940", label: "ตอนจบปลดแล้ว" },
-              { color: "#C8C3D4", label: "ยังไม่ปลดล็อก" },
-            ].map((item) => (
-              <div key={item.label} className="stp__legend-item">
-                <span className="stp__legend-dot" style={{ background: item.color }} />
-                <span>{item.label}</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div className="stp__main">
           {/* Top stats bar (numbers only, above the graph) */}
-          <div className="stp__top-stats" role="region" aria-label="สถิติการสำรวจ">
-            <div className="stp__top-stat-item --compact">
-              <div className="stp__top-stat-label">เส้นทางที่ผ่านแล้ว</div>
-              <div className="stp__top-stat-value">{stats.visitedScenes}/{stats.totalScenes}</div>
+          <div className="stp__survey-stats">
+
+            <div className="stp__survey-card pink">
+              <div className="stp__survey-icon">
+                📖
+              </div>
+
+              <div className="stp__survey-content">
+                <span className="stp__survey-title">
+                  เส้นทางที่ผ่านแล้ว
+                </span>
+
+                <div className="stp__survey-number">
+                  <span>{stats.visitedScenes}</span>
+                  <small> / {stats.totalScenes}</small>
+                </div>
+
+                <div className="stp__progress">
+                  <div
+                    className="stp__progress-fill pink"
+                    style={{
+                      width: `${stats.totalScenes
+                        ? (stats.visitedScenes / stats.totalScenes) * 100
+                        : 0
+                        }%`,
+                    }}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="stp__top-stat-item --compact">
-              <div className="stp__top-stat-label">ทางเลือกที่ค้นพบ</div>
-              <div className="stp__top-stat-value">{stats.discoveredChoices}/{stats.totalChoices}</div>
+
+            <div className="stp__survey-card green">
+
+              <div className="stp__survey-icon">
+                🧩
+              </div>
+
+              <div className="stp__survey-content">
+
+                <span className="stp__survey-title">
+                  ทางเลือกที่ค้นพบ
+                </span>
+
+                <div className="stp__survey-number">
+                  <span>{stats.discoveredChoices}</span>
+                  <small> / {stats.totalChoices}</small>
+                </div>
+
+                <div className="stp__progress">
+                  <div
+                    className="stp__progress-fill green"
+                    style={{
+                      width: `${stats.totalChoices
+                        ? (stats.discoveredChoices / stats.totalChoices) * 100
+                        : 0
+                        }%`,
+                    }}
+                  />
+                </div>
+
+              </div>
+
             </div>
-            <div className="stp__top-stat-item --compact">
-              <div className="stp__top-stat-label">ฉากจบที่ปลดล็อก</div>
-              <div className="stp__top-stat-value">{stats.unlockedEndings}/{stats.totalEndings}</div>
+
+            <div className="stp__survey-card yellow">
+
+              <div className="stp__survey-icon">
+                🏁
+              </div>
+
+              <div className="stp__survey-content">
+
+                <span className="stp__survey-title">
+                  ฉากจบที่ปลดล็อก
+                </span>
+
+                <div className="stp__survey-number">
+                  <span>{stats.unlockedEndings}</span>
+                  <small> / {stats.totalEndings}</small>
+                </div>
+
+                <div className="stp__progress">
+                  <div
+                    className="stp__progress-fill yellow"
+                    style={{
+                      width: `${stats.totalEndings
+                        ? (stats.unlockedEndings / stats.totalEndings) * 100
+                        : 0
+                        }%`,
+                    }}
+                  />
+                </div>
+
+              </div>
+
             </div>
+
           </div>
 
           <div className="stp__flow-wrapper" style={{ width: "100%", background: "#f8f9fa", borderRadius: "8px", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+
+
+            <div className="stp__legend-floating">
+
+              {[
+                { color: "#E91E8C", label: "จุดปัจจุบัน" },
+                { color: "#4CAF82", label: "ปลดล็อกแล้ว" },
+                { color: "#F7C940", label: "ตอนจบปลดแล้ว" },
+                { color: "#C8C3D4", label: "ยังไม่ปลดล็อก" },
+              ].map(item => (
+
+                <div
+                  key={item.label}
+                  className="stp__legend-floating-item"
+                >
+                  <span
+                    className="stp__legend-floating-dot"
+                    style={{
+                      background: item.color
+                    }}
+                  />
+
+                  <span>
+                    {item.label}
+                  </span>
+
+                </div>
+
+              ))}
+
+            </div>
+
             {computedNodes.length > 0 ? (
               <ReactFlow
                 nodes={computedNodes}
                 edges={computedEdges}
                 nodeTypes={nodeTypes}
+
+                style={{
+                  width: "100%",
+                  height: "100%"
+                }}
+
                 fitView
-                fitViewOptions={{ padding: 0.2 }}
-                zoomOnScroll={true}
-                panOnDrag={true}
-                nodesDraggable={true}
+                fitViewOptions={{
+                  padding: 0.2
+                }}
+
+                zoomOnScroll
+                panOnDrag
+                nodesDraggable
                 nodesConnectable={false}
                 elementsSelectable={false}
                 onNodeClick={handleNodeClick}
@@ -672,6 +769,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
               </div>
             )}
           </div>
+
         </div>
         {showRestartConfirm && (
           <div style={{
@@ -740,6 +838,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       </div>
     </div>
   );
+
 };
 
 export default StoryTreePage;

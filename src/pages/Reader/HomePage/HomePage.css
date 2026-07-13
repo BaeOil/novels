@@ -206,12 +206,16 @@
 /* Novel grid */
 .home__novel-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
     align-items: stretch;
 }
 
 .home__novel-grid > * {
+    height: 100%;
+}
+
+.home__novel-grid .novel-card {
     height: 100%;
 }
 
