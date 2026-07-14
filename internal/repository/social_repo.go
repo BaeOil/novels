@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"novel-be/internal/models"
 )
 
@@ -199,38 +200,63 @@ func RemoveComment(db *sql.DB, commentID, userID int) error {
 }
 
 func AddFollow(db *sql.DB, follow models.Follow) error {
-	// Normalize following ID: incoming value might be a writers.writer_id or a users.user_id
+	// Normalize following ID: prefer exact writer_id match, otherwise try matching user_id
 	var resolvedWriterID int
+	// try direct writer_id match first
 	err := db.QueryRow(`
-		SELECT writer_id FROM writers WHERE writer_id = $1 OR user_id = $1 LIMIT 1
+		SELECT writer_id FROM writers WHERE writer_id = $1 LIMIT 1
 	`, follow.FollowingID).Scan(&resolvedWriterID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return sql.ErrNoRows
+			// try matching by user_id
+			err = db.QueryRow(`
+				SELECT writer_id FROM writers WHERE user_id = $1 LIMIT 1
+			`, follow.FollowingID).Scan(&resolvedWriterID)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return sql.ErrNoRows
+				}
+				return err
+			}
+		} else {
+			return err
 		}
-		return err
 	}
 
-	_, err = db.Exec(`
+	res, err := db.Exec(`
 		INSERT INTO follows (follower_id, following_id)
 		VALUES ($1, $2)
 		ON CONFLICT (follower_id, following_id) DO NOTHING
 	`, follow.FollowerID, resolvedWriterID)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	log.Printf("AddFollow: follower=%d following_resolved=%d rows_affected=%d", follow.FollowerID, resolvedWriterID, rows)
+	return nil
 }
 
 func RemoveFollow(db *sql.DB, userID, writerID int) error {
-	// Resolve writerID if caller passed a user_id
+	// Resolve writerID: prefer writer_id match, otherwise try user_id
 	var resolvedWriterID int
 	err := db.QueryRow(`
-		SELECT writer_id FROM writers WHERE writer_id = $1 OR user_id = $1 LIMIT 1
+		SELECT writer_id FROM writers WHERE writer_id = $1 LIMIT 1
 	`, writerID).Scan(&resolvedWriterID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// nothing to delete
-			return nil
+			err = db.QueryRow(`
+				SELECT writer_id FROM writers WHERE user_id = $1 LIMIT 1
+			`, writerID).Scan(&resolvedWriterID)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					// nothing to delete
+					return nil
+				}
+				return err
+			}
+		} else {
+			return err
 		}
-		return err
 	}
 
 	_, err = db.Exec(`
