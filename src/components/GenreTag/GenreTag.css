@@ -1,7 +1,7 @@
 /* src/components/GenreTag/GenreTag.css */
 
 .genre-tag {
-  display: inline-flex;
+ display: inline-flex;
   align-items: center;
   padding: 3px 12px;
   border-radius: 20px;
@@ -10,6 +10,11 @@
   font-weight: 500;
   cursor: default;
   transition: all 0.15s ease;
+  line-height: 1.25;
+  white-space: nowrap;
+
+  margin-right: 6px;
+  margin-bottom: 6px;
 }
 
 .genre-tag--primary {
@@ -32,4 +37,3 @@
   border-color: var(--pink-300);
   color: var(--pink-500);
 }
-

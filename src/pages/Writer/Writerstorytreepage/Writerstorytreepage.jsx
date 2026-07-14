@@ -13,8 +13,18 @@
 //  CONNECTED: GET /novels/:id/story-tree
 // ══════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useMemo } from "react";
-import ReactFlow, { Handle, Position, MiniMap, Controls, Background, BackgroundVariant, } from "reactflow";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import ReactFlow, {
+  Handle,
+  Position,
+  MiniMap,
+  Controls,
+  Background,
+  BackgroundVariant,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+} from "reactflow";
 import axios from "axios";
 import "reactflow/dist/style.css";
 import "./Writerstorytreepage.css";
@@ -117,61 +127,59 @@ const StoryNode = ({ data }) => {
   const style = WRITER_NODE_STYLE[status] || WRITER_NODE_STYLE[WRITER_NODE_STATUS.NORMAL];
   const title = getNodeTitle(data);
 
-  const chapterNo =
-    data.chapterNumber ||
-    data.chapter_number;
-
-  const sceneNo =
-    data.sceneNumber ||
-    data.scene_number;
+  // Get chapter and scene numbers from data or scenePositionMap
+  const chapterNo = data.chapterNumber || data.chapter_number || data.ChapterID || "?";
+  const sceneNo = data.sceneNumber || data.scene_number || data.ID || "?";
 
   const description = getNodeContent(data);
   const chapter = getNodeChapter(data);
-  const prefix = status === WRITER_NODE_STATUS.START
-    ? "▶ "
-    : status === WRITER_NODE_STATUS.ENDING
-      ? "🏆 "
-      : " ";
 
   return (
     <div className="wst-node-card" style={{ borderColor: style.stroke, background: style.fill, color: style.text }}>
       <Handle type="target" position={Position.Top} />
-      <div className="wst-node-card__header">
-
-        <div className="wst-node-card__chapter">
-          ตอนที่ {chapterNo}
-        </div>
-
-        <div className="wst-node-card__scene">
-          ฉาก {chapterNo}.{sceneNo}
-        </div>
-
+      
+      {/* Header: Chapter badge */}
+      <div className="wst-node-card__badge">
+        ตอนที่ {chapterNo}
       </div>
 
+      {/* Scene number */}
+      <div className="wst-node-card__scene-num">
+        ฉาก {chapterNo}.{sceneNo}
+      </div>
+
+      {/* Title */}
       <div className="wst-node-card__title">
         {title}
       </div>
 
+      {/* Description/Content */}
       <div className="wst-node-card__desc">
         {description}
       </div>
 
+      {/* Edit button */}
       <button
         className="wst-node-card__edit"
         onClick={(e) => {
           e.stopPropagation();
-
           data.onEdit?.(
             getSceneId(data),
             data.ChapterID
           );
         }}
       >
-        ✏ แก้ไข
+        ✏️ แก้ไข
       </button>
+      
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
+};
+
+// add stable nodeTypes at module top-level to avoid React Flow warning #002
+const nodeTypes = {
+  writerNode: StoryNode,
 };
 
 const LegendBar = () => (
@@ -190,6 +198,8 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedSceneId, setSelectedSceneId] = useState(null);
+  const [interactionMode, setInteractionMode] = useState("select"); // select | connect | pan
+  const reactflowWrapperRef = useRef(null);
 
   useEffect(() => {
     const fetchStoryTree = async () => {
@@ -412,6 +422,34 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     };
   }, [nodes, edges, sceneMap, treeData]);
 
+  // Convert positionedNodes/positionedEdges into React Flow node/edge shapes
+  const flowNodes = useMemo(() => {
+    return positionedNodes.map((n) => ({
+      id: String(n.id),
+      type: "writerNode",
+      position: { x: n.x, y: n.y },
+      data: {
+        ...n.scene,
+        status: n.status,
+        onEdit: (sceneId, chapterId) => {
+          onNavigate?.("scene-editor", { novelId, chapterId, sceneId });
+        },
+      },
+    }));
+  }, [positionedNodes, novelId, onNavigate]);
+
+  const flowEdges = useMemo(() => {
+    return positionedEdges.map((e) => ({
+      id: String(e.id || `e-${e.source}-${e.target}`),
+      source: String(e.source),
+      target: String(e.target),
+      label: e.label || "",
+      type: e.type || "smoothstep",
+      data: e.data || {},
+      animated: !!e.animated,
+    }));
+  }, [positionedEdges]);
+
   const scenePositionMap = useMemo(() => {
     const map = new Map();
 
@@ -428,96 +466,81 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     return map;
   }, [chapters]);
 
-  const nodeTypes = useMemo(
-    () => ({ writerNode: StoryNode }),
-    []
-  );
+  // nodeTypes now defined at module top-level (see above)
 
-  const flowNodes = useMemo(
-    () =>
-      positionedNodes.map((item) => {
-        const pos = scenePositionMap.get(item.id);
+  // create editable react-flow state initialized from computed flowNodes/flowEdges
+  const [rfNodes, setRfNodes, onNodesChangeRF] = useNodesState([]);
+  const [rfEdges, setRfEdges, onEdgesChangeRF] = useEdgesState([]);
+  const [selection, setSelection] = useState({ nodes: [], edges: [] });
 
-        return {
-          id: item.id,
-          type: "writerNode",
-          position: {
-            x: item.x,
-            y: item.y,
-          },
-          data: {
-            ...item.scene,
-            status: item.status,
-            chapterNumber: pos?.chapterNumber,
-            sceneNumber: pos?.sceneNumber,
+  // sync when backend positions change
+  useEffect(() => {
+    setRfNodes(flowNodes);
+  }, [flowNodes, setRfNodes]);
 
-            onEdit: (sceneId, chapterId) => {
-              onNavigate?.("scene-editor", {
-                novelId,
-                chapterId,
-                sceneId,
-              });
-            },
-          },
-          draggable: false,
-        };
-      }),
-    [positionedNodes, scenePositionMap]
-  );
+  useEffect(() => {
+    setRfEdges(flowEdges);
+  }, [flowEdges, setRfEdges]);
 
-  const validNodeIds = useMemo(() => new Set(positionedNodes.map((item) => item.id)), [positionedNodes]);
-
-  const flowEdges = useMemo(() => positionedEdges
-    .filter((edge) => edge.source && edge.target && edge.source !== "undefined" && edge.target !== "undefined" && validNodeIds.has(edge.source) && validNodeIds.has(edge.target))
-    .map((edge) => ({
-      id: edge.id,
-      source: String(edge.source),
-      target: String(edge.target),
-      animated: edge.active,
-      label: getChoiceLabel(edge),
-      labelBgPadding: [6, 4],
-      labelBgBorderRadius: 4,
-      labelStyle: { fill: "#475569", fontWeight: 500, fontSize: 11 },
-      style: { stroke: edge.active ? "#3B82F6" : "#CBD5E1", strokeWidth: 2 },
+  const onConnect = useCallback((params) => {
+    const edge = {
+      ...params,
+      id: `edge-${params.source}-${params.target}-${Date.now()}`,
+      animated: true,
       type: "smoothstep",
-    })), [positionedEdges, validNodeIds]);
+    };
+    setRfEdges((eds) => addEdge(edge, eds));
+  }, [setRfEdges]);
 
-  useEffect(() => {
-    try {
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.debug("WriterStoryTree: nodes, edges, flowNodes, flowEdges:", nodes, edges, flowNodes, flowEdges);
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, [nodes, edges, flowNodes, flowEdges]);
+  const handleSelectionChange = useCallback((sel) => {
+    // sel = { nodes: [...], edges: [...] } (ReactFlow v10)
+    setSelection({
+      nodes: sel?.nodes || [],
+      edges: sel?.edges || [],
+    });
+  }, []);
 
-  useEffect(() => {
-    if (!selectedSceneId && positionedNodes.length > 0) {
-      const currentId = String(treeData?.CurrentSceneID ?? treeData?.current_scene_id ?? "");
-      setSelectedSceneId(currentId || positionedNodes[0]?.id);
-    }
-  }, [positionedNodes, selectedSceneId, treeData]);
+  const addNewNode = useCallback(() => {
+    const id = `new-${Date.now()}`;
+    const newNode = {
+      id,
+      type: "writerNode",
+      position: { x: 60 + Math.random() * 200, y: 60 + Math.random() * 120 },
+      data: {
+        Title: "ฉากใหม่",
+        Content: "",
+        status: WRITER_NODE_STATUS.NORMAL,
+        // onEdit will be filled by flowNodes -> when saving to server you can map back
+      },
+      draggable: true,
+    };
+    setRfNodes((nds) => [...nds, newNode]);
+    // optional: focus/select new node
+    setSelection({ nodes: [newNode], edges: [] });
+  }, [setRfNodes]);
 
-  const handleNodeClick = (_, node) => {
-    const sceneId = node?.id;
-    if (sceneId) setSelectedSceneId(sceneId);
-  };
+  const deleteSelection = useCallback(() => {
+    setRfNodes((nds) => nds.filter((n) => !selection.nodes.some(s => s.id === n.id)));
+    setRfEdges((eds) => eds.filter((e) => !selection.edges.some(s => s.id === e.id) && !selection.nodes.some(sn => sn.id === e.source || sn.id === e.target)));
+    setSelection({ nodes: [], edges: [] });
+  }, [selection, setRfNodes, setRfEdges]);
 
-  const handleNodeDoubleClick = (_, node) => {
+  const onNodesChangeWrapper = useCallback((changes) => {
+    onNodesChangeRF(changes);
+  }, [onNodesChangeRF]);
+
+  const onEdgesChangeWrapper = useCallback((changes) => {
+    onEdgesChangeRF(changes);
+  }, [onEdgesChangeRF]);
+
+  // allow double click to open editor (reuse existing handler)
+  const handleNodeDoubleClick = (evt, node) => {
     const sceneId = node?.id;
     if (!sceneId) return;
-
     const sceneData = sceneMap.get(sceneId);
-
     const chapterId =
-      sceneData?.ChapterID ??
-      sceneData?.chapter_id ??
-      sceneData?.chapterId;
-
+      sceneData?.ChapterID ?? sceneData?.chapter_id ?? sceneData?.chapterId;
     setSelectedSceneId(sceneId);
-
     if (onNavigate) {
       onNavigate("scene-editor", {
         novelId,
@@ -527,24 +550,13 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
     }
   };
 
-  const handleSidebarSceneClick = (sceneId) => {
-    const sceneData = sceneMap.get(String(sceneId));
-
-    const chapterId =
-      sceneData?.ChapterID ??
-      sceneData?.chapter_id ??
-      sceneData?.chapterId;
-
-    setSelectedSceneId(sceneId);
-
-    if (onNavigate) {
-      onNavigate("scene-editor", {
-        novelId,
-        chapterId,
-        sceneId,
-      });
-    }
-  };
+  // handle single click: select node, show details in left panel
+  const handleNodeClick = useCallback((evt, node) => {
+    if (!node) return;
+    setSelectedSceneId(String(node.id));
+    // keep RF selection state in sync for toolbar actions
+    setSelection({ nodes: [node], edges: [] });
+  }, [setSelectedSceneId, setSelection]);
 
   const title = treeData?.NovelTitle || treeData?.novel_title || "Story Tree";
 
@@ -592,6 +604,9 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
           <div className="wst-topbar__divider-v" />
           <LegendBar />
         </div>
+        <div className="wst-topbar__actions">
+          <button className="wst-topbar__add" onClick={addNewNode}>+ เพิ่มฉากใหม่</button>
+        </div>
       </header>
 
       <div className="wst-body">
@@ -603,63 +618,102 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
           <div className="wst-canvas-wrap">
             <div className="wst-canvas-scroll">
-              {positionedNodes.length > 0 ? (
-                <div className="wst-reactflow-container">
-                  <ReactFlow
-                    nodes={flowNodes}
-                    edges={flowEdges}
-                    nodeTypes={nodeTypes}
-                    onNodeClick={handleNodeClick}
-                    onNodeDoubleClick={handleNodeDoubleClick}
-                    fitView
-                    fitViewOptions={{ padding: 0.2 }}
-                    preventScrolling={false}
-                    panOnScroll
-                    nodesDraggable={false}
-                    nodesConnectable={false}
-                    elementsSelectable
-                    minZoom={0.3}
-                    maxZoom={1.6}
-                    className="wst-reactflow"
+              {/* ensure parent has explicit measurable height so React Flow can render (#004) */}
+              <div
+                className="wst-reactflow-container"
+                ref={reactflowWrapperRef}
+                style={{ width: "100%", height: "100%", position: "relative" }}
+              >
+                {/* Floating toolbar (inside canvas so it overlays correctly) */}
+                <div className="wst-canvas-toolbar">
+                  <button 
+                    title="เลือก" 
+                    className={`wst-toolbar-btn ${interactionMode==='select' ? 'active':''}`} 
+                    onClick={() => setInteractionMode('select')}
                   >
-                    <MiniMap
-                      zoomable
-                      pannable
-                      nodeColor={(node) => {
-                        const status = node.data?.status;
-
-                        switch (status) {
-                          case WRITER_NODE_STATUS.START:
-                            return "#16A34A";
-
-                          case WRITER_NODE_STATUS.ENDING:
-                            return "#EF4444";
-
-                          case WRITER_NODE_STATUS.ORPHAN:
-                            return "#94A3B8";
-
-                          default:
-                            return "#38BDF8";
-                        }
-                      }}
-                    />
-
-                    <Controls
-                      showZoom
-                      showFitView
-                      showInteractive={false}
-                    />
-
-                    <Background
-                      variant={BackgroundVariant.Dots}
-                      gap={24}
-                      size={1}
-                    />
-                  </ReactFlow>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3h6v6H3V3M15 3h6v6h-6V3M3 15h6v6H3v-6M15 15h6v6h-6v-6"/></svg>
+                    <span>เลือก</span>
+                  </button>
+                  <button 
+                    title="เชื่อม" 
+                    className={`wst-toolbar-btn ${interactionMode==='connect' ? 'active':''}`} 
+                    onClick={() => setInteractionMode('connect')}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l12 6-12 6V9z"/></svg>
+                    <span>เชื่อม</span>
+                  </button>
+                  <button 
+                    title="เลื่อน" 
+                    className={`wst-toolbar-btn ${interactionMode==='pan' ? 'active':''}`} 
+                    onClick={() => setInteractionMode('pan')}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                    <span>เลื่อน</span>
+                  </button>
+                  <button 
+                    title="เพิ่มฉาก" 
+                    className="wst-toolbar-btn"
+                    onClick={addNewNode}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                    <span>เพิ่ม</span>
+                  </button>
+                  <button 
+                    title="ลบที่เลือก" 
+                    className="wst-toolbar-btn"
+                    onClick={deleteSelection}
+                    disabled={selection.nodes.length===0 && selection.edges.length===0}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M10 11v6M14 11v6M5 6l1 13a1 1 0 001 1h10a1 1 0 001-1l1-13"/></svg>
+                    <span>ลบ</span>
+                  </button>
                 </div>
-              ) : (
-                <div className="wst-empty-state">ไม่พบข้อมูลโครงสร้างเนื้อเรื่อง</div>
-              )}
+
+                <ReactFlow
+                  nodes={rfNodes}
+                  edges={rfEdges}
+                  nodeTypes={nodeTypes}
+                  onNodeClick={handleNodeClick}
+                  onNodeDoubleClick={handleNodeDoubleClick}
+                  onNodesChange={onNodesChangeWrapper}
+                  onEdgesChange={onEdgesChangeWrapper}
+                  onConnect={onConnect}
+                  onSelectionChange={handleSelectionChange}
+                  fitView
+                  fitViewOptions={{ padding: 0.2 }}
+                  preventScrolling={false}
+                  panOnScroll
+                  panOnDrag={interactionMode === 'pan'}
+                  nodesDraggable={interactionMode !== 'pan' && interactionMode !== 'connect'}
+                  nodesConnectable={interactionMode === 'connect'}
+                  elementsSelectable={interactionMode === 'select'}
+                  minZoom={0.3}
+                  maxZoom={1.6}
+                  className="wst-reactflow"
+                >
+                  <MiniMap
+                    zoomable
+                    pannable
+                    nodeColor={(node) => {
+                      const status = node.data?.status;
+                      switch (status) {
+                        case WRITER_NODE_STATUS.START:
+                          return "#16A34A";
+                        case WRITER_NODE_STATUS.ENDING:
+                          return "#EF4444";
+                        case WRITER_NODE_STATUS.ORPHAN:
+                          return "#94A3B8";
+                        default:
+                          return "#38BDF8";
+                      }
+                    }}
+                  />
+
+                  <Controls showZoom showFitView showInteractive={false} />
+
+                  <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
+                </ReactFlow>
+              </div>
             </div>
           </div>
 
@@ -668,8 +722,7 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
 
         <aside className="wst-sidebar">
           <div className="wst-sidebar__top">
-            <h3 className="wst-sidebar__novel-title">ภาพรวมโครงสร้าง</h3>
-            <p className="wst-sidebar__updated">ข้อมูลรายละเอียดฉาก</p>
+            <h3 className="wst-sidebar__novel-title">สถิติ</h3>
           </div>
 
           <div className="wst-sidebar__stats">
@@ -701,8 +754,6 @@ const WriterStoryTreePage = ({ novelId, onNavigate }) => {
               />
             </>
           )}
-
-
         </aside>
       </div>
     </div>
