@@ -204,6 +204,8 @@ func novelSubRouter(novel service.NovelService, scene service.SceneService, chap
 		switch {
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/chapters"):
 			handlers.GetChaptersByNovelHandler(chapter, novel, writer)(w, r)
+		case r.Method == http.MethodGet && strings.HasSuffix(path, "/comments/count"):
+			handlers.GetCommentCountByNovelHandler(social)(w, r)
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/comments"):
 			handlers.GetCommentsByNovelHandler(social)(w, r)
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/story-tree"):

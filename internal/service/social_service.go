@@ -66,6 +66,10 @@ func (s *socialService) GetFollowingWriters(userID int) ([]models.Writer, error)
 	return s.repo.GetFollowingWriters(userID)
 }
 
+func (s *socialService) GetCommentCountByNovelID(novelID int) (int, error) {
+	return s.repo.GetCommentCountByNovelID(novelID)
+}
+
 func (s *socialService) GetCommentsByNovelID(novelID int) ([]dto.CommentDetailDTO, error) {
 	comments, err := s.repo.GetCommentsByNovelID(novelID)
 	if err != nil {

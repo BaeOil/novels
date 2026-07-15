@@ -128,7 +128,7 @@ func (r *postgresReadingRepository) GetReadingHistory(userID int) ([]models.Nove
 			WHERE ush.user_id = $1
 		),
 		last_choice_per_novel AS (
-			SELECT uch.user_id, c.label, uch.selected_at,
+			SELECT uch.user_id, c.label, uch.selected_at, s.novel_id,
 				ROW_NUMBER() OVER (PARTITION BY s.novel_id ORDER BY uch.selected_at DESC) AS rn
 			FROM user_choice_history uch
 			JOIN choices c ON c.choice_id = uch.choice_id
@@ -195,7 +195,7 @@ func (r *postgresReadingRepository) GetReadingHistory(userID int) ([]models.Nove
 		LEFT JOIN LATERAL (
 			SELECT lcp.label AS choice_text
 			FROM last_choice_per_novel lcp
-			WHERE lcp.user_id = rp.user_id AND lcp.rn = 1
+			WHERE lcp.user_id = rp.user_id AND lcp.novel_id = n.novel_id AND lcp.rn = 1
 			LIMIT 1
 		) last_choice ON true
 		LEFT JOIN (

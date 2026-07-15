@@ -57,6 +57,7 @@ type SocialService interface {
 	AddFollow(models.Follow) error
 	RemoveFollow(userID, writerID int) error
 	GetFollowingWriters(userID int) ([]models.Writer, error)
+	GetCommentCountByNovelID(novelID int) (int, error)
 	GetCommentsByNovelID(novelID int) ([]dto.CommentDetailDTO, error)
 	GetCommentsBySceneID(sceneID int) ([]dto.CommentDetailDTO, error)
 }

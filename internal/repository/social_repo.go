@@ -355,12 +355,26 @@ func GetFollowingWriters(db *sql.DB, userID int) ([]models.Writer, error) {
 	return writers, nil
 }
 
+func GetCommentCountByNovelID(db *sql.DB, novelID int) (int, error) {
+	var count int
+	err := db.QueryRow(`
+        SELECT COUNT(*)
+        FROM comments c
+        WHERE c.novel_id = $1
+    `, novelID).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func GetCommentsByNovelID(db *sql.DB, novelID int) ([]models.Comment, error) {
 	rows, err := db.Query(`
         SELECT c.comment_id, c.user_id, c.novel_id, c.scene_id, c.content, c.created_at, u.username
         FROM comments c
         LEFT JOIN users u ON c.user_id = u.user_id
-        WHERE c.novel_id = $1 AND c.scene_id IS NULL
+        WHERE c.novel_id = $1
+          AND c.scene_id IS NULL
         ORDER BY c.created_at DESC
     `, novelID)
 	if err != nil {

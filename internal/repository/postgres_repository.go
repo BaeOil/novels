@@ -201,6 +201,10 @@ func (r *postgresSocialRepository) GetFollowingWriters(userID int) ([]models.Wri
 	return GetFollowingWriters(r.db, userID)
 }
 
+func (r *postgresSocialRepository) GetCommentCountByNovelID(novelID int) (int, error) {
+	return GetCommentCountByNovelID(r.db, novelID)
+}
+
 func (r *postgresSocialRepository) GetCommentsByNovelID(novelID int) ([]models.Comment, error) {
 	return GetCommentsByNovelID(r.db, novelID)
 }
