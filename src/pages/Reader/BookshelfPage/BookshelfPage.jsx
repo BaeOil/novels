@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import GenreTag from "../../../components/GenreTag/GenreTag";
+import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import "./BookshelfPage.css";
 import {
     Eye,
     Heart,
     GitBranch,
     Trash2,
-    Clock
 } from "lucide-react";  
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -43,6 +43,29 @@ const stripHtml = (html = "") => {
     return div.textContent || "";
 };
 
+const getBookId = (item = {}) => {
+    return item.novel_id || item.id || item._id || item.novel?.id || 0;
+};
+
+const formatRelative = (iso) => {
+    if (!iso) return "ยังไม่เคยอ่าน";
+
+    const timestamp = Date.parse(iso);
+    if (Number.isNaN(timestamp)) return "ยังไม่เคยอ่าน";
+
+    const diff = (Date.now() - timestamp) / 1000;
+    if (diff < 60) return "เมื่อสักครู่";
+    if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} นาทีที่แล้ว`;
+    if (diff < 86400) return `${Math.max(1, Math.floor(diff / 3600))} ชั่วโมงที่แล้ว`;
+    if (diff < 604800) return `${Math.max(1, Math.floor(diff / 86400))} วันที่แล้ว`;
+
+    return new Date(timestamp).toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    });
+};
+
 const normalizeReadingStatus = (statusValue, endingCount, currentSceneId) => {
     const rawStatus = String(statusValue || "").trim().toLowerCase();
     if (rawStatus === "want_to_read" || rawStatus === "reading" || rawStatus === "finished") {
@@ -61,21 +84,8 @@ const normalizeReadingStatus = (statusValue, endingCount, currentSceneId) => {
     if (currentSceneId > 0) return "reading";
     return "want_to_read";
 };
-const formatRelative = (iso) => {
-    if (!iso) return "ยังไม่เคยอ่าน";
-    const diff = (Date.now() - new Date(iso)) / 1000;
-    if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} นาทีที่แล้ว`;
-    if (diff < 86400) return `${Math.max(1, Math.floor(diff / 3600))} ชั่วโมงที่แล้ว`;
-    if (diff < 604800) return `${Math.max(1, Math.floor(diff / 86400))} วันที่แล้ว`;
-    return new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
-};
-
 const normalizeBook = (item) => ({
-    id:
-        item.novel_id ||
-        item.id ||
-        item._id ||
-        item.novel?.id,
+    id: getBookId(item),
 
     title:
         item.title ||
@@ -135,18 +145,26 @@ const normalizeBook = (item) => ({
         item.chapter_title ||
         "ยังไม่มีตอน",
 
-    lastReadSceneTitle:
-        item.last_read_scene_title ||
-        item.lastReadSceneTitle ||
-        item.last_read_at ||
-        "ยังไม่มีประวัติการอ่าน",
-
     lastReadAt:
         item.last_read_at ||
         item.lastReadAt ||
         item.updated_at ||
         item.updatedAt ||
+        item.created_at ||
+        item.createdAt ||
         null,
+
+    lastReadSceneTitle:
+        item.last_read_scene_title ||
+        item.lastReadSceneTitle ||
+        "ยังไม่มีประวัติการอ่าน",
+
+    startSceneId:
+        item.start_scene_id ||
+        item.startSceneId ||
+        item.first_scene_id ||
+        item.firstSceneId ||
+        0,
 
     // ---------- Statistics ----------
 
@@ -225,24 +243,63 @@ const BookshelfPage = () => {
                 const headers = { "Content-Type": "application/json" };
                 if (token) headers.Authorization = `Bearer ${token}`;
 
-                const shelfRes = await axios.get(getBookshelfApiUrl(userId), { headers });
-                const shelfPayload =
-                    shelfRes.data?.data?.bookshelf ||
-                    shelfRes.data?.bookshelf ||
-                    shelfRes.data?.novels ||
-                    shelfRes.data ||
-                    [];
-                const bookList = Array.isArray(shelfPayload) ? shelfPayload : [];
+                const [shelfResult, historyResult] = await Promise.allSettled([
+                    axios.get(getBookshelfApiUrl(userId), { headers }),
+                    axios.get(`${API_BASE_URL}/history`, { headers }),
+                ]);
 
-                if (bookList.length === 0) {
-                    if (active) {
-                        setBooks([]);
-                    }
-                    return;
-                }
+                const shelfPayload = shelfResult.status === "fulfilled"
+                    ? (
+                        shelfResult.value?.data?.data?.bookshelf ||
+                        shelfResult.value?.data?.bookshelf ||
+                        shelfResult.value?.data?.novels ||
+                        shelfResult.value?.data ||
+                        []
+                    )
+                    : [];
+
+                const historyPayload = historyResult.status === "fulfilled"
+                    ? (
+                        historyResult.value?.data?.data?.history ||
+                        historyResult.value?.data?.history ||
+                        historyResult.value?.data?.novels ||
+                        historyResult.value?.data ||
+                        []
+                    )
+                    : [];
+
+                const bookList = Array.isArray(shelfPayload) ? shelfPayload : [];
+                const historyList = Array.isArray(historyPayload) ? historyPayload : [];
+                const normalizedHistory = historyList.map(normalizeBook);
+                const historyIndex = new Map(normalizedHistory.map((book) => [String(book.id), book]));
+
+                const mergedBooks = bookList.map((item) => {
+                    const baseBook = normalizeBook(item);
+                    const historyBook = historyIndex.get(String(baseBook.id));
+
+                    if (!historyBook) return baseBook;
+
+                    return {
+                        ...baseBook,
+                        ...historyBook,
+                        id: baseBook.id,
+                        title: baseBook.title || historyBook.title,
+                        author: baseBook.author || historyBook.author,
+                        coverImage: baseBook.coverImage || historyBook.coverImage,
+                        reading_status: historyBook.reading_status || baseBook.reading_status,
+                        currentSceneId: historyBook.currentSceneId || baseBook.currentSceneId || 0,
+                        lastReadAt: historyBook.lastReadAt || baseBook.lastReadAt || null,
+                        lastReadSceneTitle: historyBook.lastReadSceneTitle || baseBook.lastReadSceneTitle || "ยังไม่มีประวัติการอ่าน",
+                        totalRoutes: historyBook.totalRoutes || baseBook.totalRoutes || 0,
+                        endingCount: historyBook.endingCount || baseBook.endingCount || 0,
+                        totalScenes: historyBook.totalScenes || baseBook.totalScenes || 0,
+                        views: historyBook.views || baseBook.views || 0,
+                        likes: historyBook.likes || baseBook.likes || 0,
+                    };
+                });
 
                 if (active) {
-                    setBooks(bookList.map(normalizeBook));
+                    setBooks(mergedBooks);
                 }
             } catch (err) {
                 console.error("Bookshelf API error:", err);
@@ -334,9 +391,30 @@ const BookshelfPage = () => {
                         ) : (
                             <div className="bookshelf-page__grid">
                                 {filteredBooks.map((book) => {
-                                    const percent = book.totalRoutes ? Math.round((book.visitedCount / book.totalRoutes) * 100) : 0;
                                     const isFinished = book.reading_status === 'finished';
-                                    const displayPercent = isFinished ? 100 : percent;
+                                    const isReading = book.reading_status === 'reading';
+                                    const isWantToRead = book.reading_status === 'want_to_read';
+
+                                    const handleRead = () => {
+                                        if (isWantToRead) {
+                                            if (book.startSceneId) {
+                                                navigate(`/reading/${book.id}/${book.startSceneId}`);
+                                                return;
+                                            }
+
+                                            window.alert("นิยายเรื่องนี้ยังไม่มีฉากเริ่มต้นให้เปิดอ่านได้ในตอนนี้");
+                                            navigate(`/novel/${book.id}`);
+                                            return;
+                                        }
+
+                                        if (isReading) {
+                                            if (book.currentSceneId) {
+                                                navigate(`/reading/${book.id}/${book.currentSceneId}`);
+                                                return;
+                                            }
+                                            navigate(`/reading/${book.id}`);
+                                        }
+                                    };
 
                                     return (
                                         <article
@@ -375,11 +453,13 @@ const BookshelfPage = () => {
 
                                                 <h2 className="bookshelf-card__title">{book.title}</h2>
                                                 <p className="bookshelf-card__author">{book.author}</p>
-                                                
-                                                <div className="bookshelf-card__latest-read">
-                                                    <Clock size={14} color="#64748b" />
-                                                    <span>อ่านล่าสุด {formatRelative(book.lastReadAt)}</span>
-                                                </div>
+
+                                                {!isWantToRead && (
+                                                    <div className="bookshelf-card__latest-read">
+                                                        <span>อ่านล่าสุด</span>
+                                                        <span>{book.lastReadAt ? formatRelative(book.lastReadAt) : "ยังไม่มีประวัติการอ่าน"}</span>
+                                                    </div>
+                                                )}
 
                                                 <div className="bookshelf-card__stats">
                                                     <div className="bookshelf-card__stat">
@@ -400,21 +480,19 @@ const BookshelfPage = () => {
                                                     {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
                                                 </span>
 
-                                                <div className="bookshelf-card__progress">
-                                                    <div className="bookshelf-card__progress-text">
-                                                        <span>ความคืบหน้า</span>
-                                                        <span style={{ color: isFinished ? '#16a34a' : 'inherit' }}>{displayPercent}%</span>
-                                                    </div>
-                                                    <div className="bookshelf-card__progress-bar">
-                                                        <div 
-                                                            className="bookshelf-card__progress-fill" 
-                                                            style={{ 
-                                                                width: `${displayPercent}%`,
-                                                                background: isFinished ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, #f526a2, #ff7bc8)'
-                                                            }} 
-                                                        />
-                                                    </div>
-                                                </div>
+                                                {/* ปุ่มอ่านเลย/อ่านต่อ สำหรับ want_to_read และ reading เท่านั้น */}
+                                                {(isWantToRead || isReading) && (
+                                                    <button
+                                                        type="button"
+                                                        className={`bookshelf-card__read-btn bookshelf-card__read-btn--${isReading ? 'continue' : 'start'}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleRead();
+                                                        }}
+                                                    >
+                                                        {isReading ? "📖 อ่านต่อ" : "▶ อ่านเลย"}
+                                                    </button>
+                                                )}
                                             </div>
                                         </article>
                                     );

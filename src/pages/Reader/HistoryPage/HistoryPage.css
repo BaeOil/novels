@@ -251,6 +251,19 @@
   gap: 4px;
 }
 
+.history-card__info-item--full {
+  grid-column: 1 / -1;
+}
+
+.history-card__choice-text {
+  color: #374151;
+  font-weight: 600;
+  padding: 8px;
+  background: #fef2f6;
+  border-radius: 6px;
+  border-left: 3px solid #d02676;
+}
+
 .history-card__info-label {
   font-size: 12px;
   color: #9ca3af;

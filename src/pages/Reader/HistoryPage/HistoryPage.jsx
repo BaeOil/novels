@@ -58,7 +58,13 @@ const normalizeBook = (item) => ({
   lastReadSceneNumber: item.last_read_scene_number || null,
   lastReadChapterTitle: item.last_read_chapter_title || null,
   lastReadSceneName: item.last_read_scene_name || null,
-  lastChoiceText: item.last_choice_text || null,
+  lastChoiceText: (() => {
+    const choiceText = item.last_choice_text || item.lastChoiceText || null;
+    // ตรวจสอบว่า choiceText นั้นสมบูรณ์และยาวสมควร (ป้องกันจากการดึงข้อมูลผิด)
+    return (choiceText && typeof choiceText === "string" && choiceText.trim().length > 0) 
+      ? choiceText.trim() 
+      : null;
+  })(),
   lastReadParsed: (() => {
     const t = item.last_read_scene_title || item.lastReadSceneTitle || item.latestChapter || "";
     return extractChapterAndSceneFromTitle(t || "");
@@ -178,7 +184,21 @@ const HistoryPage = ({ onNavigate }) => {
                 : book.lastReadChapterNumber
                 ? `ตอนที่ ${book.lastReadChapterNumber}`
                 : "ยังไม่ระบุตอน";
-              const sceneLabel = book.lastReadSceneName || book.lastReadSceneTitle || "ยังไม่ระบุฉาก";
+              
+              // กวาดหา "ลำดับฉาก" จากทุกชื่อตัวแปรที่เป็นไปได้
+              const scNum = 
+                book.lastReadSceneNumber || 
+                book.sceneNumber || 
+                book.scene_number || 
+                book.scene_index || 
+                book.lastReadParsed?.scene || 
+                book.lastReadParsed?.sceneNumber || 
+                book.last_read_scene_number;
+              
+              const sceneTitle = book.lastReadSceneName || book.lastReadSceneTitle;
+              const sceneLabel = sceneTitle 
+                ? (scNum ? `ฉากที่ ${scNum} : ${sceneTitle}` : sceneTitle)
+                : (scNum ? `ฉากที่ ${scNum}` : "ยังไม่ระบุฉาก");
 
               return (
                 <div key={book.id || `${book.title}-${book.author}`} className="history-card">
@@ -220,9 +240,24 @@ const HistoryPage = ({ onNavigate }) => {
                         <div className="history-card__info-label">ฉากล่าสุด</div>
                         <div>{sceneLabel}</div>
                       </div>
+                      
+                      {/* ทางเลือกก่อนหน้า */}
+                      {book.lastChoiceText ? (
+                        <div className="history-card__info-item history-card__info-item--full">
+                          <div className="history-card__info-label">ทางเลือกก่อนหน้า</div>
+                          <div className="history-card__choice-text">{book.lastChoiceText}</div>
+                        </div>
+                      ) : null}
+                      
                       <div className="history-card__info-item">
                         <div className="history-card__info-label">ตอนจบที่ค้นพบ</div>
-                        <div>{book.totalEndings > 0 ? `${book.endingCount}/${book.totalEndings}` : `${book.endingCount}/?`}</div>
+                        <div>
+                          {book.totalEndings > 0 
+                            ? `${book.endingCount}/${book.totalEndings}`
+                            : book.reading_status === "finished"
+                            ? `${book.endingCount}/${book.endingCount}`
+                            : `${book.endingCount}/?`}
+                        </div>
                       </div>
                       <div className="history-card__info-item">
                         <div className="history-card__info-label">อ่านล่าสุด</div>

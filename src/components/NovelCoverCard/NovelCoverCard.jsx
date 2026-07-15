@@ -10,8 +10,7 @@ import StatBadge from "../StatBadge/StatBadge";
 const NovelCoverCard = ({ novel }) => {
   const { title, coverImage, coverEmoji, stats, chapter_count, chapterCount, userProgress } = novel;
   
-  // ดึงจำนวนตอนทั้งหมดของนิยาย (ลำดับความสำคัญ: top-level fields > userProgress.totalChapters)
-  const totalChapters = chapter_count || chapterCount || userProgress?.totalChapters || stats?.chapters || 0;
+  const totalComments = stats?.comments ?? 0;
 
   return (
     <div className="novel-cover-card">
@@ -43,7 +42,7 @@ const NovelCoverCard = ({ novel }) => {
           <StatBadge value={stats.bookshelfCount} label="ชั้นหนังสือ" />
         </div>
         <div role="listitem">
-          <StatBadge value={totalChapters} label="ตอน" />
+          <StatBadge value={totalComments} label="คอมเมนต์" />
         </div>
       </div>
     </div>

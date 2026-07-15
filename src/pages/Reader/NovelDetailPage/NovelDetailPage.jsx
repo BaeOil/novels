@@ -28,6 +28,7 @@ const initialNovelState = {
     views: 0,
     likes: 0,
     bookshelfCount: 0,
+    comments: 0,
     choicePoints: 0,
     endings: 0,
   },
@@ -168,16 +169,29 @@ const NovelDetailPage = () => {
           console.warn("Failed to fetch chapters:", err);
         }
 
+        let commentsCount = 0;
         try {
           const commentsResponse = await fetch(`${API_BASE_URL}/novels/${id}/comments`);
           if (commentsResponse.ok) {
             const commentsPayload = await commentsResponse.json();
             const commentsData = commentsPayload?.data?.comments || commentsPayload?.comments || [];
-            setComments(Array.isArray(commentsData) ? commentsData : []);
+            const normalizedComments = Array.isArray(commentsData) ? commentsData : [];
+            setComments(normalizedComments);
           }
         } catch (err) {
           console.warn("Failed to fetch comments:", err);
           setComments([]);
+        }
+
+        try {
+          const countResponse = await fetch(`${API_BASE_URL}/novels/${id}/comments/count`);
+          if (countResponse.ok) {
+            const countPayload = await countResponse.json().catch(() => null);
+            commentsCount = Number(countPayload?.data?.count ?? countPayload?.count ?? 0) || 0;
+          }
+        } catch (err) {
+          console.warn("Failed to fetch comment count:", err);
+          commentsCount = 0;
         }
 
         // ดักจับข้อมูลความคืบหน้าจากหลังบ้าน
@@ -221,6 +235,7 @@ const NovelDetailPage = () => {
             likes: nData.like_count || nData.likeCount || 0,
             bookshelfCount:
               nData.bookshelf_count || nData.bookmark_count || nData.total_bookmarks || 0,
+            comments: commentsCount,
             choicePoints: totalChoices,
             endings: totalEndings,
           },
