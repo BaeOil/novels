@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import "./Chaptermanagerpage.css";
+import "./ChapterManagerPage.css";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
 const API_BASE = "http://localhost:8080";
@@ -41,19 +41,32 @@ const getNovelCategoryNames = (novel) => {
       .filter(Boolean)
   ));
 };
-
+const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
+  if (!isOpen) return null;
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '16px' }}>
+      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
+        <h3 style={{ marginTop: 0, color: '#111827', fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>{title}</h3>
+        <p style={{ color: '#4b5563', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>{message}</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+          <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={onCancel}>ยกเลิก</button>
+          <button className="cm-btn cm-btn--sm" style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', fontWeight: 'bold' }} onClick={onConfirm}>ยืนยันลบ</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
   if (!novel) return <div className="cm-banner-loading">กำลังโหลดรายละเอียดนิยาย...</div>;
 
-  // 🎯 แมปคีย์ตรงตามสเปก NovelDetailDTO หลังบ้าน
   const title = novel.title || novel.title || "นิยายเรื่องนี้ยังไม่ได้ตั้งชื่อ";
   const captions = novel.captions || novel.caption || novel.introduction || "ยังไม่มีเรื่องย่อ...";
   const coverImage = formatNovelCoverImage(novel.cover_image || novel.coverImage || novel.coverUrl || novel.cover_url);
   const coverBg = novel.cover_bg || "var(--pink-100)";
   const coverEmoji = novel.cover_emoji || "📖";
 
-  // 🎯 ดึงสถานะและวันที่อัปเดตจาก DTO จริง
-  const updatedAt = novel.updated_at || novel.created_at;
+ // 🕒 ปรับให้ดึงตัวแปรเวลาครอบคลุมขึ้น
+  const updatedAt = novel?.updated_at || novel?.UpdatedAt || novel?.created_at || novel?.CreatedAt;
 
   const chapterCount = chapters?.length ?? 0;
   const categoryNames = getNovelCategoryNames(novel);
@@ -62,13 +75,12 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
   const isCompletedNovel = statusInfo.isCompleted;
   const isPublishedNovel = statusInfo.isPublished;
 
-  // 🎯 คำนวณจำนวนฉากจริงจากก้อนข้อมูลบทเรียนย่อยสะสมที่โหลดมาได้จริงใน Client หน้าบ้าน
   const sceneCount = novel?.scene_count ?? novel?.sceneCount ?? novel?.total_scenes ?? novel?.totalScenes ?? chapters?.reduce((total, ch) => {
     const chScenes = ch.scenes || ch.Scenes || [];
     return total + chScenes.length;
   }, 0) ?? 0;
 
-  // ฟังก์ชันแปลงรูปแบบวันที่ให้เป็นภาษาไทยอ่านง่าย (วัน เดือน ปี)
+  // 🕒 ปรับฟังก์ชันจัดรูปแบบเวลาให้แสดง ชั่วโมง และ นาที ด้วย
   const formatThaiDate = (dateString) => {
     if (!dateString) return "ไม่ระบุ";
     try {
@@ -78,8 +90,10 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
       return date.toLocaleDateString('th-TH', {
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
-      });
+        day: 'numeric',
+        hour: '2-digit',   // เพิ่มชั่วโมง
+        minute: '2-digit'  // เพิ่มนาที
+      }) + ' น.';
     } catch (e) {
       return "ไม่ระบุ";
     }
@@ -101,7 +115,6 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
           )}
         </div>
         <div className="cm-banner__info">
-          {/* 🎯 แสดงผลวันที่อัปเดตล่าสุดจริงจาก DTO */}
           <div className="cm-banner__created">อัปเดตล่าสุดเมื่อ: {formatThaiDate(updatedAt)}</div>
           <h2 className="cm-banner__title">{title}</h2>
           <p className="cm-banner__synopsis">{captions}</p>
@@ -115,7 +128,6 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
           <div className="cm-banner__stats">
             <span>{chapterCount} ตอน</span>
             <span className="cm-banner__dot">·</span>
-            {/* 🎯 ยอดรวมฉากตามจริงทั้งหมดแกะจากโมเดล */}
             <span>{sceneCount} ฉาก</span>
           </div>
           {!isPublishedNovel && !isCompletedNovel && (
@@ -126,7 +138,6 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
         </div>
       </div>
       <div className="cm-banner__right">
-        {/* 🎯 ตัวคอนโทรลสีและข้อความตามสถานะจริงจากฐานข้อมูลหลังบ้าน */}
         <span
           className="cm-banner__status"
           style={{
@@ -152,9 +163,6 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus }) => {
   );
 };
 
-// ════════════════════════════════════════════════════════
-//  Sub: Choice row inside a scene
-// ════════════════════════════════════════════════════════
 const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCreate, onDelete }) => {
   const choiceId = choice?.id ?? choice?.ID ?? choice?.choice_id ?? choice?.ChoiceID;
   const choiceText = choice?.label ?? choice?.Label ?? choice?.text ?? choice?.Text ?? "";
@@ -164,16 +172,14 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
   const [text, setText] = useState(choiceText);
   const [subScene, setSubScene] = useState(choiceTargetSceneId);
   const [selectedChapterId, setSelectedChapterId] = useState(null);
-  const [isOpen, setIsOpen] = useState(true);
+  
+  const [isEditing, setIsEditing] = useState(isNew);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const allScenes = (sceneOptions || []).flatMap((ch, index) => {
-    const chTitle =
-      ch.episode ??
-      ch.Episode ??
-      ch.title ??
-      ch.Title ??
-      `ตอนที่ ${index + 1}`;
+    const chTitle = ch.episode ?? ch.Episode ?? ch.title ?? ch.Title ?? `ตอนที่ ${index + 1}`;
     const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID;
     const chScenes = ch.scenes ?? ch.Scenes ?? [];
     return chScenes.map((s) => ({
@@ -192,6 +198,7 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
 
   const targetScene = allScenes.find((scene) => String(scene.value) === String(choiceTargetSceneId));
   const [scope, setScope] = useState(() => (targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same"));
+  
   const initialScope = targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same";
   const effectiveScope = scope || initialScope || "same";
   const firstOtherChapterId = chapterOptions.find((ch) => String(ch.value) !== String(currentChapterId))?.value ?? chapterOptions[0]?.value ?? null;
@@ -199,6 +206,7 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
   const effectiveChapterId = effectiveScope === "same"
     ? currentChapterId
     : selectedChapterId ?? (String(defaultChapterId) !== String(currentChapterId) ? defaultChapterId : firstOtherChapterId);
+  
   const currentChapterScenes = allScenes.filter((scene) => String(scene.chapterId) === String(effectiveChapterId));
   const effectiveSubScene = subScene || choiceTargetSceneId || currentChapterScenes[0]?.value || "";
   const selectedTargetScene = allScenes.find((scene) => String(scene.value) === String(effectiveSubScene));
@@ -220,140 +228,123 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
       }
 
       if (saved) {
-        setIsOpen(false);
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+          setIsEditing(false);
+        }, 1200);
+      } else {
+        alert("❌ บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
       }
     } catch (err) {
-      console.error("บันทึกชอยส์ล้มเหลว:", err);
+      console.error("บันทึกตัวเลือกล้มเหลว:", err);
     } finally {
       setIsSaving(false);
     }
   };
 
-  return (
-    <div className="cm-choice">
-      <div className="cm-choice__header">
-        <div className="cm-choice__num">🔹</div>
-        <div className="cm-choice__text-wrap">
-          <span className="cm-choice__title">{text || "(ยังไม่ได้พิมพ์ข้อความบนปุ่มทางเลือก)"}</span>
+  if (!isEditing) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '8px', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '14px' }}>
+          <span style={{ color: '#db2777', fontWeight: 'bold' }}>▶ {text || "(ไม่มีข้อความปุ่ม)"}</span>
+          <span style={{ color: '#9ca3af' }}>➔</span>
+          <span style={{ fontSize: '12.5px', color: '#4b5563', backgroundColor: '#eff6ff', padding: '2px 8px', borderRadius: '4px' }}>
+            {selectedTargetScene ? `${selectedTargetScene.chapterLabel} : ${selectedTargetScene.label}` : "⚠️ ยังไม่มีปลายทาง"}
+          </span>
         </div>
-        <div className="cm-choice__target-badge" style={{ background: "#ffe6f4", color: "#97266d", border: "1px solid #f9d4e0" }}>
-          {selectedTargetScene ? `⭢ ตอน ${selectedTargetScene.chapterLabel} : ${selectedTargetScene.label}` : "ยังไม่ได้เลือกปลายทาง"}
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <button className="cm-btn cm-btn--ghost cm-btn--sm" style={{ color: '#2563eb', padding: '4px 8px' }} onClick={() => setIsEditing(true)} title="แก้ไขทางเลือก">✏️</button>
+          <button className="cm-btn cm-btn--ghost cm-btn--sm" style={{ color: '#ef4444', padding: '4px 8px' }} onClick={() => setShowDeleteModal(true)} title="ลบทางเลือก">🗑️</button>
         </div>
-        <button className="cm-choice__toggle" onClick={() => setIsOpen(!isOpen)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-        <button className="cm-choice__del" onClick={() => choiceId && onDelete(choiceId, isNew)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <ConfirmModal isOpen={showDeleteModal} title="ลบทางเลือกพล็อตเรื่อง" message={`คุณต้องการลบตัวเลือก "${text || 'ไม่มีข้อความ'}" ใช่หรือไม่?`} onConfirm={() => { setShowDeleteModal(false); choiceId && onDelete(choiceId, isNew); }} onCancel={() => setShowDeleteModal(false)} />
       </div>
+    );
+  }
 
-      {isOpen && (
-        <div className="cm-choice__body">
-          <div className="cm-choice__row">
-            <div className="cm-choice__field">
-              <label className="cm-choice__label">ข้อความบนปุ่มทางเลือก</label>
-              <input
-                className="cm-input"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="เช่น 'ยอมเปิดกล่องปริศนา'..."
-              />
-            </div>
+  return (
+    <div className="cm-choice" style={{ border: '1px solid #e5e7eb', padding: '14px', borderRadius: '8px', backgroundColor: '#fff', marginBottom: '10px' }}>
+      <div className="cm-choice__body" style={{ display: 'block', padding: 0 }}>
+        <div className="cm-choice__row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px', marginBottom: '12px' }}>
+          <div className="cm-choice__field">
+            <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>ข้อความบนปุ่มทางเลือก</label>
+            <input className="cm-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="เช่น 'ยอมเปิดกล่องปริศนา'..." />
+          </div>
 
-            <div className="cm-choice__field">
-              <label className="cm-choice__label">เชื่อมไปตอนใด</label>
-              <select
-                className="cm-select"
-                value={effectiveScope}
-                onChange={(e) => {
-                  const nextScope = e.target.value;
-                  setScope(nextScope);
-                  if (nextScope === "same") {
-                    setSelectedChapterId(currentChapterId);
-                    const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(currentChapterId));
-                    setSubScene(firstScene?.value ?? "");
-                  } else {
-                    const nextChapterId = selectedChapterId || firstOtherChapterId;
-                    setSelectedChapterId(nextChapterId);
-                    const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(nextChapterId));
-                    setSubScene(firstScene?.value ?? "");
-                  }
-                }}
-              >
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="cm-choice__field" style={{ flex: 1 }}>
+              <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>เชื่อมไปตอนใด</label>
+              <select className="cm-select" value={effectiveScope} onChange={(e) => {
+                const nextScope = e.target.value;
+                setScope(nextScope);
+                if (nextScope === "same") {
+                  setSelectedChapterId(currentChapterId);
+                  const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(currentChapterId));
+                  setSubScene(firstScene?.value ?? "");
+                } else {
+                  const nextChapterId = selectedChapterId || firstOtherChapterId;
+                  setSelectedChapterId(nextChapterId);
+                  const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(nextChapterId));
+                  setSubScene(firstScene?.value ?? "");
+                }
+              }}>
                 <option value="same">ไปฉากในตอนเดียวกัน</option>
                 <option value="other">ไปฉากในตอนอื่น</option>
               </select>
             </div>
 
             {effectiveScope === "other" && (
-              <div className="cm-choice__field">
-                <label className="cm-choice__label">เลือกตอนปลายทาง</label>
-                <select
-                  className="cm-select"
-                  value={effectiveChapterId || ""}
-                  onChange={(e) => {
-                    const chapterId = e.target.value;
-                    setSelectedChapterId(chapterId);
-                    const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(chapterId));
-                    setSubScene(firstScene?.value ?? "");
-                  }}
-                >
+              <div className="cm-choice__field" style={{ flex: 1 }}>
+                <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>เลือกตอนปลายทาง</label>
+                <select className="cm-select" value={effectiveChapterId || ""} onChange={(e) => {
+                  const chapterId = e.target.value;
+                  setSelectedChapterId(chapterId);
+                  const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(chapterId));
+                  setSubScene(firstScene?.value ?? "");
+                }}>
                   <option value="">-- เลือกตอน --</option>
-                  {chapterOptions
-                    .filter((ch) => String(ch.value) !== String(currentChapterId))
-                    .map((ch) => (
-                      <option key={`target-chapter-opt-${ch.value}`} value={ch.value}>
-                        {ch.label}
-                      </option>
-                    ))}
+                  {chapterOptions.filter((ch) => String(ch.value) !== String(currentChapterId)).map((ch) => (
+                    <option key={`target-chapter-opt-${ch.value}`} value={ch.value}>{ch.label}</option>
+                  ))}
                 </select>
               </div>
             )}
 
-            <div className="cm-choice__field">
-              <label className="cm-choice__label">เลือกฉากปลายทาง</label>
-              <select
-                className="cm-select"
-                value={effectiveSubScene || ""}
-                onChange={(e) => setSubScene(e.target.value)}
-              >
+            <div className="cm-choice__field" style={{ flex: 1 }}>
+              <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>เลือกฉากปลายทาง</label>
+              <select className="cm-select" value={effectiveSubScene || ""} onChange={(e) => setSubScene(e.target.value)}>
                 <option value="">-- เลือกฉากปลายทาง --</option>
                 {currentChapterScenes.map((s) => (
-                  <option key={`target-scene-opt-${s.value}`} value={s.value}>
-                    {s.chapterLabel} › {s.label}
-                  </option>
+                  <option key={`target-scene-opt-${s.value}`} value={s.value}>{s.chapterLabel} › {s.label}</option>
                 ))}
               </select>
             </div>
           </div>
+        </div>
+        
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          {!isNew && <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={() => setIsEditing(false)}>ยกเลิก</button>}
           <button
-            className="cm-btn cm-btn--sm cm-btn--outline"
-            style={{ marginTop: "8px" }}
+            className="cm-btn cm-btn--sm"
             onClick={handleSaveChoice}
-            disabled={isSaving}
+            disabled={isSaving || showSuccess}
+            style={{ backgroundColor: showSuccess ? "#10b981" : "#ec4899", color: '#fff', border: 'none', transition: "all 0.3s ease" }}
           >
-            {isSaving ? "⏳ กำลังบันทึก..." : "💾 บันทึก"}
+            {isSaving ? "⏳ กำลังบันทึก..." : showSuccess ? "✅ บันทึกสำเร็จ!" : "💾 บันทึกทางเลือก"}
           </button>
         </div>
-      )}
+      </div>
     </div>
-  );
-};
+  );};
 
-// ════════════════════════════════════════════════════════
-//  Sub: Scene card inside a chapter (ล้างแท็ก HTML + ซ่อน ID ระบบ)
-// ════════════════════════════════════════════════════════
+// ==========================================
+// SceneCard - อัปเดตการแสดงผลฉากจบตามเงื่อนไขที่ถูกต้อง
+// ==========================================
 const SceneCard = ({
   scene,
   chapterId,
   chapterNumber,
-  chapterTitle,  // 🆕 เพิ่มชื่อตอน
+  chapterTitle,
   sceneIndex,
   onWrite,
   fetchScenes,
@@ -363,14 +354,12 @@ const SceneCard = ({
   const sceneId = scene?.id ?? scene?.ID ?? scene?.scene_id ?? scene?.SceneID;
   const sceneTitle = scene?.title ?? scene?.Title ?? `ฉากย่อยที่ ${sceneIndex}`;
   const sceneContent = scene?.content ?? scene?.Content ?? "";
-
   const sceneChoices = (scene?.choices ?? scene?.Choices) || [];
-
+  
   const sceneType = (scene?.type || scene?.Type || "").toString().toLowerCase();
-  const isEnding = sceneType === "ending" || Boolean(scene?.ending_title || scene?.EndingTitle || scene?.EndingTitle || scene?.endingTitle);
-  const endingTitle = scene?.ending_title ?? scene?.EndingTitle ?? scene?.endingTitle ?? null;
-  const endingType = scene?.ending_type ?? scene?.EndingType ?? scene?.endingType ?? null;
-  const endingDescription = scene?.ending_description ?? scene?.EndingDescription ?? scene?.endingDescription ?? null;
+  const isEnding = sceneType === "ending" || Boolean(scene?.ending_title || scene?.EndingTitle || scene?.endingTitle);
+  const endingTitle = (scene?.ending_title ?? scene?.EndingTitle ?? scene?.endingTitle ?? "").trim();
+  const endingType = (scene?.ending_type ?? scene?.EndingType ?? scene?.endingType ?? "").trim();
 
   const stripHtmlTags = (html) => {
     if (!html) return "";
@@ -378,22 +367,33 @@ const SceneCard = ({
   };
 
   const cleanTextPreview = stripHtmlTags(sceneContent);
-
+  
+  const [isBodyOpen, setIsBodyOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [newChoices, setNewChoices] = useState([]);
-  const [isOpen, setIsOpen] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-
+  
   useEffect(() => {
     setNewChoices([]);
   }, [sceneId]);
 
   const allSceneChoices = [...sceneChoices, ...newChoices];
-  const choiceCount = allSceneChoices.length;  // 🆕 นับจำนวนตัวเลือก
+  const choiceCount = allSceneChoices.length;
+
+  // 🏁 ฟังก์ชันช่วยสร้างข้อความฉากจบให้สวยงามตามเงื่อนไข
+  const formatEndingText = () => {
+    const typeSuffix = endingType ? `(${endingType})` : "";
+    if (!endingTitle) {
+      // ไม่มีชื่อฉากจบ -> "ฉากจบ (True)" หรือ "ฉากจบ"
+      return `ฉากจบ ${typeSuffix}`.trim();
+    } else {
+      // มีชื่อฉากจบ -> "ฉากจบ : ชื่อฉากจบ (True)" หรือ "ฉากจบ : ชื่อฉากจบ"
+      return `ฉากจบ : ${endingTitle} ${typeSuffix}`.trim();
+    }
+  };
 
   const handleAddChoice = () => {
     if (!sceneId) return;
-
-    // 1. ค้นหาฉากปลายทางที่มีทั้งหมด (โค้ดเดิมของน้า)
     const availableTargets = (allChapters || []).flatMap((ch) => {
       const chScenes = ch.scenes ?? ch.Scenes ?? [];
       return chScenes.map((s) => ({
@@ -408,19 +408,9 @@ const SceneCard = ({
       return;
     }
 
-    // 2. ✨ ซ่อมแซม: สร้างออบเจกต์ชอยส์จำลองขึ้นมา แล้วผลักเข้าไปใน state `newChoices` ของน้าแทน
     const uniqueTempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    setNewChoices((prevNewChoices) => [
-      ...prevNewChoices,
-      {
-        id: uniqueTempId,
-        temp: true, // กำหนดมาร์กเกอร์ว่าเป็นของสร้างใหม่บนจอ
-        from_scene_id: sceneId,
-        label: "", // รอให้นักเขียนกดพิมพ์รายละเอียดบลาๆ เอง
-        to_scene_id: targetScene.id // ล็อกเป้าฉากปลายทางเริ่มต้นให้ตามสูตรเดิมของน้า
-      }
-    ]);
+    setNewChoices((prev) => [...prev, { id: uniqueTempId, temp: true, from_scene_id: sceneId, label: "", to_scene_id: targetScene.id }]);
+    setIsBodyOpen(true);
   };
 
   const handleApplyChoice = async (choiceId, updatedData) => {
@@ -428,207 +418,286 @@ const SceneCard = ({
     try {
       const res = await fetch(`${API_BASE}/choices/${choiceId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(updatedData)
       });
-      if (res.ok) {
-        await fetchScenes();
-        return true;
-      }
-      const errText = await res.text();
-      console.error("อัปเดตทางเลือกล้มเหลว:", res.status, errText);
+      if (res.ok) { await fetchScenes(); return true; }
       return false;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
+    } catch (err) { console.error(err); return false; }
   };
 
   const handleDeleteChoice = async (choiceId) => {
-    if (!choiceId || !window.confirm("คุณต้องการลบทางเลือกพล็อตเรื่องนี้ใช่หรือไม่?")) return;
     try {
       const res = await fetch(`${API_BASE}/choices/${choiceId}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) fetchScenes();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const handleDeleteScene = async () => {
-    if (!sceneId || !window.confirm("ยืนยันที่จะลบฉากนี้ออกหรือไม่?")) return;
     try {
       const res = await fetch(`${API_BASE}/scenes/${sceneId}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) fetchScenes();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   return (
-    <div className="cm-scene">
-
-      {/* SCENE CONTENT */}
-      <div className="cm-scene__header">
-        <div className="cm-scene__num">
-          {chapterNumber}.{sceneIndex}
-        </div>
-
-        <div className="cm-scene__info">
-          <div className="cm-scene__title-row">
-            <h4 className="cm-scene__title">{sceneTitle}</h4>
-            {isEnding && (
-              <span className="cm-scene__ending-badge" title={endingTitle || "ฉากจบ"}>
-                🏁 ฉากจบ
-              </span>
-            )}
-          </div>
-
-          {isEnding && (
-            <div className="cm-scene__ending-info">
-              {endingTitle ? <strong>{endingTitle}</strong> : <em>ฉากจบ (ไม่มีหัวข้อ)</em>}
-              {endingType ? <span className="cm-scene__ending-type"> &nbsp;·&nbsp; {endingType}</span> : null}
-            </div>
-          )}
-
-          <p className="cm-scene__excerpt">
-            {cleanTextPreview
-              ? cleanTextPreview.substring(0, 140) + "..."
-              : "ยังว่างเปล่า ไม่มีเนื้อเรื่องในฉากนี้"}
-          </p>
-
-          <div className="cm-scene__meta">
-            <span className="cm-scene__updated">บันทึกสำเร็จ</span>
-          </div>
-        </div>
-
-        {/* ACTIONS */}
-        <div className="cm-scene__actions">
-          {/* 🆕 ปุ่มแสดงจำนวนตัวเลือก */}
-          <button
-            className="cm-btn cm-btn--outline cm-btn--sm cm-scene__choices-badge"
-            style={{
-              background: choiceCount > 0 ? "#fef3c7" : "#f3f4f6",
-              borderColor: choiceCount > 0 ? "#fcd34d" : "#d1d5db",
-              color: choiceCount > 0 ? "#cb5f0c" : "#6b7280",
-              fontWeight: 600
+    <div className="cm-scene" style={{ 
+      marginBottom: '20px', 
+      border: '1px solid #f3f4f6', 
+      borderRadius: '16px', 
+      backgroundColor: isEnding ? '#fffdf5' : '#ffffff',
+      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.04)', 
+      transition: 'all 0.3s ease',
+      position: 'relative',
+      overflow: 'visible',
+      zIndex: isMenuOpen ? 50 : 1
+    }}>
+      <div className="cm-scene__header" style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        padding: '20px 24px', 
+        borderBottom: isBodyOpen ? '1px solid #f1f5f9' : 'none',
+        boxSizing: 'border-box',
+        gap: '20px'
+      }}>
+        
+        {/* ฝั่งซ้าย: ข้อมูลฉาก */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
+          <button 
+            onClick={() => setIsBodyOpen(!isBodyOpen)} 
+            style={{ 
+              background: isBodyOpen ? '#fdf2f8' : '#f8fafc', 
+              border: 'none', 
+              borderRadius: '50%',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer', 
+              fontSize: '12px', 
+              color: isBodyOpen ? '#db2777' : '#94a3b8', 
+              transition: 'all 0.3s ease', 
+              transform: isBodyOpen ? 'rotate(90deg)' : 'none' 
             }}
-            title={`${choiceCount} ตัวเลือก`}
           >
-             {choiceCount} ตัวเลือก
+            ▶
           </button>
 
-          <button
-            className="cm-scene__collapse"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                transform: isOpen ? "rotate(180deg)" : "none",
-                transition: "transform .2s ease"
-              }}
-            >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#db2777', backgroundColor: '#fdf2f8', padding: '4px 10px', borderRadius: '12px' }}>
+                {chapterNumber}.{sceneIndex}
+              </span>
+              <h4 className="cm-scene__title" style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>
+                {sceneTitle}
+              </h4>
+              
+              {(sceneType === "start" || scene?.is_start_scene || scene?.isStart) && (
+                <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
+                  🚀 ฉากเริ่มต้น
+                </span>
+              )}
 
-          <button
-            className="cm-btn cm-btn--ghost cm-btn--sm"
+              {/* 🏁 ตัวปรับปรุงใหม่: แสดงผลฉากจบตามข้อกำหนดที่อยากได้ */}
+              {isEnding && (
+                <span style={{ 
+                  backgroundColor: '#fffbeb', 
+                  color: '#b45309', 
+                  border: '1px solid #fde68a',
+                  padding: '4px 10px', 
+                  borderRadius: '12px', 
+                  fontSize: '11.5px', 
+                  fontWeight: '800',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  🏁 {formatEndingText()}
+                </span>
+              )}
+            </div>
+
+            <p style={{ margin: '8px 0 0 0', fontSize: '13.5px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '90%' }}>
+              {cleanTextPreview ? cleanTextPreview.substring(0, 140) + "..." : "✍️ ฉากนี้ยังไม่มีรายละเอียดเนื้อเรื่อง กดเขียนเนื้อหาเพื่อเริ่มต้น"}
+            </p>
+          </div>
+        </div>
+
+        {/* ฝั่งขวา: ปุ่มควบคุม */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, position: 'relative' }}>
+          
+          <button 
+            className="cm-btn" 
+            style={{ 
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', 
+              color: '#fff', 
+              border: 'none', 
+              padding: '8px 18px', 
+              borderRadius: '20px', 
+              fontWeight: '600',
+              fontSize: '13.5px',
+              boxShadow: '0 4px 10px rgba(37, 99, 235, 0.15)',
+              cursor: 'pointer'
+            }} 
             onClick={() => onWrite(chapterId, sceneId)}
           >
             🖊 เขียนเนื้อหา
           </button>
 
-          <button
-            className="cm-btn cm-btn--ghost cm-btn--sm cm-btn--danger"
-            onClick={handleDeleteScene}
+          <button 
+            style={{ 
+              fontSize: '13.5px', 
+              backgroundColor: choiceCount > 0 ? '#fdf2f8' : '#f8fafc', 
+              color: choiceCount > 0 ? '#db2777' : '#94a3b8', 
+              border: `1px solid ${choiceCount > 0 ? '#fbcfe8' : '#e2e8f0'}`, 
+              borderRadius: '20px', 
+              fontWeight: 'bold',
+              padding: '7px 16px',
+              minWidth: '95px',
+              textAlign: 'center',
+              pointerEvents: 'none'
+            }}
           >
-            🗑 ลบ
+            {choiceCount} ทางเลือก
           </button>
+
+          <button 
+            style={{ 
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '38px',
+              height: '38px',
+              fontSize: '18px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer', 
+              color: '#475569',
+              border: '1px solid #e2e8f0',
+              borderRadius: '50%',
+              backgroundColor: isMenuOpen ? '#f1f5f9' : '#fff',
+              transition: 'background 0.2s'
+            }}
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            ⋮
+          </button>
+
+          {/* ป๊อปอัพเมนูสามจุด */}
+          {isMenuOpen && (
+            <>
+              <div 
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998, backgroundColor: 'transparent' }} 
+                onClick={() => setIsMenuOpen(false)} 
+              />
+              <div style={{
+                position: 'absolute',
+                top: '46px',
+                right: '0px',
+                width: '150px',
+                backgroundColor: '#fff',
+                border: '1px solid #fbcfe8',
+                borderRadius: '12px',
+                boxShadow: '0 10px 25px rgba(219, 39, 119, 0.18)',
+                zIndex: 999,
+                padding: '6px 0',
+                overflow: 'hidden'
+              }}>
+                <button 
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#db2777', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }} 
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#fdf2f8'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                  onClick={() => { setIsMenuOpen(false); handleAddChoice(); }}
+                >
+                  🩷 เพิ่มทางเลือก
+                </button>
+                <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
+                <button 
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#ef4444', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }} 
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#fef2f2'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                  onClick={() => { setIsMenuOpen(false); setShowDeleteModal(true); }}
+                >
+                  🗑️ ลบฉากนี้
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* BODY */}
-      {isOpen && (
-        <>
-          <div className="cm-scene__choices">
-            <div className="cm-scene__choices-header">
-              <div className="cm-scene__choices-title">
-                ตัวเลือก (Choices) - ผู้อ่านจะเลือกเส้นทางจากตัวเลือกด้านล่าง
-              </div>
-            </div>
-
-            {allSceneChoices.map((choice, i) => (
-              <ChoiceRow
-                key={`choice-row-${choice.id ?? choice.ID ?? choice.choice_id ?? choice.ChoiceID ?? i}`}
-                choice={choice}
-                sceneOptions={allChapters}
-                currentChapterId={chapterId}
-                onUpdate={handleApplyChoice}
-                onCreate={async (choiceData) => {
-                  try {
-                    const res = await fetch(`${API_BASE}/choices`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                      },
-                      body: JSON.stringify(choiceData)
-                    });
-
-                    if (res.ok) {
-                      alert("🎉 บันทึกทางเลือกพล็อตใหม่ลงฐานข้อมูลสำเร็จเรียบร้อยแล้ว!");
-                      setNewChoices((prev) => prev.filter((c) => c.id !== choice.id));
-                      await fetchScenes();
-                      return true;
-                    } else {
-                      const errText = await res.text();
-                      alert("❌ บันทึกล้มเหลว: " + errText);
-                      return false;
-                    }
-                  } catch (err) {
-                    console.error("สร้างตัวเลือกพล็อตล้มเหลว:", err);
-                    alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
-                    return false;
-                  }
-                }}
-                onDelete={handleDeleteChoice}
-              />
-            ))}
-
-            <button 
-              className="cm-btn cm-btn--sm cm-btn--primary" 
-              style={{ marginTop: "8px" }} 
-              onClick={handleAddChoice}
-            >
-              ➕ เพิ่มทางเลือกใหม่
-            </button>
+      {isBodyOpen && (
+        <div className="cm-scene__choices" style={{ padding: '24px', backgroundColor: isEnding ? '#fffdf5' : '#fafaf9', borderTop: '1px solid #f1f5f9', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px' }}>
+          <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#475569', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ backgroundColor: '#e2e8f0', padding: '4px 8px', borderRadius: '8px' }}>🌿 ตัวเลือกตัดสินใจของฉากนี้</span>
           </div>
-        </>
+
+          {allSceneChoices.map((choice, i) => (
+            <ChoiceRow
+              key={`choice-row-${choice.id ?? choice.ID ?? choice.choice_id ?? choice.ChoiceID ?? i}`}
+              choice={choice}
+              sceneOptions={allChapters}
+              currentChapterId={chapterId}
+              onUpdate={handleApplyChoice}
+              onCreate={async (choiceData) => {
+                try {
+                  const res = await fetch(`${API_BASE}/choices`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                    body: JSON.stringify(choiceData)
+                  });
+
+                  if (res.ok) {
+                    setNewChoices((prev) => prev.filter((c) => c.id !== choice.id));
+                    await fetchScenes();
+                    return true;
+                  }
+                  return false;
+                } catch (err) { console.error(err); return false; }
+              }}
+              onDelete={handleDeleteChoice}
+            />
+          ))}
+
+          <button
+            style={{ 
+              marginTop: "12px", 
+              border: '1px dashed #f472b6', 
+              color: '#db2777', 
+              backgroundColor: '#fdf2f8', 
+              padding: '10px 20px', 
+              borderRadius: '12px', 
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              width: '100%'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#fbcfe8'}
+            onMouseOut={(e) => e.target.style.backgroundColor = '#fdf2f8'}
+            onClick={handleAddChoice}
+          >
+            ➕ เพิ่มทางเลือกใหม่
+          </button>
+        </div>
       )}
+
+      <ConfirmModal 
+        isOpen={showDeleteModal} 
+        title="🗑️ ยืนยันการลบฉากสำคัญ" 
+        message={`คุณแน่ใจหรือไม่ที่จะลบฉาก "${sceneTitle}"? พล็อตย่อยและปุ่มทางเลือกทั้งหมดที่เชื่อมมายังฉากนี้จะถูกลบออกถาวร`} 
+        onConfirm={() => { setShowDeleteModal(false); handleDeleteScene(); }} 
+        onCancel={() => setShowDeleteModal(false)} 
+      />
     </div>
   );
 };
-
-// ════════════════════════════════════════════════════════
-//  Sub: Chapter panel
-// ════════════════════════════════════════════════════════
 const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fetchChapters, onDeleteChapter }) => {
   const [scenes, setScenes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -767,7 +836,6 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
 
   return (
     <div className="cm-chapter">
-      {/* 🆕 หัวข้อตอนตามรูปภาพ */}
       <div className="cm-chapter__header-panel">
         <div className="cm-chapter__header-left">
           <div className="cm-chapter__header-episode">O{chapterNumber}</div>
@@ -781,15 +849,15 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
                   placeholder="ชื่อตอน..."
                   autoFocus
                 />
-                <button 
-                  className="cm-btn cm-btn--sm" 
+                <button
+                  className="cm-btn cm-btn--sm"
                   onClick={handleSaveChapterTitle}
                   style={{ marginLeft: "8px" }}
                 >
                   บันทึก
                 </button>
-                <button 
-                  className="cm-btn cm-btn--outline cm-btn--sm" 
+                <button
+                  className="cm-btn cm-btn--outline cm-btn--sm"
                   onClick={() => {
                     setEditingTitle(false);
                     setChapterTitle(chTitle);
@@ -803,7 +871,7 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
               <div>
                 <h2 className="cm-chapter__header-title">ตอนที่ {chapterNumber} : {chapterTitle}</h2>
                 <button
-                  className="cm-btn cm-btn--outline cm-btn--xs"
+                  className="cm-btn cm-btn--outline cm-btn--sm"
                   onClick={() => setEditingTitle(true)}
                   style={{ marginTop: "8px" }}
                 >
@@ -819,18 +887,17 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
             🎬 {scenes.length} ฉาก
           </span>
           <span className="cm-chapter__header-date">
-            อัปเดตล่าสุด {new Date().toLocaleDateString('th-TH', { 
-              year: 'numeric', 
-              month: 'short', 
-              day: 'numeric' 
+            อัปเดตล่าสุด {new Date().toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
             })}
           </span>
         </div>
       </div>
 
-      {/* Status and actions */}
       <div style={{ marginTop: "16px", marginBottom: "24px", display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: isChapterPublished ? '#16a34a' : '#b91c1c', flex: '1 1 auto' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: isChapterPublished ? '#16a34a' : '#b91c1c', flex: '1 1 auto' }}>
           สถานะตอน: {isChapterPublished ? 'เผยแพร่' : 'ฉบับร่าง'}
         </span>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -843,7 +910,6 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
         </div>
       </div>
 
-      {/* Scenes list */}
       {loading ? (
         <div className="cm-loading-box">🔄 โหลดโครงสร้างฉาก...</div>
       ) : scenes.length === 0 ? (
@@ -861,7 +927,7 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
               scene={scene}
               chapterId={chId}
               chapterNumber={chapterNumber}
-              chapterTitle={chapterTitle}  // 🆕 ส่งชื่อตอน
+              chapterTitle={chapterTitle}
               sceneIndex={i + 1}
               onWrite={onWrite}
               fetchScenes={fetchScenes}
@@ -877,9 +943,6 @@ const ChapterPanel = ({ novelId, chapter, chapterIndex, onWrite, allChapters, fe
   );
 };
 
-// ════════════════════════════════════════════════════════
-//  Main: ChapterManagerPage (ดึงข้อมูลแยกคู่ขนาน เสถียรสูง)
-// ════════════════════════════════════════════════════════
 const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const { novelId: routeNovelId } = useParams();
   const rawId = routeNovelId || novelId;
@@ -904,7 +967,6 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     }
     setLoading(true);
 
-    // ✦ ท่อที่ 1: ดึงรายละเอียดนิยาย (ตามโครงสร้าง NovelDetailDTO)
     try {
       const resNovel = await fetch(`${API_BASE}/novels/${currentNovelId}`, {
         method: "GET",
@@ -922,7 +984,6 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       console.error("โหลดข้อมูลนิยายล้มเหลว:", err);
     }
 
-    // ✦ ท่อที่ 2: ดึงอาเรย์รายชื่อตอนย่อยมาประกอบเมนูด้านขวา
     try {
       const resChapters = await fetch(`${API_BASE}/novels/${currentNovelId}/chapters`, {
         method: "GET",
@@ -1003,8 +1064,6 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         title,
         status: draftChapterStatus || "draft"
       };
-
-      console.log("กำลังสร้างตอนใหม่...", payload);
 
       const res = await fetch(`${API_BASE}/chapters`, {
         method: "POST",
@@ -1122,14 +1181,13 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             <p className="cm-topbar__sub">จัดการรายการตอนและรายละเอียดฉากของคุณ</p>
           </div>
           <button
-            className="cm-btn cm-btn--outline cm-btn--tree"
+            className="cm-btn cm-btn--outline"
             onClick={() => onNavigate("story-tree", { novelId: currentNovelId })}
           >
             📊 โครงสร้างเนื้อเรื่อง
           </button>
         </div>
 
-        {/* 🎯 ส่งค่า chapters ไปให้ NovelBanner ประมวลผลจำนวนฉากสะสม */}
         <NovelBanner
           novel={novel}
           chapters={chapters}
@@ -1155,7 +1213,6 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       </div>
 
       <aside className="cm-sidebar">
-
         <div className="cm-sidebar__header">
           ☰ รายชื่อตอนทั้งหมด ({chapters.length})
         </div>
@@ -1165,11 +1222,11 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         </button>
 
         {isCreatingChapter && (
-          <div className="cm-sidebar__new-form" style={{ padding: "14px 16px", margin: "0 14px 12px", borderRadius: "12px", background: "#FEF2F2", border: "1px solid #FCE7F3" }}>
-            <div style={{ marginBottom: "10px", fontSize: "13px", fontWeight: 700, color: "#B91C1C" }}>กรอกข้อมูลตอนก่อนกดบันทึก</div>
-            <div style={{ display: "grid", gap: "10px" }}>
+          <div className="cm-sidebar__new-form">
+            <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#b91c1c" }}>กรอกข้อมูลตอนก่อนกดบันทึก</div>
+            <div style={{ display: "grid", gap: "12px" }}>
               <div>
-                <label style={{ display: "block", marginBottom: "6px", fontSize: "12px", fontWeight: 600 }}>ลำดับตอน</label>
+                <label style={{ display: "block", marginBottom: "6px", fontSize: "12.5px", fontWeight: 600, color: "#4b5563" }}>ลำดับตอน</label>
                 <input
                   className="cm-input"
                   type="number"
@@ -1179,7 +1236,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "6px", fontSize: "12px", fontWeight: 600 }}>ชื่อบท</label>
+                <label style={{ display: "block", marginBottom: "6px", fontSize: "12.5px", fontWeight: 600, color: "#4b5563" }}>ชื่อบท</label>
                 <input
                   className="cm-input"
                   value={draftChapterTitle}
@@ -1188,7 +1245,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "6px", fontSize: "12px", fontWeight: 600 }}>สถานะบท</label>
+                <label style={{ display: "block", marginBottom: "6px", fontSize: "12.5px", fontWeight: 600, color: "#4b5563" }}>สถานะบท</label>
                 <select
                   className="cm-select"
                   value={draftChapterStatus}
@@ -1198,7 +1255,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                   <option value="published">เผยแพร่</option>
                 </select>
               </div>
-              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "4px" }}>
                 <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={cancelCreateChapter} type="button">
                   ยกเลิก
                 </button>
@@ -1236,9 +1293,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
               </button>
             );
           })}
-
         </div>
-
       </aside>
     </div>
   );
