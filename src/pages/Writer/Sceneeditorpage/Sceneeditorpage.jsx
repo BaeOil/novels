@@ -1,3 +1,4 @@
+// src/pages/Writer/SceneEditorPage/SceneEditorPage.jsx
 // ══════════════════════════════════════════════════════════════
 //  หน้าเขียน/แก้ไขฉากนิยาย (Scene Editor) — ฝั่งนักเขียน 
 //  [ ปรับแต่งเชื่อมต่อ Go หลังบ้าน ผ่าน /scenes/:id และ /story-tree ]
@@ -102,7 +103,7 @@ const ChoiceCard = ({
   const [selectedChapterId, setSelectedChapterId] = useState(initialChapterId);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // State ควบคุมโหมดการแก้ไข (ถ้าเป็นตัวเลือกใหม่ให้เป็นโหมดแก้ไขทันที)
+  // State ควบคุมโหมดการแก้ไข
   const [isEditing, setIsEditing] = useState(!choice.text);
 
   useEffect(() => {
@@ -375,14 +376,11 @@ const SceneTreeSidebar = ({
     );
   };
 
-  // ฟังก์ชันคำนวณสถานะฉาก
   const getSceneStatus = (scene, allChapters) => {
     const sceneType = scene.type || scene.scene_type || "normal";
     if (sceneType === "ending") return "ending";
-    if (sceneType === "start") return "start";
+    if (sceneType === "start" || sceneType === "starting") return "start";
     
-    // ตรวจสอบว่ามีการเชื่อมต่อ (incoming/outgoing edges) หรือไม่
-    // หากไม่มี = orphan
     const hasConnection = scene.has_connection !== false && scene.hasConnection !== false;
     if (!hasConnection) return "orphan";
     
@@ -390,15 +388,6 @@ const SceneTreeSidebar = ({
   };
 
   const safeChapters = Array.isArray(chapters) ? chapters : [];
-
-  const currentChIndex = safeChapters.findIndex((c) => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(currentChapterId));
-  const currentChDisplayNumber = currentChIndex !== -1
-    ? (
-      safeChapters[currentChIndex].chapterNumber ??
-      safeChapters[currentChIndex].order_index ??
-      (currentChIndex + 1)
-    )
-    : "";
 
   return (
     <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto" }}>
@@ -504,9 +493,8 @@ const SceneTreeSidebar = ({
                     const scDisplayNum = sceneIndex + 1;
                     const sceneStatus = getSceneStatus(scene, safeChapters);
                     
-                    // สถานะและข้อความเตือน
                     let statusIcon = "●";
-                    let statusColor = "#ffffff"; // สีเทาเป็นค่าเริ่มต้น
+                    let statusColor = "#ffffff";
                     let tooltipMsg = "";
                     
                     if (sceneStatus === "start") {
@@ -573,6 +561,8 @@ const SceneEditorPage = ({
   sceneId,
   onNavigate,
   initialSceneTitle,
+  x,
+  y,
 }) => {
   const [novelTitle, setNovelTitle] = useState("");
   const [chapterTitle, setChapterTitle] = useState("");
@@ -582,6 +572,13 @@ const SceneEditorPage = ({
   const [content, setContent] = useState("");
   const [sceneType, setSceneType] = useState("normal");
   const [isPublished, setIsPublished] = useState(false);
+
+  // สังเกตตอนปัจจุบันของฉาก (มีประโยชน์มากเมื่อสร้างฉากใหม่ชั่วคราวและยังไม่มีตอนผูกไว้)
+  const [currentSelectedChapterId, setCurrentSelectedChapterId] = useState(chapterId);
+
+  // States สำหรับเก็บค่าพิกัด เพื่อป้องกันตำแหน่งกราฟเคลื่อนหายเวลาบันทึก
+  const [coordinateX, setCoordinateX] = useState(x ?? 0);
+  const [coordinateY, setCoordinateY] = useState(y ?? 0);
 
   const charCount = useMemo(() => {
     const textOnly = content
@@ -605,7 +602,7 @@ const SceneEditorPage = ({
   const [draftSavedAt, setDraftSavedAt] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // 🎯 State สำหรับ dialog เพิ่มตอน/ฉากใหม่
+  // States สำหรับ dialog เพิ่มตอน/ฉากใหม่
   const [showAddChapterDialog, setShowAddChapterDialog] = useState(false);
   const [showAddSceneDialog, setShowAddSceneDialog] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState("");
@@ -636,9 +633,7 @@ const SceneEditorPage = ({
       if (savedDraft.sceneLabel !== undefined) setSceneLabel(savedDraft.sceneLabel);
       if (savedDraft.content !== undefined) setContent(savedDraft.content);
       if (savedDraft.sceneType) setSceneType(savedDraft.sceneType);
-      // Do NOT restore `isPublished` or `isEnding` from local drafts to avoid
-      // stale local state overwriting authoritative server state. Publication
-      // and ending flags should be driven by server data (or explicit user action).
+      
       setEndingTitle(savedDraft.endingTitle || "");
       setEndingType(savedDraft.endingType || "true");
       setEndingDescription(savedDraft.endingDescription || "");
@@ -669,8 +664,6 @@ const SceneEditorPage = ({
       sceneLabel,
       content,
       sceneType,
-      // Do not persist publication/ending flags to local draft storage to
-      // prevent stale UI state after server-side updates.
       endingTitle,
       endingType,
       endingDescription,
@@ -685,7 +678,7 @@ const SceneEditorPage = ({
     } catch (err) {
       console.warn("Unable to save scene draft:", err);
     }
-  }, [sceneDraftKey, sceneTitle, sceneLabel, content, sceneType, isPublished, isEnding, endingTitle, endingType, endingDescription, endingDescriptionEnabled, choices]);
+  }, [sceneDraftKey, sceneTitle, sceneLabel, content, sceneType, endingTitle, endingType, endingDescription, endingDescriptionEnabled, choices]);
 
   const normalizeMinioUrl = useCallback((url) => {
     if (!url) return url;
@@ -760,6 +753,22 @@ const SceneEditorPage = ({
       const headers = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
+      // ดึงข้อมูลรายชื่อตอนทั้งหมดก่อนเพื่อประมวลผล
+      const chaptersRes = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters`, {
+        headers,
+      });
+      let chaptersData = [];
+      if (chaptersRes.ok) {
+        const chaptersResult = await chaptersRes.json();
+        chaptersData =
+          chaptersResult?.data?.chapters ||
+          chaptersResult?.chapters ||
+          chaptersResult?.data ||
+          chaptersResult ||
+          [];
+        setChapters(Array.isArray(chaptersData) ? chaptersData : []);
+      }
+
       if (!isNewScene) {
         const sceneRes = await fetch(`${API_BASE_URL}/scenes/${sceneId}`, {
           headers,
@@ -782,6 +791,17 @@ const SceneEditorPage = ({
         setEndingType(sceneData.endingType || sceneData.ending_type || "true");
         setEndingDescription(sceneData.endingDescription || sceneData.ending_description || "");
         setEndingDescriptionEnabled(Boolean(sceneData.endingDescription || sceneData.ending_description));
+        
+        // ดึงพิกัดเพื่อนำมาสืบทอด
+        setCoordinateX(sceneData.x ?? sceneData.X ?? x ?? 0);
+        setCoordinateY(sceneData.y ?? sceneData.Y ?? y ?? 0);
+        
+        const resolvedChId = sceneData.ChapterID ?? sceneData.chapter_id ?? sceneData.chapterId ?? chapterId;
+        if (resolvedChId) {
+          setCurrentSelectedChapterId(String(resolvedChId));
+        } else {
+          setCurrentSelectedChapterId(chapterId);
+        }
 
         const normalizedChoices = (Array.isArray(sceneData.choices) ? sceneData.choices : []).map((choice) => ({
           ...choice,
@@ -791,8 +811,9 @@ const SceneEditorPage = ({
         }));
         setChoices(normalizedChoices);
       } else {
+        // กรณีเป็นฉากใหม่ชั่วคราวที่คลิกวางจาก Canvas
         setSceneTitle(initialSceneTitle || "");
-        setSceneLabel(initialSceneTitle || "ฉากใหม่");
+        setSceneLabel(initialSceneTitle || "ฉากใหม่ยังไม่มีเนื้อหา");
         setContent("");
         setSceneType("normal");
         setIsPublished(false);
@@ -802,20 +823,16 @@ const SceneEditorPage = ({
         setEndingDescription("");
         setEndingDescriptionEnabled(false);
         setChoices([]);
-      }
+        
+        // รับและตั้งค่าพิกัดชั่วคราว
+        setCoordinateX(x ?? 0);
+        setCoordinateY(y ?? 0);
 
-      const chaptersRes = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters`, {
-        headers,
-      });
-      if (chaptersRes.ok) {
-        const chaptersResult = await chaptersRes.json();
-        const chaptersData =
-          chaptersResult?.data?.chapters ||
-          chaptersResult?.chapters ||
-          chaptersResult?.data ||
-          chaptersResult ||
-          [];
-        setChapters(Array.isArray(chaptersData) ? chaptersData : []);
+        // เลือกตอนเป็น chapterId ที่ระบุมาจากบอร์ดโครงสร้างเนื้อเรื่องเป็นอันดับแรก
+        const activeChId = chapterId && chapterId !== "new" ? chapterId : (chaptersData[0]?.id ?? chaptersData[0]?.chapter_id ?? chaptersData[0]?.ChapterID ?? chaptersData[0]?.chapterId);
+        if (activeChId) {
+          setCurrentSelectedChapterId(String(activeChId));
+        }
       }
     } catch (err) {
       console.error("Fetch Scene Data Error:", err);
@@ -823,7 +840,7 @@ const SceneEditorPage = ({
     } finally {
       setIsLoading(false);
     }
-  }, [novelId, sceneId, token, isNewScene, initialSceneTitle]);
+  }, [novelId, sceneId, token, isNewScene, initialSceneTitle, x, y, chapterId]);
 
   useEffect(() => {
     fetchSceneData();
@@ -852,12 +869,19 @@ const SceneEditorPage = ({
       const currentIsEnding = overrideIsEnding !== null ? overrideIsEnding : isEnding;
       const currentChoices = Array.isArray(overrideChoices) ? overrideChoices : choices;
 
-      // 1. บันทึกข้อมูลตัวฉากหลัก พร้อมส่งตัวเลือกปัจจุบันไปให้ backend sync ด้วย
+      const targetChapterId = (chapterId && chapterId !== "new") ? chapterId : currentSelectedChapterId;
+      if (!targetChapterId || targetChapterId === "new" || isNaN(parseInt(targetChapterId, 10))) {
+        throw new Error("ไม่พบตอนสำหรับฉากนี้ กรุณากลับไปเพิ่มจากหน้าโครงสร้างเนื้อเรื่องใหม่");
+      }
+
+      // บันทึกข้อมูลตัวฉากหลัก พร้อมพิกัด X, Y
       const payload = {
         novel_id: parseInt(novelId, 10),
-        chapter_id: parseInt(chapterId, 10),
+        chapter_id: parseInt(targetChapterId, 10),
         title: sceneTitle.trim() || "ฉากไม่มีชื่อ",
         content: content,
+        x: Math.round(coordinateX),
+        y: Math.round(coordinateY),
         type: currentIsEnding
           ? "ending"
           : sceneType === "ending"
@@ -900,33 +924,21 @@ const SceneEditorPage = ({
         throw new Error(errData?.error || errData?.message || "ไม่สามารถบันทึกข้อมูลฉากได้");
       }
 
-      const savedData = await response.json().catch(() => null);
-      const savedSceneId = savedData?.data?.scene_id || savedData?.scene_id || savedData?.data?.id || savedData?.id;
-
-      if (isNewScene) {
-        clearDraft();
-        if (typeof onNavigate === "function" && returnToManager) {
-          onNavigate("chapters", { novelId });
-          return;
-        }
-
-        if (savedSceneId && typeof onNavigate === "function") {
-          setIsSaving(false);
-          onNavigate("scene-editor", { novelId, chapterId, sceneId: savedSceneId });
-          return;
-        }
-
-        throw new Error("ไม่สามารถสร้างฉากใหม่ได้ โปรดลองอีกครั้ง");
-      }
-
-      // 3. บันทึกทุกอย่างเสร็จ ทำการอัปเดตเวลาและดึงข้อมูลใหม่มาแสดงผล
       clearDraft();
       setLastSaved(new Date());
-      await fetchSceneData();
 
-      if (returnToManager && typeof onNavigate === "function") {
-        onNavigate("chapters", { novelId });
+      if (isNewScene) {
+        const savedData = await response.json().catch(() => null);
+        const savedSceneId = savedData?.data?.scene_id || savedData?.scene_id || savedData?.data?.id || savedData?.id;
+        
+        if (savedSceneId && typeof onNavigate === "function") {
+          setIsSaving(false);
+          onNavigate("scene-editor", { novelId, chapterId: targetChapterId, sceneId: savedSceneId });
+          return;
+        }
       }
+      
+      await fetchSceneData();
     } catch (err) {
       console.error("Save scene error:", err);
       setErrorMsg(err.message || "ไม่สามารถบันทึกข้อมูลฉากได้");
@@ -935,10 +947,56 @@ const SceneEditorPage = ({
     }
   };
   
-  const handlePublish = () => {
-    // 🔧 บันทึกฉากโดยตั้ง status เป็น "published"
-    // fetchSceneData() จะอัปเดต isPublished state โดยอัตโนมัติหลังจากบันทึก
-    handleSave(true, false);
+  const handlePublish = async () => {
+    setIsSaving(true);
+    setErrorMsg(null);
+    try {
+      const targetChapterId = (chapterId && chapterId !== "new") ? chapterId : currentSelectedChapterId;
+      if (!targetChapterId || targetChapterId === "new" || isNaN(parseInt(targetChapterId, 10))) {
+        throw new Error("ไม่พบตอนสำหรับฉากนี้");
+      }
+      
+      // 1. เผยแพร่ตัวฉากหลัก
+      await handleSave(true, false);
+      
+      // 2. เผยแพร่ตัวตอนเพื่อให้คนอ่านมองเห็นด้วย
+      const authToken = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`
+      };
+      
+      const chRes = await fetch(`${API_BASE_URL}/chapters/${targetChapterId}`, { headers });
+      if (chRes.ok) {
+        const chResult = await chRes.json();
+        const chData = chResult?.data || chResult;
+        
+        const payload = {
+          novel_id: parseInt(novelId, 10),
+          episode: chData.episode || 1,
+          title: chData.title || "ตอนไม่มีชื่อ",
+          status: "published" // อัปเดตตอนเป็นสถานะเผยแพร่
+        };
+        
+        const putRes = await fetch(`${API_BASE_URL}/chapters/${targetChapterId}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(payload)
+        });
+        
+        if (!putRes.ok) {
+          console.warn("ไม่สามารถเปลี่ยนสถานะของตอนเป็นเผยแพร่ได้");
+        }
+      }
+      
+      alert("เผยแพร่ตอนและฉากย่อยเรียบร้อยแล้วค่ะ!");
+      await fetchSceneData();
+    } catch (err) {
+      console.error("Publish error:", err);
+      setErrorMsg(err.message || "เกิดข้อผิดพลาดในการเผยแพร่");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleTogglePublish = async (value) => {
@@ -947,27 +1005,20 @@ const SceneEditorPage = ({
 
   const handleToggleEnding = async (value) => {
     if (value) {
-      // ป้องกันไม่ให้ตั้งฉากเริ่มต้นเป็นตอนจบ (backend จะปฏิเสธ)
       if (sceneType === "start") {
         setErrorMsg("Start scene cannot be an ending scene");
-        // ยกเลิกการเช็ก toggle กลับเป็น false
         setIsEnding(false);
         setTimeout(() => setErrorMsg(null), 5000);
         return;
       }
-
-      // เปิด dialog ให้ผู้ใช้กรอกข้อมูลก่อนบันทึก
       setIsEnding(true);
       setShowEndingSettingsDialog(true);
       return;
     }
-    // ถ้าปิดการเป็นตอนจบ ให้บันทึกสถานะใหม่ทันที
     await handleSave(null, false, null, false);
   };
 
   const saveEndingSettings = async () => {
-    // Ensure we save with is_ending = true
-    // Defensive check: do not attempt to save as ending if scene is start
     if (sceneType === "start") {
       setErrorMsg("Start scene cannot be an ending scene");
       setTimeout(() => setErrorMsg(null), 5000);
@@ -986,7 +1037,6 @@ const SceneEditorPage = ({
       targetType: "same",
       targetSubScene: "",
     };
-    // ดันกล่องตัวเลือกลงหน้าจอ โดยยังไม่เซฟลงฐานข้อมูลจนกว่าจะกดปุ่มบันทึก
     setChoices((prev) => [...prev, newChoice]);
   };
 
@@ -1076,17 +1126,12 @@ const SceneEditorPage = ({
     : draftSavedAt
       ? `บันทึกอัตโนมัติ ${draftSavedAt.getHours().toString().padStart(2, "0")}:${draftSavedAt.getMinutes().toString().padStart(2, "0")} น.`
       : null;
-  // ─────────────────────────────────────────────
-  // คำนวณลำดับเพื่อแสดงใน Breadcrumb ด้านบน
-  // ─────────────────────────────────────────────
 
   const safeChapters = Array.isArray(chapters) ? chapters : [];
 
-  // ✅ ใช้ chapterId จาก props แต่ถ้า empty ให้หาจาก chapters ตัวแรก
-  let effectiveChapterId = chapterId;
+  let effectiveChapterId = isNewScene ? currentSelectedChapterId : chapterId;
   
   if (!effectiveChapterId && sceneId && safeChapters.length > 0) {
-    // หากไม่มี chapterId ให้ดึงมาจาก chapters ที่มี scene นี้
     const sceneIdStr = String(sceneId);
     for (const ch of safeChapters) {
       const foundScene = (ch.scenes || []).find(
@@ -1099,20 +1144,10 @@ const SceneEditorPage = ({
     }
   }
 
-  console.log("DEBUG - effectiveChapterId:", effectiveChapterId, "sceneId:", sceneId);
-  console.log("DEBUG - chapters:", safeChapters);
-
-  // หา chapter ปัจจุบัน
   const currentChIndex = safeChapters.findIndex(
-    (c) => {
-      const cId = String(c.id ?? c.chapter_id ?? c.ChapterID ?? "");
-      const checkId = String(effectiveChapterId ?? "");
-      console.log("DEBUG - comparing cId:", cId, "checkId:", checkId, "match:", cId === checkId);
-      return cId === checkId;
-    }
+    (c) => String(c.id ?? c.chapter_id ?? c.ChapterID ?? "") === String(effectiveChapterId ?? "")
   );
 
-  // เลขตอน
   const currentChDisplayNumber =
     currentChIndex !== -1
       ? (
@@ -1122,7 +1157,6 @@ const SceneEditorPage = ({
       )
       : null;
 
-  // scenes ของ chapter ปัจจุบัน
   const currentChapterScenes =
     currentChIndex !== -1 && safeChapters[currentChIndex]
       ? (
@@ -1132,32 +1166,25 @@ const SceneEditorPage = ({
       )
       : [];
 
-  // หา scene ปัจจุบัน
   const currentScIndex = currentChapterScenes.findIndex(
-    (s) => {
-      const sId = String(s.id ?? s.scene_id ?? s.SceneID ?? "");
-      const checkId = String(sceneId ?? "");
-      return sId === checkId;
-    }
+    (s) => String(s.id ?? s.scene_id ?? s.SceneID ?? "") === String(sceneId ?? "")
   );
 
-  // เลขฉาก
   const currentScDisplayNumber =
     currentScIndex !== -1
       ? (currentScIndex + 1)
       : null;
-
-  console.log("FINAL: currentChDisplayNumber:", currentChDisplayNumber, "currentScDisplayNumber:", currentScDisplayNumber);
 
   return (
     <div className="se-page">
       {/* Header */}
       <header className="se-header">
         <div className="se-header__left">
+          {/* ปุ่มกลับเปลี่ยนเส้นทางเป็นย้อนไปหน้า Story Tree บอร์ดโครงเรื่อง เพื่อความสะดวก */}
           <button
             className="se-header__back"
-            onClick={() => onNavigate("chapters")}
-            aria-label="กลับ"
+            onClick={() => onNavigate("story-tree", { novelId })}
+            aria-label="กลับไปหน้าโครงสร้างเรื่อง"
           >
             กลับ
           </button>
@@ -1191,7 +1218,7 @@ const SceneEditorPage = ({
           {isSaving && <span className="se-header__saving">กำลังบันทึก...</span>}
           {!isSaving && savedText && <span className="se-header__saved">✓ {savedText}</span>}
 
-          <button className="se-header__btn se-header__btn--save" onClick={() => handleSave(null, true)}>
+          <button className="se-header__btn se-header__btn--save" onClick={() => handleSave(null, false)}>
             บันทึก
           </button>
 
@@ -1239,6 +1266,8 @@ const SceneEditorPage = ({
                 placeholder="ชื่อฉาก..."
               />
             </div>
+
+
 
             {/* พื้นที่เนื้อเรื่อง (React Quill) */}
             <div className="se-field">
