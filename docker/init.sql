@@ -88,9 +88,12 @@ CREATE TABLE scenes (
     content TEXT NOT NULL,
     image_url TEXT,
     type VARCHAR(50) DEFAULT 'normal', -- start / normal / ending
+    status VARCHAR(50) DEFAULT 'draft',
     ending_title VARCHAR(255),
     ending_type VARCHAR(50), -- good / bad / true / secret
     ending_description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_scene_title_per_chapter UNIQUE (chapter_id, title)
 );
 
