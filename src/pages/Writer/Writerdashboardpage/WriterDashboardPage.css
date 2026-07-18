@@ -234,29 +234,24 @@
 }
 
 /* 🎯 แถบเงาดำด้านล่างรูปภาพ เพื่อดันให้ไอคอนและตัวหนังสือเห็นชัดเจน */
-.nvc__overlay-info {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  /* ไล่เฉดจากดำเข้มด้านล่างขึ้นไปโปร่งใส เพื่อให้อ่านออกทุกลักษณะรูปภาพ */
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.3) 60%, rgba(0, 0, 0, 0) 100%);
-  padding: 30px 10px 8px; 
-  display: flex;
-  justify-content: space-around;
-  color: white !important;
+.nvc__story-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 6px 0;
   font-size: 11px;
-  font-weight: 600;
-  z-index: 2;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  color: #4b5563;
+  background: #f9fafb;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #f3f4f6;
 }
 
-.nvc__overlay-info span {
+.nvc__story-stats span {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-
 /* ── Card Body (กระชับพื้นที่ ไม่ยืด) ── */
 .nvc__body {
   padding: 10px;

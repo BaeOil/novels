@@ -5,6 +5,7 @@ import {
   Route,
   useNavigate,
   useParams,
+  useLocation,
   Navigate,
 } from "react-router-dom";
 
@@ -140,7 +141,9 @@ const createNavigateHandler = (navigate, currentNovelId = null) => (page, payloa
     case "scene-editor":
     case "write":
       if (activeNovelId && payload?.sceneId) {
-        navigate(`/writer/${activeNovelId}/scene/${payload.sceneId}`);
+        const chapterQuery = payload?.chapterId ? `?chapterId=${encodeURIComponent(payload.chapterId)}` : "";
+        const titleQuery = payload?.title ? `${chapterQuery ? "&" : "?"}title=${encodeURIComponent(payload.title)}` : "";
+        navigate(`/writer/${activeNovelId}/scene/${payload.sceneId}${chapterQuery}${titleQuery}`);
       } else {
         console.warn("⚠️ ไม่สามารถเปิดหน้าเขียนได้เนื่องจากข้อมูลไม่ครบ:", { activeNovelId, payload });
       }
@@ -281,15 +284,20 @@ const LegacyWriterStoryTreeRedirect = () => {
 const SceneEditorRoute = () => {
   const navigate = useNavigate();
   const { novelId, sceneId } = useParams();
+  const location = useLocation();
   const navHandler = createNavigateHandler(navigate, novelId);
 
   const [chapterId, setChapterId] = useState("");
   const [loadingChapter, setLoadingChapter] = useState(true);
   const [chapterError, setChapterError] = useState(null);
 
+  const searchParams = new URLSearchParams(location.search);
+  const fallbackChapterId = searchParams.get("chapterId") || "";
+  const fallbackSceneTitle = searchParams.get("title") || "";
+
   useEffect(() => {
-    if (!sceneId) {
-      setChapterId("");
+    if (!sceneId || sceneId === "new") {
+      setChapterId(fallbackChapterId);
       setLoadingChapter(false);
       return;
     }
@@ -307,7 +315,7 @@ const SceneEditorRoute = () => {
         if (!active) return;
         const sceneData = data?.data || data || {};
         const resolvedId = sceneData.chapterId ?? sceneData.chapter_id ?? "";
-        setChapterId(resolvedId ? String(resolvedId) : "");
+        setChapterId(resolvedId ? String(resolvedId) : fallbackChapterId);
       })
       .catch((err) => {
         if (!active) return;
@@ -322,7 +330,7 @@ const SceneEditorRoute = () => {
     return () => {
       active = false;
     };
-  }, [sceneId]);
+  }, [sceneId, location.search]);
 
   return (
     <WriterLayout onNavigate={navHandler}>
@@ -335,6 +343,7 @@ const SceneEditorRoute = () => {
           novelId={novelId}
           chapterId={chapterId}
           sceneId={sceneId}
+          initialSceneTitle={fallbackSceneTitle}
           onNavigate={navHandler}
         />
       )}

@@ -660,6 +660,14 @@
   background: #fff5f9;
 }
 
+.cm-sidebar__item--locked {
+  opacity: 0.92;
+}
+
+.cm-sidebar__item--locked:hover {
+  background: #fff7f2;
+}
+
 .cm-sidebar__item--active {
   background: #fff5f9;
   border-color: #fbcfe8;
