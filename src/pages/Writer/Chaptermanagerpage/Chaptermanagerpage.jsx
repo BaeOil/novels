@@ -1271,6 +1271,16 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     }
   }, [currentNovelId]);
 
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      if (currentNovelId) {
+        fetchNovelAndChapters();
+      }
+    };
+    window.addEventListener("novel-data-updated", handleDataUpdate);
+    return () => window.removeEventListener("novel-data-updated", handleDataUpdate);
+  }, [currentNovelId]);
+
   const openCreateChapterForm = () => {
     setDraftChapterTitle("");
     setDraftChapterStatus("draft");
@@ -1316,6 +1326,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         const data = await res.json();
         const createdChapterId = data.chapter_id ?? data.chapter?.id ?? data.chapter?.ID ?? data.chapter?.chapter_id ?? data.data?.chapter_id;
         await fetchNovelAndChapters();
+        window.dispatchEvent(new Event("novel-data-updated"));
         if (createdChapterId) {
           setActiveChapterId(createdChapterId);
         }
@@ -1371,6 +1382,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
     try {
       await confirmDialog.action();
+      window.dispatchEvent(new Event("novel-data-updated"));
     } catch (err) {
       console.error("Confirm action failed:", err);
       try {

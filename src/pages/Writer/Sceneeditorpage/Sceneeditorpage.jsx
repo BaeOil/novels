@@ -847,6 +847,14 @@ const SceneEditorPage = ({
   }, [fetchSceneData]);
 
   useEffect(() => {
+    const handleDataUpdate = () => {
+      fetchSceneData();
+    };
+    window.addEventListener("novel-data-updated", handleDataUpdate);
+    return () => window.removeEventListener("novel-data-updated", handleDataUpdate);
+  }, [fetchSceneData]);
+
+  useEffect(() => {
     if (!isLoading) {
       restoreDraft();
     }
@@ -871,7 +879,7 @@ const SceneEditorPage = ({
 
       const targetChapterId = (chapterId && chapterId !== "new") ? chapterId : currentSelectedChapterId;
       if (!targetChapterId || targetChapterId === "new" || isNaN(parseInt(targetChapterId, 10))) {
-        throw new Error("ไม่พบตอนสำหรับฉากนี้ กรุณากลับไปเพิ่มจากหน้าโครงสร้างเนื้อเรื่องใหม่");
+        throw new Error("ไม่พบตอนสังกัดสำหรับฉากนี้ กรุณากลับไปเพิ่มจากหน้าโครงสร้างเนื้อเรื่องใหม่");
       }
 
       // บันทึกข้อมูลตัวฉากหลัก พร้อมพิกัด X, Y
@@ -939,6 +947,7 @@ const SceneEditorPage = ({
       }
       
       await fetchSceneData();
+      window.dispatchEvent(new Event("novel-data-updated"));
     } catch (err) {
       console.error("Save scene error:", err);
       setErrorMsg(err.message || "ไม่สามารถบันทึกข้อมูลฉากได้");
@@ -953,13 +962,13 @@ const SceneEditorPage = ({
     try {
       const targetChapterId = (chapterId && chapterId !== "new") ? chapterId : currentSelectedChapterId;
       if (!targetChapterId || targetChapterId === "new" || isNaN(parseInt(targetChapterId, 10))) {
-        throw new Error("ไม่พบตอนสำหรับฉากนี้");
+        throw new Error("ไม่พบตอนสังกัดสำหรับฉากนี้");
       }
       
       // 1. เผยแพร่ตัวฉากหลัก
       await handleSave(true, false);
       
-      // 2. เผยแพร่ตัวตอนเพื่อให้คนอ่านมองเห็นด้วย
+      // 2. เผยแพร่ตัวตอนสังกัดเพื่อให้คนอ่านมองเห็นด้วย
       const authToken = localStorage.getItem("token");
       const headers = {
         "Content-Type": "application/json",
@@ -985,7 +994,7 @@ const SceneEditorPage = ({
         });
         
         if (!putRes.ok) {
-          console.warn("ไม่สามารถเปลี่ยนสถานะของตอนเป็นเผยแพร่ได้");
+          console.warn("ไม่สามารถเปลี่ยนสถานะของตอนสังกัดเป็นเผยแพร่ได้");
         }
       }
       
@@ -1110,6 +1119,7 @@ const SceneEditorPage = ({
 
       if (response.ok) {
         fetchSceneData();
+        window.dispatchEvent(new Event("novel-data-updated"));
         setShowAddChapterDialog(false);
         setNewChapterTitle("");
       } else {

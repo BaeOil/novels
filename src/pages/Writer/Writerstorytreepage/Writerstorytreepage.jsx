@@ -230,30 +230,38 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    const fetchStoryTreeAndChapters = async () => {
-      if (!novelId) return;
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [treeRes, chaptersRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`),
-          axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`)
-        ]);
-        setTreeData(treeRes.data?.data || treeRes.data || null);
-        
-        let chaptersData = chaptersRes.data?.data?.chapters || chaptersRes.data?.chapters || chaptersRes.data?.data || chaptersRes.data || [];
-        setNovelChapters(Array.isArray(chaptersData) ? chaptersData : []);
-      } catch (err) {
-        console.error("Error fetching story tree and chapters:", err);
-        setError("ไม่สามารถโหลดข้อมูล โครงสร้างเนื้อเรื่อง ได้ กรุณาลองใหม่อีกครั้ง");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchStoryTreeAndChapters();
+  const fetchStoryTreeAndChapters = useCallback(async () => {
+    if (!novelId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [treeRes, chaptersRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`),
+        axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`)
+      ]);
+      setTreeData(treeRes.data?.data || treeRes.data || null);
+      
+      let chaptersData = chaptersRes.data?.data?.chapters || chaptersRes.data?.chapters || chaptersRes.data?.data || chaptersRes.data || [];
+      setNovelChapters(Array.isArray(chaptersData) ? chaptersData : []);
+    } catch (err) {
+      console.error("Error fetching story tree and chapters:", err);
+      setError("ไม่สามารถโหลดข้อมูล โครงสร้างเนื้อเรื่อง ได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsLoading(false);
+    }
   }, [novelId]);
+
+  useEffect(() => {
+    fetchStoryTreeAndChapters();
+  }, [fetchStoryTreeAndChapters]);
+
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      fetchStoryTreeAndChapters();
+    };
+    window.addEventListener("novel-data-updated", handleDataUpdate);
+    return () => window.removeEventListener("novel-data-updated", handleDataUpdate);
+  }, [fetchStoryTreeAndChapters]);
 
   const nodes = treeData?.Nodes ?? treeData?.nodes ?? [];
   const edges = treeData?.Edges ?? treeData?.edges ?? [];
@@ -679,7 +687,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setSelectedSceneId(tempId); // ตั้งค่าโฟกัสโหนดใหม่
   }, [novelId, onNavigate, showToast, changeMode, setRfNodes, novelChapters]);
 
-  // ฟังก์ชันดักคลิกบน Canvas พื้นหลัง (แสดงโมดอลเลือกตอน)
+  // ฟังก์ชันดักคลิกบน Canvas พื้นหลัง (แสดงโมดอลเลือกตอนสังกัด)
   const handlePaneClick = useCallback((e) => {
     if (interactionMode !== "add-node") return;
     
@@ -709,6 +717,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         setRfNodes((nds) => nds.filter((n) => n.id !== sceneId));
         setRfEdges((eds) => eds.filter((e) => e.source !== sceneId && e.target !== sceneId));
         showToast("ลบฉากชั่วคราวสำเร็จแล้ว", "success");
+        window.dispatchEvent(new Event("novel-data-updated"));
       } else {
         // ยิง API ลบที่ backend
         const token = localStorage.getItem("token");
@@ -721,6 +730,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         const response = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`);
         setTreeData(response.data?.data || response.data || null);
         showToast("ลบฉากย่อยเรียบร้อยแล้ว", "success");
+        window.dispatchEvent(new Event("novel-data-updated"));
       }
       
       // ล้างค่าและเปลี่ยนโหมดกลับเป็น select
@@ -792,7 +802,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     
     const isTemp = String(sceneId).startsWith("temp-new-") || node.data?.isTemp;
     if (isTemp) {
-      // พาไปสร้างฉากใหม่พร้อมส่งพิกัด X, Y และ ตอน (chapterId)
+      // พาไปสร้างฉากใหม่พร้อมส่งพิกัด X, Y และ ตอนสังกัด (chapterId)
       onNavigate?.("scene-editor", {
         novelId,
         chapterId: node.data?.chapterId,
@@ -913,6 +923,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       setTreeData(response.data?.data || response.data || null);
 
       showToast("เชื่อมทางเลือกสำเร็จแล้ว", "success");
+      window.dispatchEvent(new Event("novel-data-updated"));
 
       setIsModalOpen(false);
       changeMode("select");
@@ -1307,12 +1318,12 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
               📌 เลือกตอนสำหรับฉากใหม่
             </h3>
             <p style={{ color: '#6b7280', fontSize: '14.5px', marginBottom: '24px', lineHeight: '1.6' }}>
-              กรุณาเลือกตอนที่คุณต้องการจัดเก็บฉากย่อยใหม่นี้ ก่อนวางลงบนผังโครงสร้างเรื่องค่ะ
+              กรุณาเลือกตอนสังกัดที่คุณต้องการจัดเก็บฉากย่อยใหม่นี้ ก่อนวางลงบนผังโครงสร้างเรื่องค่ะ
             </p>
             
             <div style={{ marginBottom: '28px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>
-                ตอนที่ฉากนี้จะไป
+                ตอนที่ฉากนี้จะไปสังกัด
               </label>
               {novelChapters.length === 0 ? (
                 <div style={{ color: '#dc2626', fontSize: '14px', background: '#fef2f2', padding: '12px', borderRadius: '12px', border: '1px solid #fecaca' }}>
@@ -1405,7 +1416,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
               </div>
               
               <div style={{ fontSize: '13px', fontWeight: '700', color: '#991b1b', marginBottom: '4px' }}>
-                ตอน:
+                ตอนสังกัด:
               </div>
               <div style={{ fontSize: '14px', color: '#4b5563', marginBottom: '12px' }}>
                 ตอนที่ {sceneToDelete.data?.chapterNumber ?? "?"} — {sceneToDelete.data?.chapterTitle || getNodeChapter(sceneToDelete.data) || "ไม่มีตอน"}
@@ -1420,8 +1431,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
             </div>
 
             <p style={{ color: '#4b5563', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>
-              คุณแน่ใจหรือไม่ว่าต้องการลบฉากนี้ออกจากระบบ ? 
-              **หากลบแล้วไม่สามารถย้อนคืนได้และเส้นเชื่อมเลือกใดๆจากฉากนี้จะถูกลบออกด้วย**
+              คุณแน่ใจหรือไม่ว่าต้องการลบฉากนี้ออกจากระบบ? **การกระทำนี้ไม่สามารถย้อนคืนได้และเส้นเชื่อมเลือกใดๆ จากฉากนี้จะถูกลบออกด้วยค่ะ**
             </p>
             
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
