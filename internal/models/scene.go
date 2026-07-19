@@ -18,8 +18,8 @@ type Scene struct {
 	Choices           []Choice  `json:"choices,omitempty"`
 	CreatedAt         time.Time `json:"created_at,omitempty"`
 	UpdatedAt         time.Time `json:"updated_at,omitempty"`
-	NovelTitle        string    `json:"-"`
-	ChapterTitle      string    `json:"-"`
+	NovelTitle        string    `json:"novel_title,omitempty"`
+	ChapterTitle      string    `json:"chapter_title,omitempty"`
 	ChapterEpisode    int       `json:"chapter_episode,omitempty"`
 }
 

@@ -70,6 +70,8 @@ func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
 
 	return models.SceneResponse{
 		SceneID:           scene.SceneID,
+		ChapterID:         scene.ChapterID,
+		NovelID:           scene.NovelID,
 		Title:             scene.Title,
 		Content:           scene.Content,
 		Type:              scene.Type,
@@ -80,6 +82,7 @@ func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
 		EndingDescription: scene.EndingDescription,
 		NovelTitle:        scene.NovelTitle,   // 🟢 🎯 ยัดชื่อเรื่องหลักส่งไปหน้าบ้าน
 		ChapterTitle:      scene.ChapterTitle, // 🟢 🎯 ยัดชื่อตอนย่อยส่งไปหน้าบ้าน
+		ChapterEpisode:    scene.ChapterEpisode,//eww
 		Choices:           choices,
 	}, nil
 }
@@ -96,6 +99,8 @@ func (s *sceneService) GetStartScene(novelID int) (models.SceneResponse, error) 
 
 	return models.SceneResponse{
 		SceneID:           scene.SceneID,
+		ChapterID:         scene.ChapterID,
+		NovelID:           scene.NovelID,
 		Title:             scene.Title,
 		Content:           scene.Content,
 		Type:              scene.Type,
@@ -106,6 +111,7 @@ func (s *sceneService) GetStartScene(novelID int) (models.SceneResponse, error) 
 		EndingDescription: scene.EndingDescription,
 		NovelTitle:        scene.NovelTitle,   // 🟢 🎯 ยัดชื่อเรื่องหลักส่งไปหน้าบ้าน
 		ChapterTitle:      scene.ChapterTitle, // 🟢 🎯 ยัดชื่อตอนย่อยส่งไปหน้าบ้าน
+		ChapterEpisode:    scene.ChapterEpisode,
 		Choices:           choices,
 	}, nil
 }
