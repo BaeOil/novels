@@ -28,6 +28,7 @@ import ReactFlow, {
   useEdgesState,
   ReactFlowProvider, // หุ้ม React Flow ด้วย Provider
   useReactFlow,      // ใช้ hook เพื่อแปลงพิกัดหน้าจอกับพิกัด Canvas
+  MarkerType,
 } from "reactflow";
 import axios from "axios";
 import "reactflow/dist/style.css";
@@ -37,8 +38,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 118;
-const NODE_HORIZONTAL_GAP = 260;
-const NODE_VERTICAL_GAP = 170;
+const NODE_HORIZONTAL_GAP = 300;
+const NODE_VERTICAL_GAP = 250;
 const CANVAS_MARGIN = 36;
 
 const WRITER_NODE_STATUS = {
@@ -381,7 +382,10 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       const current = queue.shift();
       const level = nodeLevels[current] ?? 0;
       adjacency[current].forEach((childId) => {
-        const nextLevel = level + 1;
+        // หากโหนดลูกมีเส้นเชื่อมเข้าตั้งแต่ 3 เส้นขึ้นไป (Junction Node) 
+        // ให้เลื่อนระดับความสูงลงไปอีก 1 แถวเพื่อเลี่ยงการทับซ้อนแนวนอนกับโหนดข้างเคียง
+        const offset = (inDegree[childId] >= 3) ? 2 : 1;
+        const nextLevel = level + offset;
         if (nodeLevels[childId] === undefined || nodeLevels[childId] > nextLevel) {
           nodeLevels[childId] = nextLevel;
           queue.push(childId);
@@ -389,28 +393,73 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       });
     }
 
-    const columns = {};
+    // 2. จัดกลุ่มโหนดตาม Level
+    const levelsMap = {};
     nodeIds.forEach((id) => {
       const level = nodeLevels[id] ?? 0;
-      if (!columns[level]) columns[level] = [];
-      columns[level].push(id);
+      if (!levelsMap[level]) levelsMap[level] = [];
+      levelsMap[level].push(id);
     });
 
     const positions = {};
-    Object.keys(columns)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .forEach((level) => {
-        const columnNodes = columns[level];
-        const total = columnNodes.length;
-        const offset = ((total - 1) * (NODE_WIDTH + NODE_HORIZONTAL_GAP)) / 2;
+    const sortedLevels = Object.keys(levelsMap).map(Number).sort((a, b) => a - b);
+    const HORIZONTAL_STEP = NODE_WIDTH + NODE_HORIZONTAL_GAP;
+    const VERTICAL_STEP = NODE_HEIGHT + NODE_VERTICAL_GAP;
 
-        columnNodes.forEach((sceneId, index) => {
-          const x = CANVAS_MARGIN + index * (NODE_WIDTH + NODE_HORIZONTAL_GAP) - offset;
-          const y = CANVAS_MARGIN + level * (NODE_HEIGHT + NODE_VERTICAL_GAP);
-          positions[sceneId] = { x, y };
-        });
+    // 3. จัดตำแหน่งระดับ 0 (จุดเริ่มต้น) เป็นค่าเริ่มต้น
+    if (sortedLevels.length > 0) {
+      const level0Ids = levelsMap[0] || [];
+      level0Ids.sort();
+      const total0 = level0Ids.length;
+      const offset0 = ((total0 - 1) * HORIZONTAL_STEP) / 2;
+      level0Ids.forEach((id, colIndex) => {
+        positions[id] = {
+          x: CANVAS_MARGIN + colIndex * HORIZONTAL_STEP - offset0,
+          y: CANVAS_MARGIN + 0 * VERTICAL_STEP,
+        };
       });
+    }
+
+    // 4. จัดเรียงระดับถัดๆ ไป (1, 2, 3...) อิงตาม Barycenter heuristic ของ parents
+    const parentMap = {};
+    nodeIds.forEach((id) => {
+      parentMap[id] = [];
+    });
+    edgeList.forEach((edge) => {
+      if (edge.source && edge.target && parentMap[edge.target]) {
+        parentMap[edge.target].push(edge.source);
+      }
+    });
+
+    for (let i = 1; i < sortedLevels.length; i++) {
+      const level = sortedLevels[i];
+      const ids = levelsMap[level] || [];
+
+      const idealXValues = {};
+      ids.forEach((id) => {
+        const parents = parentMap[id] || [];
+        const activeParents = parents.filter((pId) => positions[pId] !== undefined);
+        
+        if (activeParents.length > 0) {
+          const sumX = activeParents.reduce((sum, pId) => sum + positions[pId].x, 0);
+          idealXValues[id] = sumX / activeParents.length;
+        } else {
+          idealXValues[id] = 0;
+        }
+      });
+
+      // จัดเรียงตาม X ในอุดมคติเพื่อรักษาแนวเส้นทางไม่ให้ข้ามฝั่งกัน
+      ids.sort((a, b) => idealXValues[a] - idealXValues[b]);
+
+      const total = ids.length;
+      const offset = ((total - 1) * HORIZONTAL_STEP) / 2;
+      ids.forEach((id, colIndex) => {
+        positions[id] = {
+          x: CANVAS_MARGIN + colIndex * HORIZONTAL_STEP - offset,
+          y: CANVAS_MARGIN + level * VERTICAL_STEP,
+        };
+      });
+    }
 
     const allX = Object.values(positions).map((pos) => pos.x);
     const allY = Object.values(positions).map((pos) => pos.y);
@@ -516,6 +565,14 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       type: e.type || "smoothstep",
       data: e.data || {},
       animated: !!e.animated,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: "#94a3b8", // หัวลูกศรชี้ปลายทางชัดเจน
+      },
+      style: {
+        stroke: "#94a3b8", // เส้นหนาขึ้นและใช้สีที่คมชัดขึ้น
+        strokeWidth: 2,
+      }
     }));
   }, [positionedEdges]);
 
@@ -1083,7 +1140,16 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
       <header className="wst-topbar">
         <div className="wst-topbar__left">
-          <button className="wst-topbar__back" onClick={() => onNavigate && onNavigate("novels")}>
+          <button 
+            className="wst-topbar__back" 
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                onNavigate?.("dashboard");
+              }
+            }}
+          >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L5 7L9 11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
             ย้อนกลับ
           </button>
