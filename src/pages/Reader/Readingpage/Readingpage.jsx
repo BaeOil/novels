@@ -517,8 +517,26 @@ const ReadingPage = ({
     );
   }
 
-  const { content, choices, type, novel_title, chapter_title, scene_title, chapter_order, order } = sceneData;
-  const currentOrder = chapter_order || order || null;
+  const {
+    content,
+    choices,
+    type,
+    novel_title,
+    chapter_title,
+    scene_title,
+    title,
+    chapter_order,
+    order,
+    chapter_episode,
+    chapterEpisode,
+    novelTitle: sceneNovelTitle,
+    chapterTitle: sceneChapterTitle,
+  } = sceneData || {};
+
+  const sceneTitle = scene_title || sceneData?.sceneTitle || title || sceneData?.Title || "";
+  const chapterTitleUsed = chapter_title || sceneChapterTitle || sceneData?.chapter_title || sceneData?.ChapterTitle || "";
+  const novelTitleUsed = novel_title || sceneNovelTitle || sceneData?.novelTitle || sceneData?.NovelTitle || novelTitle;
+  const currentOrder = chapter_order || order || chapter_episode || chapterEpisode || sceneData?.chapterOrder || sceneData?.chapter_order || null;
 
   const getSceneTagDetails = (sceneType) => {
     switch (sceneType) {
@@ -544,67 +562,64 @@ const ReadingPage = ({
 
       <div className="rp__container">
         <ReadingBreadcrumb
-          novelTitle={novel_title || novelTitle}
-          chapterTitle={chapter_title || (type === "start" ? "บทนำ" : "ตอนอ่านต่อ")}
-          onBack={() => handleLocalNavigate("novel-detail")}
-          onStoryMap={() => handleLocalNavigate("story-tree")}
-          extraAction={
-            <ActionButtons
-              isBookmarked={isBookmarked}
-              isLiked={false}
-              onBookmark={(newState) => handleBookmark(newState)}
-              showRead={false}
-              showLike={false}
-              onRead={() => {
-                if (novelId) navigate(`/reading/${novelId}/${currentSceneId || ""}`);
-              }}
-            />
-          }
-        />
-
-        <article className={`rp__article ${isTransitioning ? "rp__article--out" : "rp__article--in"}`} ref={contentRef}>
-
-          <ReadingSettings
-            fontFamily={fontFamily}
-            onFontFamilyChange={handleFontFamilyChange}
-            fontSize={fontSize}
-            onDecreaseFont={handleDecreaseFont}
-            onIncreaseFont={handleIncreaseFont}
-            theme={theme}
-            onThemeChange={handleThemeChange}
+            novelTitle={novelTitleUsed}
+            chapterTitle={chapterTitleUsed || (type === "start" ? "บทนำ" : "ตอนอ่านต่อ")}
+            onBack={() => handleLocalNavigate("novel-detail")}
+            onStoryMap={() => handleLocalNavigate("story-tree")}
+            extraAction={
+              <ActionButtons
+                isBookmarked={isBookmarked}
+                isLiked={false}
+                onBookmark={(newState) => handleBookmark(newState)}
+                showRead={false}
+                showLike={false}
+                onRead={() => {
+                  if (novelId) navigate(`/reading/${novelId}/${currentSceneId || ""}`);
+                }}
+              />
+            }
           />
 
-          <div className="rp__header-group" style={{ textAlign: "center", marginBottom: "25px" }}>
-            <div className="rp__novel-subtitle" style={{ fontSize: "1.1rem", color: "#666", marginBottom: "6px" }}>
-              เรื่อง : {novel_title || novelTitle}
+          <article className={`rp__article ${isTransitioning ? "rp__article--out" : "rp__article--in"}`} ref={contentRef}>
+
+            <ReadingSettings
+              fontFamily={fontFamily}
+              onFontFamilyChange={handleFontFamilyChange}
+              fontSize={fontSize}
+              onDecreaseFont={handleDecreaseFont}
+              onIncreaseFont={handleIncreaseFont}
+              theme={theme}
+              onThemeChange={handleThemeChange}
+            />
+
+            <div className="rp__header-group" style={{ textAlign: "center", marginBottom: "25px" }}>
+              <div className="rp__novel-subtitle" style={{ fontSize: "1.1rem", color: "#666", marginBottom: "6px" }}>
+                เรื่อง : {novelTitleUsed}
+              </div>
+
+              <h1 className="rp__title" style={{ fontSize: "2.2rem", fontWeight: "bold", margin: "10px 0", color: "#111" }}>
+                {sceneTitle || (type === "start" ? "จุดเริ่มต้นการเดินทาง" : "ดำเนินเรื่องย่อย")}
+              </h1>
+
+              <div className="rp__scene-meta" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontSize: "1.05rem", color: "#555", marginTop: "15px", flexWrap: "wrap" }}>
+                <span style={{ color: "#4a5568", fontWeight: "600" }}>
+                  📂 {currentOrder ? `ตอนที่ ${currentOrder} : ` : "ตอน : "}
+                  {chapterTitleUsed || (type === "start" ? "บทนำ" : "บททั่วไป")}
+                </span>
+                <span style={{ color: "#ccc" }}>|</span>
+                <span style={{ 
+                  backgroundColor: tag.bg, 
+                  color: tag.color, 
+                  padding: "3px 12px", 
+                  borderRadius: "12px", 
+                  fontSize: "0.85rem", 
+                  fontWeight: "bold",
+                  letterSpacing: "0.5px"
+                }}>
+                  {tag.text}
+                </span>
+              </div>
             </div>
-
-            <h1 className="rp__title" style={{ fontSize: "2.2rem", fontWeight: "bold", margin: "10px 0", color: "#111" }}>
-              {scene_title || (type === "start" ? "จุดเริ่มต้นการเดินทาง" : "ดำเนินเรื่องย่อย")}
-            </h1>
-
-            <div className="rp__scene-meta" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontSize: "1.05rem", color: "#555", marginTop: "15px", flexWrap: "wrap" }}>
-              <span style={{ color: "#4a5568", fontWeight: "600" }}>
-                📂 {currentOrder ? `ตอนที่ ${currentOrder} : ` : "ตอน : "} 
-                {chapter_title || (type === "start" ? "บทนำ" : "บททั่วไป")}
-              </span>
-              
-              <span style={{ color: "#ccc" }}>|</span>
-              
-              <span style={{ 
-                backgroundColor: tag.bg, 
-                color: tag.color, 
-                padding: "3px 12px", 
-                borderRadius: "12px", 
-                fontSize: "0.85rem", 
-                fontWeight: "bold",
-                letterSpacing: "0.5px"
-              }}>
-                {tag.text}
-              </span>
-            </div>
-          </div>
-
           <div className="rp__ornament" aria-hidden="true">
             <span className="rp__orn-line" />
             <span className="rp__orn-dot">✦</span>

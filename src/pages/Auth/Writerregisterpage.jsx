@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import ReactDOM from "react-dom"; // 1. เพิ่มการ Import ReactDOM เข้ามาตรงนี้
+import ReactDOM from "react-dom";
 import "./WriterRegisterPage.css";
 import { useNavigate } from "react-router-dom";
 import ReactQuill from "react-quill-new";
 import "quill/dist/quill.snow.css";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const STEPS = [
@@ -47,23 +48,28 @@ const QUILL_FORMATS = [
 const CancelConfirmModal = ({ isOpen, onConfirm, onCancel }) => {
     if (!isOpen) return null;
 
-    // 2. ใช้ ReactDOM.createPortal ครอบ เพื่อส่งกล่องนี้ไปอยู่ชั้นนอกสุดของหน้าเว็บ
+    // แก้ไข Class Name ให้ตรงกับไฟล์ CSS เพื่อให้ Modal เด้งขึ้นมากลางจออย่างถูกต้อง
     return ReactDOM.createPortal(
-        <div className="wr-modal-overlay">
-            <div className="wr-modal">
-                <h3 className="wr-modal__title">ยกเลิกการสมัคร</h3>
-                <p className="wr-modal__text">คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการสมัครเป็นนักเขียน? ข้อมูลทั้งหมดที่กรอกมาจะไม่ถูกบันทึกนะครับ</p>
-                <div className="wr-modal__actions">
-                    <button type="button" className="wr-btn wr-btn--outline" onClick={onCancel}>
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="modal-header">
+                    <h2>ยกเลิกการสมัคร</h2>
+                    <button className="modal-close" onClick={onCancel} aria-label="ปิด">&times;</button>
+                </div>
+                <div className="modal-body">
+                    <p>คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการสมัครเป็นนักเขียน? ข้อมูลทั้งหมดที่กรอกมาจะไม่ถูกบันทึก</p>
+                </div>
+                <div className="modal-footer">
+                    <button type="button" className="modal-btn modal-btn--cancel" onClick={onCancel}>
                         กรอกข้อมูลต่อ
                     </button>
-                    <button type="button" className="wr-btn wr-btn--danger" onClick={onConfirm}>
+                    <button type="button" className="modal-btn modal-btn--delete" onClick={onConfirm}>
                         ใช่, ยกเลิกเลย
                     </button>
                 </div>
             </div>
         </div>,
-        document.body // ส่งไปต่อท้ายแท็ก body โดยตรง ไม่ให้โดนเลย์เอาต์หน้าฟอร์มบีบ
+        document.body
     );
 };
 
@@ -110,11 +116,11 @@ const AvatarUpload = ({ preview, onChange }) => {
     const handleFile = (file) => {
         if (!file) return;
         if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-            alert("รองรับไฟล์รูปภาพประเภท PNG, JPG, WEBP เท่านั้นครับ");
+            alert("รองรับไฟล์รูปภาพประเภท PNG, JPG, WEBP เท่านั้น");
             return;
         }
         if (file.size > 5 * 1024 * 1024) {
-            alert("ขนาดรูปภาพต้องไม่เกิน 5MB นะครับ");
+            alert("ขนาดรูปภาพต้องไม่เกิน 5MB นะ");
             return;
         }
         const url = URL.createObjectURL(file);
@@ -206,8 +212,8 @@ const SummaryCard = ({ data }) => {
     const rows = [
         { label: "ชื่อ - นามสกุล", value: data.fullName || "—" },
         { label: "นามปากกา", value: data.penName || "—" },
-        <div className="wr-summary__row">
-            <span className="wr-summary__label">แนะนำตัว</span>
+        <div className="wr-summary__row" key="bio-row">
+            <span className="wr-summary__label">แนะนำตัวนักเขียน</span>
             <span
                 className="wr-summary__value"
                 dangerouslySetInnerHTML={{
@@ -233,11 +239,14 @@ const SummaryCard = ({ data }) => {
             </div>
 
             <div className="wr-summary__info">
-                {rows.map((row) => (
-                    <div key={row.label} className="wr-summary__row">
-                        <span className="wr-summary__label">{row.label}</span>
-                        <span className="wr-summary__value">{row.value}</span>
-                    </div>
+                {rows.map((row, idx) => (
+                    // เช็คว่าถ้าเป็น JSX element (สำหรับ Bio) ให้เรนเดอร์ตรงๆ
+                    React.isValidElement(row) ? row : (
+                        <div key={idx} className="wr-summary__row">
+                            <span className="wr-summary__label">{row.label}</span>
+                            <span className="wr-summary__value">{row.value}</span>
+                        </div>
+                    )
                 ))}
             </div>
         </div>
@@ -249,21 +258,43 @@ const SummaryCard = ({ data }) => {
 // ======================================================
 const WriterRegisterPage = ({ onComplete, onBack }) => {
     const navigate = useNavigate();
-    const [step, setStep] = useState(1);
+    
+    // 1. ดึงข้อมูล Step จาก localStorage (ถ้ามี)
+    const [step, setStep] = useState(() => {
+        const savedStep = localStorage.getItem("writerRegStep");
+        return savedStep ? Number(savedStep) : 1;
+    });
+
     const [checkingAuth, setCheckingAuth] = useState(true);
     const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
-    const [form, setForm] = useState({
-        avatarFile: null,
-        avatarPreview: null,
-        fullName: "",
-        penName: "",
-        email: "",
-        bio: "",
-        genres: [],
-        mainContact: "",
-        otherLinks: "",
-        confirmed: false,
+    // 2. ดึงข้อมูล Form จาก localStorage (ถ้ามี)
+    const [form, setForm] = useState(() => {
+        const savedForm = localStorage.getItem("writerRegForm");
+        if (savedForm) {
+            try {
+                const parsed = JSON.parse(savedForm);
+                return {
+                    ...parsed,
+                    avatarFile: null, // ไฟล์รูปเซฟลง storage ตรงๆ ไม่ได้ ต้องอัปโหลดใหม่
+                    avatarPreview: null
+                };
+            } catch (e) {
+                console.error("Failed to parse saved form", e);
+            }
+        }
+        return {
+            avatarFile: null,
+            avatarPreview: null,
+            fullName: "",
+            penName: "",
+            email: "",
+            bio: "",
+            genres: [],
+            mainContact: "",
+            otherLinks: "",
+            confirmed: false,
+        };
     });
 
     const [errors, setErrors] = useState({});
@@ -272,6 +303,23 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     const [writerAppLoading, setWriterAppLoading] = useState(true);
     const [writerAppError, setWriterAppError] = useState(null);
     const hasPerformedAuthCheck = useRef(false);
+
+    // 3. บันทึกข้อมูลลง localStorage ทุกครั้งที่ Step หรือ Form เปลี่ยนแปลง
+    useEffect(() => {
+        localStorage.setItem("writerRegStep", step.toString());
+    }, [step]);
+
+    useEffect(() => {
+        // แยกไฟล์รูปออก ไม่เซฟลง localStorage
+        const { avatarFile, avatarPreview, ...formToSave } = form;
+        localStorage.setItem("writerRegForm", JSON.stringify(formToSave));
+    }, [form]);
+
+    // 4. ฟังก์ชันล้างความจำเมื่อทำงานเสร็จสิ้นหรือยกเลิก
+    const clearSavedData = () => {
+        localStorage.removeItem("writerRegStep");
+        localStorage.removeItem("writerRegForm");
+    };
 
     useEffect(() => {
         const fetchWriterApplication = async () => {
@@ -321,7 +369,8 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             try {
                 const user = JSON.parse(userJson);
                 if (user.role === "writer" || user.is_writer === true) {
-                    alert("คุณเป็นนักเขียนอยู่แล้ว ไม่สามารถสมัครซ้ำได้ครับ 🎉");
+                    alert("คุณเป็นนักเขียนอยู่แล้ว ไม่สามารถสมัครซ้ำได้ 🎉");
+                    clearSavedData(); // เคลียร์ข้อมูลทิ้ง
                     navigate("/writer/dashboard");
                     return;
                 }
@@ -380,13 +429,13 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             setErrors({});
             window.scrollTo({ top: 0, behavior: "smooth" });
         } else {
-            // สเต็ปที่ 1 ถ้ากดย้อนกลับ จะเป็นการเปิด Modal ยืนยันยกเลิกการสมัครแทน
             setCancelModalOpen(true);
         }
     };
 
     const handleCancelConfirm = () => {
         setCancelModalOpen(false);
+        clearSavedData(); // เคลียร์ข้อมูลทิ้งกรณียกเลิก
         navigate("/");
         if (onBack) onBack();
     };
@@ -436,7 +485,9 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                 throw new Error(errData?.message || "การส่งใบสมัครล้มเหลว กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง");
             }
 
-            alert("🎉 ส่งใบสมัครเป็นนักเขียนสำเร็จแล้ว! รอเจ้าหน้าที่แอดมินอนุมัตินะครับ");
+            clearSavedData(); // เคลียร์ข้อมูลทิ้งเมื่อส่งสำเร็จแล้ว
+
+            alert("🎉 ส่งใบสมัครเป็นนักเขียนสำเร็จแล้ว! กรุณารอผู้ดูแลระบบอนุมัติภายใน 1-3 วันทำการ");
             navigate("/");
             onComplete?.();
 
@@ -461,9 +512,31 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                         <p className="wr-header__sub">คุณสามารถเข้าสู่ระบบและใช้งานพื้นที่นักเขียนได้ทันที</p>
                     </div>
                 </div>
-                <div className="wr-card">
+                <div className="wr-card" style={{ minHeight: 'auto', padding: '40px' }}>
                     <p>คำขอสมัครนักเขียนของคุณได้รับการอนุมัติแล้ว ไม่สามารถยื่นคำขอซ้ำได้อีก</p>
-                    <button type="button" className="wr-btn wr-btn--primary" onClick={() => navigate("/writer/dashboard")}>ไปที่ Writer Dashboard</button>
+                    <button type="button" className="wr-btn wr-btn--primary" style={{ marginTop: '20px' }} onClick={() => navigate("/writer/dashboard")}>ไปที่ Writer Dashboard</button>
+                </div>
+            </div>
+        );
+    }
+
+    if (writerAppStatus === "pending") {
+        return (
+            <div className="wr-page">
+                <div className="wr-header-wrapper">
+                    <div className="wr-header">
+                        <h1 className="wr-header__title">สถานะการสมัคร: รอตรวจสอบ</h1>
+                        <p className="wr-header__sub">ใบสมัครของคุณกำลังอยู่ในขั้นตอนการพิจารณา</p>
+                    </div>
+                </div>
+                <div className="wr-card" style={{ minHeight: 'auto', textAlign: 'center', padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+                    <h2 style={{ fontFamily: "'Open Sans', serif", color: 'var(--ink)', marginBottom: '8px' }}>คุณได้ส่งใบสมัครไปแล้ว</h2>
+                    <p style={{ color: 'var(--gray-600)', marginBottom: '32px', lineHeight: '1.6' }}>
+                        กรุณารอผู้ดูแลระบบตรวจสอบและอนุมัติใบสมัครของคุณภายใน 1-3 วันทำการ<br/>
+                        หากคำขอถูกปฏิเสธ คุณจึงจะสามารถกลับมาแก้ไขข้อมูลและส่งใบสมัครใหม่ได้
+                    </p>
+                    <button type="button" className="wr-btn wr-btn--primary" onClick={() => navigate("/")}>กลับสู่หน้าหลัก</button>
                 </div>
             </div>
         );
@@ -472,19 +545,12 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     return (
         <>
             <div className="wr-page">
-                {/* [แก้ไข] นำ wr-cancel-btn (ปุ่มกากบาท) ออกจากส่วนหัวทั้งหมดตามหลัก UX */}
                 <div className="wr-header-wrapper">
                     <div className="wr-header">
                         <h1 className="wr-header__title">สมัครเป็นนักเขียน</h1>
                         <p className="wr-header__sub">กรอกข้อมูลเพื่อยืนยันตัวตนของคุณในฐานะนักเขียน</p>
                     </div>
                 </div>
-
-                {writerAppStatus === "pending" && (
-                    <div className="wr-form-notice wr-form-notice--warning">
-                        คุณได้ส่งคำขอสมัครเป็นนักเขียนไปแล้ว กรุณารอแอดมินอนุมัติหรือปฏิเสธก่อนสมัครใหม่
-                    </div>
-                )}
 
                 {writerAppStatus === "rejected" && (
                     <div className="wr-form-notice wr-form-notice--info">
@@ -496,16 +562,16 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
 
                 {/* STEP 1: ข้อมูลส่วนตัว */}
                 {step === 1 && (
-                    <div className="wr-step-content wr-step-content--split">
-                        <div className="wr-step-left">
-                            <AvatarUpload
-                                preview={form.avatarPreview}
-                                onChange={(file, url) => { setField("avatarFile", file); setField("avatarPreview", url); }}
-                            />
-                        </div>
+                    <div className="wr-step-content">
+                        <div className="wr-card wr-card--compact">
+                            <div className="wr-avatar-center">
+                                <AvatarUpload
+                                    preview={form.avatarPreview}
+                                    onChange={(file, url) => { setField("avatarFile", file); setField("avatarPreview", url); }}
+                                />
+                            </div>
 
-                        <div className="wr-card">
-                            <h2 className="wr-card__title">ข้อมูลส่วนตัว</h2>
+                            <h2 className="wr-card__title wr-text-center">ข้อมูลส่วนตัว</h2>
 
                             <div className="wr-field">
                                 <label className="wr-label" htmlFor="fullName">ชื่อ - นามสกุล</label>
@@ -540,8 +606,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                                 {errors.email && <p className="wr-field__error" role="alert">{errors.email}</p>}
                             </div>
 
-                            {/* [แก้ไข] เพิ่มปุ่มยกเลิกในฐานะปุ่มย้อนกลับของหน้าแรกสุด */}
-                            <div className="wr-step-nav" style={{ marginTop: 24 }}>
+                            <div className="wr-step-nav" style={{ marginTop: 32 }}>
                                 <button type="button" className="wr-btn wr-btn--outline" onClick={handlePrev}>
                                     ยกเลิกการสมัคร
                                 </button>
@@ -665,7 +730,6 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                     </div>
                 )}
 
-                {/* Modal ถูกย้ายเข้ามาอยู่ในจุดที่จะดึงสไตล์ Overlay กลางจอได้ง่ายขึ้น */}
                 <CancelConfirmModal
                     isOpen={cancelModalOpen}
                     onConfirm={handleCancelConfirm}

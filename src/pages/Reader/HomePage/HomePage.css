@@ -205,10 +205,9 @@
 
 /* Novel grid */
 .home__novel-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 16px;
-    align-items: start;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:16px;
 }
 
 .home__novel-grid > * {
@@ -237,24 +236,6 @@
     margin-left: auto;
 }
 
-/* Responsive */
-@media (max-width: 1400px) {
-    .home__novel-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    }
-}
-
-@media (max-width: 1100px) {
-    .home__hero-inner {
-        gap: 40px;
-    }
-    
-    .home__novel-grid {
-        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-        gap: 20px;
-    }
-}
-
 @media (max-width: 900px) {
     .home__hero-inner {
         grid-template-columns: 1fr;
@@ -263,10 +244,6 @@
 
     .home__hero-right {
         display: none;
-    }
-
-    .home__novel-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     }
 }
 
@@ -279,10 +256,6 @@
         padding: 40px 0 48px;
     }
 
-    .home__novel-grid {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 16px;
-    }
 }
 
 @media (max-width: 640px) {
@@ -296,11 +269,6 @@
     
     .home__hero-title {
         font-size: clamp(24px, 3vw, 34px);
-    }
-
-    .home__novel-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 14px;
     }
 }
 

@@ -117,17 +117,23 @@
   color: var(--gray-600);
   line-height: 1.8;
   margin-bottom: 24px;
-  max-width: 560px;
+  max-width: 100%;
 }
 
 /* Progress card */
+.novel-detail__action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
 .novel-detail__progress {
-  margin-top: 24px;
-  max-width: 480px;
+  margin-top: 0;
+  max-width: 100%;
 }
 
 .novel-detail__restart-row {
-  margin-top: 16px;
   display: flex;
   justify-content: flex-start;
 }
@@ -136,24 +142,41 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 11px 20px;
-  border-radius: 10px;
+  gap: 6px; /* ลดระยะห่างระหว่างไอคอนและข้อความ */
+  
+  /* ปรับ Padding และเอา min-width ออก เพื่อให้ปุ่มหดตัวพอดีกับเนื้อหา */
+  padding: 10px 20px; 
+  width: auto; 
+  
+  border-radius: 999px;
   border: 1.5px solid var(--pink-500);
   background: #ffffff;
   color: var(--pink-500);
   font-family: 'Sarabun', sans-serif;
-  font-size: 16px;
+  
+  /* ลดขนาดตัวอักษรให้เท่ากับปุ่มอ่านเลย */
+  font-size: 14px; 
   font-weight: 600;
+  
+  /* กำหนดความสูงให้คงที่เพื่อให้เท่ากับแถว ActionButtons */
+  height: 42px; 
+  
   cursor: pointer;
   transition: all 0.18s ease;
-  width: auto;
-  min-width: 110px;
-  max-width: 180px;
-  box-shadow: 0 4px 14px rgba(233, 30, 140, 0.1);
 }
 
 .novel-detail__restart-button:hover {
   background: var(--pink-50);
+  transform: translateY(-1px);
+}
+
+.novel-detail__restart-button:active {
+  transform: translateY(0);
+}
+
+.novel-detail__restart-button:hover {
+  background: var(--pink-50);
+  transform: translateY(-1px);
 }
 
 /* ── Synopsis section ── */
@@ -223,10 +246,13 @@
 
   .novel-detail__aside {
     width: 100%;
+    display: flex;
+    justify-content: center; /* จัดภาพปกให้อยู่กึ่งกลาง */
   }
 
-  .novel-detail__aside>* {
+  .novel-detail__aside > * {
     width: 100%;
+    max-width: 220px; /* จำกัดขนาดปกไม่ให้ยืดเต็มจอ iPad */
   }
 
   .novel-detail__synopsis-section {
@@ -424,4 +450,61 @@
     align-items: flex-start;
     gap: 4px;
   }
+}
+/* ── ปุ่มเริ่มอ่านใหม่ (ใต้ Progress Card) ── */
+.novel-detail__restart-wrapper {
+  display: flex;
+  justify-content: flex-end; /* จัดปุ่มให้อยู่มุมขวาล่าง */
+  margin-top: 12px;
+}
+
+.novel-detail__restart-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gray-500);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* ตอนเอาเมาส์ชี้ จะเปลี่ยนเป็นสีแดงอ่อนๆ เตือนว่าเป็นการ Reset */
+.novel-detail__restart-btn-outline:hover {
+  border-color: #fca5a5;
+  color: #ef4444; 
+  background: #fef2f2;
+}/* ── ปุ่มเริ่มอ่านใหม่ (ใต้ Progress Card) ── */
+.novel-detail__restart-wrapper {
+  display: flex;
+  justify-content: flex-end; /* จัดปุ่มให้อยู่มุมขวาล่าง */
+  margin-top: 12px;
+}
+
+.novel-detail__restart-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gray-500);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* ตอนเอาเมาส์ชี้ จะเปลี่ยนเป็นสีแดงอ่อนๆ เตือนว่าเป็นการ Reset */
+.novel-detail__restart-btn-outline:hover {
+  border-color: #fca5a5;
+  color: #ef4444; 
+  background: #fef2f2;
 }

@@ -1,8 +1,3 @@
-/* src/pages/Writer/WriterStoryTreePage/Writerstorytreepage.css */
-
-/* ─────────────────────────────────────────────
-   Main Page Layout 
-   ───────────────────────────────────────────── */
 .wst-page {
   display: flex;
   flex-direction: column;
@@ -102,7 +97,7 @@
 }
 
 .wst-topbar__add {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #e92691 0%, #E91E8C 100%);
   color: white;
   border: none;
   padding: 8px 18px;
@@ -111,12 +106,12 @@
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-  transition: all 0.2s;
 }
 
 .wst-topbar__add:hover {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  background: var(--pink-700);
   transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(233,30,140,0.38);
 }
 
 /* Legend */
@@ -1022,4 +1017,32 @@
 
 .wst-toast i {
   font-size: 15px;
+}
+
+/* ─────────────────────────────────────────────
+   React Flow Edges & Labels custom style
+   ───────────────────────────────────────────── */
+.react-flow__edge-path {
+  stroke-linejoin: round;
+  transition: stroke-width 0.12s ease, stroke 0.12s ease;
+}
+
+.react-flow__edge-path:hover {
+  stroke: #1d4ed8 !important; /* ส่องสว่างสีน้ำเงินเมื่อเมาส์ชี้ */
+  stroke-width: 3px !important;
+}
+
+.react-flow__edge-text {
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  fill: #334155 !important;
+  font-family: "Outfit", "Sarabun", sans-serif !important;
+}
+
+.react-flow__edge-textbg {
+  fill: #ffffff !important;
+  rx: 6px;
+  ry: 6px;
+  stroke: #e2e8f0 !important;
+  stroke-width: 1px !important;
 }

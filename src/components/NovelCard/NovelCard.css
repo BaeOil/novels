@@ -21,7 +21,10 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  height: 100%;
+
+ height: fit-content;
+align-self: start;
+
   min-width: 0;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
@@ -42,7 +45,7 @@
    แก้จาก 1/1 → 2/3 เป็นสัดส่วนหนังสือจริง
    cover จะ scale ตาม column width แต่สัดส่วนคงที่ทุกหน้า */
 .novel-card__cover {
-  aspect-ratio: 2 / 3;           /* ← แก้จาก 1/1 */
+  aspect-ratio: 4 / 5;           /* ← แก้จาก 1/1 */
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
@@ -108,10 +111,9 @@
 
 /* ── Body ── */
 .novel-card__body {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 12px 12px 10px;
+  padding: 10px 10px 10px;
   gap: 5px;
 }
 
@@ -126,7 +128,7 @@
 .novel-card__tag {
   font-size: 10px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 9999px;
   background: #FEF0F6;
   color: #E91E8C;
@@ -168,9 +170,9 @@
 .novel-card__stats-bar {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 8px 0;
-  margin-top: auto;
+  gap: 5px;
+  padding: 3px 0;
+  margin-top: 8px;
   border-top: 1px solid #F3F4F6;
 }
 
@@ -198,7 +200,7 @@
   justify-content: space-between;
   align-items: center;
   margin-top: 4px;
-  padding-top: 8px;
+  padding-top: 6px;
   border-top: 1px solid #F3F4F6;
 }
 

@@ -26,17 +26,17 @@ const NovelCard = ({ novel, onClick }) => {
   const [liked, setLiked] = useState(novel?.isLiked || false);
 
   // รองรับ field name หลายรูปแบบจาก API
-  const views     = novel?.views ?? novel?.view_count    ?? novel?.stats?.views     ?? 0;
-  const likes     = novel?.like_count ?? novel?.total_likes  ?? novel?.stats?.likes     ?? 0;
+  const views = novel?.views ?? novel?.view_count ?? novel?.stats?.views ?? 0;
+  const likes = novel?.like_count ?? novel?.total_likes ?? novel?.stats?.likes ?? 0;
   const bookmarks = novel?.bookshelf_count ?? novel?.bookmark_count ?? novel?.total_bookmarks ?? novel?.stats?.bookmarks ?? 0;
 
   const fmt = (v = 0) =>
-    v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M`
-    : v >= 1_000   ? `${(v/1_000).toFixed(1)}K`
-    : String(v);
+    v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M`
+      : v >= 1_000 ? `${(v / 1_000).toFixed(1)}K`
+        : String(v);
 
-  const statusInfo         = getNovelStatusInfo(novel);
-  const shouldShowBadge    = statusInfo.isCompleted;
+  const statusInfo = getNovelStatusInfo(novel);
+  const shouldShowBadge = statusInfo.isCompleted;
 
   const handleLike = (e) => {
     e.stopPropagation();
@@ -100,7 +100,9 @@ const NovelCard = ({ novel, onClick }) => {
 
         {/* Synopsis (clamp 2 lines) */}
         {novel.synopsis && (
-          <p className="novel-card__synopsis">{novel.synopsis}</p>
+          <p className="novel-card__synopsis">
+            {novel.synopsis || "\u00A0"}
+          </p>
         )}
 
         {/* Stats */}

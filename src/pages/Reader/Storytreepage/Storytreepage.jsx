@@ -142,6 +142,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
   const [treeData, setTreeData] = useState(null);
   const [novelDetail, setNovelDetail] = useState(null);
+  const [publishedChapterCount, setPublishedChapterCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
@@ -167,6 +168,22 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       } catch (e) {
         console.warn("ดึงข้อมูลนิยายหลักไม่สำเร็จ:", e);
       }
+
+        // ดึงจำนวนตอนที่เผยแพร่จริงจาก endpoint บท เพื่อใช้เป็นตัวหารในสถิติ
+        try {
+          const chRes = await fetch(`${BASE_URL}/novels/${activeNovelId}/chapters`);
+          if (chRes.ok) {
+            const chJson = await chRes.json();
+            const chapters = chJson?.data?.chapters || chJson?.chapters || chJson?.data || chJson;
+            if (Array.isArray(chapters)) {
+              const publishedCount = chapters.filter(c => c.is_published === true || c.status === 'published').length;
+              setPublishedChapterCount(publishedCount);
+            }
+          }
+        } catch (e) {
+          // ไม่บล็อกการโหลดผัง แต่เก็บ log ไว้
+          console.warn('ไม่สามารถดึงรายการบทเพื่อคำนวนจำนวนตอนที่เผยแพร่ได้:', e);
+        }
 
       const query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
       const response = await fetch(`${BASE_URL}/novels/${activeNovelId}/story-tree${query}`);
@@ -600,20 +617,20 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
               <div className="stp__survey-content">
                 <span className="stp__survey-title">
-                  เส้นทางที่ผ่านแล้ว
+                  อ่านถึงตอนที่
                 </span>
 
                 <div className="stp__survey-number">
                   <span>{stats.visitedScenes}</span>
-                  <small> / {stats.totalScenes}</small>
+                  <small> / {publishedChapterCount ?? stats.totalScenes}</small>
                 </div>
 
                 <div className="stp__progress">
                   <div
                     className="stp__progress-fill pink"
                     style={{
-                      width: `${stats.totalScenes
-                        ? (stats.visitedScenes / stats.totalScenes) * 100
+                      width: `${(publishedChapterCount ?? stats.totalScenes)
+                        ? (stats.visitedScenes / (publishedChapterCount ?? stats.totalScenes)) * 100
                         : 0
                         }%`,
                     }}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom"; 
+import { useParams, useNavigate } from "react-router-dom";
 import "./NovelDetailPage.css";
 
 import NovelCoverCard from "../../../components/NovelCoverCard/NovelCoverCard";
@@ -9,7 +9,6 @@ import FollowButton from "../../../components/FollowButton/FollowButton";
 import ProgressBar from "../../../components/ProgressBar/ProgressBar";
 import EndingCollection from "../../../components/EndingCollection/EndingCollection";
 import Comments from "../../../components/Comments/Comments";
-
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -51,7 +50,7 @@ const formatMinioUrl = (url) => {
 
 const NovelDetailPage = () => {
   const { id } = useParams();
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   const [novel, setNovel] = useState(initialNovelState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -119,7 +118,7 @@ const NovelDetailPage = () => {
         const query = userId > 0 ? `?user_id=${userId}` : "";
         const response = await fetch(`${API_BASE_URL}/novels/${id}${query}`, { headers });
         const payload = await response.json().catch(() => null);
-        
+
         if (!response.ok) {
           throw new Error(
             payload?.error || payload?.message || `${response.status} ${response.statusText}`
@@ -139,7 +138,6 @@ const NovelDetailPage = () => {
           setNextSceneId(String(progressSceneId));
         }
 
-        // ถ้า API /novels/:id ยังไม่ให้ current_scene_id, ดึง story-tree เพิ่มเติม
         if (userId > 0 && !progressSceneId) {
           try {
             const treeResponse = await fetch(`${API_BASE_URL}/novels/${id}/story-tree?user_id=${userId}`, { headers });
@@ -156,32 +154,29 @@ const NovelDetailPage = () => {
           }
         }
 
-        // ดึงจำนวนตอนทั้งหมดจาก API chapters
         let chaptersCountFromApi = 0;
         try {
           const chaptersResponse = await fetch(`${API_BASE_URL}/novels/${id}/chapters`);
           if (chaptersResponse.ok) {
             const chaptersPayload = await chaptersResponse.json();
             const chaptersList = chaptersPayload?.data?.chapters || chaptersPayload?.chapters || [];
-            chaptersCountFromApi = chaptersList.length;
+            
+            const publishedChapters = chaptersList.filter((chapter) => {
+              if (typeof chapter.is_published === "boolean") {
+                return chapter.is_published === true;
+              }
+              const status = chapter.status ?? chapter.Status ?? "";
+              return String(status).toLowerCase() === "published";
+            });
+            
+            // นับเฉพาะตอนที่เปิดให้อ่านแล้ว
+            chaptersCountFromApi = publishedChapters.length; 
           }
         } catch (err) {
           console.warn("Failed to fetch chapters:", err);
         }
 
         let commentsCount = 0;
-        try {
-          const commentsResponse = await fetch(`${API_BASE_URL}/novels/${id}/comments`);
-          if (commentsResponse.ok) {
-            const commentsPayload = await commentsResponse.json();
-            const commentsData = commentsPayload?.data?.comments || commentsPayload?.comments || [];
-            const normalizedComments = Array.isArray(commentsData) ? commentsData : [];
-            setComments(normalizedComments);
-          }
-        } catch (err) {
-          console.warn("Failed to fetch comments:", err);
-          setComments([]);
-        }
 
         try {
           const countResponse = await fetch(`${API_BASE_URL}/novels/${id}/comments/count`);
@@ -194,19 +189,34 @@ const NovelDetailPage = () => {
           commentsCount = 0;
         }
 
-        // ดักจับข้อมูลความคืบหน้าจากหลังบ้าน
         const progressSource = data.progress || data.user_progress || data.userProgress || data || {};
         const isBookmarked = userId > 0 ? await fetchBookmarkedStatus(id, userId, headers) : false;
-        
-        const totalScenes = progressSource.total_scenes ?? progressSource.totalScenes ?? chaptersCountFromApi ?? 0;
-        const visitedScenes = progressSource.visited_scenes ?? progressSource.visitedScenes ?? 0;
+
+        let currentChapterProgress = progressSource.current_chapter ?? progressSource.currentChapter ?? 0;
+        const totalChaptersProgress = progressSource.total_chapters ?? progressSource.totalChapters ?? chaptersCountFromApi ?? 0;
         const totalChoices = progressSource.total_choices ?? progressSource.totalChoices ?? 0;
         const discoveredChoices = progressSource.discovered_choices ?? progressSource.discoveredChoices ?? 0;
         const totalEndings = progressSource.total_endings ?? progressSource.totalEndings ?? 0;
 
-        // คำนวณเปอร์เซ็นต์อ่านแบบ Real-time
-        const calculatedPercentage = totalScenes > 0 
-          ? Math.round((visitedScenes / totalScenes) * 100) 
+        if (currentChapterProgress === 0 && progressSceneId) {
+          try {
+            const sceneResp = await fetch(`${API_BASE_URL}/scenes/${progressSceneId}`);
+            if (sceneResp.ok) {
+              const scenePayload = await sceneResp.json().catch(() => null);
+              const sceneData = scenePayload?.data || scenePayload || {};
+              const sceneEpisode = sceneData.chapter_episode ?? sceneData.chapterEpisode ?? sceneData.episode ?? sceneData.chapter_order ?? sceneData.order ?? 0;
+              if (sceneEpisode > 0) {
+                currentChapterProgress = sceneEpisode;
+              }
+            }
+          } catch (err) {
+            console.warn("Failed to fetch current scene chapter for progress:", err);
+          }
+        }
+
+        // 🌟 แก้ไข: คำนวณเปอร์เซ็นต์สัมพันธ์กับจำนวนตอนจริง ไม่ใช่ระดับฉากย่อย
+        const calculatedPercentage = totalChaptersProgress > 0
+          ? Math.round((currentChapterProgress / totalChaptersProgress) * 100)
           : 0;
 
         setNovel({
@@ -214,22 +224,21 @@ const NovelDetailPage = () => {
           title: nData.title || "ไม่พบชื่อเรื่อง",
           categories: Array.isArray(nData.categories)
             ? Array.from(new Set(
-                nData.categories
-                  .map(cat => typeof cat === "object" ? cat.name : cat)
-                  .filter(Boolean)
-              ))
+              nData.categories
+                .map(cat => typeof cat === "object" ? cat.name : cat)
+                .filter(Boolean)
+            ))
             : ["ทั่วไป"],
           coverImage: formatMinioUrl(nData.cover_image) || null,
           author: {
             displayName: nData.author_name || nData.pen_name || "ไม่ทราบผู้แต่ง",
             avatarUrl: formatMinioUrl(nData.author_avatar) || null,
-            // Prefer explicit writer_id when API provides it; fall back to author_id/user_id
             writer_id: nData.author_writer_id || nData.author_writerId || nData.author_id || nData.user_id || null,
             user_id: nData.user_id || nData.author_id || null,
             id: nData.author_id || nData.user_id || null,
           },
           synopsis: nData.captions || nData.introduction || "ไม่มีเรื่องย่อ",
-          
+
           stats: {
             views: nData.views || 0,
             likes: nData.like_count || nData.likeCount || 0,
@@ -241,17 +250,17 @@ const NovelDetailPage = () => {
           },
 
           userProgress: {
-            percentage: calculatedPercentage, 
-            currentChapter: visitedScenes,       
-            totalChapters: totalScenes,          
-            discoveredChoices: discoveredChoices, 
-            totalChoices: totalChoices,          
+            percentage: calculatedPercentage,
+            currentChapter: currentChapterProgress,
+            totalChapters: totalChaptersProgress,
+            discoveredChoices: discoveredChoices,
+            totalChoices: totalChoices,
           },
           synopsis_detail: nData.introduction || "ยังไม่มีรายละเอียดเพิ่มเติม",
           isLiked: nData.is_liked || nData.isLiked || false,
           isBookmarked: isBookmarked,
         });
-        // ตั้งค่าสถานะการติดตามถ้าข้อมูลมี
+
         try {
           const isFollowing = Boolean(data.is_following || data.isFollowing || nData.is_following || nData.isFollowing);
           setIsFollowingAuthor(isFollowing);
@@ -513,7 +522,7 @@ const NovelDetailPage = () => {
       <div className="novel-detail__container">
         <button
           className="novel-detail__back"
-          onClick={() => navigate("/")} 
+          onClick={() => navigate("/")}
           aria-label="กลับหน้าหลัก"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -549,8 +558,7 @@ const NovelDetailPage = () => {
                 )}
               </div>
               <span className="novel-detail__author-name">{novel.author.displayName}</span>
-              
-              {/* ปุ่มติดตามนักเขียน */}
+
               {novel.author?.writer_id || novel.author?.id ? (
                 <FollowButton
                   writerId={novel.author.writer_id || novel.author.id || novel.author.user_id}
@@ -564,26 +572,28 @@ const NovelDetailPage = () => {
 
             <p className="novel-detail__synopsis">{novel.synopsis}</p>
 
-            <ActionButtons
-              isBookmarked={novel.isBookmarked}
-              isLiked={novel.isLiked}
-              readLabel={novel.userProgress.currentChapter > 0 ? "อ่านต่อ" : "อ่านเลย"}
-              readAriaLabel={novel.userProgress.currentChapter > 0 ? "อ่านต่อ" : "อ่านเลย"}
-              onRead={handleRead}
-              onBookmark={handleBookmark}
-              onLike={handleLike}
-            />
-
-            <div className="novel-detail__restart-row">
-              <button
-                className="novel-detail__restart-button"
-                type="button"
-                onClick={handleRestartConfirmOpen}
-              >
-                เริ่มอ่านใหม่
-              </button>
+            <div className="novel-detail__action-group">
+              <ActionButtons
+                isBookmarked={novel.isBookmarked}
+                isLiked={novel.isLiked}
+                readLabel={novel.userProgress.currentChapter > 0 ? "อ่านต่อ" : "อ่านเลย"}
+                readAriaLabel={novel.userProgress.currentChapter > 0 ? "อ่านต่อ" : "อ่านเลย"}
+                onRead={handleRead}
+                onBookmark={handleBookmark}
+                onLike={handleLike}
+              />
+              <div className="novel-detail__restart-row">
+                <button
+                  className="novel-detail__restart-button"
+                  type="button"
+                  onClick={handleRestartConfirmOpen}
+                >
+                  🔄 เริ่มอ่านใหม่
+                </button>
+              </div>
             </div>
 
+            {/* 🌟 ปรับปรุง UX ส่วนความคืบหน้า: ควบรวมฟังก์ชันจัดการความคืบหน้ามาไว้ด้วยกันอย่างเป็นระเบียบ */}
             <div className="novel-detail__progress">
               <ProgressBar
                 percentage={novel.userProgress.percentage}
@@ -649,7 +659,6 @@ const NovelDetailPage = () => {
           }}
         />
 
-        {/* 🌟 กล่องแจ้งเตือนกรณีไม่มีเนื้อหา (No Content Modal Pop-up) */}
         {showNoContentDialog && (
           <div style={{
             position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
@@ -750,7 +759,7 @@ const NovelDetailPage = () => {
           </div>
         )}
 
-      </div> 
+      </div>
     </div>
   );
 };

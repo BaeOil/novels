@@ -1,11 +1,13 @@
 import React from "react";
-import "./RestartReadingButton.css";
+// สามารถเอาบรรทัด import "./RestartReadingButton.css" ออกได้เลย 
+// เพราะเราจะไปใช้ class จาก rp__ending-btn แทน
 
-const RestartReadingButton = ({ onRestart, disabled = false }) => {
+const RestartReadingButton = ({ onRestart, disabled = false, className = "" }) => {
   return (
     <button
       type="button"
-      className="restart-reading-button"
+      // เปลี่ยนมาใช้ class แบบเดียวกับปุ่ม "กลับหน้ารายละเอียด"
+      className={`rp__ending-btn rp__ending-btn--outline ${className}`} 
       onClick={onRestart}
       disabled={disabled}
       aria-label="เริ่มอ่านใหม่"
