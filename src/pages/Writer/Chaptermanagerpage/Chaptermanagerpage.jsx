@@ -114,7 +114,6 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
           <div className="cm-banner__info flex flex-col justify-center" style={{ display: 'flex', flexDirection: 'column' }}>
             <h2 className="cm-banner__title" style={{ marginTop: 0, marginBottom: '8px' }}>{title}</h2>
             <p className="cm-banner__synopsis" style={{ marginBottom: '12px' }}>{captions}</p>
-
             {categoryNames.length > 0 && (
               <div className="cm-banner__categories" style={{ margin: '0 0 12px 0' }}>
                 {categoryNames.map((name, idx) => (
@@ -124,7 +123,6 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
                 ))}
               </div>
             )}
-
             <div className="cm-banner__stats flex items-center flex-wrap gap-2" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <span style={{ fontWeight: 600, color: '#475569' }}>{chapterCount} ตอน</span>
               <span className="cm-banner__dot">·</span>
@@ -173,7 +171,7 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
   );
 };
 
-const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCreate, onDelete, openConfirmDialog }) => {
+const ChoiceRow = ({ choice, fromSceneId, sceneOptions = [], currentChapterId, onUpdate, onCreate, onDelete, openConfirmDialog }) => {
   const choiceId = choice?.id ?? choice?.ID ?? choice?.choice_id ?? choice?.ChoiceID;
   const choiceText = choice?.label ?? choice?.Label ?? choice?.text ?? choice?.Text ?? "";
   const choiceTargetSceneId = choice?.to_scene_id ?? choice?.ToSceneID ?? choice?.target_scene_id ?? choice?.TargetSceneID ?? "";
@@ -244,7 +242,7 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
     }
 
     const payload = {
-      from_scene_id: parseInt(choice.from_scene_id ?? choice.fromSceneID ?? currentChapterId, 10),
+      from_scene_id: parseInt(choice.from_scene_id ?? choice.fromSceneID ?? fromSceneId, 10),
       to_scene_id: parseInt(effectiveSubScene, 10) || 0,
       label: text.trim(),
     };
@@ -608,7 +606,6 @@ const SceneCard = ({
         boxSizing: 'border-box',
         gap: '20px'
       }}>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
           <button
             onClick={() => setIsBodyOpen(!isBodyOpen)}
@@ -869,6 +866,7 @@ const SceneCard = ({
             <ChoiceRow
               key={`choice-row-${choice.id ?? choice.ID ?? choice.choice_id ?? choice.ChoiceID ?? i}`}
               choice={choice}
+              fromSceneId={sceneId} // ส่ง ID ของฉากต้นทางจริงเพื่อความแม่นยำในการบันทึก choice
               sceneOptions={allChapters}
               currentChapterId={chapterId}
               onUpdate={handleApplyChoice}
@@ -1233,6 +1231,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+
   const fetchNovelAndChapters = async () => {
     if (!currentNovelId) {
       setLoading(false);
@@ -1360,6 +1359,16 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     }
   }, [currentNovelId]);
 
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      if (currentNovelId) {
+        fetchNovelAndChapters();
+      }
+    };
+    window.addEventListener("novel-data-updated", handleDataUpdate);
+    return () => window.removeEventListener("novel-data-updated", handleDataUpdate);
+  }, [currentNovelId]);
+
   const openCreateChapterForm = () => {
     setDraftChapterTitle("");
     setDraftChapterStatus("draft");
@@ -1405,6 +1414,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         const data = await res.json();
         const createdChapterId = data.chapter_id ?? data.chapter?.id ?? data.chapter?.ID ?? data.chapter?.chapter_id ?? data.data?.chapter_id;
         await fetchNovelAndChapters();
+        window.dispatchEvent(new Event("novel-data-updated"));
         if (createdChapterId) {
           setActiveChapterId(createdChapterId);
         }
@@ -1453,6 +1463,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     }
     try {
       await confirmDialog.action();
+      window.dispatchEvent(new Event("novel-data-updated"));
     } catch (err) {
       console.error("Confirm action failed:", err);
     } finally {
@@ -1463,6 +1474,8 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const openConfirmDialog = ({ title, message, action, confirmLabel = "ยืนยัน" }) => {
     setConfirmDialog({ title, message, action, confirmLabel });
   };
+
+
 
   const handleToggleNovelStatus = async () => {
     if (!currentNovelId || !novel) return;
@@ -1497,7 +1510,11 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             body: JSON.stringify(payload)
           });
 
-          if (!res.ok) throw new Error("อัปเดตสถานะนิยายไม่สำเร็จ");
+          if (!res.ok) {
+            const errText = await res.text().catch(() => "");
+            throw new Error(errText || "อัปเดตสถานะนิยายไม่สำเร็จ");
+          }
+
           await fetchNovelAndChapters();
         } finally {
           setIsUpdatingNovelStatus(false);
@@ -1515,7 +1532,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       action: async () => {
         try {
           const authToken = getToken();
-          if (!authToken) return;
+          if (!authToken) {
+            alert("กรุณาเข้าสู่ระบบก่อนทำรายการ");
+            return;
+          }
           const res = await fetch(`${API_BASE}/chapters/${chapterId}`, {
             method: "DELETE",
             headers: {
@@ -1556,6 +1576,16 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   });
   if (loading) {
     return <div className="cm-loading-fullscreen">🔄 โหลดข้อมูลพล็อตสตอรี่ทรี...</div>;
+  }
+
+  if (!currentNovelId) {
+    return (
+      <div className="cm-layout" style={{ padding: "40px" }}>
+        <div className="cm-empty-state">
+          ⚠️ ตรวจพบข้อผิดพลาด: ไม่พบรหัสไอดีนิยายในระบบการจัดการ
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1750,6 +1780,8 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
           onCancel={closeConfirmDialog}
         />
       )}
+
+
     </div>
   );
 };

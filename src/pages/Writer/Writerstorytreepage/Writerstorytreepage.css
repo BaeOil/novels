@@ -1,1152 +1,1025 @@
-/* src/pages/Writer/WriterStoryTree/WriterStoryTreePage.css */
+/* src/pages/Writer/WriterStoryTreePage/Writerstorytreepage.css */
 
-/* ══════════════════════════════════════════
-   Page Layout
-══════════════════════════════════════════ */
-
+/* ─────────────────────────────────────────────
+   Main Page Layout 
+   ───────────────────────────────────────────── */
 .wst-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background: var(--white);
-  overflow: hidden;
+  height: calc(100vh - 80px); /* หักความสูงเผื่อ Global Navbar และ Footer เพื่อไม่ให้หน้ารวมล้น */
+  max-height: calc(100vh - 80px);
+  width: 100%;
+  background-color: #faf9f6;
+  font-family: 'Outfit', 'Inter', 'Prompt', sans-serif;
+  color: #334155;
+  overflow: hidden; /* ล็อกความสูงหน้าหลักไม่ให้มี scrollbar แนวตั้งดันจอ */
+  box-sizing: border-box;
 }
 
-/* ══════════════════════════════════════════
-   Top Bar
-══════════════════════════════════════════ */
-
-.wst-topbar {
-  height: 52px;
-  background: var(--white);
-  border-bottom: 1px solid var(--gray-100);
+/* Loading & Error States */
+.wst-loading-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20px 0 16px;
-  flex-shrink: 0;
+  justify-content: center;
+  height: calc(100vh - 80px);
+  font-size: 1.1rem;
+  color: #64748b;
   gap: 16px;
-  box-shadow: 0 1px 0 var(--gray-100);
+}
+
+.wst-error-text {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.wst-error-button {
+  background: #db2777;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.wst-error-button:hover {
+  opacity: 0.9;
+}
+
+/* ─────────────────────────────────────────────
+   Topbar
+   ───────────────────────────────────────────── */
+.wst-topbar {
+  height: 60px; /* ลดความสูง Topbar ลงเล็กน้อย */
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
 }
 
 .wst-topbar__left {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex: 1;
-  min-width: 0;
 }
 
-/* Back button */
 .wst-topbar__back {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1.5px solid var(--gray-100);
-  background: var(--white);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--gray-600);
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #475569;
   cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  flex-shrink: 0;
+  transition: all 0.2s;
 }
 
 .wst-topbar__back:hover {
-  border-color: var(--pink-300);
-  color: var(--pink-500);
-  background: var(--pink-50);
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
 }
 
-/* Vertical divider */
 .wst-topbar__divider-v {
   width: 1px;
-  height: 22px;
-  background: var(--gray-100);
-  flex-shrink: 0;
+  height: 20px;
+  background-color: #e2e8f0;
 }
 
-/* + เพิ่มตอน button */
-.wst-topbar__add {
-  display: inline-flex;
+.wst-topbar__actions {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 18px;
-  border-radius: 10px;
-  border: none;
-  background: var(--pink-500);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
+}
+
+.wst-topbar__add {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.18s ease;
-  box-shadow: 0 3px 12px rgba(233, 30, 140, 0.28);
-  white-space: nowrap;
-  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  transition: all 0.2s;
 }
 
 .wst-topbar__add:hover {
-  background: var(--pink-700);
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
   transform: translateY(-1px);
-  box-shadow: 0 5px 16px rgba(233, 30, 140, 0.38);
 }
 
-/* ══════════════════════════════════════════
-   Legend
-══════════════════════════════════════════ */
-
+/* Legend */
 .wst-legend {
   display: flex;
   align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .wst-legend__item {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  color: var(--ink);
-  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #64748b;
 }
 
 .wst-legend__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.wst-legend__label {
-  font-size: 13px;
-  color: var(--ink);
-}
-
-/* ══════════════════════════════════════════
-   Body Layout: Canvas + Sidebar
-══════════════════════════════════════════ */
-
-.wst-body {
-  display: grid;
-  grid-template-columns: 320px 1fr; /* right-side stats/details now left, canvas fills middle */
-  gap: 18px;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* Left panel (new) */
-.wst-leftpanel {
-  display: none !important;
-}
-
-/* ensure SceneDetailsCard doesn't overlap header and is scrollable */
-.wst-leftpanel .wst-scene-details {
-  margin-top: 6px;
-  max-height: calc(100vh - 180px);
-  overflow: auto;
-  padding-right: 6px;
-}
-
-/* Left panel stats */
-.wst-leftpanel__stats h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: var(--ink);
-}
-
-/* Left panel stats row */
-.wst-left-stats-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px dashed var(--gray-100);
-  color: var(--ink);
-}
-
-/* Canvas area keeps original styles but ensure it's centered */
-.wst-canvas-area {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 16px;
-}
-
-/* Floating toolbar (right) */
-.wst-toolbar {
-  position: relative; /* inside grid column */
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.wst-toolbar button {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  border: 1px solid var(--gray-100);
-  background: var(--white);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-  transition: transform .12s ease, background .12s ease;
-}
-
-.wst-toolbar button:hover {
-  transform: translateY(-3px);
-  background: var(--pink-50);
-}
-
-/* ensure reactflow controls/minimap visible above canvas background */
-.wst-reactflow .react-flow__controls { z-index: 12; }
-.wst-reactflow .react-flow__minimap { z-index: 11; }
-
-/* responsive: collapse left panel on small screens */
-@media (max-width: 1000px) {
-  .wst-body {
-    grid-template-columns: 1fr; /* single column: canvas only */
-  }
-  .wst-leftpanel, .wst-sidebar, .wst-toolbar {
-    display: none;
-  }
-}
-
-/* ══════════════════════════════════════════
-   Right Sidebar
-══════════════════════════════════════════ */
-
-.wst-sidebar {
-  background: var(--white);
-  border-left: none;
-  border-right: 1px solid var(--gray-100);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* เพิ่มการ scroll smooth */
-  scroll-behavior: smooth;
-  order: -1; /* move to left in grid */
-  min-width: 320px;
-  max-width: 320px;
-}
-
-/* ── Top: novel info ── */
-.wst-sidebar__top {
-  padding: 24px 20px 16px;
-  border-bottom: 1px solid var(--gray-100);
-  flex-shrink: 0;
-}
-
-.wst-sidebar__novel-title {
-  font-family: 'Open Sans', serif;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--ink);
-  margin-bottom: 6px;
-  line-height: 1.3;
-}
-
-.wst-sidebar__updated {
-  font-size: 12px;
-  color: var(--gray-300);
-}
-
-/* ── Stats ── */
-.wst-sidebar__stats {
-  padding: 18px 20px;
-  border-bottom: 1px solid var(--gray-100);
-  flex-shrink: 0;
-}
-
-.wst-sidebar__stat-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.wst-sidebar__stat-row:last-child {
-  margin-bottom: 0;
-}
-
-.wst-sidebar__stat-label {
-  font-size: 14px;
-  color: var(--ink);
-  font-weight: 400;
-}
-
-.wst-sidebar__stat-val {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.wst-sidebar__stat-val--pink {
-  color: var(--pink-500);
-}
-
-/* Progress bar */
-.wst-sidebar__progress-track {
-  height: 6px;
-  background: var(--gray-100);
-  border-radius: 3px;
-  overflow: hidden;
-  margin: 10px 0 0;
-}
-
-.wst-sidebar__progress-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--pink-300), var(--pink-500));
-  transition: width 0.6s ease;
-}
-
-/* ── Divider ── */
-.wst-sidebar__divider {
-  height: 1px;
-  background: var(--gray-100);
-  margin: 0;
-  flex-shrink: 0;
-}
-
-/* ── Chapter label ── */
-.wst-sidebar__ch-label {
-  padding: 16px 20px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--gray-300);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-
-/* ── Chapter accordion list ── */
-.wst-sidebar__chapters {
-  padding: 0 14px 20px;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.wst-sidebar__chapter {
-  margin-bottom: 4px;
-}
-
-.wst-sidebar__ch-heading {
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--pink-600);
-  background: var(--pink-50);
-  border-radius: 8px;
-  border-left: 3px solid var(--pink-500);
-  margin-bottom: 6px;
-}
-
-/* Chapter toggle button */
-.wst-sidebar__ch-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-family: 'Sarabun', sans-serif;
-  text-align: left;
-  transition: background 0.13s;
-}
-
-.wst-sidebar__ch-btn:hover {
-  background: var(--pink-50);
-}
-
-.wst-sidebar__ch-num {
-  font-size: 13px;
-  font-weight: 600;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Scene list inside chapter */
-.wst-sidebar__scenes {
-  padding-left: 24px;
-  animation: wst-slide-down 0.15s ease;
-}
-
-@keyframes wst-slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.wst-sidebar__scene-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.12s;
-  margin-bottom: 3px;
-}
-
-.wst-sidebar__scene-row:hover {
-  background: var(--gray-50);
-}
-
-.wst-sidebar__scene-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  flex-shrink: 0;
 }
 
-.wst-sidebar__scene-label {
-  font-size: 13px;
-  color: var(--gray-600);
-  line-height: 1.4;
-}
-
-/* ══════════════════════════════════════════
-   Scene Details Card (ปรับขนาดตัวอักษรให้เหมาะสม)
-══════════════════════════════════════════ */
-
-.wst-scene-details {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  padding: 28px 20px;
-  animation: wst-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Header with Scene Number + Type Badge + Edit Button */
-.wst-scene-details__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.wst-scene-details__header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-
-.wst-scene-details__scene-number {
-  font-family: 'Open Sans', serif;
-  font-size: 19px;
-  font-weight: 700;
-  color: var(--ink);
-  margin: 0;
-  line-height: 1.2;
-  letter-spacing: -0.3px;
-}
-
-.wst-scene-details__type-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 7px 14px;
-  border-radius: 12px;
-  border: 1.5px solid;
-  background: var(--white);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-
-/* Edit Button */
-.wst-scene-details__edit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 18px;
-  border-radius: 10px;
-  border: 1.5px solid var(--pink-500);
-  background: var(--pink-500);
-  color: var(--white);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.3);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.wst-scene-details__edit-btn:hover {
-  background: var(--pink-700);
-  border-color: var(--pink-700);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(233, 30, 140, 0.4);
-}
-
-.wst-scene-details__edit-btn:active {
-  transform: translateY(0);
-}
-
-/* Scene Title */
-.wst-scene-details__title {
-  font-family: 'Open Sans', serif;
-  font-size: 21px;
-  font-weight: 700;
-  color: var(--pink-600);
-  margin: 0;
-  line-height: 1.35;
-  letter-spacing: -0.3px;
-  word-break: break-word;
-}
-
-/* Meta Info Grid */
-.wst-scene-details__meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  padding: 18px;
-  background: linear-gradient(135deg, rgba(255, 208, 229, 0.4) 0%, rgba(255, 255, 255, 0) 100%);
-  border-radius: 12px;
-  border: 1px solid rgba(233, 30, 140, 0.12);
-}
-
-.wst-scene-details__meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.wst-scene-details__meta-label {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--gray-600);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.wst-scene-details__meta-value {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-/* Content Section */
-.wst-scene-details__content-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.wst-scene-details__section-title {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.wst-scene-details__content {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--gray-700);
-  background: var(--gray-50);
-  padding: 14px;
-  border-radius: 10px;
-  border-left: 3px solid var(--pink-300);
-  margin: 0;
-  max-height: 140px;
-  overflow-y: auto;
-}
-
-/* Choices Section */
-.wst-scene-details__choices-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 14px;
-  border-top: 1px solid var(--gray-100);
-}
-
-.wst-scene-details__choices-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.wst-scene-details__count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 7px;
-  border-radius: 50%;
-  background: var(--pink-500);
-  color: var(--white);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.wst-scene-details__choices-list {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-/* Choice Items */
-.wst-scene-details__choice-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 11px 13px;
-  border-radius: 10px;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  transition: all 0.15s ease;
-  border: 1px solid;
-}
-
-.wst-scene-details__choice-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.wst-scene-details__choice-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 12px;
-  font-weight: 400;
-  opacity: 0.75;
-}
-
-.wst-scene-details__choice-source,
-.wst-scene-details__choice-destination {
-  display: block;
-}
-
-.wst-scene-details__choice-item--in {
-  background: rgba(56, 189, 248, 0.08);
-  border-color: #38BDF8;
-  color: #0369A1;
-}
-
-.wst-scene-details__choice-item--in:hover {
-  background: rgba(56, 189, 248, 0.15);
-  transform: translateX(2px);
-}
-
-.wst-scene-details__choice-item--out {
-  background: rgba(233, 30, 140, 0.08);
-  border-color: var(--pink-300);
-  color: var(--pink-700);
-}
-
-.wst-scene-details__choice-item--out:hover {
-  background: rgba(233, 30, 140, 0.15);
-  transform: translateX(2px);
-}
-
-.wst-scene-details__choice-arrow {
-  font-weight: 700;
-  opacity: 0.6;
-  font-size: 14px;
-}
-
-.wst-scene-details__choice-text {
-  flex: 1;
-  font-weight: 500;
-}
-
-/* Empty State */
-.wst-scene-details__empty-state {
-  padding: 22px 16px;
-  text-align: center;
-  background: var(--gray-50);
-  border-radius: 10px;
-  border: 1px dashed var(--gray-200);
-  margin-top: 8px;
-}
-
-.wst-scene-details__empty-state p {
-  margin: 0;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  color: var(--gray-500);
-  font-style: italic;
-}
-
-/* Animations */
-@keyframes wst-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ✅ Hide old styles */
-.wst-sidebar__details-section {
-  display: none !important;
-}
-
-.wst-sidebar__detail-item,
-.wst-sidebar__detail-label,
-.wst-sidebar__detail-value,
-.wst-sidebar__detail-content,
-.wst-sidebar__choices-section,
-.wst-sidebar__choices-label,
-.wst-sidebar__choices-list,
-.wst-sidebar__choice-item,
-.wst-sidebar__edit-btn {
-  display: none !important;
-}
-
-.react-flow__minimap {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  background: white;
-}
-
-.react-flow__controls {
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,.08);
-}
-
-.react-flow__controls-button {
-  width: 32px;
-  height: 32px;
-}
-
-/* Make canvas parents flexible and give React Flow measurable height */
-.wst-canvas-wrap {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0; /* allow child to shrink correctly */
-  overflow: hidden;
-}
-
-.wst-canvas-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* container that directly wraps ReactFlow must have explicit height (also set inline in JSX) */
-.wst-reactflow-container {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  display: block;
-  position: relative;
-}
-
-/* ensure React Flow internals fill the wrapper */
-.wst-reactflow-container .reactflow-wrapper,
-.wst-reactflow-container .react-flow,
-.wst-reactflow-container > .reactflow-wrapper,
-.wst-reactflow-container > .react-flow,
-.wst-reactflow .reactflow-wrapper,
-.wst-reactflow .react-flow {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* LEFT PANEL: moved into sidebar, removed from wst-body grid */
-.wst-leftpanel {
-  display: none !important;
-}
-
-/* UPDATE: sidebar now is the left panel — adjust grid to 2 columns */
+/* ─────────────────────────────────────────────
+   Body Layout (Canvas & Sidebar)
+   ───────────────────────────────────────────── */
 .wst-body {
-  display: grid;
-  grid-template-columns: 320px 1fr; /* right-side stats/details now left, canvas fills middle */
-  gap: 18px;
+  display: flex;
   flex: 1;
+  min-height: 0; /* ล็อกสัดส่วนความสูงไม่ให้ขยายเกิน parent container */
+  height: calc(100% - 60px); /* หักลบความสูง Topbar ในอัตราส่วน % */
   overflow: hidden;
-  min-height: 0;
-}
-
-/* ensure sidebar takes left position and has proper styling */
-.wst-sidebar {
-  background: var(--white);
-  border-left: none;
-  border-right: 1px solid var(--gray-100);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scroll-behavior: smooth;
-  order: -1; /* move to left in grid */
-  min-width: 320px;
-  max-width: 320px;
-}
-
-/* Responsive: collapse sidebar on small screens */
-@media (max-width: 1000px) {
-  .wst-body {
-    grid-template-columns: 1fr;
-  }
-  .wst-sidebar {
-    display: none;
-  }
-  .wst-reactflow-container { height: calc(70vh); }
-  .wst-canvas-toolbar { right: 12px; top: 12px; flex-direction: row; }
-}
-
-/* fix: ensure left header controls (edit button) are not absolute and do not overlap */
-.wst-node-card__edit,
-.wst-scene-details__edit-btn {
-  position: relative;
-}
-
-/* Remove heading to save space */
-.wst-canvas-heading {
-  display: none !important;
-}
-
-.wst-canvas-note {
-  display: none !important;
-}
-
-/* Adjust page layout to fit all content without scroll */
-.wst-page {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--white);
-  overflow: hidden;
-}
-
-.wst-body {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 0;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* Canvas area takes full remaining space */
-.wst-canvas-area {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0;
-}
-
-.wst-canvas-wrap {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.wst-canvas-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.wst-reactflow-container {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  display: block;
-  position: relative;
-}
-
-/* Floating toolbar — positioned on right side, vertical stack */
-.wst-canvas-toolbar {
-  position: absolute;
-  right: 16px;
-  top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 1400;
-}
-
-.wst-toolbar-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  border: 1px solid var(--gray-200);
-  background: var(--white);
-  cursor: pointer;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 11px;
-  color: var(--gray-600);
-  font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.15s ease;
-}
-
-.wst-toolbar-btn:hover:not(:disabled) {
-  background: var(--pink-50);
-  border-color: var(--pink-300);
-  color: var(--pink-600);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(233, 30, 140, 0.2);
-}
-
-.wst-toolbar-btn.active {
-  background: linear-gradient(135deg, rgba(233,30,140,0.15), rgba(233,30,140,0.08));
-  border-color: var(--pink-400);
-  color: var(--pink-700);
-}
-
-.wst-toolbar-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.wst-toolbar-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-/* Ensure sidebar fills vertical space without scrolling content outside */
-.wst-sidebar {
-  background: var(--white);
-  border-left: 1px solid var(--gray-100);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scroll-behavior: smooth;
-  min-width: 320px;
-  max-width: 320px;
-  height: 100%;
   box-sizing: border-box;
 }
 
-/* React Flow controls position */
-.wst-reactflow .react-flow__controls {
-  z-index: 1500;
-  right: auto;
-  left: 16px;
-  bottom: 16px;
-  top: auto;
-}
-
-.wst-reactflow .react-flow__minimap {
-  z-index: 1490;
-  right: 16px;
-  left: auto;
-  bottom: 16px;
-  top: auto;
-}
-
-/* Responsive: stack toolbar horizontally on small screens */
-@media (max-width: 1000px) {
-  .wst-body {
-    grid-template-columns: 1fr;
-  }
-  .wst-sidebar {
-    display: none;
-  }
-  .wst-canvas-toolbar {
-    bottom: 16px;
-    top: auto;
-    right: auto;
-    left: 16px;
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: calc(100% - 32px);
-    gap: 6px;
-  }
-  .wst-toolbar-btn {
-    width: 48px;
-    height: 48px;
-    flex: 0 0 calc(20% - 5px);
-  }
-  .wst-reactflow .react-flow__controls {
-    right: 16px;
-    bottom: 16px;
-  }
-}
-
-/* Node Card Styling — Design per image */
-.wst-node-card {
+/* Canvas Area */
+.wst-canvas-area {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 260px;
-  padding: 16px 14px 50px 14px;
-  border: 2px solid;
-  border-radius: 16px;
-  background-color: inherit;
-  font-family: 'Sarabun', sans-serif;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s ease;
   position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.wst-canvas-heading {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.wst-canvas-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.wst-canvas-sub {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+.wst-canvas-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  height: 100%;
+}
+
+.wst-canvas-scroll {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─────────────────────────────────────────────
+   React Flow Toolbar Overlay
+   ───────────────────────────────────────────── */
+.wst-canvas-toolbar {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  padding: 4px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
+}
+
+.wst-toolbar-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 4px;
+  border: 1px solid transparent;
+}
+
+.wst-toolbar-btn:hover {
+  background-color: #f1f5f9;
+  color: #334155;
+}
+
+.wst-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.wst-toolbar-btn--select-active {
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+  border-color: #bfdbfe !important;
+  font-weight: 700;
+}
+
+.wst-toolbar-btn--delete-active {
+  background-color: #fef2f2 !important;
+  color: #ef4444 !important;
+  border-color: #fecaca !important;
+  font-weight: 700;
+}
+
+.wst-toolbar-btn--connect-active {
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+  border-color: #bfdbfe !important;
+  font-weight: 700;
+}
+
+.wst-toolbar-btn--pan-active {
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 700;
+}
+
+.wst-toolbar-btn--add-active {
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+  border-color: #bfdbfe !important;
+  font-weight: 700;
+}
+
+/* ─────────────────────────────────────────────
+   React Flow Custom Node (StoryNode)
+   ───────────────────────────────────────────── */
+.wst-node-card {
+  width: 260px;
+  background: #ffffff;
+  border: 2px solid #38bdf8;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.02);
+  text-align: left;
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
 }
 
 .wst-node-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  transform: scale(1.02);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.05);
 }
 
-/* Badge (top-left: Chapter number) */
 .wst-node-card__badge {
-  display: inline-block;
-  max-width: fit-content;
-  padding: 5px 10px;
-  background: rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  font-size: 11px;
+  font-size: 0.72rem;
   font-weight: 700;
-  opacity: 0.7;
-  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
 }
 
-/* Scene number */
 .wst-node-card__scene-num {
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.75;
-  margin-bottom: 4px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
 }
 
-/* Title */
 .wst-node-card__title {
-  font-size: 16px;
+  font-size: 0.95rem;
   font-weight: 700;
-  line-height: 1.35;
-  margin: 0;
+  color: #0f172a;
+  line-height: 1.4;
   word-break: break-word;
 }
 
-/* Description */
 .wst-node-card__desc {
-  font-size: 12px;
+  font-size: 0.78rem;
   line-height: 1.5;
-  opacity: 0.8;
-  margin: 0;
+  opacity: 0.85;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
 }
 
-/* Edit button — move to bottom left, brighter with white */
 .wst-node-card__edit {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 8px;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  color: inherit;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  max-width: fit-content;
-  margin-top: auto;
   align-self: flex-start;
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .wst-node-card__edit:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+/* React Flow Handle custom style */
+.react-flow__handle {
+  width: 10px !important;
+  height: 10px !important;
+  background: #94a3b8 !important;
+  border: 2px solid #ffffff !important;
+}
+
+/* ─────────────────────────────────────────────
+   Sidebar & Stats
+   ───────────────────────────────────────────── */
+.wst-sidebar {
+  width: 320px;
   background: #ffffff;
-  border-color: rgba(255, 255, 255, 1);
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
-}
-
-.wst-node-card__edit:active {
-  transform: scale(0.98);
-}
-
-/* Node card layout: flex + relative for button positioning */
-.wst-node-card {
+  border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 260px;
-  padding: 16px 14px 50px 14px;
-  border: 2px solid;
-  border-radius: 16px;
-  background-color: inherit;
-  font-family: 'Sarabun', sans-serif;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+  max-height: 100%;
+  padding: 16px;
+  gap: 16px;
+  flex-shrink: 0;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.01);
+  box-sizing: border-box;
+}
+
+/* Stats Grid 2x2 */
+.wst-sidebar__stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.wst-sidebar__stat-card {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.01);
+  transition: all 0.2s;
+}
+
+.wst-sidebar__stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.wst-sidebar__stat-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.wst-sidebar__stat-header svg {
+  stroke-width: 2.2;
+}
+
+.wst-sidebar__stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.wst-sidebar__divider {
+  height: 1px;
+  background-color: #f1f5f9;
+  width: 100%;
+  margin: 2px 0;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────
+   Scene Details Card
+   ───────────────────────────────────────────── */
+.wst-scene-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.wst-scene-details__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wst-scene-details__scene-number {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.wst-scene-details__type-badge {
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wst-scene-details__title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+/* Action Buttons */
+.wst-scene-details__actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.wst-scene-details__btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.wst-scene-details__btn svg {
+  flex-shrink: 0;
+}
+
+.wst-scene-details__btn--edit {
+  background: #fff1f2;
+  border: 1px solid #ffe4e6;
+  color: #db2777;
+}
+
+.wst-scene-details__btn--edit:hover {
+  background: #ffe4e6;
+  border-color: #fbcfe8;
+}
+
+/* Meta Tags Section */
+.wst-scene-details__meta-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wst-scene-details__tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.wst-scene-details__tag svg {
+  color: #94a3b8;
+}
+
+/* Excerpt & Choices Section Header */
+.wst-scene-details__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.wst-scene-details__section-header svg {
+  color: #94a3b8;
+}
+
+.wst-scene-details__excerpt-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.wst-scene-details__excerpt-box {
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 10px;
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  max-height: 80px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+
+.wst-scene-details__choices-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wst-scene-details__choices-count-badge {
+  background: #fff1f2;
+  color: #db2777;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.wst-scene-details__choices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 350px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* ─────────────────────────────────────────────
+   Choice Card component
+   ───────────────────────────────────────────── */
+.wst-choice-card {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
   transition: all 0.2s ease;
-  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.01);
 }
 
-/* Remove old header styles */
-.wst-node-card__header {
-  display: none !important;
+.wst-choice-card:hover {
+  border-color: #fbcfe8;
+  background-color: #fdf2f833;
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(219, 39, 119, 0.02);
 }
 
-.wst-node-card__chapter {
-  display: none !important;
+.wst-choice-card__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  overflow: hidden;
 }
 
-.wst-node-card__scene {
-  display: none !important;
+.wst-choice-card__number {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff1f2;
+  color: #db2777;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.wst-choice-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.wst-choice-card__text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wst-choice-card__dest {
+  font-size: 0.72rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wst-choice-card__arrow {
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding-left: 4px;
+}
+
+.wst-scene-details__empty-state {
+  padding: 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+/* ─────────────────────────────────────────────
+   React Flow Controls & MiniMap
+   (ขยับปุ่มและเครื่องมือขึ้นสูงจากขอบล่าง 32px เพื่อเลี่ยงการถูกบัง)
+   ───────────────────────────────────────────── */
+.react-flow__controls {
+  bottom: 32px !important;
+  left: 24px !important;
+}
+
+.react-flow__minimap {
+  bottom: 32px !important;
+  right: 24px !important;
+}
+
+/* ─────────────────────────────────────────────
+   Floating Guidance Banner (ธีมสีน้ำเงินพรีเมียมตัวใหม่ แสดงด้านบน)
+   ───────────────────────────────────────────── */
+.wst-canvas-guidance-banner {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #eff6ff; /* โทนฟ้า/น้ำเงินพาสเทล */
+  color: #1e40af;       /* ข้อความสีน้ำเงินเข้มข้น */
+  border: 1px solid #bfdbfe; /* เส้นขอบฟ้าน้ำเงินบาง */
+  padding: 8px 18px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.1);
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+  box-sizing: border-box;
+  animation: bannerFadeIn 0.25s ease-out;
+}
+
+@keyframes bannerFadeIn {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ─────────────────────────────────────────────
+   Modal Popup (สไตล์คอนเฟิร์มการเชื่อม - ธีมสีน้ำเงิน)
+   ───────────────────────────────────────────── */
+.wst-modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 22, 44, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.wst-modal-bg.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wst-modal {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 20px 60px rgba(37, 99, 235, 0.15);
+  transform: translateY(15px) scale(0.97);
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.wst-modal-bg.open .wst-modal {
+  transform: translateY(0) scale(1);
+}
+
+.wst-modal-header {
+  padding: 20px 20px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.wst-modal-eyebrow {
+  font-size: 0.72rem;
+  color: #1d4ed8; /* น้ำเงินเข้มพรีเมียม */
+  font-weight: 700;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wst-modal-eyebrow i {
+  font-size: 13px;
+}
+
+.wst-modal-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.wst-modal-close {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 0.8rem;
+  transition: all 0.15s;
+}
+
+.wst-modal-close:hover {
+  background: #fff1f2;
+  color: #db2777;
+  border-color: #ffe4e6;
+}
+
+/* เส้นทางเชื่อมต่อ (Route Card) */
+.wst-modal-route {
+  display: flex;
+  align-items: center;
+  margin: 0 20px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.wst-route-node {
+  flex: 1;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wst-route-node-label {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.wst-route-node-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wst-route-node-id {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.wst-route-arrow {
+  padding: 0 8px;
+  color: #1d4ed8; /* น้ำเงินเข้มพรีเมียม */
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.wst-route-divider {
+  width: 1px;
+  height: 44px;
+  background: #e2e8f0;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* ฟิลด์กรอกข้อมูลตัวเลือก */
+.wst-modal-body {
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.wst-field-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wst-field-label i {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.wst-field-label .req {
+  color: #db2777;
+}
+
+.wst-field-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.15s ease-in-out;
+}
+
+.wst-field-input:focus {
+  border-color: #1d4ed8; /* สีน้ำเงินเข้มพรีเมียม */
+  box-shadow: none;      /* เอาเงาสามพิกเซลที่ทำให้เกิดขอบสองสีซ้อนกันออก */
+  outline: none;
+}
+
+.wst-field-input::placeholder {
+  color: #cbd5e1;
+}
+
+.wst-field-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+
+.wst-modal-footer {
+  padding: 16px 20px;
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.wst-modal-btn-cancel {
+  flex: 1;
+  padding: 9px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  transition: all 0.12s;
+}
+
+.wst-modal-btn-cancel:hover {
+  background: #f1f5f9;
+}
+
+.wst-modal-btn-confirm {
+  flex: 1;
+  padding: 9px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: #1d4ed8; /* น้ำเงินเข้มพรีเมียม ไม่แสบตา */
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.12s;
+}
+
+.wst-modal-btn-confirm:hover {
+  background: #1e3a8a; /* สีกรมท่าสุภาพ */
+}
+
+.wst-modal-btn-confirm:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* Toast ลอยแจ้งความสำเร็จ */
+.wst-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 99px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1000;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  animation: slideUpToast 0.25s ease-out;
+}
+
+@keyframes slideUpToast {
+  from { bottom: 0; opacity: 0; }
+  to { bottom: 24px; opacity: 1; }
+}
+
+.wst-toast.success {
+  background: #10b981;
+}
+
+.wst-toast.warn {
+  background: #f59e0b;
+}
+
+.wst-toast.error {
+  background: #ef4444;
+}
+
+.wst-toast i {
+  font-size: 15px;
 }
