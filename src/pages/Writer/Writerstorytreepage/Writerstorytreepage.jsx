@@ -14,7 +14,7 @@ import ReactFlow, {
   MarkerType,
 } from "reactflow";
 import axios from "axios";
-import "reactflow/dist/style.css";
+import "reactflow/dist/style.css";  
 import "./Writerstorytreepage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";

@@ -4,7 +4,8 @@
 //  [ ปรับแต่งเชื่อมต่อ Go หลังบ้าน ผ่าน /scenes/:id และ /story-tree ]
 // ══════════════════════════════════════════════════════════════
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom"; 
 import ReactQuill from "react-quill-new";
 import "quill/dist/quill.snow.css";
 import "./SceneEditorPage.css";
@@ -208,22 +209,41 @@ const ChoiceCard = ({
     setIsEditing(false);
   };
 
-  const COLORS = ["#f50bc6", "#F59E0B", "#6366F1"];
+  const handleCancelEdit = () => {
+    if (choice.id && String(choice.id).startsWith("choice-new-")) {
+      onDelete(choice.id);
+    } else {
+      setText(choice.text ?? choice.label ?? choice.Label ?? "");
+      setTargetType(initialScope);
+      setSubScene(initialTargetSubScene);
+      setTargetLabel(
+        choice.targetLabel ||
+        resolvedScene?.label ||
+        resolvedScene?.sceneLabel ||
+        (resolvedScene ? `${resolvedScene.chapterTitle} › ${resolvedScene.sceneLabel}` : "เลือกฉากปลายทาง...")
+      );
+      setSelectedChapterId(initialChapterId);
+      setErrorMessage("");
+      setIsEditing(false);
+    }
+  };
+
+  const COLORS = ["#db2777", "#f59e0b", "#14b8a6", "#8b5cf6", "#ec4899"];
 
   return (
     <div className="se-choice">
       <div
         className="se-choice__num"
         style={{
-          background: COLORS[index % COLORS.length] + "18",
-          color: COLORS[index % COLORS.length],
+          background: COLORS[index % COLORS.length],
+          color: "#ffffff",
         }}
       >
         {index + 1}
       </div>
 
       <div className="se-choice__body">
-        {/* === โหมดแสดงผล (อ่านอย่างเดียว) === */}
+        {/* === โmoved แสดงผล (อ่านอย่างเดียว) === */}
         {!isEditing ? (
           <div className="se-choice__view">
             <div className="se-choice__view-row">
@@ -239,8 +259,14 @@ const ChoiceCard = ({
               </span>
             </div>
             <div className="se-choice__actions">
-              <button className="se-choice__btn-action se-choice__btn-action--del" onClick={() => onDelete(choice.id)}>ลบตัวเลือก</button>
-              <button className="se-choice__btn-action se-choice__btn-action--edit" onClick={() => setIsEditing(true)}>✏️ แก้ไข</button>
+              <button 
+                type="button"
+                className="se-choice__btn-action se-choice__btn-action--del" 
+                onClick={() => onDelete(choice.id)}
+              >
+                ลบตัวเลือก
+              </button>
+              <button type="button" className="se-choice__btn-action se-choice__btn-action--edit" onClick={() => setIsEditing(true)}>✏️ แก้ไข</button>
             </div>
           </div>
         ) : (
@@ -320,9 +346,9 @@ const ChoiceCard = ({
             </div>
 
             <div className="se-choice__actions">
-              <button className="se-choice__btn-action se-choice__btn-action--del" onClick={() => onDelete(choice.id)}>ลบทิ้ง</button>
-              <button className="se-choice__btn-action se-choice__btn-action--save" onClick={handleSaveEdit}>
-                ✓ ตกลง
+              <button type="button" className="se-choice__btn-action se-choice__btn-action--cancel" onClick={handleCancelEdit}>❌ ยกเลิก</button>
+              <button type="button" className="se-choice__btn-action se-choice__btn-action--save" onClick={handleSaveEdit}>
+                ✓ ยืนยันการแก้ไข
               </button>
             </div>
             {errorMessage && (
@@ -350,20 +376,20 @@ const SceneTreeSidebar = ({
   onAddScene,
   onAddChapter,
   isPublished,
-  setIsPublished,
   isEnding,
   setIsEnding,
-  onTogglePublish,
   onToggleEnding,
   onOpenEndingSettings,
 }) => {
   const [expandedChapters, setExpandedChapters] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sceneFilter, setSceneFilter] = useState("all");
 
   useEffect(() => {
     if (chapters && chapters.length > 0) {
       const activeChs = chapters
         .filter((c) => (c.scenes || []).some((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId)))
-        .map((c) => c.id);
+        .map((c) => c.id ?? c.chapter_id ?? c.ChapterID);
       if (activeChs.length > 0) {
         setExpandedChapters((prev) => Array.from(new Set([...prev, ...activeChs])));
       }
@@ -374,6 +400,29 @@ const SceneTreeSidebar = ({
     setExpandedChapters((prev) =>
       prev.includes(chId) ? prev.filter((id) => id !== chId) : [...prev, chId]
     );
+  };
+
+  const getScenePublishState = (scene, chapter) => {
+    const statusVal = scene.status || scene.Status;
+    if (statusVal) {
+      const lowerStatus = statusVal.toString().toLowerCase();
+      if (lowerStatus === "published" || lowerStatus === "live") return "published";
+      if (lowerStatus === "draft") return "draft";
+    }
+    
+    if (scene.is_published === true || scene.isPublished === true || 
+        scene.is_published === "true" || scene.isPublished === "true") {
+      return "published";
+    }
+    
+    if (chapter) {
+      const chStatus = (chapter.status || chapter.Status || "draft").toString().toLowerCase();
+      if (chStatus === "published" || chStatus === "active") {
+        return "published";
+      }
+    }
+    
+    return "draft";
   };
 
   const getSceneStatus = (scene, allChapters) => {
@@ -389,23 +438,68 @@ const SceneTreeSidebar = ({
 
   const safeChapters = Array.isArray(chapters) ? chapters : [];
 
+  const filteredChapters = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return safeChapters
+      .map((ch, chapterIndex) => {
+        const chapterTitle = ch.title || ch.chapterTitle || "";
+        const chapterMatches = query ? chapterTitle.toLowerCase().includes(query) : false;
+        
+        const scenes = (ch.scenes || []).filter((scene) => {
+          const title = (scene.title || scene.scene_title || scene.sceneTitle || scene.label || "").toLowerCase();
+          const contentMatch = query ? (title.includes(query) || chapterMatches) : true;
+          
+          const publishState = getScenePublishState(scene, ch);
+          const filterMatch =
+            sceneFilter === "all" ||
+            (sceneFilter === "published" && publishState === "published") ||
+            (sceneFilter === "draft" && publishState === "draft");
+          
+          return contentMatch && filterMatch;
+        });
+
+        if (scenes.length > 0) {
+          return { ...ch, scenes };
+        }
+
+        if (chapterMatches && sceneFilter === "all") {
+          return { ...ch, scenes: ch.scenes || [] };
+        }
+
+        return null;
+      })
+      .filter(Boolean);
+  }, [safeChapters, searchQuery, sceneFilter]);
+
+  useEffect(() => {
+    if (searchQuery.trim() && filteredChapters.length > 0) {
+      const keys = filteredChapters.map((ch) => ch.id ?? ch.chapter_id ?? ch.ChapterID);
+      setExpandedChapters((prev) => {
+        const nextKeys = keys.filter((k) => k !== undefined && k !== null);
+        return Array.from(new Set([...prev, ...nextKeys]));
+      });
+    }
+  }, [filteredChapters, searchQuery]);
+
   return (
     <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-      <div className="se-tree__header" style={{ marginBottom: "12px" }}>ตั้งค่าสถานะ</div>
+      <div className="se-tree__header" style={{ marginBottom: "12px" }}>สถานะและประเภท</div>
       <div className="se-tree__toggles" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--gray-800)' }}>สถานะการเผยแพร่</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{isPublished ? "เผยแพร่แล้ว" : "ซ่อน (ฉบับร่าง)"}</span>
-          </div>
-          <Toggle
-            checked={isPublished}
-            onChange={(value) => {
-              setIsPublished(value);
-              onTogglePublish?.(value);
-            }}
-            id={`toggle-publish-sidebar`}
-          />
+        
+        {/* แสดงผลสถานะการเผยแพร่แบบ Badge */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+          <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--gray-800)' }}>สถานะเผยแพร่</span>
+          <span style={{ 
+            fontSize: '0.78rem', 
+            fontWeight: '700', 
+            padding: '4px 10px', 
+            borderRadius: '999px', 
+            color: isPublished ? '#166534' : '#475569', 
+            background: isPublished ? '#d1fae5' : '#f1f5f9',
+            border: `1px solid ${isPublished ? '#a7f3d0' : '#cbd5e1'}`
+          }}>
+            {isPublished ? "เผยแพร่แล้ว" : "ฉบับร่าง"}
+          </span>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -427,10 +521,10 @@ const SceneTreeSidebar = ({
             type="button"
             onClick={() => onOpenEndingSettings?.()}
             style={{
-              marginTop: '8px',
+              marginTop: '4px',
               border: 'none',
               background: 'transparent',
-              color: '#6d28d9',
+              color: '#1d4ed8',
               cursor: 'pointer',
               fontSize: '0.82rem',
               textAlign: 'left',
@@ -444,9 +538,55 @@ const SceneTreeSidebar = ({
 
       <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '0 0 20px 0' }} />
 
-      <div className="se-tree__header" style={{ marginBottom: "16px" }}>ภาพรวมของนิยาย</div>
+      <div className="se-tree__header" style={{ marginBottom: "8px" }}>ภาพรวมของนิยาย</div>
+      
+      {/* ช่องค้นหาตอนและฉาก */}
+      <div className="se-search-container" style={{ marginBottom: "16px", position: "relative" }}>
+        <input
+          type="text"
+          className="se-input"
+          placeholder="ค้นหาตอนหรือฉาก..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "8px 12px 8px 30px",
+            fontSize: "0.82rem",
+            borderRadius: "8px",
+            border: "1px solid #cbd5e1",
+            boxSizing: "border-box",
+            backgroundColor: "#f8fafc"
+          }}
+        />
+        <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", fontSize: "0.82rem", color: "#94a3b8" }}>🔍</span>
+      </div>
+
+      <div className="se-tree__filters">
+        <button
+          type="button"
+          className={`se-tree__filter-btn ${sceneFilter === "all" ? "active" : ""}`}
+          onClick={() => setSceneFilter("all")}
+        >
+          ทั้งหมด
+        </button>
+        <button
+          type="button"
+          className={`se-tree__filter-btn ${sceneFilter === "published" ? "active" : ""}`}
+          onClick={() => setSceneFilter("published")}
+        >
+          เผยแพร่
+        </button>
+        <button
+          type="button"
+          className={`se-tree__filter-btn ${sceneFilter === "draft" ? "active" : ""}`}
+          onClick={() => setSceneFilter("draft")}
+        >
+          ยังไม่เผยแพร่
+        </button>
+      </div>
+
       <div className="se-tree__list" style={{ flex: 1 }}>
-        {safeChapters.map((ch, chapterIndex) => {
+        {filteredChapters.map((ch, chapterIndex) => {
           const chapterKey = ch.id ?? ch.chapter_id ?? ch.ChapterID ?? chapterIndex;
           const isExpanded = expandedChapters.includes(chapterKey);
           const chapterScenes = Array.isArray(ch.scenes) ? ch.scenes : [];
@@ -564,6 +704,7 @@ const SceneEditorPage = ({
   x,
   y,
 }) => {
+  const navigate = useNavigate();
   const [novelTitle, setNovelTitle] = useState("");
   const [chapterTitle, setChapterTitle] = useState("");
   const [sceneLabel, setSceneLabel] = useState("");
@@ -613,6 +754,7 @@ const SceneEditorPage = ({
   const quillRef = useRef(null);
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState("");
+  const [choiceToDelete, setChoiceToDelete] = useState(null);
 
   const isNewScene = String(sceneId) === "new";
 
@@ -785,7 +927,34 @@ const SceneEditorPage = ({
         setSceneTitle(sceneData.sceneTitle || sceneData.scene_title || sceneData.title || "");
         setContent(sceneData.content || "");
         setSceneType(sceneData.type || sceneData.scene_type || "normal");
-        setIsPublished(sceneData.status === "published" || sceneData.isPublished || false);
+        // ค้นหาตอนที่แท้จริงจากโครงสร้างของตอนและฉากย่อย
+        let foundChapterId = null;
+        if (Array.isArray(chaptersData)) {
+          for (const ch of chaptersData) {
+            const scenesList = Array.isArray(ch.scenes) ? ch.scenes : [];
+            const hasScene = scenesList.some(s => 
+              String(s.scene_id ?? s.sceneId ?? s.id ?? s.ID) === String(sceneId)
+            );
+            if (hasScene) {
+              foundChapterId = ch.chapter_id ?? ch.chapterId ?? ch.id ?? ch.ID;
+              break;
+            }
+          }
+        }
+
+        const resolvedChId = foundChapterId ?? sceneData.ChapterID ?? sceneData.chapter_id ?? sceneData.chapterId ?? chapterId;
+        const parentChapter = chaptersData.find(ch => 
+          String(ch.id ?? ch.chapter_id ?? ch.ChapterID ?? ch.chapterId) === String(resolvedChId)
+        );
+        const parentStatus = parentChapter ? (parentChapter.status || parentChapter.Status || "draft").toString().toLowerCase() : "draft";
+
+        const statusStr = (sceneData.status || sceneData.Status || parentStatus).toString().toLowerCase();
+        const isPub = statusStr === "published" || 
+                       sceneData.isPublished === true || 
+                       sceneData.is_published === true || 
+                       sceneData.isPublished === "true" || 
+                       sceneData.is_published === "true";
+        setIsPublished(isPub);
         setIsEnding(sceneData.type === "ending" || sceneData.isEnding || sceneData.is_ending || false);
         setEndingTitle(sceneData.endingTitle || sceneData.ending_title || "");
         setEndingType(sceneData.endingType || sceneData.ending_type || "true");
@@ -796,7 +965,6 @@ const SceneEditorPage = ({
         setCoordinateX(sceneData.x ?? sceneData.X ?? x ?? 0);
         setCoordinateY(sceneData.y ?? sceneData.Y ?? y ?? 0);
         
-        const resolvedChId = sceneData.ChapterID ?? sceneData.chapter_id ?? sceneData.chapterId ?? chapterId;
         if (resolvedChId) {
           setCurrentSelectedChapterId(String(resolvedChId));
         } else {
@@ -877,9 +1045,28 @@ const SceneEditorPage = ({
       const currentIsEnding = overrideIsEnding !== null ? overrideIsEnding : isEnding;
       const currentChoices = Array.isArray(overrideChoices) ? overrideChoices : choices;
 
-      const targetChapterId = (chapterId && chapterId !== "new") ? chapterId : currentSelectedChapterId;
+      let targetChapterId = (chapterId && chapterId !== "new") ? chapterId : currentSelectedChapterId;
+      if ((!targetChapterId || targetChapterId === "new" || isNaN(parseInt(targetChapterId, 10))) && !isNewScene) {
+        let foundChapterId = null;
+        if (Array.isArray(chapters)) {
+          for (const ch of chapters) {
+            const scenesList = Array.isArray(ch.scenes) ? ch.scenes : [];
+            const hasScene = scenesList.some(s => 
+              String(s.scene_id ?? s.sceneId ?? s.id ?? s.ID) === String(sceneId)
+            );
+            if (hasScene) {
+              foundChapterId = ch.chapter_id ?? ch.chapterId ?? ch.id ?? ch.ID;
+              break;
+            }
+          }
+        }
+        if (foundChapterId) {
+          targetChapterId = String(foundChapterId);
+        }
+      }
+
       if (!targetChapterId || targetChapterId === "new" || isNaN(parseInt(targetChapterId, 10))) {
-        throw new Error("ไม่พบตอนสังกัดสำหรับฉากนี้ กรุณากลับไปเพิ่มจากหน้าโครงสร้างเนื้อเรื่องใหม่");
+        throw new Error("ไม่พบตอนสำหรับฉากนี้ กรุณากลับไปเพิ่มจากหน้าโครงสร้างเนื้อเรื่องใหม่");
       }
 
       // บันทึกข้อมูลตัวฉากหลัก พร้อมพิกัด X, Y
@@ -962,13 +1149,13 @@ const SceneEditorPage = ({
     try {
       const targetChapterId = (chapterId && chapterId !== "new") ? chapterId : currentSelectedChapterId;
       if (!targetChapterId || targetChapterId === "new" || isNaN(parseInt(targetChapterId, 10))) {
-        throw new Error("ไม่พบตอนสังกัดสำหรับฉากนี้");
+        throw new Error("ไม่พบตอนสำหรับฉากนี้");
       }
       
       // 1. เผยแพร่ตัวฉากหลัก
       await handleSave(true, false);
       
-      // 2. เผยแพร่ตัวตอนสังกัดเพื่อให้คนอ่านมองเห็นด้วย
+      // 2. เผยแพร่ตัวตอนเพื่อให้คนอ่านมองเห็นด้วย
       const authToken = localStorage.getItem("token");
       const headers = {
         "Content-Type": "application/json",
@@ -994,7 +1181,7 @@ const SceneEditorPage = ({
         });
         
         if (!putRes.ok) {
-          console.warn("ไม่สามารถเปลี่ยนสถานะของตอนสังกัดเป็นเผยแพร่ได้");
+          console.warn("ไม่สามารถเปลี่ยนสถานะของตอนเป็นเผยแพร่ได้");
         }
       }
       
@@ -1003,13 +1190,10 @@ const SceneEditorPage = ({
     } catch (err) {
       console.error("Publish error:", err);
       setErrorMsg(err.message || "เกิดข้อผิดพลาดในการเผยแพร่");
+      setIsPublished(false); // Rollback UI if failed
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleTogglePublish = async (value) => {
-    await handleSave(value, false, null, null);
   };
 
   const handleToggleEnding = async (value) => {
@@ -1062,7 +1246,20 @@ const SceneEditorPage = ({
   };
 
   const deleteChoice = (choiceId) => {
-    setChoices((prev) => prev.filter((c) => c.id !== choiceId));
+    if (String(choiceId).startsWith("choice-new-")) {
+      setChoices((prev) => prev.filter((c) => c.id !== choiceId));
+    } else {
+      setChoiceToDelete(choiceId);
+    }
+  };
+
+  const confirmDeleteChoice = () => {
+    if (choiceToDelete) {
+      const nextChoices = choices.filter((c) => c.id !== choiceToDelete);
+      setChoices(nextChoices);
+      setChoiceToDelete(null);
+      handleSave(null, false, nextChoices);
+    }
   };
 
   const handleAddScene = async (chId) => {
@@ -1185,18 +1382,42 @@ const SceneEditorPage = ({
       ? (currentScIndex + 1)
       : null;
 
+  const [previewMode, setPreviewMode] = useState(false);
+
+  const previewChoices = useMemo(() => {
+    return choices.map((c, index) => ({
+      id: c.id ?? index,
+      label: c.text || c.label || `ตัวเลือกที่ ${index + 1}`,
+      targetLabel: c.targetLabel || ""
+    }));
+  }, [choices]);
+
+  const previewContent = useMemo(() => {
+    return content || "";
+  }, [content]);
+
+  const handleTogglePreview = useCallback(() => {
+    setPreviewMode((value) => !value);
+  }, []);
+
   return (
     <div className="se-page">
       {/* Header */}
       <header className="se-header">
         <div className="se-header__left">
-          {/* ปุ่มกลับเปลี่ยนเส้นทางเป็นย้อนไปหน้า Story Tree บอร์ดโครงเรื่อง เพื่อความสะดวก */}
+          {/* ปุ่มกลับอิงตามประวัติการเข้าชมจริงของเบราว์เซอร์ */}
           <button
             className="se-header__back"
-            onClick={() => onNavigate("story-tree", { novelId })}
-            aria-label="กลับไปหน้าโครงสร้างเรื่อง"
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                onNavigate("story-tree", { novelId });
+              }
+            }}
+            aria-label="ย้อนกลับ"
           >
-            กลับ
+            ย้อนกลับ
           </button>
 
           <nav className="se-header__breadcrumb" aria-label="breadcrumb">
@@ -1252,16 +1473,24 @@ const SceneEditorPage = ({
           onAddScene={handleAddScene}
           onAddChapter={handleAddChapter}
           isPublished={isPublished}
-          setIsPublished={setIsPublished}
           isEnding={isEnding}
           setIsEnding={setIsEnding}
-          onTogglePublish={handleTogglePublish}
           onToggleEnding={handleToggleEnding}
           onOpenEndingSettings={() => setShowEndingSettingsDialog(true)}
         />
         <main className="se-editor">
           <div className="se-section">
-            <div className="se-section__heading">เนื้อหาฉาก</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
+              <div className="se-section__heading" style={{ marginBottom: 0 }}>เนื้อหาฉาก</div>
+              <button
+                className="se-header__btn se-header__btn--preview se-header__btn--preview-inline"
+                type="button"
+                onClick={handleTogglePreview}
+                style={{ padding: "8px 14px", borderRadius: "10px", fontSize: "12px", height: "auto", margin: 0 }}
+              >
+                ▶ ทดลองอ่าน
+              </button>
+            </div>
 
             {/* ช่องกรอกชื่อฉาก */}
             <div className="se-field">
@@ -1276,8 +1505,6 @@ const SceneEditorPage = ({
                 placeholder="ชื่อฉาก..."
               />
             </div>
-
-
 
             {/* พื้นที่เนื้อเรื่อง (React Quill) */}
             <div className="se-field">
@@ -1315,7 +1542,7 @@ const SceneEditorPage = ({
             <div className="se-section__heading-row">
               <div className="se-section__heading">ตัวเลือกท้ายตอน</div>
               <button className="se-btn se-btn--add-choice" onClick={addChoice}>
-                เพิ่มตัวเลือก
+                ✚ เพิ่มตัวเลือกใหม่
               </button>
             </div>
 
@@ -1468,6 +1695,162 @@ const SceneEditorPage = ({
                 style={{ padding: "8px 16px", borderRadius: "6px", background: "var(--pink-500)", color: "white", border: "none" }}
               >
                 สร้าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Preview Mode (ทดลองอ่านเสมือนจริง) */}
+      {previewMode && (
+        <div className="se-preview-modal">
+          <div className="se-preview-modal__backdrop" onClick={() => setPreviewMode(false)} />
+          <div className="se-preview-modal__content">
+            <div className="se-preview-modal__header">
+              <div>
+                <div className="se-preview-modal__title">👁️ โหมดทดลองอ่าน (Preview)</div>
+                <div className="se-preview-modal__subtitle">จำลองมุมมองฝั่งผู้อ่านเสมือนจริง</div>
+              </div>
+              <button className="se-preview-modal__close" onClick={() => setPreviewMode(false)}>✕</button>
+            </div>
+            <div className="se-preview-modal__body" style={{ background: "#fdfbf7", color: "#2d1b3d", padding: "36px" }}>
+              {/* ส่วนหัวของเนื้อหาแบบที่ผู้อ่านเห็น */}
+              <div style={{ textAlign: "center", marginBottom: "32px", borderBottom: "1px dashed var(--gray-300)", paddingBottom: "24px" }}>
+                <span style={{ fontSize: "0.85rem", color: "var(--pink-700)", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px" }}>
+                  📖 {novelTitle || "ชื่อเรื่องนิยาย"}
+                </span>
+                <h1 style={{ fontSize: "1.65rem", fontWeight: "800", color: "var(--ink)", margin: "8px 0 6px" }}>
+                  ตอนที่ {currentChDisplayNumber ?? "?"}: {chapterTitle}
+                </h1>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", margin: "12px 0" }}>
+                  <span style={{ height: "1px", width: "40px", background: "var(--pink-300)" }} />
+                  <span style={{ color: "var(--pink-500)", fontSize: "12px" }}>✧ 🌸 ✧</span>
+                  <span style={{ height: "1px", width: "40px", background: "var(--pink-300)" }} />
+                </div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: "600", color: "var(--gray-600)" }}>
+                  ฉากที่ {currentChDisplayNumber ?? "?"}.{currentScDisplayNumber ?? "?"}: {sceneTitle || sceneLabel}
+                </h2>
+              </div>
+
+              {/* ส่วนเนื้อหาหลัก */}
+              <div
+                className="se-preview-content"
+                style={{ fontSize: "17px", lineHeight: "1.9", color: "#2d1b3d" }}
+                dangerouslySetInnerHTML={{
+                  __html: previewContent || "<p style='color: #94a3b8; font-style: italic; text-align: center;'>ยังไม่มีเนื้อเรื่องในฉากนี้...</p>",
+                }}
+              />
+
+              {/* เส้นตกแต่งปิดท้ายเนื้อเรื่อง */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", margin: "40px 0 24px" }}>
+                <span style={{ height: "1px", width: "80px", background: "var(--gray-300)" }} />
+                <span style={{ color: "var(--gray-600)", fontSize: "14px" }}>✦ ✦ ✦</span>
+                <span style={{ height: "1px", width: "80px", background: "var(--gray-300)" }} />
+              </div>
+              
+              {/* แสดงปุ่มตัวเลือกจำลองเหมือนนักอ่านเห็น */}
+              {previewChoices.length > 0 ? (
+                <div className="se-preview-choices" style={{ marginTop: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ 
+                    fontSize: "0.85rem", 
+                    fontWeight: "800", 
+                    color: "var(--pink-700)", 
+                    textTransform: "uppercase", 
+                    letterSpacing: "0.5px", 
+                    marginBottom: "8px",
+                    textAlign: "center"
+                  }}>
+                    ✨ เลือกการตัดสินใจของคุณ ✨
+                  </div>
+                  {previewChoices.map((choice, i) => (
+                    <button
+                      key={choice.id}
+                      className="se-preview-choice-btn"
+                      style={{
+                        width: "100%", 
+                        padding: "16px 24px", 
+                        borderRadius: "14px", 
+                        border: "2px solid var(--pink-100)",
+                        background: "#ffffff", 
+                        textAlign: "left", 
+                        fontSize: "0.95rem", 
+                        fontWeight: "600",
+                        color: "var(--ink)", 
+                        cursor: "pointer", 
+                        transition: "all 0.25s ease",
+                        boxShadow: "0 2px 6px rgba(45, 27, 61, 0.04)"
+                      }}
+                      onClick={() => alert(`คุณเลือกเส้นทาง: "${choice.label}"\n(ในโหมดทดลองอ่านนี้ จะจำลองการแสดงผลเพื่อตรวจทานเท่านั้น)`)}
+                    >
+                      👉 {choice.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ 
+                  marginTop: "24px", 
+                  padding: "20px", 
+                  borderRadius: "14px", 
+                  background: "var(--pink-50)", 
+                  border: "1px solid var(--pink-100)",
+                  color: "var(--pink-700)",
+                  fontSize: "0.9rem",
+                  fontWeight: "600",
+                  textAlign: "center" 
+                }}>
+                  🔚 ฉากจบของตอน (สิ้นสุดเส้นทางสำหรับเนื้อหาในส่วนนี้)
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog ยืนยันการลบตัวเลือก (Custom Delete Confirmation Modal) */}
+      {choiceToDelete && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(26, 22, 36, 0.45)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300
+        }}>
+          <div style={{
+            background: "white", padding: "32px", borderRadius: "20px", maxWidth: "420px", width: "90%",
+            boxShadow: "0 20px 50px rgba(45, 27, 61, 0.15)", textAlign: "center",
+            border: "1px solid var(--gray-100)", animation: "se-scale-up 0.2s ease"
+          }}>
+            <div style={{
+              width: "60px", height: "60px", borderRadius: "50%", background: "#fee2e2",
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px",
+              color: "#dc2626", fontSize: "28px"
+            }}>
+              ⚠️
+            </div>
+            <h3 style={{ marginBottom: "12px", fontSize: "18px", fontWeight: 700, color: "var(--black)" }}>
+              ยืนยันการลบตัวเลือก?
+            </h3>
+            <p style={{ color: "var(--gray-600)", fontSize: "14px", lineHeight: "1.6", marginBottom: "24px" }}>
+              คุณแน่ใจหรือไม่ที่จะลบตัวเลือกนี้? การดำเนินการนี้จะลบเส้นทางการเชื่อมโยงของฉากปลายทางออกและไม่สามารถกู้คืนได้
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button
+                onClick={() => setChoiceToDelete(null)}
+                style={{
+                  flex: 1, padding: "10px 18px", borderRadius: "10px", border: "1px solid var(--gray-300)",
+                  background: "white", color: "var(--gray-600)", fontWeight: "600", fontSize: "14px", cursor: "pointer",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmDeleteChoice}
+                style={{
+                  flex: 1, padding: "10px 18px", borderRadius: "10px", border: "none",
+                  background: "#dc2626", color: "white", fontWeight: "600", fontSize: "14px", cursor: "pointer",
+                  transition: "all 0.15s ease", boxShadow: "0 4px 12px rgba(220, 38, 38, 0.2)"
+                }}
+              >
+                ลบตัวเลือก
               </button>
             </div>
           </div>
