@@ -386,7 +386,7 @@ const BookshelfPage = () => {
 
                         {filteredBooks.length === 0 ? (
                             <div className="bookshelf-page__empty">
-                                ไม่มีนิยายในสถานะนี้ ขยับไปลองสถานะอื่นได้
+                                ยังไม่มีนิยายในสถานะนี้ ลองเลือกสถานะอื่น หรือเพิ่มนิยายเข้าชั้นหนังสือของคุณ
                             </div>
                         ) : (
                             <div className="bookshelf-page__grid">

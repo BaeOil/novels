@@ -171,12 +171,11 @@ const HomePage = ({ onNavigate }) => {
             <div className="home__novel-grid">
               {novels.length > 0 ? (
                 novels.map((novel) => (
-                  <div key={novel.id}>
-                    <NovelCard
-                      novel={novel}
-                      onClick={() => handleReadNovel(novel.id)}
-                    />
-                  </div>
+                  <NovelCard
+                    key={novel.id}
+                    novel={novel}
+                    onClick={() => handleReadNovel(novel.id)}
+                  />
                 ))
               ) : (
                 <div className="empty-state">

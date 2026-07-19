@@ -208,15 +208,15 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 16px;
-    align-items: stretch;
+    align-items: start;
 }
 
 .home__novel-grid > * {
-    height: 100%;
+    height: auto;
 }
 
 .home__novel-grid .novel-card {
-    height: 100%;
+    height: auto;
 }
 
 /* Loading and empty state */

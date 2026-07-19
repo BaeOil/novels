@@ -172,7 +172,7 @@ const HistoryPage = ({ onNavigate }) => {
           <div className="history-page__empty">
             <div className="history-page__empty-emoji">📚</div>
             <div className="history-page__empty-title">ยังไม่มีประวัติการอ่าน</div>
-            <div>เริ่มอ่านนิยายเรื่องแรก แล้วมันจะปรากฏที่นี่</div>
+            <div>นิยายที่คุณอ่านจะถูกบันทึกไว้ที่นี่</div>
           </div>
         ) : (
           <div className="history-page__grid">

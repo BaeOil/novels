@@ -1,217 +1,243 @@
-  // ══════════════════════════════════════════════════════════════
-  //  หน้า Dashboard ฝั่งนักเขียน — Redesign Layout ย้าย ตอน/ฉาก ขึ้นบนปก
-  //
-  //  Backend API connected (Updated to matching your Go Backend):
-  //    - GET    /api/me/novels            -> รายการนิยายทั้งหมดของผู้ใช้คนนี้ (Novels List)
-  //    - DELETE /api/v1/writer/novels/:id -> ลบนิยายเรื่องที่เลือก
-  // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  หน้า Dashboard ฝั่งนักเขียน — Redesign Layout ย้าย ตอน/ฉาก ขึ้นบนปก
+//
+//  Backend API connected (Updated to matching your Go Backend):
+//    - GET    /api/me/novels            -> รายการนิยายทั้งหมดของผู้ใช้คนนี้ (Novels List)
+//    - DELETE /api/v1/writer/novels/:id -> ลบนิยายเรื่องที่เลือก
+// ══════════════════════════════════════════════════════════════
 
-  import React, { useState, useEffect, useCallback } from "react";
-  import "./WriterDashboardPage.css";
-  import { getNovelStatusInfo } from "../../../utils/novelStatus";
+import React, { useState, useEffect, useCallback } from "react";
+import "./WriterDashboardPage.css";
+import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-  // ── format ตัวเลขใหญ่ ──
-  const fmt = (n) => {
-    if (!n || isNaN(n)) return "0";
-    return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : String(n);
+// ── format ตัวเลขใหญ่ ──
+const fmt = (n) => {
+  if (!n || isNaN(n)) return "0";
+  return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : String(n);
+};
+
+// ── Stat cards definition ──
+const STAT_CARDS = [
+  {
+    key: "totalNovels",
+    label: "นิยายทั้งหมด",
+    icon: "📚",
+    colorClass: "scard--pink",
+  },
+  {
+    key: "totalLikes",
+    label: "จำนวนการกดถูกใจ",
+    icon: "💖",
+    colorClass: "scard--purple",
+  },
+  {
+    key: "totalViews",
+    label: "ยอดเข้าชมทั้งหมด",
+    icon: "📈",
+    colorClass: "scard--blue",
+  },
+  {
+    key: "totalBookmarks",
+    label: "จำนวนเพิ่มเข้าชั้น",
+    icon: "📥",
+    colorClass: "scard--green",
+  },
+];
+
+const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
+  const [stats, setStats] = useState({
+    totalNovels: 0,
+    totalLikes: 0,
+    totalViews: 0,
+    totalBookmarks: 0,
+  });
+  const [novels, setNovels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // ✨ State สำหรับช่องค้นหา
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  const buildAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    return { Authorization: `Bearer ${token}` };
   };
 
-  // ── Stat cards definition ──
-  const STAT_CARDS = [
-    {
-      key: "totalNovels",
-      label: "นิยายทั้งหมด",
-      icon: "📖",
-      colorClass: "scard--pink",
-    },
-    {
-      key: "totalLikes",
-      label: "จำนวนการกดถูกใจ",
-      icon: "💜",
-      colorClass: "scard--purple",
-    },
-    {
-      key: "totalViews",
-      label: "ยอดเข้าชมทั้งหมด",
-      icon: "👁",
-      colorClass: "scard--blue",
-    },
-    {
-      key: "totalBookmarks",
-      label: "จำนวนเพิ่มเข้าชั้น",
-      icon: "📓",
-      colorClass: "scard--green",
-    },
-  ];
-
-  const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
-    const [stats, setStats] = useState({
-      totalNovels: 0,
-      totalLikes: 0,
-      totalViews: 0,
-      totalBookmarks: 0,
-    });
-    const [novels, setNovels] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    const buildAuthHeaders = () => {
-      const token = localStorage.getItem("token");
-      if (!token) return null;
-      return { Authorization: `Bearer ${token}` };
-    };
-
-    // ── ฟังก์ชันดึงข้อมูลจากหลังบ้าน ──────────────────────────────
-    const fetchDashboardData = useCallback(async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const headers = buildAuthHeaders();
-        if (!headers) {
-          throw new Error("กรุณาเข้าสู่ระบบก่อนดูแดชบอร์ดนักเขียน");
-        }
-
-        const response = await fetch(`${API_BASE_URL}/api/me/novels`, { headers });
-        
-        if (!response.ok) {
-          if (response.status === 401) {
-            throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
-          }
-          throw new Error("ไม่สามารถดึงข้อมูลนิยายได้");
-        }
-
-        const result = await response.json();
-        
-        let fetchedNovels = result?.novels || result?.data?.novels || [];
-        
-        if (Array.isArray(fetchedNovels)) {
-          fetchedNovels.sort((a, b) => {
-            const dateA = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0);
-            const dateB = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0);
-            return dateB.getTime() - dateA.getTime();
-          });
-        }
-
-        let calculatedLikes = 0;
-        let calculatedViews = 0;
-        let calculatedBookmarks = 0;
-
-        if (Array.isArray(fetchedNovels)) {
-          fetchedNovels.forEach(novel => {
-            calculatedViews += novel.total_views ?? novel.view_count ?? novel.stats?.views ?? novel.views ?? 0;
-            calculatedLikes += novel.total_likes ?? novel.like_count ?? novel.stats?.likes ?? novel.likes ?? 0;
-            calculatedBookmarks += novel.total_bookmarks ?? novel.bookmark_count ?? novel.bookshelf_count ?? novel.stats?.bookmarks ?? novel.bookmarks ?? 0;
-          });
-        }
-
-        setStats({
-          totalNovels: fetchedNovels.length,
-          totalLikes: calculatedLikes,
-          totalViews: calculatedViews,
-          totalBookmarks: calculatedBookmarks,
-        });
-        
-        setNovels(Array.isArray(fetchedNovels) ? fetchedNovels : []);
-      } catch (err) {
-        console.error("Fetch dashboard error:", err);
-        setError(err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อกับระบบหลังบ้านได้");
-      } finally {
-        setLoading(false);
+  // ── ฟังก์ชันดึงข้อมูลจากหลังบ้าน ──────────────────────────────
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const headers = buildAuthHeaders();
+      if (!headers) {
+        throw new Error("กรุณาเข้าสู่ระบบก่อนดูแดชบอร์ดนักเขียน");
       }
-    }, []);
 
-    useEffect(() => {
-      fetchDashboardData();
-    }, [fetchDashboardData]);
-
-    const handleDeleteNovel = async (novelId) => {
-      try {
-        const headers = buildAuthHeaders();
-        if (!headers) {
-          throw new Error("กรุณาเข้าสู่ระบบก่อนลบนิยาย");
+      const response = await fetch(`${API_BASE_URL}/api/me/novels`, { headers });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
         }
-
-        const response = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
-          method: "DELETE",
-          headers,
-        });
-
-        if (!response.ok) {
-          const errResult = await response.json().catch(() => null);
-          throw new Error(errResult?.error || "Failed to delete novel");
-        }
-
-        fetchDashboardData();
-      } catch (err) {
-        console.error("Delete novel error:", err);
-        alert(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการลบนิยาย");
+        throw new Error("ไม่สามารถดึงข้อมูลนิยายได้");
       }
-    };
 
-    const handleEdit = (novelId) => {
-      onSelectNovel?.(novelId);
-      onNavigate("chapters", { novelId });
-    };
+      const result = await response.json();
+      
+      let fetchedNovels = result?.novels || result?.data?.novels || [];
+      
+      if (Array.isArray(fetchedNovels)) {
+        fetchedNovels.sort((a, b) => {
+          const dateA = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0);
+          const dateB = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+      }
 
-    const handleTree = (novelId) => {
-      onSelectNovel?.(novelId);
-      onNavigate("story-tree", { novelId });
-    };
+      let calculatedLikes = 0;
+      let calculatedViews = 0;
+      let calculatedBookmarks = 0;
 
-    if (loading) {
-      return (
-        <div className="wdb" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-          <p style={{ color: "var(--pink-500)", fontSize: "1.2rem" }}>กำลังดึงข้อมูลแดชบอร์ดนักเขียน...</p>
-        </div>
-      );
+      if (Array.isArray(fetchedNovels)) {
+        fetchedNovels.forEach(novel => {
+          calculatedViews += novel.total_views ?? novel.view_count ?? novel.stats?.views ?? novel.views ?? 0;
+          calculatedLikes += novel.total_likes ?? novel.like_count ?? novel.stats?.likes ?? novel.likes ?? 0;
+          calculatedBookmarks += novel.total_bookmarks ?? novel.bookmark_count ?? novel.bookshelf_count ?? novel.stats?.bookmarks ?? novel.bookmarks ?? 0;
+        });
+      }
+
+      setStats({
+        totalNovels: fetchedNovels.length,
+        totalLikes: calculatedLikes,
+        totalViews: calculatedViews,
+        totalBookmarks: calculatedBookmarks,
+      });
+      
+      setNovels(Array.isArray(fetchedNovels) ? fetchedNovels : []);
+    } catch (err) {
+      console.error("Fetch dashboard error:", err);
+      setError(err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อกับระบบหลังบ้านได้");
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const handleDeleteNovel = async (novelId) => {
+    try {
+      const headers = buildAuthHeaders();
+      if (!headers) {
+        throw new Error("กรุณาเข้าสู่ระบบก่อนลบนิยาย");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errResult = await response.json().catch(() => null);
+        throw new Error(errResult?.error || "Failed to delete novel");
+      }
+
+      fetchDashboardData();
+    } catch (err) {
+      console.error("Delete novel error:", err);
+      alert(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการลบนิยาย");
+    }
+  };
+
+  const handleEdit = (novelId) => {
+    onSelectNovel?.(novelId);
+    onNavigate("chapters", { novelId });
+  };
+
+  const handleTree = (novelId) => {
+    onSelectNovel?.(novelId);
+    onNavigate("story-tree", { novelId });
+  };
+
+  if (loading) {
     return (
-      <div className="wdb">
-        <div className="wdb__header">
-          <div>
-            <h1 className="wdb__title">Dashboard</h1>
-            <p className="wdb__sub">ภาพรวมผลงานของคุณทั้งหมด</p>
-          </div>
-          <button
-            className="wdb__create-btn"
-            onClick={() => onNavigate("create-novel")}
-            aria-label="สร้างนิยายเรื่องใหม่"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1v12M1 7h12" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-            สร้างนิยายใหม่
-          </button>
+      <div className="wdb" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <p style={{ color: "var(--pink-500)", fontSize: "1.2rem" }}>กำลังดึงข้อมูลแดชบอร์ดนักเขียน...</p>
+      </div>
+    );
+  }
+
+  // ✨ ตัวกรองนิยายตามคำค้นหา
+  const filteredNovels = novels.filter(novel => {
+    const title = novel.title || novel.Title || "";
+    return title.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  return (
+    <div className="wdb">
+      <div className="wdb__header">
+        <div>
+          <h1 className="wdb__title">Dashboard</h1>
+          <p className="wdb__sub">ภาพรวมผลงานของคุณทั้งหมด</p>
         </div>
+        <button
+          className="wdb__create-btn"
+          onClick={() => onNavigate("create-novel")}
+          aria-label="สร้างนิยายเรื่องใหม่"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1v12M1 7h12" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+          สร้างนิยายใหม่
+        </button>
+      </div>
 
-        {error && (
-          <div className="wdb__error-banner" style={{ background: "#FEE2E2", color: "#DC2626", padding: "12px", borderRadius: "8px", marginBottom: "20px", textAlign: "center" }}>
-            {error}
-          </div>
-        )}
-
-        <div className="wdb__stats">
-          {STAT_CARDS.map((card) => (
-            <div key={card.key} className={`scard ${card.colorClass}`}>
-              <span className="scard__icon">{card.icon}</span>
-              <div className="scard__val">{fmt(stats[card.key])}</div>
-              <div className="scard__label">{card.label}</div>
-            </div>
-          ))}
+      {error && (
+        <div className="wdb__error-banner" style={{ background: "#FEE2E2", color: "#DC2626", padding: "12px", borderRadius: "8px", marginBottom: "20px", textAlign: "center" }}>
+          {error}
         </div>
+      )}
 
-        <div className="wdb__novels-header">
-          <div>
-            <h2 className="wdb__novels-title">นิยายของฉัน</h2>
-            <p className="wdb__novels-count">{novels.length} เรื่องทั้งหมด (เรียงตามอัปเดตล่าสุด)</p>
+      <div className="wdb__stats">
+        {STAT_CARDS.map((card) => (
+          <div key={card.key} className={`scard ${card.colorClass}`}>
+            <span className="scard__icon">{card.icon}</span>
+            <div className="scard__val">{fmt(stats[card.key])}</div>
+            <div className="scard__label">{card.label}</div>
           </div>
-        </div>
+        ))}
+      </div>
 
-        <div className="wdb__grid">
-          {novels.map((novel) => {
+      {/* ── Novel list header + Search ── */}
+      <div className="wdb__novels-header">
+        <div>
+          <h2 className="wdb__novels-title">นิยายของฉัน</h2>
+          <p className="wdb__novels-count">{filteredNovels.length} เรื่องที่พบ (เรียงตามอัปเดตล่าสุด)</p>
+        </div>
+        
+        {/* 🔍 ช่องค้นหา */}
+        <div className="wdb__search">
+          <svg className="wdb__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            className="wdb__search-input"
+            placeholder="ค้นหาชื่อนิยาย..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="wdb__grid">
+        {filteredNovels.length > 0 ? (
+          filteredNovels.map((novel) => {
             const id = novel.id || novel.novel_id;
             return (
               <NovelCard
@@ -222,8 +248,15 @@
                 onDelete={() => handleDeleteNovel(id)}
               />
             );
-          })}
+          })
+        ) : (
+          <div className="wdb__empty-search" style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "var(--gray-500)" }}>
+            ไม่พบนิยายที่ตรงกับ "{searchQuery}"
+          </div>
+        )}
 
+        {/* ซ่อนปุ่มสร้างนิยายใหม่ในกริดถ้ากำลังพิมพ์ค้นหาอยู่ จะได้ไม่เกะกะ */}
+        {!searchQuery && (
           <button
             className="wdb__empty-card"
             onClick={() => onNavigate("create-novel")}
@@ -233,12 +266,13 @@
             <span className="wdb__empty-label">สร้างนิยายใหม่</span>
             <span className="wdb__empty-sub">เริ่มเรื่องราวใหม่ของคุณ</span>
           </button>
-        </div>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
+};
 
-  const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
+const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const title = novel.title || "";
@@ -283,11 +317,10 @@
       if (diffHours < 24) return `อัปเดตล่าสุด ${diffHours} ชั่วโมงที่แล้ว`;
       if (diffDays < 7) return `อัปเดตล่าสุด ${diffDays} วันที่แล้ว`;
 
-      // ถ้านานกว่า 7 วัน ให้โชว์เป็นวันที่ (เช่น 5 ก.ค. 2569)
       const formattedDate = dateObj.toLocaleDateString("th-TH", {
         day: "numeric",
         month: "short",
-        year: "numeric", // เปลี่ยนเป็น numeric จะได้ปี 256x เต็มๆ
+        year: "numeric",
       });
       return `แก้ไขล่าสุด ${formattedDate}`;
     } catch (e) {
@@ -332,12 +365,11 @@
         <h3 className="nvc__title" title={title}>{title}</h3>
         
         {/* ข้อมูลการอัปเดต */}
-        <p className="nvc__date" style={{ color: '#d946ef', fontWeight: '500' }}>{updatedAtText}</p>
-        
+        <p className="nvc__date">{updatedAtText}</p>        
         {/* สรุปโครงสร้างนิยายทางเลือก */}
         <div className="nvc__story-stats">
           <span>📄 {chapterCount} ตอน</span>
-          <span>🎬 {sceneCount} Scene</span>
+          <span>🎬 {sceneCount} ฉาก</span>
         </div>
         
         <div className="nvc__categories-row">
@@ -352,12 +384,6 @@
           {remainingCount > 0 && (
             <span className="nvc__tag-more">+{remainingCount}</span>
           )}
-        </div>
-
-        <div className="nvc__stats">
-          <span>👁 {fmt(views)}</span>
-          <span>💜 {fmt(likes)}</span>
-          <span>🔖 {fmt(bookmarks)}</span>
         </div>
 
         <div className="nvc__actions">
@@ -380,4 +406,4 @@
   );
 };
 
-  export default WriterDashboardPage;
+export default WriterDashboardPage;

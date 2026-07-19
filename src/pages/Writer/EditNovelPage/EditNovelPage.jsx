@@ -601,22 +601,21 @@ const EditNovelPage = ({ onNavigate }) => {
             {showCancelModal && (
                 <div className="modal-overlay" onClick={() => setShowCancelModal(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <h2>ยกเลิกการแก้ไข</h2>
-                        <p>คุณต้องการยกเลิกการแก้ไขนิยายหรือไม่?</p>
-                        <p style={{ color: "#999", fontSize: "14px" }}>การเปลี่ยนแปลงที่ยังไม่บันทึกจะสูญหาย</p>
+                        <h2>คุณต้องการละทิ้งการแก้ไขนิยายหรือไม่?</h2>
+                        <p style={{ color: "#999", fontSize: "14px" }}>ระบบจะไม่บันทึกข้อมูลล่าสุดที่คุณแก้ไข</p>
                         
                         <div className="modal-buttons">
                             <button
                                 className="btn btn--outline"
                                 onClick={() => setShowCancelModal(false)}
                             >
-                                ไม่ยกเลิก
+                                แก้ไขต่อ
                             </button>
                             <button
                                 className="btn btn--danger"
                                 onClick={handleConfirmCancel}
                             >
-                                ยกเลิก
+                                ออกโดยไม่บันทึก
                             </button>
                         </div>
                     </div>

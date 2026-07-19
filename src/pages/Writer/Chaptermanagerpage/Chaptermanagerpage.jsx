@@ -9,11 +9,23 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 const API_BASE = "http://localhost:8080";
 const getToken = () => localStorage.getItem("token");
 
-const formatThaiDate = (dateString) => {
+// 🕒 ฟังก์ชันแปลงเวลาแบบ Global ตัวเดียวใช้ทั้งไฟล์
+const formatThaiDate = (dateString, includeTime = false) => {
   if (!dateString) return "ไม่ระบุ";
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString.split("T")[0] || dateString;
+
+    if (includeTime) {
+      return date.toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) + ' น.';
+    }
+
     return date.toLocaleDateString("th-TH", {
       year: "numeric",
       month: "long",
@@ -43,6 +55,7 @@ const getNovelCategoryNames = (novel) => {
       .filter(Boolean)
   ));
 };
+
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabel = "ยืนยัน" }) => {
   if (!isOpen) return null;
   return (
@@ -58,16 +71,16 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabe
     </div>
   );
 };
+
 const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelStatus = false }) => {
   if (!novel) return <div className="cm-banner-loading">กำลังโหลดรายละเอียดนิยาย...</div>;
 
-  const title = novel.title || novel.title || "นิยายเรื่องนี้ยังไม่ได้ตั้งชื่อ";
+  const title = novel.title || "นิยายเรื่องนี้ยังไม่ได้ตั้งชื่อ";
   const captions = novel.captions || novel.caption || novel.introduction || "ยังไม่มีเรื่องย่อ...";
   const coverImage = formatNovelCoverImage(novel.cover_image || novel.coverImage || novel.coverUrl || novel.cover_url);
   const coverBg = novel.cover_bg || "var(--pink-100)";
   const coverEmoji = novel.cover_emoji || "📖";
 
-  // 🕒 ตัวแปรเวลา
   const updatedAt = novel?.updated_at || novel?.UpdatedAt || novel?.created_at || novel?.CreatedAt;
 
   const chapterCount = chapters?.length ?? 0;
@@ -81,32 +94,9 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
     return total + chScenes.length;
   }, 0) ?? 0;
 
-  // 🕒 ฟังก์ชันจัดรูปแบบเวลา
-  const formatThaiDate = (dateString) => {
-    if (!dateString) return "ไม่ระบุ";
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return dateString.split("T")[0] || dateString;
-
-      return date.toLocaleDateString('th-TH', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }) + ' น.';
-    } catch (e) {
-      return "ไม่ระบุ";
-    }
-  };
-
   return (
     <div className="cm-banner flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      
-      {/* ── ส่วนบน: รูปปก, ข้อมูลเรื่อง และ ปุ่มกด ── */}
       <div className="flex justify-between items-start w-full gap-6" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '24px' }}>
-        
-        {/* ซ้าย: ปก และ ข้อมูล */}
         <div className="cm-banner__left flex-1" style={{ flex: 1, minWidth: 0 }}>
           <div className="cm-banner__cover shrink-0" style={{ background: coverBg }}>
             {coverImage ? (
@@ -120,12 +110,11 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
               <span>{coverEmoji}</span>
             )}
           </div>
-          
+
           <div className="cm-banner__info flex flex-col justify-center" style={{ display: 'flex', flexDirection: 'column' }}>
             <h2 className="cm-banner__title" style={{ marginTop: 0, marginBottom: '8px' }}>{title}</h2>
             <p className="cm-banner__synopsis" style={{ marginBottom: '12px' }}>{captions}</p>
-            
-            {/* แท็กหมวดหมู่ ปรับสีให้เข้มขึ้นเพื่อให้อ่านง่าย */}
+
             {categoryNames.length > 0 && (
               <div className="cm-banner__categories" style={{ margin: '0 0 12px 0' }}>
                 {categoryNames.map((name, idx) => (
@@ -135,19 +124,17 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
                 ))}
               </div>
             )}
-            
-            {/* สถานะตอน ฉาก และวันที่อัปเดต (ย้ายมารวมกันตรงนี้) */}
+
             <div className="cm-banner__stats flex items-center flex-wrap gap-2" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <span style={{ fontWeight: 600, color: '#475569' }}>{chapterCount} ตอน</span>
               <span className="cm-banner__dot">·</span>
               <span style={{ fontWeight: 600, color: '#475569' }}>{sceneCount} ฉาก</span>
               <span className="cm-banner__dot">·</span>
-              <span className="text-gray-500" style={{ color: '#64748b' }}>อัปเดตล่าสุด: {formatThaiDate(updatedAt)}</span>
+              <span className="text-gray-500" style={{ color: '#64748b' }}>อัปเดตล่าสุด: {formatThaiDate(updatedAt, true)}</span>
             </div>
           </div>
         </div>
 
-        {/* ขวา: ปุ่มกด */}
         <div className="cm-banner__right shrink-0 flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <span
             className="cm-banner__status"
@@ -166,10 +153,9 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
             </svg>
             แก้ไข
           </button>
-          {/* เปลี่ยนปุ่มเผยแพร่ให้เป็น Solid Button สีฟ้า เพื่อดึงดูดสายตา */}
-          <button 
-            className={`cm-btn cm-btn--sm ${!isPublishedNovel ? 'cm-btn--primary bg-blue-500 border-blue-500 text-white' : 'cm-btn--outline'}`} 
-            style={{ ...( !isPublishedNovel ? { backgroundColor: '#3b82f6', borderColor: '#3b82f6', color: '#ffffff' } : {}) }} 
+          <button
+            className={`cm-btn cm-btn--sm ${!isPublishedNovel ? 'cm-btn--primary bg-blue-500 border-blue-500 text-white' : 'cm-btn--outline'}`}
+            style={{ ...(!isPublishedNovel ? { backgroundColor: '#3b82f6', borderColor: '#3b82f6', color: '#ffffff' } : {}) }}
             onClick={onToggleStatus}
             disabled={isUpdatingNovelStatus}
           >
@@ -178,13 +164,11 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
         </div>
       </div>
 
-      {/* ── ส่วนล่าง: กล่องแจ้งเตือน (ปรับให้ขยายเต็มความกว้าง 100%) ── */}
       {!isPublishedNovel && !isCompletedNovel && (
         <div className="cm-banner__draft-note w-full mt-0" style={{ width: '100%', maxWidth: '100%', margin: '0', display: 'flex', alignItems: 'center' }}>
           ✨ นิยายยังเป็นฉบับร่าง — ผู้เขียนและผู้ดูแลเท่านั้นที่เห็นเรื่องนี้ และทุกตอนจะยังไม่แสดงให้ผู้อ่านเห็น
         </div>
       )}
-      
     </div>
   );
 };
@@ -198,16 +182,24 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
   const [text, setText] = useState(choiceText);
   const [subScene, setSubScene] = useState(choiceTargetSceneId);
   const [selectedChapterId, setSelectedChapterId] = useState(null);
-  
+
   const [isEditing, setIsEditing] = useState(isNew);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
 
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const allScenes = (sceneOptions || []).flatMap((ch, index) => {
     const chTitle = ch.episode ?? ch.Episode ?? ch.title ?? ch.Title ?? `ตอนที่ ${index + 1}`;
     const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID;
-    const chScenes = ch.scenes ?? ch.Scenes ?? [];
+    const chScenes = (ch.scenes ?? ch.Scenes) || [];
     return chScenes.map((s) => ({
       value: s.id ?? s.ID ?? s.scene_id ?? s.SceneID,
       label: (s.title ?? s.Title) || "(ฉากไม่มีชื่อ)",
@@ -224,7 +216,7 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
 
   const targetScene = allScenes.find((scene) => String(scene.value) === String(choiceTargetSceneId));
   const [scope, setScope] = useState(() => (targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same"));
-  
+
   const initialScope = targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same";
   const effectiveScope = scope || initialScope || "same";
   const firstOtherChapterId = chapterOptions.find((ch) => String(ch.value) !== String(currentChapterId))?.value ?? chapterOptions[0]?.value ?? null;
@@ -232,16 +224,29 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
   const effectiveChapterId = effectiveScope === "same"
     ? currentChapterId
     : selectedChapterId ?? (String(defaultChapterId) !== String(currentChapterId) ? defaultChapterId : firstOtherChapterId);
-  
+
   const currentChapterScenes = allScenes.filter((scene) => String(scene.chapterId) === String(effectiveChapterId));
-  const effectiveSubScene = subScene || choiceTargetSceneId || currentChapterScenes[0]?.value || "";
+
+  // ปรับแก้ลอจิก State เริ่มต้นตรงนี้: ถ้าของใหม่ไม่ดึงตัวแรกออโต้ เพื่อให้ตกลงไปที่ placeholder เปล่าๆ ก่อน
+  const effectiveSubScene = subScene || (isNew ? "" : choiceTargetSceneId || currentChapterScenes[0]?.value || "");
   const selectedTargetScene = allScenes.find((scene) => String(scene.value) === String(effectiveSubScene));
 
   const handleSaveChoice = async () => {
+    if (!text || text.trim() === "") {
+      alert("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
+      return;
+    }
+
+    // 🛑 ดักจับกรณีไม่ได้เลือกฉากปลายทาง (ป้องกันการบันทึกสุ่มลง DB)
+    if (!effectiveSubScene || effectiveSubScene === "") {
+      alert("กรุณาเลือกฉากปลายทางที่ต้องการเชื่อมโยง");
+      return;
+    }
+
     const payload = {
       from_scene_id: parseInt(choice.from_scene_id ?? choice.fromSceneID ?? currentChapterId, 10),
       to_scene_id: parseInt(effectiveSubScene, 10) || 0,
-      label: text,
+      label: text.trim(),
     };
 
     setIsSaving(true);
@@ -255,12 +260,12 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
 
       if (saved) {
         setShowSuccess(true);
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           setShowSuccess(false);
           setIsEditing(false);
         }, 1200);
       } else {
-        alert("❌ บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+        alert("❌ บันทึกไม่สำเร็จ: ตัวเลือกไม่สามารถเชื่อมโยงกลับมายังฉากเดิมได้");
       }
     } catch (err) {
       console.error("บันทึกตัวเลือกล้มเหลว:", err);
@@ -283,13 +288,11 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
         </div>
         <div style={{ display: 'flex', gap: '4px' }}>
           <button className="cm-btn cm-btn--ghost cm-btn--sm" style={{ color: '#2563eb', padding: '4px 8px' }} onClick={() => setIsEditing(true)} title="แก้ไขทางเลือก">✏️</button>
-          
-          {/* 🌟 เปลี่ยนมาใช้การเปิด Modal แทนการใช้ window.confirm */}
-          <button 
-            className="cm-btn cm-btn--ghost cm-btn--sm" 
-            style={{ color: '#ef4444', padding: '4px 8px' }} 
+          <button
+            className="cm-btn cm-btn--ghost cm-btn--sm"
+            style={{ color: '#ef4444', padding: '4px 8px' }}
             onClick={() => openConfirmDialog?.({
-              title: "ลบทางเลือกพล็อตเรื่อง",
+              title: "ยืนยันการลบตัวเลือก",
               message: `คุณต้องการลบตัวเลือก "${text || 'ไม่มีข้อความ'}" ใช่หรือไม่?`,
               confirmLabel: "ลบเลย",
               action: async () => {
@@ -324,13 +327,11 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
                 setScope(nextScope);
                 if (nextScope === "same") {
                   setSelectedChapterId(currentChapterId);
-                  const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(currentChapterId));
-                  setSubScene(firstScene?.value ?? "");
+                  setSubScene(""); // รีเซ็ตให้เลือกใหม่ ป้องกันบั๊กสุ่มบันทึก
                 } else {
                   const nextChapterId = selectedChapterId || firstOtherChapterId;
                   setSelectedChapterId(nextChapterId);
-                  const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(nextChapterId));
-                  setSubScene(firstScene?.value ?? "");
+                  setSubScene("");
                 }
               }}>
                 <option value="same">ไปฉากในตอนเดียวกัน</option>
@@ -344,8 +345,7 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
                 <select className="cm-select" value={effectiveChapterId || ""} onChange={(e) => {
                   const chapterId = e.target.value;
                   setSelectedChapterId(chapterId);
-                  const firstScene = allScenes.find((scene) => String(scene.chapterId) === String(chapterId));
-                  setSubScene(firstScene?.value ?? "");
+                  setSubScene(""); // รีเซ็ตทุกครั้งที่เปลี่ยนบทป้องกันบั๊กสุ่มบันทึก
                 }}>
                   <option value="">-- เลือกตอน --</option>
                   {chapterOptions.filter((ch) => String(ch.value) !== String(currentChapterId)).map((ch) => (
@@ -358,7 +358,8 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
             <div className="cm-choice__field" style={{ flex: 1 }}>
               <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>เลือกฉากปลายทาง</label>
               <select className="cm-select" value={effectiveSubScene || ""} onChange={(e) => setSubScene(e.target.value)}>
-                <option value="">-- เลือกฉากปลายทาง --</option>
+                {/* 👇 เพิ่ม Placeholder ป้องกันบราวเซอร์ดึงค่าแรกอัตโนมัติ */}
+                <option value="">-- กรุณาเลือกฉากปลายทาง --</option>
                 {currentChapterScenes.map((s) => (
                   <option key={`target-scene-opt-${s.value}`} value={s.value}>{s.chapterLabel} › {s.label}</option>
                 ))}
@@ -366,10 +367,10 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
             </div>
           </div>
         </div>
-        
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-          <button 
-            className="cm-btn cm-btn--outline cm-btn--sm" 
+          <button
+            className="cm-btn cm-btn--outline cm-btn--sm"
             type="button"
             onClick={() => {
               if (isNew) {
@@ -396,31 +397,29 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
   );
 };
 
-// ==========================================
-// SceneCard - อัปเดตการแสดงผลฉากจบตามเงื่อนไขที่ถูกต้อง
-// ==========================================
 const SceneCard = ({
   scene,
   chapterId,
   chapterNumber,
-  chapterTitle,
   sceneIndex,
   onWrite,
   fetchScenes,
   allChapters,
   openConfirmDialog
 }) => {
-  const sceneId = scene?.id ?? scene?.ID ?? scene?.scene_id ?? scene?.SceneID;
+  const sceneId = scene?.scene_id ?? scene?.id ?? scene?.ID ?? scene?.SceneID;
   const sceneTitle = scene?.title ?? scene?.Title ?? `ฉากย่อยที่ ${sceneIndex}`;
   const sceneContent = scene?.content ?? scene?.Content ?? "";
   const sceneChoices = (scene?.choices ?? scene?.Choices) || [];
-  
+
   const sceneType = (scene?.type || scene?.Type || "").toString().toLowerCase();
+  const isStartScene = sceneType === "start" || scene?.is_start_scene || scene?.isStart;
   const sceneStatus = (scene?.status || scene?.Status || (scene?.isPublished || scene?.is_published ? "published" : "draft") || "draft").toString().toLowerCase();
   const isPublishedScene = sceneStatus === "published";
   const isEnding = sceneType === "ending" || Boolean(scene?.ending_title || scene?.EndingTitle || scene?.endingTitle);
   const endingTitle = (scene?.ending_title ?? scene?.EndingTitle ?? scene?.endingTitle ?? "").trim();
   const endingType = (scene?.ending_type ?? scene?.EndingType ?? scene?.endingType ?? "").trim();
+  const isChapterOneScene = Number(chapterNumber) === 1;
 
   const stripHtmlTags = (html) => {
     if (!html) return "";
@@ -432,7 +431,7 @@ const SceneCard = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [newChoices, setNewChoices] = useState([]);
   const [isUpdatingSceneStatus, setIsUpdatingSceneStatus] = useState(false);
-  
+
   useEffect(() => {
     setNewChoices([]);
   }, [sceneId]);
@@ -440,14 +439,11 @@ const SceneCard = ({
   const allSceneChoices = [...sceneChoices, ...newChoices];
   const choiceCount = allSceneChoices.length;
 
-  // 🏁 ฟังก์ชันช่วยสร้างข้อความฉากจบให้สวยงามตามเงื่อนไข
   const formatEndingText = () => {
     const typeSuffix = endingType ? `(${endingType})` : "";
     if (!endingTitle) {
-      // ไม่มีชื่อฉากจบ -> "ฉากจบ (True)" หรือ "ฉากจบ"
       return `ฉากจบ ${typeSuffix}`.trim();
     } else {
-      // มีชื่อฉากจบ -> "ฉากจบ : ชื่อฉากจบ (True)" หรือ "ฉากจบ : ชื่อฉากจบ"
       return `ฉากจบ : ${endingTitle} ${typeSuffix}`.trim();
     }
   };
@@ -455,9 +451,9 @@ const SceneCard = ({
   const handleAddChoice = () => {
     if (!sceneId) return;
     const availableTargets = (allChapters || []).flatMap((ch) => {
-      const chScenes = ch.scenes ?? ch.Scenes ?? [];
+      const chScenes = (ch.scenes ?? ch.Scenes) || [];
       return chScenes.map((s) => ({
-        id: s.id ?? s.ID ?? s.scene_id ?? s.SceneID,
+        id: s.scene_id ?? s.id ?? s.ID ?? s.SceneID,
         type: s.type ?? s.Type,
       }));
     }).filter((s) => String(s.id) !== String(sceneId));
@@ -469,7 +465,8 @@ const SceneCard = ({
     }
 
     const uniqueTempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    setNewChoices((prev) => [...prev, { id: uniqueTempId, temp: true, from_scene_id: sceneId, label: "", to_scene_id: targetScene.id }]);
+    // เพิ่มการกำหนดค่าเริ่มต้นของปลายทางเป็นแบบเว้นว่างไว้เพื่อรอการระบุค่าจากผู้ใช้ใน Form
+    setNewChoices((prev) => [...prev, { id: uniqueTempId, temp: true, from_scene_id: sceneId, label: "", to_scene_id: "" }]);
     setIsBodyOpen(true);
   };
 
@@ -488,13 +485,11 @@ const SceneCard = ({
   };
 
   const handleDeleteChoice = async (choiceId, isNew) => {
-    // 💡 หากเป็นชอยส์ที่เพิ่งสร้างใหม่ (ยังไม่ได้เซฟ) ให้ลบออกจาก State หน้าจอได้เลย ตัวเลขจะลดทันที!
     if (isNew || String(choiceId).startsWith("temp-")) {
       setNewChoices((prev) => prev.filter((c) => String(c.id) !== String(choiceId)));
       return;
     }
 
-    // ถ้าเป็นชอยส์ที่มีอยู่ในระบบแล้ว ค่อยยิง API ไปลบ
     try {
       const authToken = getToken();
       const res = await fetch(`${API_BASE}/choices/${choiceId}`, {
@@ -505,20 +500,55 @@ const SceneCard = ({
     } catch (err) { console.error(err); }
   };
 
-  const handleDeleteScene = async () => {
+  const handleDeleteScene = async (targetId) => {
+    if (!targetId) return;
     try {
       const authToken = getToken();
-      const res = await fetch(`${API_BASE}/scenes/${sceneId}`, {
+      const res = await fetch(`${API_BASE}/scenes/${targetId}`, {
         method: "DELETE",
-        headers: { "Authorization": `Bearer ${authToken}` }
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
       });
-      if (res.ok) fetchScenes();
-    } catch (err) { console.error(err); }
+
+      if (res.ok) {
+        await fetchScenes();
+        return;
+      }
+
+      const errorText = await res.text().catch(() => "");
+      let displayMessage = "ไม่สามารถลบฉากนี้ได้ กรุณาลองซ้ำอีกครั้ง";
+
+      if (res.status === 404 || errorText.toLowerCase().includes("404 page not found")) {
+        displayMessage = "ไม่พบข้อมูลฉากนี้ในระบบ (อาจถูกลบไปแล้ว)";
+      } else {
+        try {
+          const errorJson = JSON.parse(errorText);
+
+          if (errorJson.message === "Cannot delete scene with incoming choices") {
+            displayMessage = "ไม่สามารถลบฉากนี้ได้ เนื่องจากมีตัวเลือกเชื่อมโยงอยู่ กรุณาลบหรือแก้ไขตัวเลือกดังกล่าวเพื่อดำเนินการต่อ";
+          } else if (errorJson.message === "Start scene cannot be deleted") {
+            displayMessage = "ไม่อนุญาตให้ลบ 'ฉากเริ่มต้น' ได้ (กรุณาตั้งฉากอื่นเป็นจุดเริ่มต้นก่อนทำการลบฉากนี้)";
+          } else if (errorJson.message) {
+            displayMessage = `เกิดข้อผิดพลาด: ${errorJson.message}`;
+          }
+        } catch (e) {
+          if (errorText.includes("Cannot delete scene with incoming choices")) {
+            displayMessage = "ไม่สามารถลบฉากนี้ได้ เนื่องจากมีตัวเลือกเชื่อมโยงอยู่ กรุณาลบหรือแก้ไขตัวเลือกดังกล่าวเพื่อดำเนินการต่อ";
+          } else if (errorText) {
+            displayMessage = errorText;
+          }
+        }
+      }
+      alert(displayMessage);
+    } catch (err) {
+      console.error("เกิดข้อผิดพลาดในการลบฉาก:", err);
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    }
   };
 
   const handleToggleSceneStatus = async () => {
     if (!sceneId) return;
-
     const nextStatus = isPublishedScene ? "draft" : "published";
     setIsUpdatingSceneStatus(true);
 
@@ -548,7 +578,6 @@ const SceneCard = ({
         const errText = await res.text().catch(() => "");
         throw new Error(errText || "เปลี่ยนสถานะฉากไม่สำเร็จ");
       }
-
       await fetchScenes();
     } catch (err) {
       console.error(err);
@@ -559,45 +588,44 @@ const SceneCard = ({
   };
 
   return (
-    <div className="cm-scene" style={{ 
-      marginBottom: '20px', 
-      border: '1px solid #f3f4f6', 
-      borderRadius: '16px', 
+    <div className="cm-scene" style={{
+      marginBottom: '20px',
+      border: '1px solid #f3f4f6',
+      borderRadius: '16px',
       backgroundColor: isEnding ? '#fffdf5' : '#ffffff',
-      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.04)', 
+      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.04)',
       transition: 'all 0.3s ease',
       position: 'relative',
       overflow: 'visible',
       zIndex: isMenuOpen ? 50 : 1
     }}>
-      <div className="cm-scene__header" style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        padding: '20px 24px', 
+      <div className="cm-scene__header" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '20px 24px',
         borderBottom: isBodyOpen ? '1px solid #f1f5f9' : 'none',
         boxSizing: 'border-box',
         gap: '20px'
       }}>
-        
-        {/* ฝั่งซ้าย: ข้อมูลฉาก */}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
-          <button 
-            onClick={() => setIsBodyOpen(!isBodyOpen)} 
-            style={{ 
-              background: isBodyOpen ? '#fdf2f8' : '#f8fafc', 
-              border: 'none', 
+          <button
+            onClick={() => setIsBodyOpen(!isBodyOpen)}
+            style={{
+              background: isBodyOpen ? '#fdf2f8' : '#f8fafc',
+              border: 'none',
               borderRadius: '50%',
               width: '32px',
               height: '32px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer', 
-              fontSize: '12px', 
-              color: isBodyOpen ? '#db2777' : '#94a3b8', 
-              transition: 'all 0.3s ease', 
-              transform: isBodyOpen ? 'rotate(90deg)' : 'none' 
+              cursor: 'pointer',
+              fontSize: '12px',
+              color: isBodyOpen ? '#db2777' : '#94a3b8',
+              transition: 'all 0.3s ease',
+              transform: isBodyOpen ? 'rotate(90deg)' : 'none'
             }}
           >
             ▶
@@ -611,21 +639,21 @@ const SceneCard = ({
               <h4 className="cm-scene__title" style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>
                 {sceneTitle}
               </h4>
-              
-              {(sceneType === "start" || scene?.is_start_scene || scene?.isStart) && (
+
+              {isStartScene && (
                 <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
                   🚀 ฉากเริ่มต้น
                 </span>
               )}
 
               {isEnding && (
-                <span style={{ 
-                  backgroundColor: '#fffbeb', 
-                  color: '#b45309', 
+                <span style={{
+                  backgroundColor: '#fffbeb',
+                  color: '#b45309',
                   border: '1px solid #fde68a',
-                  padding: '4px 10px', 
-                  borderRadius: '12px', 
-                  fontSize: '11.5px', 
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontSize: '11.5px',
                   fontWeight: '800',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -657,22 +685,20 @@ const SceneCard = ({
           </div>
         </div>
 
-        {/* ฝั่งขวา: ปุ่มควบคุม */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, position: 'relative' }}>
-          
-          <button 
-            className="cm-btn" 
-            style={{ 
-              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', 
-              color: '#fff', 
-              border: 'none', 
-              padding: '8px 18px', 
-              borderRadius: '20px', 
+          <button
+            className="cm-btn"
+            style={{
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '8px 18px',
+              borderRadius: '20px',
               fontWeight: '600',
               fontSize: '13.5px',
               boxShadow: '0 4px 10px rgba(37, 99, 235, 0.15)',
               cursor: 'pointer'
-            }} 
+            }}
             onClick={() => onWrite(chapterId, sceneId)}
           >
             🖊 เขียนเนื้อหา
@@ -695,13 +721,13 @@ const SceneCard = ({
             {isUpdatingSceneStatus ? 'กำลังอัปเดต...' : isPublishedScene ? '🔴 เปลี่ยนเป็นฉบับร่าง' : '🟢 เผยแพร่ฉากนี้'}
           </button>
 
-          <button 
-            style={{ 
-              fontSize: '13.5px', 
-              backgroundColor: choiceCount > 0 ? '#fdf2f8' : '#f8fafc', 
-              color: choiceCount > 0 ? '#db2777' : '#94a3b8', 
-              border: `1px solid ${choiceCount > 0 ? '#fbcfe8' : '#e2e8f0'}`, 
-              borderRadius: '20px', 
+          <button
+            style={{
+              fontSize: '13.5px',
+              backgroundColor: choiceCount > 0 ? '#fdf2f8' : '#f8fafc',
+              color: choiceCount > 0 ? '#db2777' : '#94a3b8',
+              border: `1px solid ${choiceCount > 0 ? '#fbcfe8' : '#e2e8f0'}`,
+              borderRadius: '20px',
               fontWeight: 'bold',
               padding: '7px 16px',
               minWidth: '95px',
@@ -712,16 +738,64 @@ const SceneCard = ({
             {choiceCount} ทางเลือก
           </button>
 
-          <button 
-            style={{ 
+          {isChapterOneScene && !isStartScene && (
+            <button
+              style={{
+                fontSize: '13.5px',
+                backgroundColor: '#eff6ff',
+                color: '#2563eb',
+                border: '1px solid #bfdbfe',
+                borderRadius: '20px',
+                fontWeight: '700',
+                padding: '7px 14px',
+                cursor: 'pointer'
+              }}
+              onClick={async () => {
+                try {
+                  const authToken = getToken();
+                  const res = await fetch(`${API_BASE}/scenes/${sceneId}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                      title: sceneTitle,
+                      content: sceneContent,
+                      type: 'start',
+                      status: sceneStatus,
+                      is_ending: false,
+                      ending_title: endingTitle,
+                      ending_type: endingType,
+                      ending_description: scene?.ending_description ?? scene?.endingDescription ?? ''
+                    })
+                  });
+                  if (!res.ok) {
+                    const errorText = await res.text().catch(() => 'ไม่สามารถตั้งฉากเริ่มต้นได้');
+                    alert(errorText || 'ไม่สามารถตั้งฉากเริ่มต้นได้');
+                    return;
+                  }
+                  await fetchScenes();
+                } catch (err) {
+                  console.error(err);
+                  alert('ไม่สามารถตั้งฉากเริ่มต้นได้ กรุณาลองใหม่');
+                }
+              }}
+            >
+              ⭐ ตั้งเป็นฉากเริ่มต้น
+            </button>
+          )}
+
+          <button
+            style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               width: '38px',
               height: '38px',
-              fontSize: '18px', 
-              fontWeight: 'bold', 
-              cursor: 'pointer', 
+              fontSize: '18px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
               color: '#475569',
               border: '1px solid #e2e8f0',
               borderRadius: '50%',
@@ -733,12 +807,11 @@ const SceneCard = ({
             ⋮
           </button>
 
-          {/* ป๊อปอัพเมนูสามจุด */}
           {isMenuOpen && (
             <>
-              <div 
-                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998, backgroundColor: 'transparent' }} 
-                onClick={() => setIsMenuOpen(false)} 
+              <div
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998, backgroundColor: 'transparent' }}
+                onClick={() => setIsMenuOpen(false)}
               />
               <div style={{
                 position: 'absolute',
@@ -753,8 +826,8 @@ const SceneCard = ({
                 padding: '6px 0',
                 overflow: 'hidden'
               }}>
-                <button 
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#db2777', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }} 
+                <button
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#db2777', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }}
                   onMouseOver={(e) => e.target.style.backgroundColor = '#fdf2f8'}
                   onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
                   onClick={() => { setIsMenuOpen(false); handleAddChoice(); }}
@@ -762,18 +835,18 @@ const SceneCard = ({
                   🩷 เพิ่มทางเลือก
                 </button>
                 <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
-                <button 
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#ef4444', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }} 
+                <button
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#ef4444', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }}
                   onMouseOver={(e) => e.target.style.backgroundColor = '#fef2f2'}
                   onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
                   onClick={() => {
                     setIsMenuOpen(false);
                     openConfirmDialog?.({
                       title: "ยืนยันการลบฉาก",
-                      message: `คุณแน่ใจหรือไม่ที่จะลบฉาก "${sceneTitle}"? พล็อตย่อยและปุ่มทางเลือกทั้งหมดที่เชื่อมมายังฉากนี้จะถูกลบออกถาวร`,
+                      message: `คุณแน่ใจหรือไม่ที่จะลบฉาก "${sceneTitle}"? เนื้อหาและตัวเลือกทั้งหมดที่เชื่อมมายังฉากนี้จะถูกลบออกถาวร`,
                       confirmLabel: "ลบเลย",
                       action: async () => {
-                        await handleDeleteScene();
+                        await handleDeleteScene(sceneId);
                       }
                     });
                   }}
@@ -802,7 +875,7 @@ const SceneCard = ({
               onCreate={async (choiceData) => {
                 try {
                   const choiceToken = getToken();
-      const res = await fetch(`${API_BASE}/choices`, {
+                  const res = await fetch(`${API_BASE}/choices`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${choiceToken}` },
                     body: JSON.stringify(choiceData)
@@ -822,13 +895,13 @@ const SceneCard = ({
           ))}
 
           <button
-            style={{ 
-              marginTop: "12px", 
-              border: '1px dashed #f472b6', 
-              color: '#db2777', 
-              backgroundColor: '#fdf2f8', 
-              padding: '10px 20px', 
-              borderRadius: '12px', 
+            style={{
+              marginTop: "12px",
+              border: '1px dashed #f472b6',
+              color: '#db2777',
+              backgroundColor: '#fdf2f8',
+              padding: '10px 20px',
+              borderRadius: '12px',
               fontWeight: '600',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
@@ -842,10 +915,10 @@ const SceneCard = ({
           </button>
         </div>
       )}
-
     </div>
   );
 };
+
 const ChapterPanel = ({
   chapter,
   onWrite,
@@ -865,19 +938,18 @@ const ChapterPanel = ({
   const chapterTitle = chapter?.title ?? "บทที่ไม่มีชื่อ";
   const chapterNumber = chapter?.episode ?? "?";
 
-  // ซิงค์ข้อมูล title เมื่อมีการเปลี่ยนตอน active
   useEffect(() => {
     setInputTitle(chapter?.title ?? "");
     setIsEditingTitle(false);
   }, [chapterId, chapter?.title]);
 
-  // ฟังก์ชันแก้ไขชื่อตอน
   const handleSaveTitle = async () => {
     if (!inputTitle.trim()) return alert("กรุณากรอกชื่อตอน");
     setIsSavingTitle(true);
     try {
       const authToken = getToken();
-      const res = await fetch(`http://localhost:8080/chapters/${chapterId}`, {
+      // แก้ไข URL Hardcode มาใช้ตัวแปร API_BASE
+      const res = await fetch(`${API_BASE}/chapters/${chapterId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -891,7 +963,7 @@ const ChapterPanel = ({
       });
       if (res.ok) {
         setIsEditingTitle(false);
-        await fetchScenes(); // โหลดข้อมูลใหม่เพื่ออัปเดตหน้าจอ
+        await fetchScenes();
       } else {
         alert("แก้ไขชื่อตอนไม่สำเร็จ");
       }
@@ -902,7 +974,6 @@ const ChapterPanel = ({
     }
   };
 
-  // ฟังก์ชันสลับสถานะ เผยแพร่ / กลับเป็นฉบับร่าง
   const handleToggleStatus = async () => {
     const currentStatus = (chapter?.status || chapter?.Status || "draft").toString().toLowerCase();
     const isPublishedChapter = currentStatus === "published" || currentStatus === "active";
@@ -911,7 +982,8 @@ const ChapterPanel = ({
     setIsUpdatingStatus(true);
     try {
       const authToken = getToken();
-      const chapterRes = await fetch(`http://localhost:8080/chapters/${chapterId}`, {
+      // แก้ไข URL Hardcode มาใช้ตัวแปร API_BASE
+      const chapterRes = await fetch(`${API_BASE}/chapters/${chapterId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -929,26 +1001,26 @@ const ChapterPanel = ({
       }
 
       const sceneUpdates = (chapter?.scenes || []).map(async (scene) => {
-        const sceneId = scene?.id ?? scene?.ID ?? scene?.scene_id ?? scene?.SceneID;
+        const sceneId = scene?.scene_id ?? scene?.id ?? scene?.ID ?? scene?.SceneID;
         if (!sceneId) return null;
 
         const sceneType = (scene?.type || scene?.Type || "normal").toString().toLowerCase();
-        const sceneStatus = (scene?.status || scene?.Status || "draft").toString().toLowerCase();
+        const nextSceneStatus = nextStatus;
         const isEnding = sceneType === "ending" || Boolean(scene?.ending_title || scene?.EndingTitle || scene?.endingTitle);
 
         const payload = {
           title: scene?.title ?? scene?.Title ?? "",
           content: scene?.content ?? scene?.Content ?? "",
           type: isEnding ? "ending" : (sceneType || "normal"),
-          status: nextStatus,
+          status: nextSceneStatus,
           is_ending: isEnding,
           ending_title: scene?.ending_title ?? scene?.EndingTitle ?? scene?.endingTitle ?? "",
           ending_type: scene?.ending_type ?? scene?.EndingType ?? scene?.endingType ?? "",
           ending_description: scene?.ending_description ?? scene?.endingDescription ?? scene?.EndingDescription ?? "",
         };
 
-        const authToken = getToken();
-        const sceneRes = await fetch(`http://localhost:8080/scenes/${sceneId}`, {
+        // แก้ไข URL Hardcode มาใช้ตัวแปร API_BASE
+        const sceneRes = await fetch(`${API_BASE}/scenes/${sceneId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -973,16 +1045,6 @@ const ChapterPanel = ({
     } finally {
       setIsUpdatingStatus(false);
     }
-  };
-
-  const formatThaiDate = (dateString) => {
-    if (!dateString) return "-";
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return dateString;
-      const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-      return `วันที่ ${date.getDate()} ${months[date.getMonth()]} ${String(date.getFullYear() + 543).slice(-2)} เวลา ${String(date.getHours()).padStart(2, '0')}.${String(date.getMinutes()).padStart(2, '0')} น.`;
-    } catch (e) { return dateString; }
   };
 
   const getChapterLastUpdatedAt = (chapterData) => {
@@ -1033,9 +1095,9 @@ const ChapterPanel = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
             {isEditingTitle ? (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input 
-                  type="text" 
-                  value={inputTitle} 
+                <input
+                  type="text"
+                  value={inputTitle}
                   onChange={(e) => setInputTitle(e.target.value)}
                   style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '16px', flex: 1, maxWidth: '300px' }}
                 />
@@ -1051,9 +1113,9 @@ const ChapterPanel = ({
                 ตอนที่ {chapterNumber} : {chapterTitle}
               </h3>
             )}
-            
+
             {!isEditingTitle && (
-              <button 
+              <button
                 onClick={() => setIsEditingTitle(true)}
                 style={{
                   alignSelf: 'flex-start', backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
@@ -1075,7 +1137,7 @@ const ChapterPanel = ({
             🎬 {chapter?.scenes?.length || 0} ฉาก
           </span>
           <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '500' }}>
-            อัปเดตล่าสุด {formatThaiDate(getChapterLastUpdatedAt(chapter))}
+            อัปเดตล่าสุด {formatThaiDate(getChapterLastUpdatedAt(chapter), true)}
           </span>
 
           <button
@@ -1093,7 +1155,7 @@ const ChapterPanel = ({
 
       <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '16px 0' }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', justifycontent: 'space-between', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ fontSize: '14px', fontWeight: '700', color: chapter?.status === 'published' ? '#16a34a' : '#991b1b' }}>
           สถานะตอน: {chapter?.status === 'published' ? '🟢 เผยแพร่แล้ว' : '🔴 ฉบับร่าง'}
         </div>
@@ -1110,7 +1172,7 @@ const ChapterPanel = ({
           >
             {isUpdatingStatus ? "⏳ กำลังเปลี่ยน..." : chapter?.status === 'published' ? "เปลี่ยนเป็นฉบับร่าง" : "🚀 เผยแพร่ตอนนี้"}
           </button>
-          
+
           <button
             onClick={() => onDeleteChapter && onDeleteChapter(chapterId)}
             style={{
@@ -1134,7 +1196,7 @@ const ChapterPanel = ({
           ) : (
             (chapter?.scenes || []).map((scene, index) => (
               <SceneCard
-                key={scene?.id || scene?.scene_id || index}
+                key={scene?.scene_id || scene?.id || index}
                 scene={scene}
                 chapterId={chapterId}
                 chapterNumber={chapterNumber}
@@ -1169,6 +1231,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const [lockedChapterIds, setLockedChapterIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchNovelAndChapters = async () => {
     if (!currentNovelId) {
@@ -1189,7 +1252,6 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       if (resNovel.ok) {
         const result = await resNovel.json();
         const actualNovelData = result.novel || result.data?.novel || result.data || result;
-        // normalize keys to be predictable
         const normalized = actualNovelData || {};
         normalized.status = (normalized.status || normalized.Status || "").toString().toLowerCase();
         normalized.is_published = normalized.is_published ?? normalized.isPublished ?? false;
@@ -1251,7 +1313,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     allChapters.forEach((chapter) => {
       const scenes = Array.isArray(chapter.scenes) ? chapter.scenes : [];
       scenes.forEach((scene) => {
-        const sceneId = scene?.id ?? scene?.ID ?? scene?.scene_id ?? scene?.SceneID;
+        const sceneId = scene?.scene_id ?? scene?.id ?? scene?.ID ?? scene?.SceneID;
         if (sceneId) {
           const chapterKey = String(chapter.id ?? chapter.ID ?? chapter.chapter_id ?? chapter.ChapterID ?? "");
           sceneToChapter.set(String(sceneId), chapterKey);
@@ -1360,12 +1422,9 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const reorderChaptersOnServer = async (orderedIds = []) => {
     if (!currentNovelId || !Array.isArray(orderedIds)) return;
     const authToken = getToken();
-    if (!authToken) {
-      console.error('Missing auth token for reorder');
-      return;
-    }
+    if (!authToken) return;
     try {
-      const res = await fetch(`${API_BASE}/novels/${currentNovelId}/chapters/reorder`, {
+      await fetch(`${API_BASE}/novels/${currentNovelId}/chapters/reorder`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1373,19 +1432,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         },
         body: JSON.stringify({ order: orderedIds }),
       });
-      if (!res.ok) {
-        console.error('Reorder chapters failed', res.status);
-      }
     } catch (err) {
       console.error('Reorder chapters error', err);
     }
   };
-
-  useEffect(() => {
-    if (Array.isArray(chapters)) {
-      setLockedChapterIds(computeLockedChapters(chapters));
-    }
-  }, [chapters]);
 
   const handleAddScene = async (chapterId) => {
     if (!chapterId) return;
@@ -1401,16 +1451,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       closeConfirmDialog();
       return;
     }
-
     try {
       await confirmDialog.action();
     } catch (err) {
       console.error("Confirm action failed:", err);
-      try {
-        alert("ข้อผิดพลาด: " + (err?.message || String(err)));
-      } catch (e) {
-        // ignore
-      }
     } finally {
       closeConfirmDialog();
     }
@@ -1422,7 +1466,6 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
   const handleToggleNovelStatus = async () => {
     if (!currentNovelId || !novel) return;
-
     const currentStatusInfo = getNovelStatusInfo(novel);
     const nextStatus = currentStatusInfo.isPublished ? "draft" : "published";
     const title = nextStatus === "published" ? "เผยแพร่นิยาย" : "เปลี่ยนนิยายเป็นฉบับร่าง";
@@ -1444,9 +1487,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
           };
 
           const authToken = getToken();
-          if (!authToken) {
-            throw new Error("กรุณาเข้าสู่ระบบก่อนทำรายการ");
-          }
+          if (!authToken) return;
           const res = await fetch(`${API_BASE}/novels/${currentNovelId}`, {
             method: "PUT",
             headers: {
@@ -1456,23 +1497,8 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             body: JSON.stringify(payload)
           });
 
-          if (!res.ok) {
-            const errText = await res.text().catch(() => "");
-            throw new Error(errText || "อัปเดตสถานะนิยายไม่สำเร็จ");
-          }
-
-          // fetch fresh novel detail to ensure UI matches server
+          if (!res.ok) throw new Error("อัปเดตสถานะนิยายไม่สำเร็จ");
           await fetchNovelAndChapters();
-          const verifyRes = await fetch(`${API_BASE}/novels/${currentNovelId}`, { headers: { "Authorization": `Bearer ${authToken}`, "Content-Type": "application/json" } });
-          if (verifyRes.ok) {
-            const v = await verifyRes.json().catch(() => null);
-            const novelFresh = v?.novel || v?.data?.novel || v?.data || v || {};
-            const normalized = novelFresh || {};
-            normalized.status = (normalized.status || normalized.Status || "").toString().toLowerCase();
-            normalized.is_published = normalized.is_published ?? normalized.isPublished ?? false;
-            normalized.is_completed = normalized.is_completed ?? normalized.isCompleted ?? false;
-            setNovel(normalized);
-          }
         } finally {
           setIsUpdatingNovelStatus(false);
         }
@@ -1482,26 +1508,27 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
   const handleDeleteChapter = async (chapterId) => {
     if (!chapterId) return;
-
     openConfirmDialog({
-      title: "ลบตอนนี้ใช่หรือไม่?",
+      title: "ยืนยันการลบตอน",
       message: "การกระทำนี้จะลบฉากทั้งหมดในตอนนี้ด้วย",
       confirmLabel: "ลบเลย",
       action: async () => {
         try {
           const authToken = getToken();
-      if (!authToken) {
-        alert("กรุณาเข้าสู่ระบบก่อนทำรายการ");
-        return;
-      }
-      const res = await fetch(`${API_BASE}/chapters/${chapterId}`, {
+          if (!authToken) return;
+          const res = await fetch(`${API_BASE}/chapters/${chapterId}`, {
             method: "DELETE",
             headers: {
               "Authorization": `Bearer ${authToken}`
             }
           });
           if (!res.ok) {
-            alert("ไม่สามารถลบตอนได้ กรุณาลองใหม่");
+            const errText = await res.text().catch(() => "");
+            if (res.status === 404 || errText.toLowerCase().includes("404 page not found")) {
+              alert("ไม่พบข้อมูลตอนนี้ในระบบ (อาจถูกลบไปแล้ว)");
+            } else {
+              alert("ไม่สามารถลบตอนได้ กรุณาลองใหม่");
+            }
             return;
           }
           if (String(activeChapterId) === String(chapterId)) {
@@ -1519,22 +1546,19 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     const id = c.id ?? c.ID ?? c.chapter_id ?? c.ChapterID;
     return String(id) === String(activeChapterId);
   });
+  const filteredChapters = chapters.filter((ch) => {
+    const title = (ch.title ?? ch.Title ?? "").toLowerCase();
+    const episode = String(ch.episode ?? ch.Episode ?? "");
+    const search = searchTerm.toLowerCase().trim();
 
+    // ค้นหาได้ทั้งจากชื่อตอน หรือ ค้นหาด้วยตัวเลขตอนเฉยๆ ก็เจอ
+    return title.includes(search) || episode.includes(search);
+  });
   if (loading) {
     return <div className="cm-loading-fullscreen">🔄 โหลดข้อมูลพล็อตสตอรี่ทรี...</div>;
   }
 
-  if (!currentNovelId) {
-    return (
-      <div className="cm-layout" style={{ padding: "40px" }}>
-        <div className="cm-empty-state">
-          ⚠️ ตรวจพบข้อผิดพลาด: ไม่พบรหัสไอดีนิยายในระบบการจัดการ
-        </div>
-      </div>
-    );
-  }
-
- return (
+  return (
     <div className="cm-layout">
       <div className="cm-main">
         <div className="cm-topbar">
@@ -1577,13 +1601,30 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
       <aside className="cm-sidebar">
         <div className="cm-sidebar__header">
-          ☰ รายชื่อตอนทั้งหมด ({chapters.length})
+          ☰ รายชื่อตอนทั้งหมด ({searchTerm ? `${filteredChapters.length}/${chapters.length}` : chapters.length})
         </div>
 
         <button className="cm-sidebar__add" onClick={openCreateChapterForm}>
           ✨ สร้างตอนใหม่
         </button>
 
+        <div style={{ padding: "0 16px 12px 16px" }}>
+          <input
+            type="text"
+            placeholder="🔍 ค้นหาเลขตอน หรือชื่อตอน..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: "8px",
+              border: "1px solid #fbcfe8",
+              fontSize: "13.5px",
+              outline: "none",
+              boxSizing: "border-box"
+            }}
+          />
+        </div>
         {isCreatingChapter && (
           <div className="cm-sidebar__new-form">
             <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#b91c1c" }}>กรอกข้อมูลตอนก่อนกดบันทึก</div>
@@ -1623,7 +1664,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         <div className="cm-sidebar__list">
           <DragDropContext onDragEnd={async (result) => {
             if (!result.destination) return;
-              const src = result.source.index;
+            const src = result.source.index;
             const dst = result.destination.index;
             if (src === dst) return;
             const next = Array.from(chapters || []);
@@ -1632,19 +1673,18 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             setChapters(next);
             const orderedIds = next.map(c => c.id ?? c.ID ?? c.chapter_id ?? c.ChapterID).filter(Boolean);
             await reorderChaptersOnServer(orderedIds);
-            // refresh from server to ensure consistency
             await fetchNovelAndChapters();
           }}>
             <Droppable droppableId="chapters-droppable">
               {(provided) => (
                 <div ref={provided.innerRef} {...provided.droppableProps}>
-                  {chapters.map((ch, index) => {
-            const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID ?? index;
-            const chKey = String(chId);
-            const chTitle = ch.title ?? ch.Title ?? `ตอนที่ ${index + 1}`;
-            const chStatus = (ch.status || ch.Status || "draft").toString().toLowerCase();
-            const isChapterPublished = chStatus === "published" || chStatus === "active";
-            const isLocked = lockedChapterIds.has(chKey);
+                 {filteredChapters.map((ch, index) => {
+                    const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID ?? index;
+                    const chKey = String(chId);
+                    const chTitle = ch.title ?? ch.Title ?? `ตอนที่ ${index + 1}`;
+                    const chStatus = (ch.status || ch.Status || "draft").toString().toLowerCase();
+                    const isChapterPublished = chStatus === "published" || chStatus === "active";
+                    const isLocked = lockedChapterIds.has(chKey);
                     return (
                       <Draggable
                         key={`chapter-sidebar-item-${chKey}-${index}`}
@@ -1663,7 +1703,6 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                             }}
                           >
                             <div
-                              key={`chapter-sidebar-item-${chKey}-${index}`}
                               className={`cm-sidebar__item ${String(activeChapterId) === chKey ? "cm-sidebar__item--active" : ""} ${isLocked ? "cm-sidebar__item--locked" : ""}`}
                               onClick={() => setActiveChapterId(chId)}
                               role="button"
