@@ -37,6 +37,27 @@ func truncateContent(content string, maxLen int) string {
 	return string(runes[:maxLen]) + "..."
 }
 
+func (s *sceneService) isChapterOne(chapterID int) (bool, error) {
+	var episode int
+	err := s.db.QueryRow(`SELECT episode FROM chapters WHERE chapter_id = $1`, chapterID).Scan(&episode)
+	if err != nil {
+		return false, err
+	}
+	return episode == 1, nil
+}
+
+func (s *sceneService) getExistingStartSceneID(novelID int) (int, error) {
+	var sceneID int
+	err := s.db.QueryRow(`SELECT scene_id FROM scenes WHERE novel_id = $1 AND type = 'start' LIMIT 1`, novelID).Scan(&sceneID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return sceneID, nil
+}
+
 func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
 	scene, err := s.repo.GetSceneByID(sceneID)
 	if err != nil {
@@ -49,6 +70,7 @@ func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
 
 	return models.SceneResponse{
 		SceneID:           scene.SceneID,
+		Title:             scene.Title,
 		Content:           scene.Content,
 		Type:              scene.Type,
 		Status:            scene.Status,
@@ -58,7 +80,6 @@ func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
 		EndingDescription: scene.EndingDescription,
 		NovelTitle:        scene.NovelTitle,   // 🟢 🎯 ยัดชื่อเรื่องหลักส่งไปหน้าบ้าน
 		ChapterTitle:      scene.ChapterTitle, // 🟢 🎯 ยัดชื่อตอนย่อยส่งไปหน้าบ้าน
-		SceneTitle:        scene.Title,        // 🟢 🎯 ส่งชื่อฉากย่อยไปด้วยครับน้า
 		Choices:           choices,
 	}, nil
 }
@@ -75,6 +96,7 @@ func (s *sceneService) GetStartScene(novelID int) (models.SceneResponse, error) 
 
 	return models.SceneResponse{
 		SceneID:           scene.SceneID,
+		Title:             scene.Title,
 		Content:           scene.Content,
 		Type:              scene.Type,
 		Status:            scene.Status,
@@ -84,7 +106,6 @@ func (s *sceneService) GetStartScene(novelID int) (models.SceneResponse, error) 
 		EndingDescription: scene.EndingDescription,
 		NovelTitle:        scene.NovelTitle,   // 🟢 🎯 ยัดชื่อเรื่องหลักส่งไปหน้าบ้าน
 		ChapterTitle:      scene.ChapterTitle, // 🟢 🎯 ยัดชื่อตอนย่อยส่งไปหน้าบ้าน
-		SceneTitle:        scene.Title,        // 🟢 🎯 ส่งชื่อฉากย่อย
 		Choices:           choices,
 	}, nil
 }
@@ -105,12 +126,30 @@ func (s *sceneService) CreateScene(scene models.Scene) (int, error) {
 		return 0, err
 	}
 
-	// Logic: ถ้าเป็นฉากแรกของเรื่อง ให้เป็น start เสมอ
+	chapterOne, err := s.isChapterOne(scene.ChapterID)
+	if err != nil {
+		return 0, err
+	}
+
 	if count == 0 {
-		scene.Type = "start"
+		// Automate the very first scene of the novel to start only if it belongs to chapter 1
+		if chapterOne {
+			scene.Type = "start"
+		} else {
+			scene.Type = "normal"
+		}
 	} else if strings.EqualFold(scene.Type, "start") {
-		// Reject duplicate start scene
-		return 0, errors.New("Novel already has a start scene")
+		if !chapterOne {
+			return 0, errors.New("Start scene must belong to chapter 1")
+		}
+		existingStartID, err := s.getExistingStartSceneID(scene.NovelID)
+		if err != nil {
+			return 0, err
+		}
+		if existingStartID != 0 {
+			return 0, errors.New("Novel already has a start scene")
+		}
+		scene.Type = "start"
 	} else if scene.Type == "" || strings.EqualFold(scene.Type, "draft") {
 		scene.Type = "normal"
 	}
@@ -128,11 +167,6 @@ func (s *sceneService) UpdateScene(scene models.Scene) error {
 		return err
 	}
 
-	// Validation: Prevent start scene from becoming an ending
-	if existing.Type == "start" && scene.Type == "ending" {
-		return errors.New("Start scene cannot be an ending scene")
-	}
-
 	if scene.Title != "" {
 		scene.Title = strings.TrimSpace(scene.Title)
 	} else {
@@ -143,22 +177,46 @@ func (s *sceneService) UpdateScene(scene models.Scene) error {
 		scene.Content = existing.Content
 	}
 
-	if scene.Type == "" {
-		scene.Type = existing.Type
-	} else if existing.Type == "start" {
-		// Force start scene to remain start
-		scene.Type = "start"
-	}
-
 	if strings.TrimSpace(scene.Status) == "" {
 		scene.Status = existing.Status
 	}
 
-	// Validation: Prevent ending scene from having outgoing choices
-	effectiveType := scene.Type
-	if effectiveType == "" {
-		effectiveType = existing.Type
+	effectiveType := existing.Type
+	if strings.TrimSpace(scene.Type) != "" {
+		requestedType := strings.ToLower(strings.TrimSpace(scene.Type))
+		if requestedType == "start" {
+			if existing.Type == "ending" {
+				return errors.New("Start scene cannot be an ending scene")
+			}
+			chapterOne, err := s.isChapterOne(existing.ChapterID)
+			if err != nil {
+				return err
+			}
+			if !chapterOne {
+				return errors.New("Start scene must belong to chapter 1")
+			}
+
+			currentStartID, err := s.getExistingStartSceneID(existing.NovelID)
+			if err != nil {
+				return err
+			}
+			if currentStartID != 0 && currentStartID != existing.SceneID {
+				if err := s.repo.UpdateSceneTypeByID(currentStartID, "normal"); err != nil {
+					return err
+				}
+			}
+			effectiveType = "start"
+		} else if requestedType == "ending" {
+			effectiveType = "ending"
+		} else {
+			effectiveType = requestedType
+		}
 	}
+
+	if existing.Type == "start" {
+		effectiveType = "start"
+	}
+
 	if effectiveType == "ending" {
 		choices, err := s.repo.GetChoicesBySceneID(scene.SceneID)
 		if err == nil && len(choices) > 0 {
@@ -166,14 +224,33 @@ func (s *sceneService) UpdateScene(scene models.Scene) error {
 		}
 	}
 
+	scene.Type = effectiveType
+
+	if existing.Type == "start" && scene.Type == "ending" {
+		return errors.New("Start scene cannot be an ending scene")
+	}
+
 	return s.repo.UpdateScene(scene)
 }
 
 func (s *sceneService) DeleteScene(sceneID int) error {
-	_, err := s.repo.GetSceneByID(sceneID)
+	scene, err := s.repo.GetSceneByID(sceneID)
 	if err != nil {
 		return err
 	}
+
+	if scene.Type == "start" {
+		return errors.New("Start scene cannot be deleted")
+	}
+
+	incomingCount, err := s.repo.GetIncomingChoiceCount(sceneID)
+	if err != nil {
+		return err
+	}
+	if incomingCount > 0 {
+		return errors.New("Cannot delete scene with incoming choices")
+	}
+
 	return s.repo.DeleteScene(sceneID)
 }
 

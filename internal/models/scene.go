@@ -20,23 +20,10 @@ type Scene struct {
 	UpdatedAt         time.Time `json:"updated_at,omitempty"`
 	NovelTitle        string    `json:"-"`
 	ChapterTitle      string    `json:"-"`
+	ChapterEpisode    int       `json:"chapter_episode,omitempty"`
 }
 
-// ✅ ใช้ส่งให้ frontend
-type SceneResponse struct {
-	SceneID           int      `json:"scene_id"`
-	NovelTitle        string   `json:"novel_title"`
-	ChapterTitle      string   `json:"chapter_title"`
-	SceneTitle        string   `json:"scene_title"`
-	Content           string   `json:"content"`
-	Type              string   `json:"type"`
-	Status            string   `json:"status,omitempty"`
-	ImageURL          string   `json:"image_url"`
-	EndingTitle       *string  `json:"ending_title,omitempty"`
-	EndingType        *string  `json:"ending_type,omitempty"`
-	EndingDescription *string  `json:"ending_description,omitempty"`
-	Choices           []Choice `json:"choices"`
-}
+type SceneResponse = Scene
 
 type EndingScene struct {
 	SceneID           int        `json:"scene_id"`

@@ -101,6 +101,10 @@ func (r *postgresSceneRepository) UpdateScene(scene models.Scene) error {
 	return UpdateScene(r.db, scene)
 }
 
+func (r *postgresSceneRepository) CreateChoice(choice models.Choice) (int, error) {
+	return CreateChoice(r.db, choice)
+}
+
 func (r *postgresSceneRepository) DeleteScene(sceneID int) error {
 	return DeleteScene(r.db, sceneID)
 }
@@ -121,8 +125,12 @@ func (r *postgresSceneRepository) CountScenesInNovel(novelID int) (int, error) {
 	return CountScenesInNovel(r.db, novelID)
 }
 
-func (r *postgresSceneRepository) CreateChoice(choice models.Choice) (int, error) {
-	return CreateChoice(r.db, choice)
+func (r *postgresSceneRepository) GetIncomingChoiceCount(sceneID int) (int, error) {
+	return GetIncomingChoiceCount(r.db, sceneID)
+}
+
+func (r *postgresSceneRepository) UpdateSceneTypeByID(sceneID int, typ string) error {
+	return UpdateSceneTypeByID(r.db, sceneID, typ)
 }
 
 // ======= Chapter Repository Methods =======

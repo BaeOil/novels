@@ -16,24 +16,25 @@ func GetSceneByID(db *sql.DB, id int) (*models.Scene, error) {
 			s.ending_title, s.ending_type, s.ending_description,
 			s.created_at, s.updated_at,
 			n.title AS novel_title,
-			c.title AS chapter_title
-		FROM scenes s
-		INNER JOIN novels n ON s.novel_id = n.novel_id
-		INNER JOIN chapters c ON s.chapter_id = c.chapter_id
-		WHERE s.scene_id = $1
-	`, id)
+            c.title AS chapter_title,
+            c.episode AS chapter_episode
+        FROM scenes s
+        INNER JOIN novels n ON s.novel_id = n.novel_id
+        INNER JOIN chapters c ON s.chapter_id = c.chapter_id
+        WHERE s.scene_id = $1
+    `, id)
 
 	var s models.Scene
 	err := row.Scan(
 		&s.SceneID, &s.ChapterID, &s.NovelID, &s.Title, &s.Content, &s.ImageURL, &s.Type, &s.Status,
 		&endingTitle, &endingType, &endingDescription,
 		&s.CreatedAt, &s.UpdatedAt,
-		&s.NovelTitle, &s.ChapterTitle, // 👈 แสกนค่าชื่อเรื่องและชื่อตอนลงตัวแปรพิเศษ
+		&s.NovelTitle, &s.ChapterTitle,
+		&s.ChapterEpisode,
 	)
 	if err != nil {
 		return nil, err
 	}
-
 	if endingTitle.Valid {
 		s.EndingTitle = &endingTitle.String
 	}
@@ -58,13 +59,14 @@ func GetStartSceneByNovelID(db *sql.DB, novelID int) (*models.Scene, error) {
 			s.ending_title, s.ending_type, s.ending_description,
 			s.created_at, s.updated_at,
 			n.title AS novel_title,
-			c.title AS chapter_title
-		FROM scenes s
-		INNER JOIN novels n ON s.novel_id = n.novel_id
-		INNER JOIN chapters c ON s.chapter_id = c.chapter_id
-		WHERE s.novel_id = $1 AND s.type = 'start'
-		LIMIT 1
-	`, novelID)
+            c.title AS chapter_title,
+            c.episode AS chapter_episode
+        FROM scenes s
+        INNER JOIN novels n ON s.novel_id = n.novel_id
+        INNER JOIN chapters c ON s.chapter_id = c.chapter_id
+        WHERE s.novel_id = $1 AND s.type = 'start'
+        LIMIT 1
+    `, novelID)
 
 	var s models.Scene
 	err := row.Scan(
@@ -72,6 +74,7 @@ func GetStartSceneByNovelID(db *sql.DB, novelID int) (*models.Scene, error) {
 		&endingTitle, &endingType, &endingDescription,
 		&s.CreatedAt, &s.UpdatedAt,
 		&s.NovelTitle, &s.ChapterTitle,
+		&s.ChapterEpisode,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -82,7 +85,8 @@ func GetStartSceneByNovelID(db *sql.DB, novelID int) (*models.Scene, error) {
 					s.ending_title, s.ending_type, s.ending_description,
 					s.created_at, s.updated_at,
 					n.title AS novel_title,
-					c.title AS chapter_title
+            c.title AS chapter_title,
+            c.episode AS chapter_episode
 				FROM scenes s
 				INNER JOIN novels n ON s.novel_id = n.novel_id
 				INNER JOIN chapters c ON s.chapter_id = c.chapter_id
@@ -91,17 +95,17 @@ func GetStartSceneByNovelID(db *sql.DB, novelID int) (*models.Scene, error) {
 				LIMIT 1
 			`, novelID)
 			err = row.Scan(
-				&s.SceneID, &s.ChapterID, &s.NovelID, &s.Title, &s.Content, &s.ImageURL, &s.Type,
+				&s.SceneID, &s.ChapterID, &s.NovelID, &s.Title, &s.Content, &s.ImageURL, &s.Type, &s.Status,
 				&endingTitle, &endingType, &endingDescription,
 				&s.CreatedAt, &s.UpdatedAt,
 				&s.NovelTitle, &s.ChapterTitle,
+				&s.ChapterEpisode,
 			)
 		}
 		if err != nil {
 			return nil, err
 		}
 	}
-
 	if endingTitle.Valid {
 		s.EndingTitle = &endingTitle.String
 	}
@@ -217,6 +221,20 @@ func CountScenesInNovel(db *sql.DB, novelID int) (int, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+func GetIncomingChoiceCount(db *sql.DB, sceneID int) (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM choices WHERE to_scene_id = $1`, sceneID).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func UpdateSceneTypeByID(db *sql.DB, sceneID int, typ string) error {
+	_, err := db.Exec(`UPDATE scenes SET type = $1, updated_at = CURRENT_TIMESTAMP WHERE scene_id = $2`, typ, sceneID)
+	return err
 }
 
 func (r *postgresSceneRepository) CheckSceneExists(chapterID int, title string) (bool, error) {
