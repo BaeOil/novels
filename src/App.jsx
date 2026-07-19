@@ -78,6 +78,105 @@ const AuthLayout = ({ children }) => {
 // Writer Layout (มี Navbar)
 // ======================================================
 const WriterLayout = ({ children, onNavigate }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showSelector, setShowSelector] = useState(false);
+  const [novelsList, setNovelsList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const currentPath = location.pathname;
+  // บังคับเลือกนิยายเฉพาะหน้าจัดการตอน, เขียนเนื้อหา, โครงสร้างเรื่อง, แก้ไขนิยาย
+  const isNovelRequiredPage = 
+    currentPath.includes("/chapters") || 
+    currentPath.includes("/scene/") || 
+    currentPath.includes("/storytree") ||
+    currentPath.includes("/edit");
+
+  useEffect(() => {
+    const checkNovel = () => {
+      const saved = localStorage.getItem("selectedNovel");
+      if (isNovelRequiredPage && !saved) {
+        setShowSelector(true);
+        fetchNovels();
+      } else {
+        setShowSelector(false);
+      }
+    };
+    checkNovel();
+    
+    // คอยฟังความเปลี่ยนแปลงของ localStorage
+    window.addEventListener("storage", checkNovel);
+    window.addEventListener("novel-selected", checkNovel);
+    return () => {
+      window.removeEventListener("storage", checkNovel);
+      window.removeEventListener("novel-selected", checkNovel);
+    };
+  }, [isNovelRequiredPage, location.pathname]);
+
+  const fetchNovels = async () => {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/me/novels`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.novels || data.data?.novels || [];
+        setNovelsList(Array.isArray(list) ? list : []);
+      }
+    } catch (err) {
+      console.error("ดึงข้อมูลนิยายไม่สำเร็จ:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectNovel = async (novel) => {
+    localStorage.setItem("selectedNovel", JSON.stringify(novel));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("novel-selected"));
+    setShowSelector(false);
+
+    // หลังจากเลือกเรื่องเสร็จแล้ว ให้เปลี่ยนหน้าไปยังหน้านั้นๆ ของเรื่องที่เลือก
+    const novelId = novel.id || novel.novel_id;
+    if (currentPath.includes("/chapters")) {
+      navigate(`/writer/${novelId}/chapters`);
+    } else if (currentPath.includes("/storytree")) {
+      navigate(`/writer/${novelId}/storytree`);
+    } else if (currentPath.includes("/scene/")) {
+      // หน้าเขียนฉาก ย้อนกลับไปเปิดตอนแรกของนิยายที่เลือกใหม่
+      try {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
+        const chRes = await fetch(`${API_BASE_URL}/novels/${novelId}/chapters`, { headers });
+        const chData = await chRes.json();
+        const chapters = chData?.data?.chapters || chData?.chapters || [];
+        if (chapters.length > 0) {
+          const chId = chapters[0].id || chapters[0].chapter_id;
+          const scRes = await fetch(`${API_BASE_URL}/chapters/${chId}/scenes`, { headers });
+          const scData = await scRes.json();
+          const scenes = scData?.data?.scenes || scData?.scenes || [];
+          if (scenes.length > 0) {
+            const scId = scenes[0].id || scenes[0].scene_id;
+            navigate(`/writer/${novelId}/scene/${scId}`);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      navigate(`/writer/${novelId}/scene/empty`);
+    } else if (currentPath.includes("/edit")) {
+      navigate(`/writer/${novelId}/edit`);
+    }
+  };
+
+  const filtered = novelsList.filter(n => 
+    (n.title || "").toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <NavbarContext.Provider value={true}>
       <div className="writer-layout">
@@ -85,6 +184,128 @@ const WriterLayout = ({ children, onNavigate }) => {
           {children}
         </main>
       </div>
+
+      {/* Popup บังคับเลือกนิยาย */}
+      {showSelector && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(45, 27, 61, 0.4)", backdropFilter: "blur(8px)",
+          display: "flex", justifyContent: "center", alignItems: "center",
+          zIndex: 99999, padding: "20px"
+        }}>
+          <div style={{
+            background: "var(--white)", width: "100%", maxLength: "500px", maxWidth: "500px",
+            borderRadius: "24px", boxShadow: "var(--shadow-lg)", overflow: "hidden",
+            border: "1px solid var(--pink-100)", display: "flex", flexDirection: "column",
+            maxHeight: "85vh"
+          }}>
+            {/* Header */}
+            <div style={{
+              background: "linear-gradient(135deg, var(--pink-50) 0%, var(--pink-100) 100%)",
+              padding: "24px", borderBottom: "1.5px solid var(--pink-100)",
+              textAlign: "center"
+            }}>
+              <span style={{ fontSize: "36px", display: "block", marginBottom: "8px" }}>✍️</span>
+              <h2 style={{ fontSize: "20px", fontWeight: "800", color: "var(--ink)", margin: 0 }}>
+                กรุณาเลือกนิยายที่ต้องการแก้ไข
+              </h2>
+              <p style={{ fontSize: "13px", color: "var(--gray-600)", margin: "4px 0 0 0" }}>
+                คุณกำลังเข้าใช้งานเครื่องมือของนิยาย กรุณาเลือกผลงานเพื่อดำเนินการต่อค่ะ
+              </p>
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--gray-100)" }}>
+              <input
+                type="text"
+                placeholder="🔍 ค้นหานิยายของคุณ..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 16px", borderRadius: "12px",
+                  border: "1.5px solid var(--gray-300)", fontSize: "14px",
+                  outline: "none", transition: "border-color 0.2s"
+                }}
+              />
+            </div>
+
+            {/* List */}
+            <div style={{
+              overflowY: "auto", padding: "12px 24px", flex: 1,
+              display: "flex", flexDirection: "column", gap: "10px"
+            }}>
+              {loading ? (
+                <div style={{ textAlign: "center", padding: "30px", color: "var(--pink-500)", fontWeight: "600" }}>
+                  กำลังโหลดผลงานทั้งหมด...
+                </div>
+              ) : filtered.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "30px", color: "var(--gray-600)" }}>
+                  📚 ไม่พบผลงานนิยายของคุณ
+                </div>
+              ) : (
+                filtered.map(novel => {
+                  const coverImage = novel.cover_image || novel.coverImage;
+                  return (
+                    <button
+                      key={novel.id || novel.novel_id}
+                      onClick={() => handleSelectNovel(novel)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "14px", width: "100%",
+                        padding: "12px", borderRadius: "16px", border: "1.5px solid var(--gray-100)",
+                        background: "var(--white)", cursor: "pointer", transition: "all 0.2s ease",
+                        textAlign: "left"
+                      }}
+                    >
+                      <div style={{
+                        width: "48px", height: "64px", borderRadius: "8px", background: "var(--pink-100)",
+                        display: "flex", justifyContent: "center", alignItems: "center", fontSize: "20px",
+                        overflow: "hidden"
+                      }}>
+                        {coverImage ? (
+                          <img
+                            src={coverImage.replace("http://minio:9000", "http://localhost:9000")}
+                            alt=""
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        ) : "📖"}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: "700", color: "var(--ink)", fontSize: "14.5px" }}>
+                          {novel.title}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "var(--gray-600)", marginTop: "4px" }}>
+                          📄 {novel.total_chapters ?? novel.chapter_count ?? 0} ตอน | 🎬 {novel.total_scenes ?? novel.scene_count ?? 0} ฉาก
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: "16px 24px", background: "var(--gray-50)",
+              borderTop: "1.5px solid var(--gray-100)", display: "flex",
+              justifyContent: "center"
+            }}>
+              <button
+                onClick={() => {
+                  setShowSelector(false);
+                  navigate("/writer/dashboard");
+                }}
+                style={{
+                  background: "var(--gray-100)", color: "var(--gray-600)", border: "none",
+                  padding: "10px 20px", borderRadius: "12px", fontWeight: "700",
+                  cursor: "pointer", fontSize: "13.5px"
+                }}
+              >
+                🏠 กลับไปหน้าแดชบอร์ด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </NavbarContext.Provider>
   );
 };

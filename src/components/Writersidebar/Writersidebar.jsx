@@ -75,6 +75,14 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
   const pathname = location.pathname;
 
   const selectedNovelId = selectedNovelIdProp || (() => {
+    const saved = localStorage.getItem("selectedNovel");
+    if (saved) {
+      try {
+        const novelObj = JSON.parse(saved);
+        const resolvedId = novelObj?.id || novelObj?.novel_id;
+        if (resolvedId) return String(resolvedId);
+      } catch (e) {}
+    }
     const writerMatch = pathname.match(/^\/writer\/(\d+)\/chapters/);
     const writerSceneMatch = pathname.match(/^\/writer\/(\d+)\/scene/);
     const storyMatch = pathname.match(/^\/writer\/(\d+)\/storytree/);
@@ -113,7 +121,30 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
         break;
       case "write":
         if (selectedNovelId) {
-          navigate(`/writer/${selectedNovelId}/scene/1`);
+          (async () => {
+            try {
+              const token = localStorage.getItem("token");
+              const headers = { Authorization: `Bearer ${token}` };
+              const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+              const chRes = await fetch(`${API_BASE}/novels/${selectedNovelId}/chapters`, { headers });
+              const chData = await chRes.json();
+              const chapters = chData?.data?.chapters || chData?.chapters || [];
+              if (chapters.length > 0) {
+                const chId = chapters[0].id || chapters[0].chapter_id;
+                const scRes = await fetch(`${API_BASE}/chapters/${chId}/scenes`, { headers });
+                const scData = await scRes.json();
+                const scenes = scData?.data?.scenes || scData?.scenes || [];
+                if (scenes.length > 0) {
+                  const scId = scenes[0].id || scenes[0].scene_id;
+                  navigate(`/writer/${selectedNovelId}/scene/${scId}`);
+                  return;
+                }
+              }
+            } catch (e) {
+              console.error(e);
+            }
+            navigate(`/writer/${selectedNovelId}/scene/empty`);
+          })();
         } else {
           navigate("/writer/dashboard");
         }

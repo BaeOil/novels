@@ -74,6 +74,20 @@ const Navbarwriter = () => {
         };
     }, []);
 
+    useEffect(() => {
+        const syncSelectedNovel = () => {
+            const saved = localStorage.getItem("selectedNovel");
+            setSelectedNovel(saved ? JSON.parse(saved) : null);
+        };
+        window.addEventListener("storage", syncSelectedNovel);
+        window.addEventListener("novel-selected", syncSelectedNovel);
+        syncSelectedNovel();
+        return () => {
+            window.removeEventListener("storage", syncSelectedNovel);
+            window.removeEventListener("novel-selected", syncSelectedNovel);
+        };
+    }, []);
+
     // ─────────────────────────────────────
     // Auth
     // ─────────────────────────────────────
@@ -188,10 +202,10 @@ const Navbarwriter = () => {
                 const chapterData = await chapterRes.json();
                 const chapters = chapterData?.data?.chapters || chapterData?.chapters || chapterData?.data || [];
 
-                if (!chapters.length) {
-                    window.location.href = `/writer/${novelId}/chapters`;
-                    return;
-                }
+                 if (!chapters.length) {
+                     window.location.href = `/writer/${novelId}/scene/empty`;
+                     return;
+                 }
 
                 const firstChapterId = chapters[0].id || chapters[0].chapter_id || chapters[0].ChapterID;
 
@@ -200,10 +214,10 @@ const Navbarwriter = () => {
                 const sceneData = await sceneRes.json();
                 const scenes = sceneData?.data?.scenes || sceneData?.scenes || sceneData?.data || [];
 
-                if (!scenes.length) {
-                    window.location.href = `/writer/${novelId}/chapters`;
-                    return;
-                }
+                 if (!scenes.length) {
+                     window.location.href = `/writer/${novelId}/scene/empty`;
+                     return;
+                 }
 
                 // 3. เอา ID ของฉากแรกสุดมาใช้
                 const firstSceneId = scenes[0].id || scenes[0].scene_id || scenes[0].SceneID;
@@ -212,7 +226,7 @@ const Navbarwriter = () => {
                 window.location.href = `/writer/${novelId}/scene/${firstSceneId}`;
             } catch (err) {
                 console.error("ดึงข้อมูลฉากแรกล้มเหลว:", err);
-                window.location.href = `/writer/${novelId}/chapters`; // ถ้าพังให้กลับไปหน้าจัดการตอน
+                window.location.href = `/writer/${novelId}/scene/empty`; // ถ้าพังให้กลับไปหน้าแจ้งเตือนไม่มีตอน
             }
             return;
         }
@@ -233,6 +247,9 @@ const Navbarwriter = () => {
             "selectedNovel",
             JSON.stringify(novel)
         );
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("novel-selected"));
 
         setShowNovelPopup(false);
 
@@ -610,16 +627,42 @@ const Navbarwriter = () => {
                             <button
                                 className="selected-novel-btn"
                                 onClick={() => openNovelPopup()}
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    background: selectedNovel ? "var(--pink-50)" : "#fff3cd",
+                                    border: selectedNovel ? "1.5px solid var(--pink-300)" : "1.5px solid #ffc107",
+                                    padding: "6px 14px",
+                                    borderRadius: "20px",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease"
+                                }}
                             >
-                                <span className="selected-dot"></span>
-
-                                <span className="selected-title">
-                                    {selectedNovel?.title ||
-                                        "เลือกนิยายที่กำลังแก้ไข"}
+                                <span style={{
+                                    display: "inline-block",
+                                    width: "8px",
+                                    height: "8px",
+                                    background: selectedNovel ? "var(--pink-500)" : "#ffc107",
+                                    borderRadius: "50%"
+                                }}></span>
+                                
+                                <span style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--ink)" }}>
+                                    {selectedNovel 
+                                        ? `กำลังแก้ไข: ${selectedNovel.title}` 
+                                        : "เลือกนิยายที่ต้องการแก้ไข"}
                                 </span>
-
-                                <span className="selected-arrow">
-                                    ▾
+                                
+                                <span style={{
+                                    fontSize: "12px",
+                                    fontWeight: "800",
+                                    background: selectedNovel ? "var(--pink-500)" : "#ffc107",
+                                    color: selectedNovel ? "var(--white)" : "var(--black)",
+                                    padding: "2px 8px",
+                                    borderRadius: "10px",
+                                    marginLeft: "6px"
+                                }}>
+                                    เปลี่ยนเรื่อง
                                 </span>
                             </button>
                         )}

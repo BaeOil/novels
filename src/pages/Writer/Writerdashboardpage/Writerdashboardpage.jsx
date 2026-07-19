@@ -153,14 +153,20 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     }
   };
 
-  const handleEdit = (novelId) => {
-    onSelectNovel?.(novelId);
-    onNavigate("chapters", { novelId });
+  const handleEdit = (novelObj) => {
+    localStorage.setItem("selectedNovel", JSON.stringify(novelObj));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("novel-selected"));
+    const id = novelObj.id || novelObj.novel_id;
+    onNavigate("chapters", { novelId: id });
   };
 
-  const handleTree = (novelId) => {
-    onSelectNovel?.(novelId);
-    onNavigate("story-tree", { novelId });
+  const handleTree = (novelObj) => {
+    localStorage.setItem("selectedNovel", JSON.stringify(novelObj));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("novel-selected"));
+    const id = novelObj.id || novelObj.novel_id;
+    onNavigate("story-tree", { novelId: id });
   };
 
   if (loading) {
@@ -243,8 +249,8 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
               <NovelCard
                 key={id}
                 novel={novel}
-                onEdit={() => handleEdit(id)}
-                onTree={() => handleTree(id)}
+                onEdit={() => handleEdit(novel)}
+                onTree={() => handleTree(novel)}
                 onDelete={() => handleDeleteNovel(id)}
               />
             );

@@ -1433,6 +1433,84 @@ const SceneEditorPage = ({
     setPreviewMode((value) => !value);
   }, []);
 
+  const isEmptyNovel = !isLoading && (
+    sceneId === "empty" || 
+    chapters.length === 0 || 
+    chapters.every(ch => !ch.scenes || ch.scenes.length === 0)
+  );
+
+  if (isEmptyNovel) {
+    return (
+      <div className="se-page" style={{ background: "var(--gray-50)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+        <header className="se-header">
+          <div className="se-header__left">
+            <button
+              className="se-header__back"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  onNavigate("dashboard");
+                }
+              }}
+              aria-label="ย้อนกลับ"
+            >
+              ย้อนกลับ
+            </button>
+            <nav className="se-header__breadcrumb" aria-label="breadcrumb">
+              <span className="se-header__bc-novel">เรื่อง: {novelTitle || "นิยายของคุณ"}</span>
+            </nav>
+          </div>
+        </header>
+
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "60px 20px", flex: 1, minHeight: "70vh", textAlign: "center"
+        }}>
+          <div style={{
+            background: "var(--white)", padding: "40px", borderRadius: "24px",
+            boxShadow: "var(--shadow-md)", maxWidth: "500px", width: "100%",
+            border: "1px solid var(--pink-100)", display: "flex", flexDirection: "column",
+            alignItems: "center", gap: "20px"
+          }}>
+            <span style={{ fontSize: "64px" }}>📖</span>
+            <h2 style={{ fontSize: "22px", fontWeight: "800", color: "var(--ink)", margin: 0 }}>
+              นิยายเรื่องนี้ยังไม่มีตอนหรือฉากใดๆ
+            </h2>
+            <p style={{ fontSize: "14.5px", color: "var(--gray-600)", lineHeight: "1.6", margin: 0 }}>
+              คุณจำเป็นต้องสร้างตอน (Chapter) และเพิ่มฉากย่อยในตอนก่อน ถึงจะสามารถเริ่มเขียนเนื้อหาได้ค่ะ
+            </p>
+            
+            <div style={{ display: "flex", gap: "12px", width: "100%", marginTop: "10px" }}>
+              <button
+                onClick={() => onNavigate("dashboard")}
+                style={{
+                  flex: 1, background: "var(--gray-100)", color: "var(--gray-600)",
+                  border: "none", padding: "12px", borderRadius: "12px",
+                  fontWeight: "700", cursor: "pointer", fontSize: "14px"
+                }}
+              >
+                🏠 กลับ Dashboard
+              </button>
+              <button
+                onClick={() => onNavigate("chapters", { novelId })}
+                style={{
+                  flex: 1, background: "var(--pink-500)", color: "var(--white)",
+                  border: "none", padding: "12px", borderRadius: "12px",
+                  fontWeight: "700", cursor: "pointer", fontSize: "14px",
+                  boxShadow: "var(--shadow-sm)"
+                }}
+              >
+                ✨ ไปหน้าจัดการตอน
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="se-page">
       {/* Header */}
@@ -1746,7 +1824,7 @@ const SceneEditorPage = ({
               </div>
               <button className="se-preview-modal__close" onClick={() => setPreviewMode(false)}>✕</button>
             </div>
-            <div className="se-preview-modal__body" style={{ background: "#fdfbf7", color: "#2d1b3d", padding: "36px" }}>
+            <div className="se-preview-modal__body" style={{ background: "#ffffff", color: "#2d1b3d", padding: "36px" }}>
               {/* ส่วนหัวของเนื้อหาแบบที่ผู้อ่านเห็น */}
               <div style={{ textAlign: "center", marginBottom: "32px", borderBottom: "1px dashed var(--gray-300)", paddingBottom: "24px" }}>
                 <span style={{ fontSize: "0.85rem", color: "var(--pink-700)", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px" }}>
@@ -1757,7 +1835,7 @@ const SceneEditorPage = ({
                 </h1>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", margin: "12px 0" }}>
                   <span style={{ height: "1px", width: "40px", background: "var(--pink-300)" }} />
-                  <span style={{ color: "var(--pink-500)", fontSize: "12px" }}>✧ 🌸 ✧</span>
+                  <span style={{ color: "var(--pink-500)", fontSize: "12px" }}>✧ ✦ ✧</span>
                   <span style={{ height: "1px", width: "40px", background: "var(--pink-300)" }} />
                 </div>
                 <h2 style={{ fontSize: "1.1rem", fontWeight: "600", color: "var(--gray-600)" }}>
@@ -1793,7 +1871,7 @@ const SceneEditorPage = ({
                     marginBottom: "8px",
                     textAlign: "center"
                   }}>
-                    ✨ เลือกการตัดสินใจของคุณ ✨
+                  เลือกการตัดสินใจของคุณ
                   </div>
                   {previewChoices.map((choice, i) => (
                     <button
@@ -1803,7 +1881,7 @@ const SceneEditorPage = ({
                         width: "100%", 
                         padding: "16px 24px", 
                         borderRadius: "14px", 
-                        border: "2px solid var(--pink-100)",
+                        border: "1px solid var(--gray-300)",
                         background: "#ffffff", 
                         textAlign: "left", 
                         fontSize: "0.95rem", 
@@ -1815,7 +1893,7 @@ const SceneEditorPage = ({
                       }}
                       onClick={() => alert(`คุณเลือกเส้นทาง: "${choice.label}"\n(ในโหมดทดลองอ่านนี้ จะจำลองการแสดงผลเพื่อตรวจทานเท่านั้น)`)}
                     >
-                      👉 {choice.label}
+                    {choice.label}
                     </button>
                   ))}
                 </div>
@@ -1831,7 +1909,7 @@ const SceneEditorPage = ({
                   fontWeight: "600",
                   textAlign: "center" 
                 }}>
-                  🔚 ฉากจบของตอน (สิ้นสุดเส้นทางสำหรับเนื้อหาในส่วนนี้)
+                  ฉากจบของตอน (สิ้นสุดเส้นทางสำหรับเนื้อหาในส่วนนี้)
                 </div>
               )}
             </div>
