@@ -34,7 +34,7 @@
 .se-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 83px);
   background: var(--gray-50);
   overflow: hidden;
 }

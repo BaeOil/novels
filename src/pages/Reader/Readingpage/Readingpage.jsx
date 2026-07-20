@@ -708,16 +708,26 @@ useEffect(() => {
           )}
 
           {(!choices || choices.length === 0) && (
-            <div className="rp__ending">
-              <div className="rp__ending-icon" aria-hidden="true">🏆</div>
-              <h2 className="rp__ending-title">จบเส้นทางเนื้อเรื่องย่อยนี้แล้ว!</h2>
+            <div className="rp__ending-card">
+              <div className="rp__ending-trophy-wrapper">
+                <span className="rp__ending-sparkle rp__ending-sparkle--left">✨</span>
+                <div className="rp__ending-trophy-icon">🏆</div>
+                <span className="rp__ending-sparkle rp__ending-sparkle--right">🎉</span>
+              </div>
+
+              <h2 className="rp__ending-title">🎉 ยินดีด้วย! คุณอ่านมาถึงฉากจบแล้ว!</h2>
+              <p className="rp__ending-subtitle">
+                คุณร่วมเดินทางผ่านตัวเลือกมาจนถึงจุดสิ้นสุดของเส้นทางนี้แล้ว <br />
+                มาร่วมสำรวจเส้นทางอื่นในผังเรื่อง หรือเริ่มอ่านใหม่เพื่อปลดล็อกฉากจบแบบอื่นๆ กัน!
+              </p>
+
               <div className="rp__ending-actions">
                 <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => handleLocalNavigate("story-tree") }>
-                  🌳 ดู แผนผังการอ่าน
+                  ดูแผนผังการอ่าน
                 </button>
                 <RestartReadingButton onRestart={handleRestartReading} />
-                <button className="rp__ending-btn rp__ending-btn--outline" onClick={() => handleLocalNavigate("novel-detail") }>
-                  กลับหน้ารายละเอียด
+                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail") }>
+                  ⭠ กลับหน้ารายละเอียด
                 </button>
               </div>
             </div>

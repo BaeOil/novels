@@ -7,12 +7,12 @@ const RestartReadingButton = ({ onRestart, disabled = false, className = "" }) =
     <button
       type="button"
       // เปลี่ยนมาใช้ class แบบเดียวกับปุ่ม "กลับหน้ารายละเอียด"
-      className={`rp__ending-btn rp__ending-btn--outline ${className}`} 
+      className={`rp__ending-btn rp__ending-btn--secondary ${className}`} 
       onClick={onRestart}
       disabled={disabled}
       aria-label="เริ่มอ่านใหม่"
     >
-      🔄 เริ่มอ่านใหม่
+      ⭮ เริ่มอ่านใหม่
     </button>
   );
 };

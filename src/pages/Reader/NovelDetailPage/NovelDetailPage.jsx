@@ -626,15 +626,14 @@ const NovelDetailPage = () => {
                 showBookmark={!isPreview}
                 showLike={!isPreview}
               />
-              <div className="novel-detail__restart-row">
-                <button
-                  className="novel-detail__restart-button"
-                  type="button"
-                  onClick={handleRestartConfirmOpen}
-                >
-                  🔄 เริ่มอ่านใหม่
-                </button>
-              </div>
+              <button
+                className="novel-detail__restart-button"
+                type="button"
+                onClick={handleRestartConfirmOpen}
+                title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
+              >
+                ⭮ เริ่มอ่านใหม่
+              </button>
             </div>
 
             {/* 🌟 ปรับปรุง UX ส่วนความคืบหน้า: ควบรวมฟังก์ชันจัดการความคืบหน้ามาไว้ด้วยกันอย่างเป็นระเบียบ */}

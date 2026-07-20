@@ -55,20 +55,6 @@ const NOVEL_MENU = [
   },
 ];
 
-// เมนูสร้างนิยาย
-const CREATE_MENU = [
-  {
-    id: "create-novel",
-    label: "สร้างนิยายเรื่องใหม่",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-        <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-];
-
 const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selectedNovelIdProp, onNavigate }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -200,23 +186,6 @@ const WriterSidebar = ({ currentPage: currentPageProp, selectedNovelId: selected
               onClick={() => handleRoute(item.id)}
               disabled={!selectedNovelId}
               title={!selectedNovelId ? "เลือกนิยายจาก Dashboard ก่อน" : ""}
-            >
-              <span className="wsb__item-icon">{item.icon}</span>
-              <span className="wsb__item-label">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* ── หัวข้อสร้างนิยาย ── */}
-      <div className="wsb__create-section">
-        <div className="wsb__section-label">สร้างนิยาย</div>
-        <nav aria-label="เมนูสร้างนิยาย">
-          {CREATE_MENU.map((item) => (
-            <button
-              key={item.id}
-              className={`wsb__item ${currentPage === item.id ? "wsb__item--active" : ""}`}
-              onClick={() => handleRoute(item.id)}
             >
               <span className="wsb__item-icon">{item.icon}</span>
               <span className="wsb__item-label">{item.label}</span>

@@ -37,7 +37,7 @@ const Comments = ({
         />
         <div className="novel-detail__comment-actions">
           <button type="submit" className="novel-detail__comment-button">
-            ส่งความคิดเห็น
+            <span>💬</span> ส่งความคิดเห็น
           </button>
         </div>
       </form>

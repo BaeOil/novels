@@ -1565,43 +1565,58 @@ const SceneEditorPage = ({
   };
 
   const handleConfirmAddChapter = async () => {
-    if (!novelId || !newChapterTitle.trim()) {
-      setErrorMsg("กรุณากรอกชื่อตอน");
-      return;
-    }
-
-    if (!token) {
-      alert("กรุณาเข้าสู่ระบบก่อนสร้างตอน");
-      return;
-    }
+    if (!newChapterTitle.trim()) return;
+    setIsAddingChapter(true);
 
     try {
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
 
-      const nextEpisode = (chapters?.length || 0) + 1;
-
-      // 1. สร้างตอนใหม่
+      // 1. ส่งคำขอสร้างตอนใหม่ไปยัง API
       const response = await fetch(`${API_BASE_URL}/chapters`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           novel_id: parseInt(novelId, 10),
-          episode: nextEpisode,
           title: newChapterTitle.trim(),
+          episode: nextEpisode,
+          status: "draft",
         }),
       });
 
       if (!response.ok) throw new Error("ไม่สามารถสร้างตอนใหม่ได้");
 
       const payload = await response.json().catch(() => null) || {};
-      const createdChapterId = payload.chapter_id ?? payload.id ?? payload.chapter?.id ?? payload.data?.chapter_id;
+      const createdData = payload?.data || payload?.chapter || payload || {};
+      const createdChapterId = createdData.id || createdData.chapter_id || createdData.ChapterID || payload.chapter_id || Date.now();
 
-      // 2. เก็บข้อความ Toast ไว้ใน sessionStorage
+      // 2. อัปเดต state chapters ทันทีเพื่อให้ Sidebar แสดงตอนใหม่โดยไม่ต้องรอ re-fetch
+      const newChapterObj = {
+        id: createdChapterId,
+        chapter_id: createdChapterId,
+        ChapterID: createdChapterId,
+        title: createdData.title || newChapterTitle.trim(),
+        Title: createdData.title || newChapterTitle.trim(),
+        episode: createdData.episode || nextEpisode,
+        Episode: createdData.episode || nextEpisode,
+        scenes: []
+      };
+
+      setChapters((prev) => {
+        const prevArr = Array.isArray(prev) ? prev : [];
+        const exists = prevArr.some(c => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(createdChapterId));
+        if (exists) return prevArr;
+        return [...prevArr, newChapterObj];
+      });
+
+      // 3. เก็บข้อความ Toast ไว้ใน sessionStorage
       const chapterToast = `สร้างตอน "${newChapterTitle.trim()}" สำเร็จ`;
       try { sessionStorage.setItem("toastMessage", chapterToast); } catch (e) { /* ignore */ }
 
-      // 3. สร้างฉากแรกอัตโนมัติทันที
+      // 4. สร้างฉากแรกอัตโนมัติทันที
       try {
         const sceneRes = await fetch(`${API_BASE_URL}/scenes`, {
           method: "POST",
@@ -1619,37 +1634,25 @@ const SceneEditorPage = ({
 
         const scenePayload = await sceneRes.json().catch(() => null) || {};
         const createdSceneId = scenePayload.scene_id ?? scenePayload.id ?? scenePayload.data?.scene_id;
-
-        setShowAddChapterDialog(false);
-        setNewChapterTitle("");
-
-        // 4. ตั้งค่าให้ Focus ชื่อฉากเมื่อเปลี่ยนหน้า
-        sessionStorage.setItem("focusSceneTitle", "true");
-
-        // อัปเดตข้อมูลแถบด้านข้าง
-        await fetchSceneData();
-        window.dispatchEvent(new Event("novel-data-updated"));
-
-        // นำทางไปยังฉากใหม่
-        if (createdSceneId) {
-          if (typeof onNavigate === "function") {
-            onNavigate("scene-editor", { novelId, chapterId: createdChapterId, sceneId: createdSceneId });
-          }
-        } else {
-          if (typeof onNavigate === "function") {
-            onNavigate("scene-editor", { novelId, chapterId: createdChapterId, sceneId: "new" });
-          }
-        }
-      } catch (err) {
-        console.error("Error creating initial scene:", err);
-        await fetchSceneData();
+      } catch (sceneError) {
+        console.error("ไม่สามารถสร้างฉากแรกอัตโนมัติได้:", sceneError);
       }
-    } catch (err) {
-      console.error("Add chapter error:", err);
-      setErrorMsg(err.message || "เกิดข้อผิดพลาด");
-    }
-  };
 
+      // 5. ดึงข้อมูลฉากทั้งหมดใหม่ และยิง Event แจ้งระบบ
+      await fetchSceneData();
+      window.dispatchEvent(new Event("novel-data-updated"));
+
+      // ปิด Modal และเคลียร์ค่า
+      setIsAddChapterModalOpen(false);
+      setNewChapterTitle("");
+
+    } catch (err) {
+      console.error("เกิดข้อผิดพลาดในการสร้างตอน:", err);
+      alert(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsAddingChapter(false);
+    }
+  }; // <--- เช็คดี ๆ ว่าหลังปีกกานี้ ไม่มีเศษปีกกา } หรือก้อน catch อันอื่นโผล่มาซ้ำนะครับ
   const savedText = lastSaved
     ? `บันทึกแล้ว ${lastSaved.getHours().toString().padStart(2, "0")}:${lastSaved.getMinutes().toString().padStart(2, "0")} น.`
     : draftSavedAt
@@ -1774,8 +1777,10 @@ const SceneEditorPage = ({
   };
   const isEmptyNovel = !isLoading && (
     sceneId === "empty" ||
-    chapters.length === 0 ||
-    chapters.every(ch => !ch.scenes || ch.scenes.length === 0)
+    (sceneId !== "new" && (
+      chapters.length === 0 ||
+      chapters.every(ch => !ch.scenes || ch.scenes.length === 0)
+    ))
   );
 
   // focus scene title when requested (e.g., after creating new chapter+scene)
@@ -1807,6 +1812,16 @@ const SceneEditorPage = ({
     }
   }, [sceneId, isLoading]);
   if (isEmptyNovel) {
+    const searchParams = new URLSearchParams(window.location.search);
+    const reasonParam = searchParams.get("reason");
+    const isNoChapters = reasonParam === "no-chapters" || chapters.length === 0;
+
+    const titleText = isNoChapters ? "ยังไม่มีตอน" : "ยังไม่มีฉาก";
+    const descText = isNoChapters
+      ? "คุณจำเป็นต้องสร้างตอน (Chapter) ในหน้าจัดการตอนก่อน ถึงจะสามารถเพิ่มฉากและเขียนเนื้อหาได้ค่ะ"
+      : "คุณจำเป็นต้องเพิ่มฉาก (Scene) ในหน้าจัดการตอนก่อน ถึงจะสามารถเริ่มเขียนเนื้อหาได้ค่ะ";
+    const targetUrlParams = isNoChapters ? { novelId } : { novelId, highlightEmpty: "true" };
+
     return (
       <div className="se-page" style={{ background: "var(--gray-50)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         {/* Header */}
@@ -1853,12 +1868,12 @@ const SceneEditorPage = ({
             border: "1px solid var(--pink-100)", display: "flex", flexDirection: "column",
             alignItems: "center", gap: "20px"
           }}>
-            <span style={{ fontSize: "64px" }}>📖</span>
+            <span style={{ fontSize: "64px" }}>{isNoChapters ? "📑" : "🎬"}</span>
             <h2 style={{ fontSize: "22px", fontWeight: "800", color: "var(--ink)", margin: 0 }}>
-              นิยายเรื่องนี้ยังไม่มีตอนหรือฉากใดๆ
+              {titleText}
             </h2>
             <p style={{ fontSize: "14.5px", color: "var(--gray-600)", lineHeight: "1.6", margin: 0 }}>
-              คุณจำเป็นต้องสร้างตอน (Chapter) และเพิ่มฉากย่อยในตอนก่อน ถึงจะสามารถเริ่มเขียนเนื้อหาได้ค่ะ
+              {descText}
             </p>
 
             <div style={{ display: "flex", gap: "12px", width: "100%", marginTop: "10px" }}>
@@ -1873,7 +1888,7 @@ const SceneEditorPage = ({
                 🏠 กลับ Dashboard
               </button>
               <button
-                onClick={() => onNavigate("chapters", { novelId })}
+                onClick={() => onNavigate("chapters", targetUrlParams)}
                 style={{
                   flex: 1, background: "var(--pink-500)", color: "var(--white)",
                   border: "none", padding: "12px", borderRadius: "12px",
@@ -1881,7 +1896,7 @@ const SceneEditorPage = ({
                   boxShadow: "var(--shadow-sm)"
                 }}
               >
-                ✨ ไปหน้าจัดการตอน
+                📑 ไปหน้าจัดการตอน
               </button>
             </div>
           </div>

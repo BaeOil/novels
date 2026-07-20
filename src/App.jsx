@@ -94,24 +94,8 @@ const WriterLayout = ({ children, onNavigate }) => {
     currentPath.includes("/edit");
 
   useEffect(() => {
-    const checkNovel = () => {
-      const saved = localStorage.getItem("selectedNovel");
-      if (isNovelRequiredPage && !saved) {
-        setShowSelector(true);
-        fetchNovels();
-      } else {
-        setShowSelector(false);
-      }
-    };
-    checkNovel();
-    
-    // คอยฟังความเปลี่ยนแปลงของ localStorage
-    window.addEventListener("storage", checkNovel);
-    window.addEventListener("novel-selected", checkNovel);
-    return () => {
-      window.removeEventListener("storage", checkNovel);
-      window.removeEventListener("novel-selected", checkNovel);
-    };
+    // ปิด Popup บังคับเลือกนิยายซ้ำซ้อน เพราะผู้ใช้กดเลือกแก้ไขนิยายจาก Dashboard แล้ว
+    setShowSelector(false);
   }, [isNovelRequiredPage, location.pathname]);
 
   const fetchNovels = async () => {

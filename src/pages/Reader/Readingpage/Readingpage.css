@@ -209,75 +209,165 @@
     letter-spacing: 0.01em;
 }
 
-/* ── Ending ── */
-.rp__ending {
-    text-align: center;
-    margin-top: 56px;
-    padding: 40px 32px;
-    background: linear-gradient(150deg, var(--pink-50), var(--white));
-    border: 1.5px solid var(--pink-100);
-    border-radius: 20px;
+/* ── Celebratory Ending Card ── */
+.rp__ending-card {
+  text-align: center;
+  margin-top: 56px;
+  padding: 44px 32px 36px;
+  background: linear-gradient(145deg, #ffffff 0%, #fffbf2 45%, #fff0f6 100%);
+  border: 1.5px solid #fce7f3;
+  border-radius: 24px;
+  box-shadow: 0 16px 40px rgba(236, 72, 153, 0.08), 0 4px 16px rgba(0, 0, 0, 0.02);
+  position: relative;
+  overflow: hidden;
+  animation: fadeInEnding 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.rp__ending-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
+@keyframes fadeInEnding {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rp__ending-trophy-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.rp__ending-trophy-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fffbe3 0%, #ffe4f1 100%);
+  border: 2px solid #fef08a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+  animation: trophyFloat 3s ease-in-out infinite;
+}
+
+@keyframes trophyFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(3deg); }
+}
+
+.rp__ending-sparkle {
+  font-size: 24px;
+  position: absolute;
+  top: 4px;
+  animation: sparklePulse 1.8s ease-in-out infinite alternate;
+}
+
+.rp__ending-sparkle--left {
+  left: -28px;
+}
+
+.rp__ending-sparkle--right {
+  right: -28px;
+  animation-delay: 0.9s;
+}
+
+@keyframes sparklePulse {
+  0% { transform: scale(0.85) rotate(-5deg); opacity: 0.7; }
+  100% { transform: scale(1.15) rotate(10deg); opacity: 1; }
 }
 
 .rp__ending-title {
-    font-family: 'Open Sans', serif;
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--ink);
-    margin-bottom: 8px;
+  font-family: 'Open Sans', serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 10px;
+  letter-spacing: -0.2px;
 }
 
-.rp__ending-desc {
-    font-size: 15px;
-    color: var(--gray-600);
-    margin-bottom: 28px;
+.rp__ending-subtitle {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14.5px;
+  color: #64748b;
+  line-height: 1.65;
+  margin-bottom: 28px;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .rp__ending-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
 }
 
 .rp__ending-btn {
-    padding: 12px 28px;
-    border-radius: 10px;
-    font-family: 'Sarabun', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.18s;
-    width: 100%;
-    max-width: 380px;
-    border: none;
-    /* เปลี่ยนสีพื้นฐานให้เหมือนกันทุกปุ่มเป็นสีชมพูปกติ */
-    background: var(--pink-500);
-    color: white;
-    box-shadow: 0 4px 14px rgba(233, 30, 140, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+  max-width: 360px;
+  border: none;
+  text-decoration: none;
 }
 
-.rp__ending-btn:hover {
-    background: var(--pink-600);
-    transform: translateY(-1px);
+/* Primary Button: ดูผังเรื่อง (สีชมพูบานเย็นไล่ระดับ) */
+.rp__ending-btn--primary {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(236, 72, 153, 0.3);
 }
 
-/* เมื่อถูกคลิก (Active) ให้เป็นชมพูเข้ม */
-.rp__ending-btn:active {
-    background: var(--pink-700) !important;
-    transform: translateY(0);
+.rp__ending-btn--primary:hover {
+  background: linear-gradient(135deg, #db2777 0%, #be185d 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(219, 39, 119, 0.4);
 }
 
-/* ยกเลิกสไตล์เดิมของปุ่ม outline เพื่อให้สีเหมือนกัน */
-.rp__ending-btn--outline {
-    background: var(--pink-500);
-    color: white;
-    border: none !important;
+/* Secondary Button: เริ่มอ่านใหม่ (สไตล์ Soft Pink Gradient) */
+.rp__ending-btn--secondary {
+  background: linear-gradient(135deg, #fff0f6 0%, #ffe4f1 100%);
+  border: 1.5px solid #fbcfe8;
+  color: #db2777 !important;
+  box-shadow: 0 2px 8px rgba(219, 39, 119, 0.08);
+}
+
+.rp__ending-btn--secondary:hover {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  color: #ffffff !important;
+  border-color: #db2777;
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.25);
+}
+
+/* Ghost Button: กลับหน้ารายละเอียด (สีเทาสะอาดตา) */
+.rp__ending-btn--ghost {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  color: #475569 !important;
+}
+
+.rp__ending-btn--ghost:hover {
+  background: #f1f5f9;
+  color: #1e293b !important;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
 }
 /* Responsive */
 @media (max-width: 600px) {
