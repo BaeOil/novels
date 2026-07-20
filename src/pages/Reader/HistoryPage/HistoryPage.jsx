@@ -36,37 +36,46 @@ const extractChapterAndSceneFromTitle = (title) => {
   };
 };
 
-const normalizeBook = (item) => ({
-  id: item.novel_id || item.id, 
-  title: item.title || "ไม่ระบุชื่อเรื่อง",
-  author: item.author_name || item.pen_name || "ไม่ทราบผู้แต่ง",
-  categories: Array.isArray(item.categories) 
-    ? item.categories.map(c => typeof c === 'object' ? c.name : c) 
-    : ["ทั่วไป"],
-  coverImage: item.cover_image || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=320&q=80",
-  synopsis: stripHtml(item.captions || item.introduction || ""),
-  reading_status: item.reading_status || "reading",
-  routeFound: item.visited_count || 0,
-  totalRoutes: item.total_scenes || item.scene_count || 0,
-  endingCount: item.ending_count || 0,
-  totalEndings: item.total_endings || 0,
-  
-  lastReadAt: (item.last_read_at && !item.last_read_at.startsWith("0001")) 
-    ? item.last_read_at 
-    : item.updated_at || item.created_at || new Date().toISOString(),
+const normalizeBook = (item) => {
+  // 1. ดึง ID ของฉากปัจจุบันและฉากล่าสุดเพื่อเช็กการย้อนเวลา
+  const currentSceneId = item.current_scene_id || item.scene_id || item.last_read_scene_id || 0;
+  const lastReadSceneId = item.last_read_scene_id || 0;
 
-  // 🎯 สลับเอากลุ่ม current_ ขึ้นก่อน เพื่อเคารพค่าปัจจุบันที่กดมาจากหน้าผังนิยาย
-  lastReadChapterNumber: item.current_chapter_number || item.last_read_chapter_number || null,
-  lastReadChapterTitle: item.current_chapter_title || item.last_read_chapter_title || null,
-  lastReadSceneNumber: item.current_scene_number || item.last_read_scene_number || null,
-  lastReadSceneName: item.current_scene_name || item.current_scene_title || item.last_read_scene_name || item.last_read_scene_title || null,
-  
-  // 💎 คงทางเลือกก่อนหน้าไว้เหมือนเดิม ไม่แตะต้องลอจิกส่วนนี้
-  lastChoiceText: item.last_choice_text || null,
-  
-  // ยึดเลขฉากปัจจุบันจากการย้อนผังเป็นหลัก
-  currentSceneId: item.current_scene_id || item.scene_id || item.last_read_scene_id || 0,
-});
+  // 2. ตรวจจับการย้อนไทม์ไลน์ (พิกัดปัจจุบัน ไม่ตรงกับ ประวัติฉากล่าสุดที่เคยไปถึง)
+  const isTimeTraveling = lastReadSceneId !== 0 && currentSceneId !== 0 && String(lastReadSceneId) !== String(currentSceneId);
+
+  return {
+    id: item.novel_id || item.id,
+    title: item.title || "ไม่ระบุชื่อเรื่อง",
+    author: item.author_name || item.pen_name || "ไม่ทราบผู้แต่ง",
+    categories: Array.isArray(item.categories)
+      ? item.categories.map(c => typeof c === 'object' ? c.name : c)
+      : ["ทั่วไป"],
+    coverImage: item.cover_image || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=320&q=80",
+    synopsis: stripHtml(item.captions || item.introduction || ""),
+    reading_status: item.reading_status || "reading",
+    routeFound: item.visited_count || 0,
+    totalRoutes: item.total_scenes || item.scene_count || 0,
+    endingCount: item.ending_count || 0,
+    totalEndings: item.total_endings || 0,
+
+    lastReadAt: (item.last_read_at && !item.last_read_at.startsWith("0001"))
+      ? item.last_read_at
+      : item.updated_at || item.created_at || new Date().toISOString(),
+
+    // 🎯 ดึงข้อมูลปัจจุบัน (current) ขึ้นก่อนเสมอ เพื่อให้แสดงฉาก/ตอน ตรงกับความเป็นจริง
+    lastReadChapterNumber: item.current_chapter_number || item.last_read_chapter_number || null,
+    lastReadChapterTitle: item.current_chapter_title || item.last_read_chapter_title || null,
+    lastReadSceneNumber: item.current_scene_number || item.last_read_scene_number || null,
+    lastReadSceneName: item.current_scene_name || item.current_scene_title || item.last_read_scene_name || item.last_read_scene_title || null,
+
+    // 💎 ถ้ากำลังย้อนไทม์ไลน์ ให้ซ่อน choice แล้วบอกสถานะแทน
+    lastChoiceText: isTimeTraveling ? "กำลังย้อนกลับมาอ่านฉากนี้" : (item.last_choice_text || null),
+
+    currentSceneId: currentSceneId,
+    isTimeTraveling: isTimeTraveling, // ส่งสถานะไปใช้จัดการ UI ด้านล่าง
+  };
+};
 
 const HistoryPage = ({ onNavigate }) => {
   const navigate = useNavigate();
@@ -180,32 +189,20 @@ const HistoryPage = ({ onNavigate }) => {
               const status = STATUS_MAP[book.reading_status] || STATUS_MAP.reading;
               const percent = book.totalRoutes ? Math.round((book.routeFound / book.totalRoutes) * 100) : 0;
               const chapterLabel = book.lastReadChapterTitle
-  ? `ตอนที่ ${book.lastReadChapterNumber || "?"} : ${book.lastReadChapterTitle}`
-  : book.lastReadChapterNumber
-  ? `ตอนที่ ${book.lastReadChapterNumber}`
-  : book.isMismatched
-  ? "กำลังอ่าน (ย้อนไทม์ไลน์)"
-  : "ยังไม่ระบุตอน";
-              
-              const scNum = 
-                book.lastReadSceneNumber || 
-                book.currentSceneId ||
-                book.sceneNumber || 
-                book.scene_number || 
-                book.scene_index || 
-                book.lastReadParsed?.scene || 
-                book.last_read_scene_number;
-              
+                ? `ตอนที่ ${book.lastReadChapterNumber || "?"} : ${book.lastReadChapterTitle}`
+                : book.lastReadChapterNumber
+                  ? `ตอนที่ ${book.lastReadChapterNumber}`
+                  : "ยังไม่ระบุตอน";
+
+              // บังคับใช้เลขฉากปัจจุบันเป็นตัวแรก (ข้อมูลผ่านการกรองมาแล้ว)
+              const scNum = book.lastReadSceneNumber || book.currentSceneId || "?";
+
               const sceneTitle = book.lastReadSceneName || book.lastReadSceneTitle;
               const finalSceneTitle = (sceneTitle && !sceneTitle.includes("ตอนที่")) ? sceneTitle : null;
 
-              const sceneLabel = book.lastReadSceneName
-  ? (book.lastReadSceneNumber ? `ฉากที่ ${book.lastReadSceneNumber} : ${book.lastReadSceneName}` : book.lastReadSceneName)
-  : book.lastReadSceneNumber
-  ? `ฉากที่ ${book.lastReadSceneNumber}`
-  : book.isMismatched
-  ? `ฉากปัจจุบัน (ไอดี: ${book.currentSceneId})`
-  : "ยังไม่ระบุฉาก";
+              const sceneLabel = finalSceneTitle
+                ? `ฉากที่ ${scNum} : ${finalSceneTitle}`
+                : `ฉากที่ ${scNum}`;
 
               return (
                 <div key={book.id || `${book.title}-${book.author}`} className="history-card">
@@ -247,22 +244,29 @@ const HistoryPage = ({ onNavigate }) => {
                         <div className="history-card__info-label">ฉากล่าสุด</div>
                         <div>{sceneLabel}</div>
                       </div>
-                      
+
                       {book.lastChoiceText ? (
                         <div className="history-card__info-item history-card__info-item--full">
-                          <div className="history-card__info-label">ทางเลือกก่อนหน้า</div>
-                          <div className="history-card__choice-text">{book.lastChoiceText}</div>
+                          <div className="history-card__info-label">
+                            {book.isTimeTraveling ? "สถานะการอ่าน" : "ทางเลือกก่อนหน้า"}
+                          </div>
+                          <div
+                            className="history-card__choice-text"
+                            style={book.isTimeTraveling ? { color: "#E91E8C", fontStyle: "italic", fontWeight: 500, background: "#FFF0F5", padding: "6px 10px", borderRadius: "6px", display: "inline-block" } : {}}
+                          >
+                            {book.lastChoiceText}
+                          </div>
                         </div>
                       ) : null}
-                      
+
                       <div className="history-card__info-item">
                         <div className="history-card__info-label">ตอนจบที่ค้นพบ</div>
                         <div>
-                          {book.totalEndings > 0 
+                          {book.totalEndings > 0
                             ? `${book.endingCount}/${book.totalEndings}`
                             : book.reading_status === "finished"
-                            ? `${book.endingCount}/${book.endingCount}`
-                            : `${book.endingCount}/?`}
+                              ? `${book.endingCount}/${book.endingCount}`
+                              : `${book.endingCount}/?`}
                         </div>
                       </div>
                       <div className="history-card__info-item">
@@ -286,7 +290,7 @@ const HistoryPage = ({ onNavigate }) => {
                       className="history-card__continue-btn"
                       onClick={() => {
                         const targetScene = book.currentSceneId;
-                        
+
                         // 🎯 ปรับปรุงความปลอดภัย: บังคับเปลี่ยนผ่าน URL ของระบบ Router ของเว็บโดยตรงคู่ขนานไปด้วย
                         // เพื่อให้ React Router ประมวลผลดึง useParams() ส่งไปให้ ReadingPage ทันที 
                         if (targetScene && targetScene !== 0) {
