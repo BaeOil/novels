@@ -192,7 +192,7 @@ func (s *sceneService) UpdateScene(scene models.Scene) error {
 		requestedType := strings.ToLower(strings.TrimSpace(scene.Type))
 		if requestedType == "start" {
 			if existing.Type == "ending" {
-				return errors.New("Start scene cannot be an ending scene")
+				return errors.New("ไม่สามารถตั้งค่าฉากเริ่มต้นให้เป็นฉากจบได้ กรุณาเลือกฉากอื่นเป็นฉากจบ")
 			}
 			chapterOne, err := s.isChapterOne(existing.ChapterID)
 			if err != nil {
@@ -226,14 +226,14 @@ func (s *sceneService) UpdateScene(scene models.Scene) error {
 	if effectiveType == "ending" {
 		choices, err := s.repo.GetChoicesBySceneID(scene.SceneID)
 		if err == nil && len(choices) > 0 {
-			return errors.New("Ending scene cannot have outgoing choices")
+			return errors.New("ฉากจบไม่สามารถสร้างทางเลือกต่อได้ กรุณาลบตัวเลือกในฉากนี้ออก หรือเปลี่ยนประเภทฉากเพื่อไปต่อ")
 		}
 	}
 
 	scene.Type = effectiveType
 
 	if existing.Type == "start" && scene.Type == "ending" {
-		return errors.New("Start scene cannot be an ending scene")
+		return errors.New("ไม่สามารถตั้งค่าฉากเริ่มต้นให้เป็นฉากจบได้ กรุณาเลือกฉากอื่นเป็นฉากจบ")
 	}
 
 	return s.repo.UpdateScene(scene)
@@ -305,7 +305,7 @@ func (s *sceneService) ValidateStoryForPublish(novelID int) error {
 	for _, ending := range endingScenes {
 		if ending.ID > 0 {
 			if outgoingCount[ending.ID] > 0 {
-				return errors.New("Ending scene cannot have outgoing choices")
+				return errors.New("ฉากจบไม่สามารถสร้างทางเลือกต่อได้ กรุณาลบตัวเลือกในฉากนี้ออก หรือเปลี่ยนประเภทฉากเพื่อไปต่อ")
 			}
 		}
 	}
