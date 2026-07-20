@@ -151,6 +151,62 @@
   color: var(--pink-500);
 }
 
+/* ─────────────────────────────────────────────
+   Vertical Divider & Pink Submenu Items
+   ───────────────────────────────────────────── */
+.nav-item-divider-container {
+  display: flex;
+  align-items: center;
+  margin: 0 -4px;
+}
+
+.nav-menu-divider {
+  display: inline-block;
+  width: 2.5px;
+  height: 16px;
+  background-color: #ec4899;
+  border-radius: 99px;
+  animation: fadeInDivider 0.25s ease-out forwards;
+}
+
+@keyframes fadeInDivider {
+  from { opacity: 0; transform: scaleY(0.3); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+.nav-menu-btn--pink {
+  border: none;
+  background: transparent;
+  text-decoration: none;
+  color: #ec4899 !important;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.18s ease;
+  white-space: nowrap;
+  animation: slideExpandRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.nav-menu-btn--pink:hover {
+  color: #be185d !important;
+}
+
+@keyframes slideExpandRight {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.nav-menu-btn--pink span.nav-icon {
+  font-size: 15px;
+}
+
 /* RIGHT */
 
 .navbar__right {

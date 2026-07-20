@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import ReactDOM from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Navbarwriter.css";
 import { getNovelStatusInfo } from "../../utils/novelStatus";
@@ -25,6 +26,7 @@ const Navbarwriter = () => {
     });
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
 
     // ─────────────────────────────────────
     // Writer mode
@@ -193,7 +195,6 @@ const Navbarwriter = () => {
 
         if (target === "write") {
             try {
-                // ✨ แกับั๊ก: ดึงข้อมูลหา scene_id จริงๆ ของนิยายเรื่องนี้ ไม่ฮาร์ดโค้ดเป็น 1 แล้ว
                 const token = localStorage.getItem("token");
                 const headers = { Authorization: `Bearer ${token}` };
 
@@ -202,31 +203,39 @@ const Navbarwriter = () => {
                 const chapterData = await chapterRes.json();
                 const chapters = chapterData?.data?.chapters || chapterData?.chapters || chapterData?.data || [];
 
-                 if (!chapters.length) {
-                     window.location.href = `/writer/${novelId}/scene/empty`;
-                     return;
-                 }
+                // กรณีที่ 1: ผู้ใช้ยังไม่มีตอนเลย (Chapter = 0)
+                if (!chapters.length) {
+                    window.location.href = `/writer/${novelId}/scene/empty?reason=no-chapters`;
+                    return;
+                }
 
-                const firstChapterId = chapters[0].id || chapters[0].chapter_id || chapters[0].ChapterID;
+                // ดึงฉากในทุกตอนเพื่อหาฉากแรกสุดที่มีอยู่จริง
+                let foundSceneId = null;
+                for (const ch of chapters) {
+                    const chId = ch.id || ch.chapter_id || ch.ChapterID;
+                    if (!chId) continue;
 
-                // 2. ดึงฉาก (Scenes) ทั้งหมดที่อยู่ในตอนแรก
-                const sceneRes = await fetch(`${API_BASE_URL}/chapters/${firstChapterId}/scenes`, { headers });
-                const sceneData = await sceneRes.json();
-                const scenes = sceneData?.data?.scenes || sceneData?.scenes || sceneData?.data || [];
+                    const sceneRes = await fetch(`${API_BASE_URL}/chapters/${chId}/scenes`, { headers });
+                    const sceneData = await sceneRes.json();
+                    const scenes = sceneData?.data?.scenes || sceneData?.scenes || sceneData?.data || [];
 
-                 if (!scenes.length) {
-                     window.location.href = `/writer/${novelId}/scene/empty`;
-                     return;
-                 }
+                    if (scenes.length > 0) {
+                        foundSceneId = scenes[0].id || scenes[0].scene_id || scenes[0].SceneID;
+                        break;
+                    }
+                }
 
-                // 3. เอา ID ของฉากแรกสุดมาใช้
-                const firstSceneId = scenes[0].id || scenes[0].scene_id || scenes[0].SceneID;
+                // กรณีที่ 2: มีตอนแล้ว แต่ยังไม่มีฉากเลย (Scene = 0)
+                if (!foundSceneId) {
+                    window.location.href = `/writer/${novelId}/scene/empty?reason=no-scenes`;
+                    return;
+                }
 
-                // 🚀 พาผู้ใช้งานไปที่ฉากแรกสุดของนิยายเรื่องที่เลือกจริงๆ
-                window.location.href = `/writer/${novelId}/scene/${firstSceneId}`;
+                // กรณีที่ 3: มีตอนและมีฉากแล้ว -> เปิด Editor ฉากนั้นทันที
+                window.location.href = `/writer/${novelId}/scene/${foundSceneId}`;
             } catch (err) {
                 console.error("ดึงข้อมูลฉากแรกล้มเหลว:", err);
-                window.location.href = `/writer/${novelId}/scene/empty`; // ถ้าพังให้กลับไปหน้าแจ้งเตือนไม่มีตอน
+                window.location.href = `/writer/${novelId}/scene/empty?reason=no-chapters`;
             }
             return;
         }
@@ -460,13 +469,15 @@ const Navbarwriter = () => {
                     {/* ───────────────────── */}
                     <div
                         className="nav-logo"
-                        onClick={() =>
-                            navigate(
-                                isWriterMode
-                                    ? "/writer/dashboard"
-                                    : "/"
-                            )
-                        }
+                        onClick={() => {
+                            if (isWriterMode) {
+                                localStorage.removeItem("selectedNovel");
+                                setSelectedNovel(null);
+                                navigate("/writer/dashboard");
+                            } else {
+                                navigate("/");
+                            }
+                        }}
                     >
                         <img
                             src="/logo192.png"
@@ -511,9 +522,11 @@ const Navbarwriter = () => {
                                 ? "mode-toggle__btn--active"
                                 : ""
                                 }`}
-                            onClick={() =>
-                                navigate("/writer/dashboard")
-                            }
+                            onClick={() => {
+                                localStorage.removeItem("selectedNovel");
+                                setSelectedNovel(null);
+                                navigate("/writer/dashboard");
+                            }}
                         >
                             นักเขียน
                         </button>
@@ -570,49 +583,65 @@ const Navbarwriter = () => {
                         {isWriterMode && (
                             <>
                                 <li className="nav-item">
-                                    <Link to="/writer/dashboard">
+                                    <Link 
+                                        to="/writer/dashboard"
+                                        onClick={() => {
+                                            localStorage.removeItem("selectedNovel");
+                                            setSelectedNovel(null);
+                                        }}
+                                    >
                                         Dashboard
                                     </Link>
                                 </li>
 
                                 <li className="nav-item">
-                                    <button
-                                        className="nav-menu-btn"
-                                        onClick={() =>
-                                            handleNovelMenu("chapters")
-                                        }
+                                    <Link 
+                                        to="/writer/create"
+                                        onClick={() => {
+                                            localStorage.removeItem("selectedNovel");
+                                            setSelectedNovel(null);
+                                        }}
                                     >
-                                        จัดการตอน
-                                    </button>
-                                </li>
-
-                                <li className="nav-item">
-                                    <button
-                                        className="nav-menu-btn"
-                                        onClick={() =>
-                                            handleNovelMenu("write")
-                                        }
-                                    >
-                                        เขียนเนื้อหา
-                                    </button>
-                                </li>
-
-                                <li className="nav-item">
-                                    <button
-                                        className="nav-menu-btn"
-                                        onClick={() =>
-                                            handleNovelMenu("tree")
-                                        }
-                                    >
-                                        โครงสร้างเนื้อเรื่อง
-                                    </button>
-                                </li>
-
-                                <li className="nav-item">
-                                    <Link to="/writer/create">
                                         สร้างนิยาย
                                     </Link>
                                 </li>
+
+                                {selectedNovel && (
+                                    <>
+                                        {/* เส้นคั่นแนวตั้งสีชมพู (ตรงตามภาพตัวอย่าง) */}
+                                        <li className="nav-item nav-item-divider-container">
+                                            <span className="nav-menu-divider"></span>
+                                        </li>
+
+                                        {/* เมนูย่อยสีชมพูเรียงขยายออกทางขวา */}
+                                        <li className="nav-item">
+                                            <button
+                                                className="nav-menu-btn--pink"
+                                                onClick={() => handleNovelMenu("chapters")}
+                                            >
+                                                จัดการตอน
+                                            </button>
+                                        </li>
+
+                                        <li className="nav-item">
+                                            <button
+                                                className="nav-menu-btn--pink"
+                                                onClick={() => handleNovelMenu("write")}
+                                            >
+                                                เขียนเนื้อหา
+                                            </button>
+                                        </li>
+
+                                        <li className="nav-item">
+                                            <button
+                                                className="nav-menu-btn--pink"
+                                                onClick={() => handleNovelMenu("tree")}
+                                            >
+                                                โครงสร้างเนื้อเรื่อง
+                                            </button>
+                                        </li>
+                                    </>
+                                )}
                             </>
                         )}
                     </ul>
@@ -621,51 +650,6 @@ const Navbarwriter = () => {
                     {/* Right */}
                     {/* ───────────────────── */}
                     <div className="navbar__right">
-
-                        {/* ───────── Selected Novel ───────── */}
-                        {isWriterMode && (
-                            <button
-                                className="selected-novel-btn"
-                                onClick={() => openNovelPopup()}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "8px",
-                                    background: selectedNovel ? "var(--pink-50)" : "#fff3cd",
-                                    border: selectedNovel ? "1.5px solid var(--pink-300)" : "1.5px solid #ffc107",
-                                    padding: "6px 14px",
-                                    borderRadius: "20px",
-                                    cursor: "pointer",
-                                    transition: "all 0.2s ease"
-                                }}
-                            >
-                                <span style={{
-                                    display: "inline-block",
-                                    width: "8px",
-                                    height: "8px",
-                                    background: selectedNovel ? "var(--pink-500)" : "#ffc107",
-                                    borderRadius: "50%"
-                                }}></span>
-                                
-                                <span style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--ink)" }}>
-                                    {selectedNovel 
-                                        ? `กำลังแก้ไข: ${selectedNovel.title}` 
-                                        : "เลือกนิยายที่ต้องการแก้ไข"}
-                                </span>
-                                
-                                <span style={{
-                                    fontSize: "12px",
-                                    fontWeight: "800",
-                                    background: selectedNovel ? "var(--pink-500)" : "#ffc107",
-                                    color: selectedNovel ? "var(--white)" : "var(--black)",
-                                    padding: "2px 8px",
-                                    borderRadius: "10px",
-                                    marginLeft: "6px"
-                                }}>
-                                    เปลี่ยนเรื่อง
-                                </span>
-                            </button>
-                        )}
 
                         {/* ───────── Profile ───────── */}
                         <div className="nav-profile-container">
@@ -706,7 +690,10 @@ const Navbarwriter = () => {
 
                                     <button
                                         className="nav-dropdown__logout-btn"
-                                        onClick={(e) => handleLogout(e)}
+                                        onClick={() => {
+                                            setIsDropdownOpen(false);
+                                            setShowLogoutModal(true);
+                                        }}
                                     >
                                         🚪 ออกจากระบบ
                                     </button>
@@ -874,6 +861,72 @@ const Navbarwriter = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Modal ยืนยันการออกจากระบบสำหรับนักเขียน */}
+            {showLogoutModal && ReactDOM.createPortal(
+                <div style={{
+                    position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+                    backgroundColor: "rgba(17, 24, 39, 0.45)",
+                    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+                    display: "flex", justifyContent: "center", alignItems: "center",
+                    zIndex: 999999, padding: "20px"
+                }}>
+                    <div style={{
+                        background: "#ffffff", width: "100%", maxWidth: "400px",
+                        borderRadius: "24px",
+                        boxShadow: "0 20px 50px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.08)",
+                        padding: "28px 24px 24px", textAlign: "center",
+                        border: "1px solid rgba(255, 255, 255, 0.8)",
+                        display: "flex", flexDirection: "column", alignItems: "center"
+                    }}>
+                        <div style={{
+                            width: "60px", height: "60px", borderRadius: "50%",
+                            background: "#fff1f2", color: "#e11d48",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "28px", marginBottom: "16px",
+                            boxShadow: "0 4px 12px rgba(225, 29, 72, 0.15)"
+                        }}>
+                            🚪
+                        </div>
+                        <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b", margin: "0 0 8px 0" }}>
+                            ยืนยันการออกจากระบบ
+                        </h3>
+                        <p style={{ fontSize: "14px", color: "#64748b", margin: "0 0 24px 0", lineHeight: "1.5" }}>
+                            คุณต้องการออกจากระบบบัญชีนี้ใช่หรือไม่?
+                        </p>
+                        <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+                            <button
+                                type="button"
+                                onClick={() => setShowLogoutModal(false)}
+                                style={{
+                                    flex: 1, padding: "11px", borderRadius: "12px",
+                                    border: "1.5px solid #e2e8f0", background: "#ffffff",
+                                    color: "#475569", fontSize: "14px", fontWeight: "700",
+                                    cursor: "pointer"
+                                }}
+                            >
+                                ยกเลิก
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    setShowLogoutModal(false);
+                                    handleLogout(e);
+                                }}
+                                style={{
+                                    flex: 1, padding: "11px", borderRadius: "12px",
+                                    border: "none", background: "linear-gradient(135deg, #e11d48 0%, #be123c 100%)",
+                                    color: "#ffffff", fontSize: "14px", fontWeight: "700",
+                                    cursor: "pointer", boxShadow: "0 4px 14px rgba(225, 29, 72, 0.3)"
+                                }}
+                            >
+                                ยืนยันออกจากระบบ
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </>
     );

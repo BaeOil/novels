@@ -18,6 +18,16 @@ const fmt = (n) => {
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : String(n);
 };
 
+const formatCoverUrl = (url) => {
+  if (!url || typeof url !== "string") return null;
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  let formatted = url.replace("http://minio:9000", "http://localhost:9000");
+  if (formatted.startsWith("/uploads/") || formatted.startsWith("/static/")) {
+    formatted = `${API_BASE_URL}${formatted}`;
+  }
+  return formatted;
+};
+
 // ── Stat cards definition ──
 const STAT_CARDS = [
   {
@@ -342,22 +352,18 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
       <div className="nvc__cover">
         {coverImage ? (
           <img 
-            src={coverImage.replace("http://minio:9000", "http://localhost:9000")} 
+            src={formatCoverUrl(coverImage)} 
             alt={`ปกนิยายเรื่อง ${title}`}
             className="nvc__cover-img"
             onError={(e) => {
               e.currentTarget.style.display = "none";
-              const parent = e.currentTarget.parentElement;
-              if (parent) parent.innerHTML = '<div style="font-size:32px">📖</div>';
             }}
           />
-        ) : (
-          <div className="nvc__cover-emoji">📖</div>
-        )}
-        
-        {/* ป้ายสถานะ */}
+        ) : null}
+
+        {/* ป้ายสถานะมุมบนซ้ายของการ์ด */}
         <span className={`nvc__status ${status === "published" ? "nvc__status--pub" : status === "completed" ? "nvc__status--completed" : "nvc__status--draft"}`}>
-          {statusInfo.mode === "completed-published" ? "จบแล้ว + เผยแพร่" : statusInfo.mode === "completed-draft" ? "จบแล้ว + ฉบับร่าง" : status === "published" ? "เผยแพร่" : "ฉบับร่าง"}
+          {statusInfo.mode === "completed-published" ? "จบแล้ว • เผยแพร่" : statusInfo.mode === "completed-draft" ? "จบแล้ว • ฉบับร่าง" : status === "published" ? "เผยแพร่" : "ฉบับร่าง"}
         </span>
 
         {/* ปุ่มลบ */}
@@ -394,7 +400,6 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
 
         <div className="nvc__actions">
           <button className="nvc__btn nvc__btn--edit" onClick={onEdit}>✏️ แก้ไข</button>
-          <button className="nvc__btn nvc__btn--tree" onClick={onTree}>🗂 โครงสร้าง</button>
         </div>
       </div>
 

@@ -620,15 +620,14 @@ const NovelDetailPage = () => {
                 showBookmark={!isPreview}
                 showLike={!isPreview}
               />
-              <div className="novel-detail__restart-row">
-                <button
-                  className="novel-detail__restart-button"
-                  type="button"
-                  onClick={handleRestartConfirmOpen}
-                >
-                  🔄 เริ่มอ่านใหม่
-                </button>
-              </div>
+              <button
+                className="novel-detail__restart-button"
+                type="button"
+                onClick={handleRestartConfirmOpen}
+                title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
+              >
+                ⭮ เริ่มอ่านใหม่
+              </button>
             </div>
 
             {/* 🌟 ปรับปรุง UX ส่วนความคืบหน้า: ควบรวมฟังก์ชันจัดการความคืบหน้ามาไว้ด้วยกันอย่างเป็นระเบียบ */}
@@ -697,40 +696,6 @@ const NovelDetailPage = () => {
           endings={endings}
           onClose={() => setShowEndingModal(false)}
           onViewStoryMap={(sceneId) => handleStoryMap(sceneId)}
-        />
-
-        <Comments
-          comments={comments}
-          currentUserId={getCurrentUserId()}
-          commentText={commentText}
-          onCommentTextChange={(e) => setCommentText(e.target.value)}
-          onSubmit={(text) => handleSendComment(text)}
-          onDeleteComment={async (commentId) => {
-            const token = localStorage.getItem("token");
-            if (!token) {
-              navigate("/login-register");
-              return;
-            }
-
-            try {
-              const response = await fetch(`${API_BASE_URL}/comments?comment_id=${commentId}`, {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              });
-
-              if (!response.ok) {
-                const payload = await response.json().catch(() => null);
-                throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
-              }
-
-              await fetchNovelComments();
-            } catch (err) {
-              console.error("Failed to delete comment:", err);
-              alert(`ไม่สามารถลบความคิดเห็นได้: ${err.message || "ระบบขัดข้อง"}`);
-            }
-          }}
         />
 
         {showNoContentDialog && (

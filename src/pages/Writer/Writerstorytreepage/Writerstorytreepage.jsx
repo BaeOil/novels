@@ -207,6 +207,25 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
   const [sceneToDelete, setSceneToDelete] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // States สำหรับฉากและเส้นเชื่อม
+  const [newSceneTitle, setNewSceneTitle] = useState("");
+  const [selectedEdge, setSelectedEdge] = useState(null);
+  const [showEdgeModal, setShowEdgeModal] = useState(false);
+  const [editEdgeLabel, setEditEdgeLabel] = useState("");
+  const [editEdgeSource, setEditEdgeSource] = useState("");
+  const [editEdgeTarget, setEditEdgeTarget] = useState("");
+  const [showDeleteChoiceConfirm, setShowDeleteChoiceConfirm] = useState(false);
+
+  // States สำหรับการลากและ Reconnect เส้นเชื่อมโยง
+  const [pendingEdgeUpdate, setPendingEdgeUpdate] = useState(null); // { oldEdge, newConnection }
+  const [showEdgeUpdateConfirm, setShowEdgeUpdateConfirm] = useState(false);
+
+  // Sync interactionMode with ref to prevent stale closures
+  const modeRef = useRef(interactionMode);
+  useEffect(() => {
+    modeRef.current = interactionMode;
+  }, [interactionMode]);
+
   // Toast handler
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
@@ -548,6 +567,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       type: e.type || "smoothstep",
       data: e.data || {},
       animated: !!e.animated,
+      interactionWidth: 20, // ขยายพื้นที่รับการคลิกเมาส์ของเส้นให้กว้างขึ้นเป็น 20px
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: "#94a3b8", // หัวลูกศรชี้ปลายทางชัดเจน
@@ -746,6 +766,343 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setShowAddScenePopup(true);
   }, [interactionMode, screenToFlowPosition, novelChapters]);
 
+  const edgeUpdateSuccessful = useRef(true);
+
+  const handleAddSceneBackend = async () => {
+    if (!pendingScenePosition || !selectedMoveChapterId) return;
+    const token = localStorage.getItem("token");
+    try {
+      const payload = {
+        novel_id: parseInt(novelId, 10),
+        chapter_id: parseInt(selectedMoveChapterId, 10),
+        title: newSceneTitle.trim() || "ฉากไม่มีชื่อ",
+        content: "",
+        x: Math.round(pendingScenePosition.x),
+        y: Math.round(pendingScenePosition.y),
+        type: "normal",
+        status: "draft",
+        is_ending: false,
+        choices: []
+      };
+      
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      showToast("กำลังสร้างฉากใหม่...", "info");
+      const response = await axios.post(`${API_BASE_URL}/scenes`, payload, { headers });
+      
+      if (response.status === 200 || response.status === 201) {
+        showToast("สร้างฉากใหม่เรียบร้อยแล้ว", "success");
+        await fetchStoryTreeAndChapters();
+        window.dispatchEvent(new Event("novel-data-updated"));
+      }
+    } catch (err) {
+      console.error("Create scene error:", err);
+      showToast("เกิดข้อผิดพลาดในการสร้างฉาก", "warn");
+    } finally {
+      setShowAddScenePopup(false);
+      setPendingScenePosition(null);
+      setNewSceneTitle("");
+    }
+  };
+
+  const handleEdgeClick = useCallback((event, edge) => {
+    event.stopPropagation();
+    
+    // โหมดลบ
+    if (modeRef.current === "delete") {
+      setSelectedEdge(edge);
+      setShowDeleteChoiceConfirm(true);
+      return;
+    }
+
+    // โหมดปกติ หรือโหมดอื่นๆ
+    setSelectedEdge(edge);
+    setEditEdgeLabel(edge.label || "");
+    setEditEdgeSource(String(edge.source));
+    setEditEdgeTarget(String(edge.target));
+    setShowEdgeModal(true);
+  }, []);
+
+  // ==========================================
+  // React Flow Reconnect Edge (ลากย้ายเส้น)
+  // ==========================================
+  const onEdgeUpdateStart = useCallback(() => {
+    edgeUpdateSuccessful.current = false;
+  }, []);
+
+  const onEdgeUpdate = useCallback((oldEdge, newConnection) => {
+    edgeUpdateSuccessful.current = true;
+    setPendingEdgeUpdate({ oldEdge, newConnection });
+    setShowEdgeUpdateConfirm(true);
+  }, []);
+
+  const onEdgeUpdateEnd = useCallback((_, edge) => {
+    if (!edgeUpdateSuccessful.current) {
+      setSelectedEdge(edge);
+      setShowDeleteChoiceConfirm(true);
+    }
+    edgeUpdateSuccessful.current = true;
+  }, []);
+
+  const handleConfirmEdgeUpdate = async () => {
+    if (!pendingEdgeUpdate) return;
+    const { oldEdge, newConnection } = pendingEdgeUpdate;
+    
+    const choiceId = oldEdge.data?.choice_id ?? oldEdge.data?.id ?? oldEdge.data?.ChoiceID;
+    const oldSourceId = oldEdge.source;
+    const oldTargetId = oldEdge.target;
+    const newSourceId = newConnection.source;
+    const newTargetId = newConnection.target;
+    const choiceLabel = oldEdge.label || "เลือกเส้นทางนี้";
+
+    const token = localStorage.getItem("token");
+    const headers = { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    };
+
+    try {
+      showToast("กำลังบันทึกการย้ายเส้น...", "info");
+      
+      // ดึงฉากต้นทางเดิม
+      const oldSourceRes = await axios.get(`${API_BASE_URL}/scenes/${oldSourceId}`, { headers });
+      const oldSourceData = oldSourceRes.data?.data || oldSourceRes.data;
+      let oldChoices = Array.isArray(oldSourceData.choices) ? oldSourceData.choices : [];
+
+      const isSourceChanged = String(oldSourceId) !== String(newSourceId);
+
+      if (isSourceChanged) {
+        // 1. ลบทางเลือกออกจากต้นทางเดิม
+        const updatedOldChoices = oldChoices.filter(c => 
+          String(c.choice_id ?? c.id) !== String(choiceId)
+        );
+        const oldPayload = {
+          ...oldSourceData,
+          choices: updatedOldChoices.map(c => ({
+            choice_id: c.choice_id ?? c.id,
+            label: c.label ?? c.text ?? "",
+            text: c.label ?? c.text ?? "",
+            to_scene_id: parseInt(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene ?? "0", 10),
+            targetSubScene: String(c.targetSubScene ?? c.to_scene_id ?? "")
+          }))
+        };
+        await axios.put(`${API_BASE_URL}/scenes/${oldSourceId}`, oldPayload, { headers });
+
+        // 2. ไปเพิ่มในต้นทางใหม่พร้อมระบุปลายทางใหม่
+        const newSourceRes = await axios.get(`${API_BASE_URL}/scenes/${newSourceId}`, { headers });
+        const newSourceData = newSourceRes.data?.data || newSourceRes.data;
+        let newChoices = Array.isArray(newSourceData.choices) ? newSourceData.choices : [];
+        
+        newChoices.push({
+          label: choiceLabel,
+          text: choiceLabel,
+          to_scene_id: parseInt(newTargetId, 10),
+          targetSubScene: String(newTargetId)
+        });
+
+        const newPayload = {
+          ...newSourceData,
+          choices: newChoices.map(c => ({
+            ...(c.choice_id ?? c.id ? { choice_id: c.choice_id ?? c.id } : {}),
+            label: c.label ?? c.text ?? "",
+            text: c.label ?? c.text ?? "",
+            to_scene_id: parseInt(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene ?? "0", 10),
+            targetSubScene: String(c.targetSubScene ?? c.to_scene_id ?? "")
+          }))
+        };
+        await axios.put(`${API_BASE_URL}/scenes/${newSourceId}`, newPayload, { headers });
+      } else {
+        // ต้นทางเดิม แต่เปลี่ยนปลายทาง
+        const updatedChoices = oldChoices.map(c => {
+          if (String(c.choice_id ?? c.id) === String(choiceId)) {
+            return {
+              ...c,
+              to_scene_id: parseInt(newTargetId, 10),
+              targetSubScene: String(newTargetId)
+            };
+          }
+          return c;
+        });
+
+        const payload = {
+          ...oldSourceData,
+          choices: updatedChoices.map(c => ({
+            choice_id: c.choice_id ?? c.id,
+            label: c.label ?? c.text ?? "",
+            text: c.label ?? c.text ?? "",
+            to_scene_id: parseInt(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene ?? "0", 10),
+            targetSubScene: String(c.targetSubScene ?? c.to_scene_id ?? "")
+          }))
+        };
+        await axios.put(`${API_BASE_URL}/scenes/${oldSourceId}`, payload, { headers });
+      }
+
+      showToast("ย้ายจุดเชื่อมต่อสำเร็จแล้ว", "success");
+      await fetchStoryTreeAndChapters();
+      window.dispatchEvent(new Event("novel-data-updated"));
+    } catch (err) {
+      console.error("Confirm edge update error:", err);
+      showToast("ไม่สามารถย้ายเส้นทางเลือกได้", "warn");
+    } finally {
+      setShowEdgeUpdateConfirm(false);
+      setPendingEdgeUpdate(null);
+    }
+  };
+
+  const handleUpdateConnection = async () => {
+    if (!selectedEdge) return;
+    const choiceId = selectedEdge.data?.choice_id ?? selectedEdge.data?.id ?? selectedEdge.data?.ChoiceID;
+    const oldSourceId = selectedEdge.source;
+    const oldTargetId = selectedEdge.target;
+    
+    const isSourceChanged = String(oldSourceId) !== String(editEdgeSource);
+    const isTargetOrLabelChanged = String(oldTargetId) !== String(editEdgeTarget) || editEdgeLabel !== (selectedEdge.label || "");
+
+    const token = localStorage.getItem("token");
+    const headers = { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    };
+
+    try {
+      showToast("กำลังบันทึกการเปลี่ยนแปลง...", "info");
+      
+      // ดึงรายละเอียดฉากต้นทางเดิม
+      const oldSourceRes = await axios.get(`${API_BASE_URL}/scenes/${oldSourceId}`, { headers });
+      const oldSourceData = oldSourceRes.data?.data || oldSourceRes.data;
+      
+      let oldChoices = Array.isArray(oldSourceData.choices) ? oldSourceData.choices : [];
+
+      if (isSourceChanged) {
+        // กรณีเปลี่ยนต้นทาง:
+        // 1. ลบออกจากต้นทางเดิม
+        const updatedOldChoices = oldChoices.filter(c => 
+          String(c.choice_id ?? c.id) !== String(choiceId)
+        );
+        
+        const oldPayload = {
+          ...oldSourceData,
+          choices: updatedOldChoices.map(c => ({
+            choice_id: c.choice_id ?? c.id,
+            label: c.label ?? c.text ?? "",
+            text: c.label ?? c.text ?? "",
+            to_scene_id: parseInt(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene ?? "0", 10),
+            targetSubScene: String(c.targetSubScene ?? c.to_scene_id ?? "")
+          }))
+        };
+        await axios.put(`${API_BASE_URL}/scenes/${oldSourceId}`, oldPayload, { headers });
+
+        // 2. ไปเพิ่มในต้นทางใหม่
+        const newSourceRes = await axios.get(`${API_BASE_URL}/scenes/${editEdgeSource}`, { headers });
+        const newSourceData = newSourceRes.data?.data || newSourceRes.data;
+        let newChoices = Array.isArray(newSourceData.choices) ? newSourceData.choices : [];
+        
+        newChoices.push({
+          label: editEdgeLabel || "เลือกเส้นทางนี้",
+          text: editEdgeLabel || "เลือกเส้นทางนี้",
+          to_scene_id: parseInt(editEdgeTarget, 10),
+          targetSubScene: String(editEdgeTarget)
+        });
+
+        const newPayload = {
+          ...newSourceData,
+          choices: newChoices.map(c => ({
+            ...(c.choice_id ?? c.id ? { choice_id: c.choice_id ?? c.id } : {}),
+            label: c.label ?? c.text ?? "",
+            text: c.label ?? c.text ?? "",
+            to_scene_id: parseInt(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene ?? "0", 10),
+            targetSubScene: String(c.targetSubScene ?? c.to_scene_id ?? "")
+          }))
+        };
+        await axios.put(`${API_BASE_URL}/scenes/${editEdgeSource}`, newPayload, { headers });
+        
+      } else if (isTargetOrLabelChanged) {
+        // กรณีไม่เปลี่ยนต้นทาง แต่เปลี่ยนปลายทางหรือข้อความ
+        const updatedChoices = oldChoices.map(c => {
+          if (String(c.choice_id ?? c.id) === String(choiceId)) {
+            return {
+              ...c,
+              label: editEdgeLabel,
+              text: editEdgeLabel,
+              to_scene_id: parseInt(editEdgeTarget, 10),
+              targetSubScene: String(editEdgeTarget)
+            };
+          }
+          return c;
+        });
+
+        const payload = {
+          ...oldSourceData,
+          choices: updatedChoices.map(c => ({
+            choice_id: c.choice_id ?? c.id,
+            label: c.label ?? c.text ?? "",
+            text: c.label ?? c.text ?? "",
+            to_scene_id: parseInt(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene ?? "0", 10),
+            targetSubScene: String(c.targetSubScene ?? c.to_scene_id ?? "")
+          }))
+        };
+        await axios.put(`${API_BASE_URL}/scenes/${oldSourceId}`, payload, { headers });
+      }
+
+      showToast("แก้ไขเส้นทางเลือกสำเร็จแล้ว", "success");
+      await fetchStoryTreeAndChapters();
+      window.dispatchEvent(new Event("novel-data-updated"));
+      setShowEdgeModal(false);
+      setSelectedEdge(null);
+    } catch (err) {
+      console.error("Update connection error:", err);
+      showToast("ไม่สามารถบันทึกการแก้ไขเส้นได้", "warn");
+    }
+  };
+
+  const handleDeleteConnection = async () => {
+    if (!selectedEdge) return;
+    const choiceId = selectedEdge.data?.choice_id ?? selectedEdge.data?.id ?? selectedEdge.data?.ChoiceID;
+    const sourceId = selectedEdge.source;
+
+    const token = localStorage.getItem("token");
+    const headers = { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    };
+
+    try {
+      showToast("กำลังลบทางเลือก...", "info");
+      
+      const sourceRes = await axios.get(`${API_BASE_URL}/scenes/${sourceId}`, { headers });
+      const sourceData = sourceRes.data?.data || sourceRes.data;
+      
+      let choicesList = Array.isArray(sourceData.choices) ? sourceData.choices : [];
+      const updatedChoices = choicesList.filter(c => 
+        String(c.choice_id ?? c.id) !== String(choiceId)
+      );
+      
+      const payload = {
+        ...sourceData,
+        choices: updatedChoices.map(c => ({
+          choice_id: c.choice_id ?? c.id,
+          label: c.label ?? c.text ?? "",
+          text: c.label ?? c.text ?? "",
+          to_scene_id: parseInt(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene ?? "0", 10),
+          targetSubScene: String(c.targetSubScene ?? c.to_scene_id ?? "")
+        }))
+      };
+
+      await axios.put(`${API_BASE_URL}/scenes/${sourceId}`, payload, { headers });
+      
+      showToast("ลบเส้นทางเลือกสำเร็จแล้ว", "success");
+      await fetchStoryTreeAndChapters();
+      window.dispatchEvent(new Event("novel-data-updated"));
+      setShowDeleteChoiceConfirm(false);
+      setShowEdgeModal(false);
+      setSelectedEdge(null);
+    } catch (err) {
+      console.error("Delete connection error:", err);
+      showToast("ไม่สามารถลบเส้นทางเลือกได้", "warn");
+    }
+  };
+
   const handleConfirmDelete = useCallback(async () => {
     if (!sceneToDelete) return;
     const sceneId = sceneToDelete.id;
@@ -769,7 +1126,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         // ดึงข้อมูล story-tree ใหม่
         const response = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`);
         setTreeData(response.data?.data || response.data || null);
-        showToast("ลบฉากย่อยเรียบร้อยแล้ว", "success");
+        showToast("ลบฉากเรียบร้อยแล้ว", "success");
         window.dispatchEvent(new Event("novel-data-updated"));
       }
       
@@ -835,7 +1192,8 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
   // ดับเบิลคลิกเพื่อเปิด Scene Editor หน้าเขียนเนื้อหา
   const handleNodeDoubleClick = useCallback((evt, node) => {
-    if (interactionMode === "connect" || interactionMode === "add-node") return;
+    const currentMode = modeRef.current;
+    if (currentMode === "connect" || currentMode === "add-node") return;
     
     const sceneId = node?.id;
     if (!sceneId) return;
@@ -865,21 +1223,23 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         y: Math.round(node.position?.y ?? 0),
       });
     }
-  }, [interactionMode, sceneMap, onNavigate, novelId]);
+  }, [sceneMap, onNavigate, novelId]);
 
   // คลิกที่โหนด
   const handleNodeClick = useCallback((evt, node) => {
     if (!node) return;
 
+    const currentMode = modeRef.current;
+
     // โหมดลบฉาก (Delete Mode)
-    if (interactionMode === "delete") {
+    if (currentMode === "delete") {
       setSceneToDelete(node);
       setShowDeleteModal(true);
       return;
     }
     
     // โหมดเชื่อมฉาก (Connect Mode)
-    if (interactionMode === "connect") {
+    if (currentMode === "connect") {
       if (!connectSource) {
         setConnectSource(node);
         const flowPos = screenToFlowPosition({
@@ -928,7 +1288,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     // โหมดเลือกปกติ (Select Mode)
     setSelectedSceneId(String(node.id));
     setSelection({ nodes: [node], edges: [] });
-  }, [interactionMode, connectSource, normalizedEdges, screenToFlowPosition, setRfNodes, setRfEdges, showToast, setSceneToDelete, setShowDeleteModal]);
+  }, [connectSource, normalizedEdges, screenToFlowPosition, setRfNodes, setRfEdges, showToast, setSceneToDelete, setShowDeleteModal]);
 
   const handleConfirmConnect = async () => {
     if (!choiceText.trim() || !connectSource || !connectTarget) return;
@@ -1032,14 +1392,14 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     if (interactionMode === "add-node") {
       return (
         <span>
-          ➕ <strong>โหมดเพิ่มฉาก:</strong> คลิกตรงพื้นที่ว่างเปล่าใดก็ได้บนบอร์ดแผนภาพเพื่อวางโหนด <strong>ฉากใหม่</strong>
+          ✚ <strong>โหมดเพิ่มฉาก:</strong> คลิกตรงพื้นที่ว่างเปล่าใดก็ได้บนบอร์ดแผนภาพเพื่อวางโหนด <strong>ฉากใหม่</strong>
         </span>
       );
     }
     if (interactionMode === "delete") {
       return (
         <span style={{ color: "#ef4444" }}>
-          🗑️ <strong>โหมดลบฉาก:</strong> คลิกเลือกโหนดฉากที่คุณต้องการลบออกในแผนภาพเพื่อเปิด Popup ยืนยันการลบ
+          🗑️ <strong>โหมดลบ:</strong> คลิกเลือกโหนดฉากเพื่อลบ
         </span>
       );
     }
@@ -1196,6 +1556,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
               <SceneDetailsCard
                 scene={selectedScene}
                 scenePositionMap={scenePositionMap}
+                sceneMap={sceneMap}
                 selectedSceneId={selectedSceneId}
                 onEdit={(sceneId) => {
                   const sceneData = sceneMap.get(sceneId);
@@ -1318,7 +1679,9 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                   panOnDrag={interactionMode === 'pan'}
                   nodesDraggable={interactionMode !== 'pan' && interactionMode !== 'connect' && interactionMode !== 'add-node'}
                   nodesConnectable={false}
-                  elementsSelectable={interactionMode === 'select'}
+                  elementsSelectable={interactionMode === 'select' || interactionMode === 'delete'}
+                  edgesFocusable={true}
+                  edgesUpdatable={interactionMode === 'select'}
                   minZoom={0.3}
                   maxZoom={1.6}
                   className="wst-reactflow"
@@ -1364,19 +1727,38 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
             fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #bfdbfe'
           }}>
             <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '20px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              📌 เลือกตอนสำหรับฉากใหม่
+              📌 เลือกตอนและตั้งชื่อสำหรับฉากใหม่
             </h3>
-            <p style={{ color: '#6b7280', fontSize: '14.5px', marginBottom: '24px', lineHeight: '1.6' }}>
-              กรุณาเลือกตอนสังกัดที่คุณต้องการจัดเก็บฉากย่อยใหม่นี้ ก่อนวางลงบนผังโครงสร้างเรื่องค่ะ
+            <p style={{ color: '#6b7280', fontSize: '14.5px', marginBottom: '20px', lineHeight: '1.6' }}>
+              กรุณากรอกชื่อฉากและเลือกตอนที่คุณต้องการจัดเก็บฉากใหม่นี้ ก่อนบันทึกลงบนผังโครงสร้างเรื่อง
             </p>
             
+            {/* Input ชื่อฉาก */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>
+                ชื่อฉาก <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="เช่น การเดินทางครั้งใหม่, เผชิญหน้ากับศัตรู..."
+                value={newSceneTitle}
+                onChange={(e) => setNewSceneTitle(e.target.value)}
+                style={{
+                  width: '100%', padding: '12px 16px', borderRadius: '12px',
+                  border: '1.5px solid #bfdbfe', fontSize: '14.5px', fontFamily: 'inherit',
+                  color: '#1f2937', outline: '#3b82f6', background: '#f8fafc',
+                  transition: 'all 0.2s ease'
+                }}
+              />
+            </div>
+
             <div style={{ marginBottom: '28px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>
-                ตอนที่ฉากนี้จะไปสังกัด
+                ตอน
               </label>
               {novelChapters.length === 0 ? (
                 <div style={{ color: '#dc2626', fontSize: '14px', background: '#fef2f2', padding: '12px', borderRadius: '12px', border: '1px solid #fecaca' }}>
-                  ⚠️ พบนิยายนี้ยังไม่มีตอนใดๆ เลย กรุณาไปสร้างตอนอย่างน้อยหนึ่งตอนที่หน้า "จัดการตอนนิยาย" ก่อนค่ะ
+                  ⚠️ นิยายนี้ยังไม่มีตอนใดๆ เลย กรุณาไปสร้างตอนอย่างน้อยหนึ่งตอนที่หน้า "จัดการตอนนิยาย" ก่อน
                 </div>
               ) : (
                 <select 
@@ -1400,12 +1782,12 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 </select>
               )}
             </div>
-            
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button 
                 onClick={() => {
                   setShowAddScenePopup(false);
                   setPendingScenePosition(null);
+                  setNewSceneTitle("");
                 }}
                 style={{
                   padding: '10px 20px', borderRadius: '20px', border: '1px solid #d1d5db',
@@ -1416,21 +1798,15 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 ยกเลิก
               </button>
               <button 
-                disabled={novelChapters.length === 0}
-                onClick={() => {
-                  if (pendingScenePosition && selectedMoveChapterId) {
-                    addSceneOnCanvasLocal(pendingScenePosition.x, pendingScenePosition.y, selectedMoveChapterId);
-                    setShowAddScenePopup(false);
-                    setPendingScenePosition(null);
-                  }
-                }}
+                disabled={novelChapters.length === 0 || !newSceneTitle.trim()}
+                onClick={handleAddSceneBackend}
                 style={{
                   padding: '10px 24px', borderRadius: '20px', border: 'none',
                   background: 'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%)',
-                  color: '#ffffff', cursor: novelChapters.length === 0 ? 'not-allowed' : 'pointer',
+                  color: '#ffffff', cursor: (novelChapters.length === 0 || !newSceneTitle.trim()) ? 'not-allowed' : 'pointer',
                   fontSize: '14px', fontWeight: '700', transition: 'all 0.2s',
                   boxShadow: '0 4px 12px rgba(29, 78, 216, 0.25)',
-                  opacity: novelChapters.length === 0 ? 0.5 : 1
+                  opacity: (novelChapters.length === 0 || !newSceneTitle.trim()) ? 0.5 : 1
                 }}
               >
                 ตกลงสร้างฉาก
@@ -1453,7 +1829,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
             fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #fecaca'
           }}>
             <h3 style={{ marginTop: 0, color: '#dc2626', fontSize: '20px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⚠️ ยืนยันการลบฉากย่อย
+              ⚠️ ยืนยันการลบฉาก
             </h3>
             
             <div style={{ background: '#fef2f2', padding: '16px', borderRadius: '16px', border: '1px solid #fee2e2', marginBottom: '24px' }}>
@@ -1480,7 +1856,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
             </div>
 
             <p style={{ color: '#4b5563', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>
-              คุณแน่ใจหรือไม่ว่าต้องการลบฉากนี้ออกจากระบบ? **การกระทำนี้ไม่สามารถย้อนคืนได้และเส้นเชื่อมเลือกใดๆ จากฉากนี้จะถูกลบออกด้วยค่ะ**
+              คุณแน่ใจหรือไม่ว่าต้องการลบฉากนี้ออกจากระบบ? **การกระทำนี้ไม่สามารถย้อนคืนได้และเส้นเชื่อมเลือกใดๆ จากฉากนี้จะถูกลบออกด้วย**
             </p>
             
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
@@ -1514,6 +1890,238 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Edge management Modals */}
+      {showEdgeModal && selectedEdge && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.35)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
+          padding: '16px', backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
+            width: '100%', maxWidth: '460px', boxShadow: '0 20px 50px rgba(37, 99, 235, 0.15)',
+            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #bfdbfe'
+          }}>
+            <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '20px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🔧 จัดการทางเลือก
+            </h3>
+            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px' }}>
+              แก้ไขรายละเอียด ปลายทาง หรือลบทางเลือกเชื่อมโยงเส้นนี้
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>
+                ข้อความปุ่มทางเลือก
+              </label>
+              <input 
+                type="text"
+                value={editEdgeLabel}
+                onChange={(e) => setEditEdgeLabel(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: '10px',
+                  border: '1.5px solid #bfdbfe', fontSize: '14px', fontFamily: 'inherit',
+                  color: '#1f2937', outline: 'none'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>
+                ฉากต้นทาง (Source)
+              </label>
+              <select
+                value={editEdgeSource}
+                onChange={(e) => setEditEdgeSource(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: '10px',
+                  border: '1.5px solid #bfdbfe', fontSize: '14px', fontFamily: 'inherit',
+                  color: '#1f2937', outline: 'none', background: '#f8fafc'
+                }}
+              >
+                {rfNodes.filter(n => n.id !== "cursor-node").map(n => {
+                  const num = scenePositionMap.get(n.id) 
+                    ? `${scenePositionMap.get(n.id).chapterNumber}.${scenePositionMap.get(n.id).sceneNumber}` 
+                    : "";
+                  return (
+                    <option key={`edge-src-${n.id}`} value={n.id}>
+                      ฉาก {num} — {n.data?.title || n.data?.Title || "ไม่มีชื่อ"}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>
+                ฉากปลายทาง (Target)
+              </label>
+              <select
+                value={editEdgeTarget}
+                onChange={(e) => setEditEdgeTarget(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: '10px',
+                  border: '1.5px solid #bfdbfe', fontSize: '14px', fontFamily: 'inherit',
+                  color: '#1f2937', outline: 'none', background: '#f8fafc'
+                }}
+              >
+                {rfNodes.filter(n => n.id !== "cursor-node").map(n => {
+                  const num = scenePositionMap.get(n.id) 
+                    ? `${scenePositionMap.get(n.id).chapterNumber}.${scenePositionMap.get(n.id).sceneNumber}` 
+                    : "";
+                  return (
+                    <option key={`edge-tgt-${n.id}`} value={n.id}>
+                      ฉาก {num} — {n.data?.title || n.data?.Title || "ไม่มีชื่อ"}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                onClick={() => setShowDeleteChoiceConfirm(true)}
+                style={{
+                  padding: '10px 18px', borderRadius: '20px', border: 'none',
+                  background: '#fef2f2', color: '#ef4444', cursor: 'pointer',
+                  fontSize: '13.5px', fontWeight: '700', transition: 'all 0.2s'
+                }}
+              >
+                🗑️ ลบทางเลือกนี้
+              </button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => {
+                    setShowEdgeModal(false);
+                    setSelectedEdge(null);
+                  }}
+                  style={{
+                    padding: '9px 16px', borderRadius: '20px', border: '1px solid #d1d5db',
+                    background: '#ffffff', color: '#4b5563', cursor: 'pointer',
+                    fontSize: '13.5px', fontWeight: '600'
+                  }}
+                >
+                  ยกเลิก
+                </button>
+                <button 
+                  onClick={handleUpdateConnection}
+                  style={{
+                    padding: '9px 20px', borderRadius: '20px', border: 'none',
+                    background: 'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%)',
+                    color: '#ffffff', cursor: 'pointer',
+                    fontSize: '13.5px', fontWeight: '700',
+                    boxShadow: '0 4px 10px rgba(29, 78, 216, 0.2)'
+                  }}
+                >
+                  บันทึก
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteChoiceConfirm && selectedEdge && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.45)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
+          padding: '16px', backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
+            width: '100%', maxWidth: '440px', boxShadow: '0 20px 50px rgba(239, 68, 68, 0.15)',
+            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #fecaca'
+          }}>
+            <h3 style={{ marginTop: 0, color: '#dc2626', fontSize: '18px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ⚠️ ยืนยันการลบทางเลือก
+            </h3>
+            <p style={{ color: '#4b5563', fontSize: '14.5px', marginBottom: '24px', lineHeight: '1.6' }}>
+              คุณต้องการลบเส้นทางเลือก <strong>"{selectedEdge.label || "เลือกเส้นทางนี้"}"</strong> ออกจากระบบใช่หรือไม่? ฉากที่อยู่ถัดไปจะไม่ถูกลบ แต่ความเชื่อมโยงจะขาดหายไป
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                onClick={() => {
+                  setShowDeleteChoiceConfirm(false);
+                  setSelectedEdge(null);
+                  fetchStoryTreeAndChapters();
+                }}
+                style={{
+                  padding: '10px 20px', borderRadius: '20px', border: '1px solid #d1d5db',
+                  background: '#ffffff', color: '#4b5563', cursor: 'pointer',
+                  fontSize: '14px', fontWeight: '600'
+                }}
+              >
+                ยกเลิก
+              </button>
+              <button 
+                onClick={handleDeleteConnection}
+                style={{
+                  padding: '10px 24px', borderRadius: '20px', border: 'none',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                  color: '#ffffff', cursor: 'pointer',
+                  fontSize: '14px', fontWeight: '700',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.25)'
+                }}
+              >
+                ยืนยันการลบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEdgeUpdateConfirm && pendingEdgeUpdate && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.45)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
+          padding: '16px', backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
+            width: '100%', maxWidth: '440px', boxShadow: '0 20px 50px rgba(37, 99, 235, 0.15)',
+            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #bfdbfe'
+          }}>
+            <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '18px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ยืนยันการย้ายจุดเชื่อมต่อ
+            </h3>
+            <p style={{ color: '#4b5563', fontSize: '14.5px', marginBottom: '24px', lineHeight: '1.6' }}>
+              ต้องการย้ายมาเชื่อมโหนดนี้ใช่ไหม?
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                onClick={() => {
+                  setShowEdgeUpdateConfirm(false);
+                  setPendingEdgeUpdate(null);
+                  fetchStoryTreeAndChapters();
+                }}
+                style={{
+                  padding: '10px 20px', borderRadius: '20px', border: '1px solid #d1d5db',
+                  background: '#ffffff', color: '#4b5563', cursor: 'pointer',
+                  fontSize: '14px', fontWeight: '600'
+                }}
+              >
+                ยกเลิก
+              </button>
+              <button 
+                onClick={handleConfirmEdgeUpdate}
+                style={{
+                  padding: '10px 24px', borderRadius: '20px', border: 'none',
+                  background: 'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%)',
+                  color: '#ffffff', cursor: 'pointer',
+                  fontSize: '14px', fontWeight: '700',
+                  boxShadow: '0 4px 12px rgba(29, 78, 216, 0.25)'
+                }}
+              >
+                ยืนยันการย้าย
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1521,6 +2129,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 const SceneDetailsCard = ({
   scene,
   scenePositionMap,
+  sceneMap,
   selectedSceneId,
   onEdit,
   incomingChoices,
@@ -1530,6 +2139,40 @@ const SceneDetailsCard = ({
   const sceneId = getNodeId(scene);
   const pos = scenePositionMap.get(sceneId);
   const type = getNodeType(scene);
+
+  const getSceneNodeColorInfo = (targetSceneId) => {
+    const targetScene = sceneMap?.get(String(targetSceneId));
+    const type = targetScene ? getNodeType(targetScene) : "normal";
+    
+    const typeColor = type === "start" || type === "starting" ? "#15803D"
+      : type === "ending" || type === "end" ? "#B91C1C"
+        : "#38BDF8";
+        
+    const typeBgColor = type === "start" || type === "starting" ? "#F0FDF4"
+      : type === "ending" || type === "end" ? "#FEF2F2"
+        : "#ecf7fd";
+        
+    const typeBorderColor = type === "start" || type === "starting" ? "#DCFCE7"
+      : type === "ending" || type === "end" ? "#FEE2E2"
+        : "#E2E8F0";
+        
+    return { color: typeColor, bg: typeBgColor, border: typeBorderColor };
+  };
+
+  const formatChoiceSourceInfo = (choice) => {
+    if (!choice) return "";
+    const fromTitle =
+      choice.fromSceneTitle ||
+      choice.from_scene_title ||
+      choice.FromSceneTitle ||
+      "ไม่ทราบ";
+    
+    const sourceSceneId = normalizeId(choice.fromId ?? choice.from_id);
+    const sourcePos = scenePositionMap.get(sourceSceneId);
+    const sourceSceneNum = sourcePos ? `${sourcePos.chapterNumber}.${sourcePos.sceneNumber}` : "?.?";
+    
+    return `ฉาก ${sourceSceneNum} · ${fromTitle}`;
+  };
 
   const typeLabel = type === "start" || type === "starting" ? "จุดเริ่มต้น"
     : type === "ending" || type === "end" ? "ฉากจบ"
@@ -1623,7 +2266,59 @@ const SceneDetailsCard = ({
         </div>
       </div>
 
-      {/* Outgoing Choices List */}
+      {/* Incoming Choices List (ฉากก่อนหน้า) */}
+      <div className="wst-scene-details__choices-section" style={{ marginBottom: "20px" }}>
+        <div className="wst-scene-details__section-header">
+          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            ฉากก่อนหน้า
+          </span>
+          <span className="wst-scene-details__choices-count-badge">
+            {incomingChoices.length} ฉาก
+          </span>
+        </div>
+
+        <div className="wst-scene-details__choices-list">
+          {incomingChoices.map((choice, idx) => {
+            const srcId = normalizeId(choice.fromId ?? choice.from_id);
+            const info = getSceneNodeColorInfo(srcId);
+            return (
+              <div 
+                key={`incoming-${idx}`} 
+                className="wst-choice-card"
+                onClick={() => onSelectSceneNode?.(srcId)}
+                style={{ 
+                  borderLeft: `4px solid ${info.color}`,
+                  background: info.bg
+                }}
+              >
+                <div className="wst-choice-card__left">
+                  <div className="wst-choice-card__number" style={{ background: info.color, color: "#fff" }}>
+                    {idx + 1}
+                  </div>
+                  <div className="wst-choice-card__info">
+                    <span className="wst-choice-card__text" style={{ color: "#1f2937" }}>
+                      {getChoiceLabel(choice)}
+                    </span>
+                    <span className="wst-choice-card__dest" style={{ color: "#4b5563" }}>
+                      ➔ {formatChoiceSourceInfo(choice)}
+                    </span>
+                  </div>
+                </div>
+                <span className="wst-choice-card__arrow" style={{ color: info.color }}>❯</span>
+              </div>
+            );
+          })}
+
+          {incomingChoices.length === 0 && (
+            <div className="wst-scene-details__empty-state">
+              <p>ฉากนี้เป็นจุดเริ่มต้น (ไม่มีฉากก่อนหน้าเชื่อมโยงมา)</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Outgoing Choices List (ทางเลือกถัดไป) */}
       <div className="wst-scene-details__choices-section">
         <div className="wst-scene-details__section-header">
           <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1638,20 +2333,31 @@ const SceneDetailsCard = ({
         <div className="wst-scene-details__choices-list">
           {outgoingChoices.map((choice, idx) => {
             const destId = normalizeId(choice.toId ?? choice.to_scene_id);
+            const info = getSceneNodeColorInfo(destId);
             return (
               <div 
-                key={idx} 
+                key={`outgoing-${idx}`} 
                 className="wst-choice-card"
                 onClick={() => onSelectSceneNode?.(destId)}
+                style={{ 
+                  borderLeft: `4px solid ${info.color}`,
+                  background: info.bg
+                }}
               >
                 <div className="wst-choice-card__left">
-                  <div className="wst-choice-card__number">{idx + 1}</div>
+                  <div className="wst-choice-card__number" style={{ background: info.color, color: "#fff" }}>
+                    {idx + 1}
+                  </div>
                   <div className="wst-choice-card__info">
-                    <span className="wst-choice-card__text">{getChoiceLabel(choice)}</span>
-                    <span className="wst-choice-card__dest">➔ {formatChoiceDestinationInfo(choice)}</span>
+                    <span className="wst-choice-card__text" style={{ color: "#1f2937" }}>
+                      {getChoiceLabel(choice)}
+                    </span>
+                    <span className="wst-choice-card__dest" style={{ color: "#4b5563" }}>
+                      ➔ {formatChoiceDestinationInfo(choice)}
+                    </span>
                   </div>
                 </div>
-                <span className="wst-choice-card__arrow">❯</span>
+                <span className="wst-choice-card__arrow" style={{ color: info.color }}>❯</span>
               </div>
             );
           })}

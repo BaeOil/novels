@@ -1389,7 +1389,30 @@ const SceneEditorPage = ({
       });
 
       if (response.ok) {
-        fetchSceneData();
+        const result = await response.json().catch(() => null);
+        const createdData = result?.data || result?.chapter || result || {};
+
+        const newChId = createdData.id || createdData.chapter_id || createdData.ChapterID || Date.now();
+        const newChapterObj = {
+          id: newChId,
+          chapter_id: newChId,
+          ChapterID: newChId,
+          title: createdData.title || newChapterTitle.trim(),
+          Title: createdData.title || newChapterTitle.trim(),
+          episode: createdData.episode || nextEpisode,
+          Episode: createdData.episode || nextEpisode,
+          scenes: []
+        };
+
+        // อัปเดต state chapters ทันทีเพื่อให้ Sidebar แสดงตอนใหม่ทันทีโดยไม่ต้องรอ re-fetch
+        setChapters((prev) => {
+          const prevArr = Array.isArray(prev) ? prev : [];
+          const exists = prevArr.some(c => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(newChId));
+          if (exists) return prevArr;
+          return [...prevArr, newChapterObj];
+        });
+
+        await fetchSceneData();
         window.dispatchEvent(new Event("novel-data-updated"));
         setShowAddChapterDialog(false);
         setNewChapterTitle("");
@@ -1469,11 +1492,23 @@ const SceneEditorPage = ({
 
   const isEmptyNovel = !isLoading && (
     sceneId === "empty" ||
-    chapters.length === 0 ||
-    chapters.every(ch => !ch.scenes || ch.scenes.length === 0)
+    (sceneId !== "new" && (
+      chapters.length === 0 ||
+      chapters.every(ch => !ch.scenes || ch.scenes.length === 0)
+    ))
   );
 
   if (isEmptyNovel) {
+    const searchParams = new URLSearchParams(window.location.search);
+    const reasonParam = searchParams.get("reason");
+    const isNoChapters = reasonParam === "no-chapters" || chapters.length === 0;
+
+    const titleText = isNoChapters ? "ยังไม่มีตอน" : "ยังไม่มีฉาก";
+    const descText = isNoChapters
+      ? "คุณจำเป็นต้องสร้างตอน (Chapter) ในหน้าจัดการตอนก่อน ถึงจะสามารถเพิ่มฉากและเขียนเนื้อหาได้ค่ะ"
+      : "คุณจำเป็นต้องเพิ่มฉาก (Scene) ในหน้าจัดการตอนก่อน ถึงจะสามารถเริ่มเขียนเนื้อหาได้ค่ะ";
+    const targetUrlParams = isNoChapters ? { novelId } : { novelId, highlightEmpty: "true" };
+
     return (
       <div className="se-page" style={{ background: "var(--gray-50)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         {/* Header */}
@@ -1508,12 +1543,12 @@ const SceneEditorPage = ({
             border: "1px solid var(--pink-100)", display: "flex", flexDirection: "column",
             alignItems: "center", gap: "20px"
           }}>
-            <span style={{ fontSize: "64px" }}>📖</span>
+            <span style={{ fontSize: "64px" }}>{isNoChapters ? "📑" : "🎬"}</span>
             <h2 style={{ fontSize: "22px", fontWeight: "800", color: "var(--ink)", margin: 0 }}>
-              นิยายเรื่องนี้ยังไม่มีตอนหรือฉากใดๆ
+              {titleText}
             </h2>
             <p style={{ fontSize: "14.5px", color: "var(--gray-600)", lineHeight: "1.6", margin: 0 }}>
-              คุณจำเป็นต้องสร้างตอน (Chapter) และเพิ่มฉากย่อยในตอนก่อน ถึงจะสามารถเริ่มเขียนเนื้อหาได้ค่ะ
+              {descText}
             </p>
 
             <div style={{ display: "flex", gap: "12px", width: "100%", marginTop: "10px" }}>
@@ -1528,7 +1563,7 @@ const SceneEditorPage = ({
                 🏠 กลับ Dashboard
               </button>
               <button
-                onClick={() => onNavigate("chapters", { novelId })}
+                onClick={() => onNavigate("chapters", targetUrlParams)}
                 style={{
                   flex: 1, background: "var(--pink-500)", color: "var(--white)",
                   border: "none", padding: "12px", borderRadius: "12px",
@@ -1536,7 +1571,7 @@ const SceneEditorPage = ({
                   boxShadow: "var(--shadow-sm)"
                 }}
               >
-                ✨ ไปหน้าจัดการตอน
+                📑 ไปหน้าจัดการตอน
               </button>
             </div>
           </div>

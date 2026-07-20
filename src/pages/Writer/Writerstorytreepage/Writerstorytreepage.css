@@ -1,8 +1,8 @@
 .wst-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 80px); /* หักความสูงเผื่อ Global Navbar และ Footer เพื่อไม่ให้หน้ารวมล้น */
-  max-height: calc(100vh - 80px);
+  height: calc(100vh - 83px);
+  max-height: calc(100vh - 83px);
   width: 100%;
   background-color: #faf9f6;
   font-family: 'Outfit', 'Inter', 'Prompt', sans-serif;
@@ -17,7 +17,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: calc(100vh - 80px);
+  height: 100%;
   font-size: 1.1rem;
   color: #64748b;
   gap: 16px;
@@ -606,10 +606,9 @@
 }
 
 .wst-choice-card:hover {
-  border-color: #fbcfe8;
-  background-color: #fdf2f833;
+  filter: brightness(0.98);
   transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(219, 39, 119, 0.02);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
 }
 
 .wst-choice-card__left {
@@ -1022,14 +1021,21 @@
 /* ─────────────────────────────────────────────
    React Flow Edges & Labels custom style
    ───────────────────────────────────────────── */
+.react-flow__edge,
+.react-flow__edge-path,
+.react-flow__edge-interaction {
+  pointer-events: all !important;
+  cursor: pointer !important;
+}
+
 .react-flow__edge-path {
   stroke-linejoin: round;
   transition: stroke-width 0.12s ease, stroke 0.12s ease;
 }
 
 .react-flow__edge-path:hover {
-  stroke: #1d4ed8 !important; /* ส่องสว่างสีน้ำเงินเมื่อเมาส์ชี้ */
-  stroke-width: 3px !important;
+  stroke: #ef4444 !important; /* ปรับไฮไลท์ให้เด่นขึ้นเวลาชี้ลบ */
+  stroke-width: 4px !important;
 }
 
 .react-flow__edge-text {
@@ -1037,6 +1043,7 @@
   font-weight: 700 !important;
   fill: #334155 !important;
   font-family: "Outfit", "Sarabun", sans-serif !important;
+  pointer-events: none !important; /* ยอมให้เมาส์คลิกทะลุข้อความตัวอักษร */
 }
 
 .react-flow__edge-textbg {
@@ -1045,4 +1052,5 @@
   ry: 6px;
   stroke: #e2e8f0 !important;
   stroke-width: 1px !important;
+  pointer-events: none !important; /* ยอมให้เมาส์คลิกทะลุพื้นหลังข้อความ */
 }

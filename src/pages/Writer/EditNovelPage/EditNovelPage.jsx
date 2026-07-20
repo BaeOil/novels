@@ -177,7 +177,8 @@ const EditNovelPage = ({ onNavigate }) => {
                         }).filter(Boolean)))
                         : [];
 
-                    const coverPreview = novelData.cover_image || novelData.coverImage || novelData.cover_url || novelData.coverUrl || null;
+                    const rawCover = novelData.cover_image || novelData.coverImage || novelData.cover_url || novelData.coverUrl || novelData.cover || null;
+                    const coverPreview = rawCover ? String(rawCover).replace("http://minio:9000", "http://localhost:9000") : null;
 
                     const statusStr = String(novelData.status || novelData.Status || "").toLowerCase().trim();
                     const { isCompleted, isPublished } = getStatusFlags({
@@ -290,7 +291,13 @@ const EditNovelPage = ({ onNavigate }) => {
 
                 if (uploadRes.ok) {
                     const uploadData = await uploadRes.json();
-                    coverImageUrl = uploadData.data?.full_url || uploadData.full_url || null;
+                    coverImageUrl = uploadData.data?.full_url || 
+                                    uploadData.full_url || 
+                                    uploadData.data?.url || 
+                                    uploadData.url || 
+                                    uploadData.data?.path || 
+                                    uploadData.path || 
+                                    uploadData.url_path || "";
                     console.log("EditNovelPage: cover upload result", uploadData, "using url", coverImageUrl);
                 } else {
                     console.error("EditNovelPage: cover upload failed", uploadRes.status);
@@ -313,13 +320,10 @@ const EditNovelPage = ({ onNavigate }) => {
                 status: finalStatus,
                 is_published: form.isPublished,
                 is_completed: form.isCompleted,
+                cover_image: coverImageUrl || form.coverPreview || "",
             };
             if (categoriesLoaded) {
                 novelPayload.category_ids = selectedCategoryIds;
-            }
-
-            if (coverImageUrl) {
-                novelPayload.cover_image = coverImageUrl;
             }
 
             console.debug("EditNovelPage: PUT payload", novelPayload);

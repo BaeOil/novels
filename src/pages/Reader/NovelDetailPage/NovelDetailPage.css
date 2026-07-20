@@ -123,7 +123,8 @@
 /* Progress card */
 .novel-detail__action-group {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -133,50 +134,36 @@
   max-width: 100%;
 }
 
-.novel-detail__restart-row {
-  display: flex;
-  justify-content: flex-start;
-}
-
 .novel-detail__restart-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px; /* ลดระยะห่างระหว่างไอคอนและข้อความ */
-  
-  /* ปรับ Padding และเอา min-width ออก เพื่อให้ปุ่มหดตัวพอดีกับเนื้อหา */
-  padding: 10px 20px; 
-  width: auto; 
-  
+  gap: 6px;
+  padding: 10px 20px;
+  height: 42px;
   border-radius: 999px;
-  border: 1.5px solid var(--pink-500);
-  background: #ffffff;
-  color: var(--pink-500);
+  border: 1.5px solid #fbcfe8;
+  background: linear-gradient(135deg, #fff0f6 0%, #ffe4f1 100%);
+  color: #db2777;
   font-family: 'Sarabun', sans-serif;
-  
-  /* ลดขนาดตัวอักษรให้เท่ากับปุ่มอ่านเลย */
-  font-size: 14px; 
-  font-weight: 600;
-  
-  /* กำหนดความสูงให้คงที่เพื่อให้เท่ากับแถว ActionButtons */
-  height: 42px; 
-  
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(219, 39, 119, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
 }
 
 .novel-detail__restart-button:hover {
-  background: var(--pink-50);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  color: #ffffff !important;
+  border-color: #db2777;
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.25);
 }
 
 .novel-detail__restart-button:active {
   transform: translateY(0);
-}
-
-.novel-detail__restart-button:hover {
-  background: var(--pink-50);
-  transform: translateY(-1px);
 }
 
 /* ── Synopsis section ── */

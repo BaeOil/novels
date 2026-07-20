@@ -1168,11 +1168,11 @@ const ChapterPanel = ({
             onClick={() => onAddScene && onAddScene(chapterId)}
             style={{
               background: 'linear-gradient(135deg, #db2777 0%, #be185d 100%)', color: '#ffffff', border: 'none',
-              padding: '8px 18px', borderRadius: '20px', fontSize: '13.5px', fontWeight: '600', cursor: 'pointer',
+              padding: '8px 18px', borderRadius: '20px', fontSize: '13.5px', fontWeight: '700', cursor: 'pointer',
               boxShadow: '0 4px 10px rgba(219, 39, 119, 0.25)', marginTop: '4px'
             }}
           >
-            ➕ เพิ่มฉากย่อย
+            ➕ เพิ่มฉาก
           </button>
         </div>
       </div>
