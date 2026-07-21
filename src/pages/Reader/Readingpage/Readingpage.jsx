@@ -8,6 +8,7 @@ import RestartReadingButton from "../../../components/RestartReadingButton/Resta
 import ReadingSettings from "../../../components/ReadingSettings/ReadingSettings";
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import Comments from "../../../components/Comments/Comments";
+import EndingUnlockedModal from "../../../components/EndingUnlockedModal/EndingUnlockedModal";
 
 const BASE_URL = "http://localhost:8080"; 
 
@@ -54,6 +55,10 @@ const ReadingPage = ({
   const [commentText, setCommentText] = useState("");
   const [sceneComments, setSceneComments] = useState({});
   const comments = sceneComments[currentSceneId] || [];
+
+  // State สำหรับ Pop-up ยินดีด้วย ค้นพบฉากจบใหม่
+  const [showEndingModal, setShowEndingModal] = useState(false);
+  const [allNovelEndings, setAllNovelEndings] = useState([]);
 
   const fetchSceneComments = async (sceneId) => {
     if (!sceneId) return;
@@ -201,6 +206,21 @@ const ReadingPage = ({
             const errText = await endingRes.text();
             console.error("Ending record failed:", endingRes.status, errText);
           }
+
+          // ดึงรายการฉากจบทั้งหมดของนิยายเรื่องนี้เพื่อนำมาแสดงใน Pop-up Modal
+          try {
+            const allEndingsRes = await fetch(`${BASE_URL}/novels/${nId}/endings?user_id=${effectiveUserId}`, { headers });
+            if (allEndingsRes.ok) {
+              const endingsPayload = await allEndingsRes.json();
+              const fetchedEndings =
+                Array.isArray(endingsPayload?.data?.endings) ? endingsPayload.data.endings :
+                Array.isArray(endingsPayload?.endings) ? endingsPayload.endings :
+                Array.isArray(endingsPayload?.data) ? endingsPayload.data : [];
+              setAllNovelEndings(fetchedEndings);
+            }
+          } catch (e) {
+            console.warn("Failed to fetch all novel endings:", e);
+          }
         }
       }
     } catch (err) {
@@ -292,12 +312,18 @@ useEffect(() => {
       const scrolled = el.scrollTop;
       const total = el.scrollHeight - el.clientHeight;
       if (total > 0) {
-        setReadProgress(Math.round((scrolled / total) * 100));
+        const pct = Math.round((scrolled / total) * 100);
+        setReadProgress(pct);
+
+        // 🎯 หากอยู่ในฉากจบ และสกรอลล์อ่านลงมาถึงก้นหน้า (92% ขึ้นไป) -> เด้ง Pop-up ค้นพบฉากจบใหม่
+        if (sceneData && (sceneData.type === "ending" || sceneData.type === "Ending") && pct >= 90) {
+          setShowEndingModal(true);
+        }
       }
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [sceneData]);
 
   const handleChoose = async (choice) => {
     setSelectedChoiceId(choice.choice_id);
@@ -722,7 +748,10 @@ useEffect(() => {
               </p>
 
               <div className="rp__ending-actions">
-                <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => handleLocalNavigate("story-tree") }>
+                <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => setShowEndingModal(true)}>
+                  ✨ คลังฉากจบของคุณ
+                </button>
+                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree") }>
                   ดูแผนผังการอ่าน
                 </button>
                 <RestartReadingButton onRestart={handleRestartReading} />
@@ -745,6 +774,17 @@ useEffect(() => {
           </div>
         </article>
       </div>
+
+      {/* Pop-up ยินดีด้วย ค้นพบฉากจบใหม่ */}
+      <EndingUnlockedModal
+        isOpen={showEndingModal}
+        currentScene={sceneData}
+        allNovelEndings={allNovelEndings}
+        novelId={novelId}
+        onClose={() => setShowEndingModal(false)}
+        onViewStoryTree={() => handleLocalNavigate("story-tree")}
+        onRestartReading={handleRestartReading}
+      />
 
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-[120] rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-xl shadow-slate-900/20">

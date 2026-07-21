@@ -855,7 +855,7 @@ const SceneEditorPage = ({
           ? savedDraft.endingDescriptionEnabled
           : Boolean(savedDraft.endingDescription || savedDraft.ending_description)
       );
-      if (Array.isArray(savedDraft.choices)) setChoices(savedDraft.choices);
+      // 🛡️ ไม่เอา choices จาก draft มาทับ choices จริงจาก Backend เพื่อความเรียลไทม์เสมอ
       if (savedDraft.draftSavedAt) {
         const savedTime = new Date(savedDraft.draftSavedAt);
         if (!Number.isNaN(savedTime.getTime())) {
@@ -1112,7 +1112,7 @@ const SceneEditorPage = ({
           setCurrentSelectedChapterId(chapterId);
         }
 
-        // ข้อมูลของ Choices ตัวเลือกท้ายตอน
+        // ข้อมูลของ Choices ตัวเลือกท้ายตอน (ใช้ข้อมูลล่าสุดจาก Backend เสมอเพื่อความเรียลไทม์)
         const backendChoices = (Array.isArray(sceneData.choices) ? sceneData.choices : []).map((choice) => ({
           ...choice,
           id: choice.id ?? choice.choice_id ?? choice.choiceId ?? `choice-${choice.choice_id || choice.id || Date.now()}`,
@@ -1120,7 +1120,7 @@ const SceneEditorPage = ({
           targetSubScene: choice.targetSubScene ?? choice.to_scene_id ?? choice.toSceneID ?? choice.toSceneId ?? "",
         }));
 
-        setChoices(Array.isArray(draftData?.choices) ? draftData.choices : backendChoices);
+        setChoices(backendChoices);
 
         if (draftData?.draftSavedAt) {
           setDraftSavedAt(new Date(draftData.draftSavedAt));
