@@ -8,15 +8,16 @@ import "./CategoriesPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
+// เปลี่ยนดีไซน์ให้ดูคลีน สบายตา และไม่มีอิโมจิ
 const categoryPalettes = [
-  { name: "แฟนตาซี",        icon: "🪄", bg: "linear-gradient(135deg,#ffe4f0,#ffd6eb)" },
-  { name: "โรแมนซ์",         icon: "💘", bg: "linear-gradient(135deg,#fed7e2,#fbcfe8)" },
-  { name: "แอคชัน",          icon: "⚔️", bg: "linear-gradient(135deg,#fde8ff,#f3e0fc)" },
-  { name: "สยองขวัญ",        icon: "👻", bg: "linear-gradient(135deg,#f0f0ff,#e8e8ff)" },
-  { name: "ลึกลับ",           icon: "🕵️", bg: "linear-gradient(135deg,#fdf2f8,#fce7f3)" },
-  { name: "ชีวิตประจำวัน",   icon: "☕", bg: "linear-gradient(135deg,#fff1f2,#ffe4e6)" },
-  { name: "ดราม่า",           icon: "🎭", bg: "linear-gradient(135deg,#fef9e0,#fef3c7)" },
-  { name: "Sci-Fi",           icon: "🚀", bg: "linear-gradient(135deg,#e0f2fe,#bfdbfe)" },
+  { name: "แฟนตาซี",        bg: "#FDF2F8" }, 
+  { name: "โรแมนซ์",         bg: "#FFF1F2" }, 
+  { name: "แอคชัน",          bg: "#F0FDF4" }, 
+  { name: "สยองขวัญ",        bg: "#F3F4F6" }, 
+  { name: "ลึกลับ",           bg: "#F5F3FF" }, 
+  { name: "ชีวิตประจำวัน",   bg: "#FFFBEB" }, 
+  { name: "ดราม่า",           bg: "#FEF2F2" }, 
+  { name: "Sci-Fi",           bg: "#F0F9FF" }, 
 ];
 
 const normalizeCategoryName = (c) => {
@@ -28,10 +29,24 @@ const normalizeCategoryName = (c) => {
 const normalizeNovel = (data) => {
   const rawCats = data.categories ?? data.Categories ?? data.category_ids ?? data.CategoryIDs ?? [];
   const statusInfo = getNovelStatusInfo(data);
+  
+  const isActuallyPublished = data.status?.toLowerCase() === "published" || 
+                              data.is_published === true || 
+                              statusInfo.isPublished || 
+                              statusInfo.mode === "published";
+
+  // 🎯 ดึงชื่อหมวดหมู่มาทำความสะอาด
+  const cleanCategories = Array.isArray(rawCats) 
+    ? rawCats.map(normalizeCategoryName).filter(Boolean) 
+    : [];
+    
+  // 🎯 ใช้ Set ในการตัดหมวดหมู่ที่เบิ้ลซ้ำกันในเรื่องเดียวกันทิ้ง (เช่น ["แฟนตาซี", "แฟนตาซี"] จะเหลือแค่ 1)
+  const uniqueCategories = [...new Set(cleanCategories)];
+
   return {
     id: data.id || data.novel_id,
     title: data.title || "ไม่มีชื่อเรื่อง",
-    categories: Array.isArray(rawCats) ? rawCats.map(normalizeCategoryName).filter(Boolean) : [],
+    categories: uniqueCategories, // ส่งตัวที่ตัดตัวซ้ำออกแล้วไปใช้งาน
     coverImage: data.cover_image || data.coverImage || null,
     coverEmoji: !data.cover_image && !data.coverImage ? "📘" : "",
     synopsis: data.captions || data.introduction || data.description || "",
@@ -46,11 +61,9 @@ const normalizeNovel = (data) => {
     },
     isLiked:      data.is_liked || false,
     isBookmarked: data.is_bookmarked || false,
-    // ใช้สำหรับ filter — นับเฉพาะที่ published
-    isPublished: statusInfo.isPublished || statusInfo.mode === "published",
+    isPublished:  isActuallyPublished,
   };
 };
-
 // ─── Skeleton components ────────────────────────────────────────────────────
 const CategorySkeleton = () => (
   <div className="cat-page__category-skeleton">
@@ -97,36 +110,37 @@ const CategoriesPage = () => {
                      || novelRes.data
                      || [];
 
-      const allNovels    = Array.isArray(novelData) ? novelData.map(normalizeNovel) : [];
-      // ─── Bug fix: นับเฉพาะนิยายที่ published ───────────────────────────────
+      // 1. แปลงข้อมูลและคัดกรองเฉพาะตัวที่เผยแพร่ (Published) ให้จบในขั้นตอนนี้
+      const allNovels = Array.isArray(novelData) ? novelData.map(normalizeNovel) : [];
       const publishedNovels = allNovels.filter(n => n.isPublished);
 
-      // นับ count จาก published เท่านั้น
+      // 2. จัดการข้อมูลรายชื่อหมวดหมู่หลัก พร้อม Trim ช่องว่างทิ้ง
+      const dbCats = Array.isArray(catData)
+        ? catData.map(c => ({ id: c.category_id || c.id, name: String(c.name || c.title || "").trim() }))
+        : [];
+
+      // 3. 🎯 นับจำนวนเรื่องโดยดึงจากวัตถุดิบชุดเดียวกัน (publishedNovels)
       const counts = {};
-      publishedNovels.forEach(n => {
-        n.categories.forEach(name => {
+      publishedNovels.forEach(novel => {
+        // ทำความสะอาดชื่อหมวดหมู่ที่ติดอยู่กับตัวนิยายด้วย เผื่อมีช่องว่างหลุดมา
+        novel.categories = novel.categories.map(c => String(c).trim());
+        
+        // วนลูปนับจำนวน
+        novel.categories.forEach(name => {
           counts[name] = (counts[name] || 0) + 1;
         });
       });
 
-      const dbCats = Array.isArray(catData)
-        ? catData.map(c => ({ id: c.category_id || c.id, name: c.name || c.title || "" }))
-        : [];
+      // 4. ประกอบร่างข้อมูลหมวดหมู่เพื่อไปแสดงบนการ์ดด้านบน
+      const merged = dbCats.map(dbCat => ({
+        id:         dbCat.id,
+        name:       dbCat.name,
+        // ตัวเลขจะดึงจาก counts ตัวเดียวกับที่แปลงเป็นนิยายข้างล่างแล้ว เป๊ะแน่นอน 100%
+        count:      counts[dbCat.name] || 0, 
+      }));
 
-      const merged = dbCats.map(dbCat => {
-        const palette = categoryPalettes.find(p => p.name === dbCat.name);
-        return {
-          id:         dbCat.id,
-          name:       dbCat.name,
-          icon:       palette?.icon       || "📚",
-          background: palette?.bg || "linear-gradient(135deg,#fff1f2,#ffe4e6)",
-          // แสดงเฉพาะจำนวนที่ published
-          count:      counts[dbCat.name]  || 0,
-        };
-      });
-
-      setNovels(publishedNovels);   // เก็บเฉพาะ published ไว้แสดง
-      setCategories(merged);
+      setNovels(publishedNovels); // ตัวแปรนี้จะนำไปแสดงในรายการด้านล่าง
+      setCategories(merged);      // ตัวแปรนี้จะนำไปแสดงบนการ์ดด้านบน
     } catch (err) {
       console.error(err);
       if (active) setError("ไม่สามารถดึงข้อมูลได้ในขณะนี้");
@@ -135,7 +149,6 @@ const CategoriesPage = () => {
     }
     return () => { active = false; };
   };
-
   useEffect(() => { loadData(); }, []);
 
   // กรองนิยายตาม category ที่เลือก
@@ -164,7 +177,6 @@ const CategoriesPage = () => {
             <div className="cat-page__hero-summary">
               <span className="cat-page__summary-chip">📚 {novels.length} นิยาย</span>
               <span className="cat-page__summary-chip">🗂️ {categories.length} หมวดหมู่</span>
-              <span className="cat-page__summary-chip">🏁 {novels.reduce((s,n)=>s+(n.stats.endings||0),0)} ตอนจบ</span>
             </div>
           )}
         </div>
@@ -187,13 +199,15 @@ const CategoriesPage = () => {
                 )
                 : categories.length === 0
                   ? <p className="cat-page__no-cat">ยังไม่มีหมวดหมู่ในระบบ</p>
-                  : categories.map(cat => (
-                    <CategoryCard
+                 : categories.map(cat => (
+                    <div
                       key={cat.id}
-                      category={cat}
-                      active={cat.name === activeCategory}
+                      className={`cat-page__minimal-card ${cat.name === activeCategory ? 'active' : ''}`}
                       onClick={() => handleCategoryClick(cat.name)}
-                    />
+                    >
+                      <span className="cat-page__minimal-name">{cat.name}</span>
+                      <span className="cat-page__minimal-count">{cat.count} เรื่อง</span>
+                    </div>
                   ))
             }
           </div>

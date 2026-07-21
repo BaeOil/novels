@@ -37,43 +37,43 @@ const extractChapterAndSceneFromTitle = (title) => {
 };
 
 const normalizeBook = (item) => {
-  // 1. ดึง ID ของฉากปัจจุบันและฉากล่าสุดเพื่อเช็กการย้อนเวลา
   const currentSceneId = item.current_scene_id || item.scene_id || item.last_read_scene_id || 0;
   const lastReadSceneId = item.last_read_scene_id || 0;
-
-  // 2. ตรวจจับการย้อนไทม์ไลน์ (พิกัดปัจจุบัน ไม่ตรงกับ ประวัติฉากล่าสุดที่เคยไปถึง)
   const isTimeTraveling = lastReadSceneId !== 0 && currentSceneId !== 0 && String(lastReadSceneId) !== String(currentSceneId);
 
+  // 🛑 ตัด item.title ทิ้ง จะได้ไม่ดึงชื่อนิยายมาแสดงมั่ว
+  const currChapNum = item.current_chapter_number || item.chapter_number || item.chapter_order;
+  const currChapTitle = item.current_chapter_title || item.chapter_title;
+  const currScNum = item.current_scene_number || item.scene_number || item.order;
+  const currScTitle = item.current_scene_name || item.current_scene_title || item.scene_name; 
+
+  const maxChapNum = item.last_read_chapter_number;
+  const maxChapTitle = item.last_read_chapter_title;
+  const maxScNum = item.last_read_scene_number;
+  const maxScTitle = item.last_read_scene_name || item.last_read_scene_title;
+
   return {
-    id: item.novel_id || item.id,
+    id: item.novel_id || item.id, 
     title: item.title || "ไม่ระบุชื่อเรื่อง",
     author: item.author_name || item.pen_name || "ไม่ทราบผู้แต่ง",
-    categories: Array.isArray(item.categories)
-      ? item.categories.map(c => typeof c === 'object' ? c.name : c)
-      : ["ทั่วไป"],
+    categories: Array.isArray(item.categories) ? item.categories.map(c => typeof c === 'object' ? c.name : c) : ["ทั่วไป"],
     coverImage: item.cover_image || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=320&q=80",
-    synopsis: stripHtml(item.captions || item.introduction || ""),
     reading_status: item.reading_status || "reading",
     routeFound: item.visited_count || 0,
     totalRoutes: item.total_scenes || item.scene_count || 0,
     endingCount: item.ending_count || 0,
     totalEndings: item.total_endings || 0,
+    lastReadAt: (item.last_read_at && !item.last_read_at.startsWith("0001")) ? item.last_read_at : new Date().toISOString(),
 
-    lastReadAt: (item.last_read_at && !item.last_read_at.startsWith("0001"))
-      ? item.last_read_at
-      : item.updated_at || item.created_at || new Date().toISOString(),
-
-    // 🎯 ดึงข้อมูลปัจจุบัน (current) ขึ้นก่อนเสมอ เพื่อให้แสดงฉาก/ตอน ตรงกับความเป็นจริง
-    lastReadChapterNumber: item.current_chapter_number || item.last_read_chapter_number || null,
-    lastReadChapterTitle: item.current_chapter_title || item.last_read_chapter_title || null,
-    lastReadSceneNumber: item.current_scene_number || item.last_read_scene_number || null,
-    lastReadSceneName: item.current_scene_name || item.current_scene_title || item.last_read_scene_name || item.last_read_scene_title || null,
-
-    // 💎 ถ้ากำลังย้อนไทม์ไลน์ ให้ซ่อน choice แล้วบอกสถานะแทน
+    // ดึงค่าปัจจุบันมา ถ้าไม่มีเดี๋ยวเราไป Fetch เพิ่มใน loadHistory
+    lastReadChapterNumber: isTimeTraveling ? currChapNum : (currChapNum || maxChapNum),
+    lastReadChapterTitle: isTimeTraveling ? currChapTitle : (currChapTitle || maxChapTitle),
+    lastReadSceneNumber: isTimeTraveling ? currScNum : (currScNum || maxScNum),
+    lastReadSceneName: isTimeTraveling ? currScTitle : (currScTitle || maxScTitle),
+    
     lastChoiceText: isTimeTraveling ? "กำลังย้อนกลับมาอ่านฉากนี้" : (item.last_choice_text || null),
-
     currentSceneId: currentSceneId,
-    isTimeTraveling: isTimeTraveling, // ส่งสถานะไปใช้จัดการ UI ด้านล่าง
+    isTimeTraveling: isTimeTraveling,
   };
 };
 
@@ -86,34 +86,64 @@ const HistoryPage = ({ onNavigate }) => {
   useEffect(() => {
     let active = true;
 
-    const loadHistory = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem("token");
-        const headers = { "Content-Type": "application/json" };
-        if (token) headers.Authorization = `Bearer ${token}`;
+const loadHistory = async () => {
+  setLoading(true);
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-        const historyUrl = `${API_BASE_URL}/history`;
-        const historyRes = await axios.get(historyUrl, { headers });
-        const historyPayload =
-          historyRes.data?.data?.history ||
-          historyRes.data?.history ||
-          historyRes.data?.novels ||
-          historyRes.data ||
-          [];
-        const bookList = Array.isArray(historyPayload) ? historyPayload : [];
+    const historyUrl = `${API_BASE_URL}/history`;
+    const historyRes = await axios.get(historyUrl, { headers });
+    const historyPayload = historyRes.data?.data?.history || historyRes.data?.history || historyRes.data?.novels || historyRes.data || [];
+    let bookList = Array.isArray(historyPayload) ? historyPayload : [];
 
-        if (active) {
-          setBooks(bookList.map(normalizeBook));
-        }
-      } catch (err) {
-        console.error("History API error:", err);
-        if (active) setBooks([]);
-      } finally {
-        if (active) setLoading(false);
+    // 🎯 ชั้นที่ 1: กรองเอานิยายที่ไม่มีฉาก หรือยังไม่เคยถูกอ่านจริงๆ ออกไปจากหน้าประวัติ
+    bookList = bookList.filter(item => {
+      // ถ้าระบบส่งมาว่าจำนวนฉากทั้งหมดเป็น 0 หรือไม่มี id ฉากเลย ให้ตัดทิ้ง
+      const totalScenes = item.total_scenes || item.scene_count || 0;
+      const hasSceneId = item.current_scene_id || item.scene_id || item.last_read_scene_id;
+      
+      // ถ้านิยายไม่มีฉากเลย ไม่ควรมาโผล่ในหน้าประวัติการอ่าน
+      if (totalScenes === 0 && !hasSceneId) {
+        return false;
       }
-    };
+      return true;
+    });
 
+    // แปลงข้อมูลรอบแรก
+    const initialBooks = bookList.map(normalizeBook);
+
+    // โหลดข้อมูลฉากย้อนหลังถ้าย้อนไทม์ไลน์
+    const populatedBooks = await Promise.all(initialBooks.map(async (book) => {
+      if (book.isTimeTraveling && book.currentSceneId !== 0) {
+        try {
+          const sceneRes = await axios.get(`${API_BASE_URL}/scenes/${book.currentSceneId}`);
+          const sceneData = sceneRes.data?.data || sceneRes.data;
+          
+          if (sceneData) {
+            book.lastReadChapterNumber = sceneData.chapter_order || sceneData.chapter_episode || sceneData.chapter_number || book.lastReadChapterNumber;
+            book.lastReadChapterTitle = sceneData.chapter_title || sceneData.ChapterTitle || sceneData.chapter_name || book.lastReadChapterTitle;
+            book.lastReadSceneNumber = sceneData.order || sceneData.scene_number || sceneData.scene_order || book.lastReadSceneNumber;
+            book.lastReadSceneName = sceneData.scene_title || sceneData.scene_name || sceneData.title || sceneData.name || book.lastReadSceneName; 
+          }
+        } catch (err) {
+          console.warn("ไม่สามารถดึงข้อมูลฉากย้อนหลังได้:", err);
+        }
+      }
+      return book;
+    }));
+
+    if (active) {
+      setBooks(populatedBooks);
+    }
+  } catch (err) {
+    console.error("History API error:", err);
+    if (active) setBooks([]);
+  } finally {
+    if (active) setLoading(false);
+  }
+};
     loadHistory();
 
     window.addEventListener("focus", loadHistory);
@@ -188,22 +218,24 @@ const HistoryPage = ({ onNavigate }) => {
             {filteredBooks.map((book) => {
               const status = STATUS_MAP[book.reading_status] || STATUS_MAP.reading;
               const percent = book.totalRoutes ? Math.round((book.routeFound / book.totalRoutes) * 100) : 0;
-              const chapterLabel = book.lastReadChapterTitle
-                ? `ตอนที่ ${book.lastReadChapterNumber || "?"} : ${book.lastReadChapterTitle}`
-                : book.lastReadChapterNumber
-                  ? `ตอนที่ ${book.lastReadChapterNumber}`
-                  : "ยังไม่ระบุตอน";
+             const chapterLabel = book.lastReadChapterTitle
+  ? `ตอนที่ ${book.lastReadChapterNumber || "?"} : ${book.lastReadChapterTitle}`
+  : book.lastReadChapterNumber
+  ? `ตอนที่ ${book.lastReadChapterNumber}`
+  : "ยังไม่มีตอน"; // เปลี่ยนจากคำว่า "เนื้อเรื่องหลัก" เผื่อเป็นเคสไม่มีข้อมูลจริง ๆ
+  
+// 🎯 ปรับให้เช็กชัดเจนว่าถ้าไม่มีเลขฉากจริง ๆ (หรือเป็น 0) ให้ขึ้นเครื่องหมาย ? หรือบอกว่าไม่มีฉาก
+const scNum = (book.lastReadSceneNumber && book.lastReadSceneNumber !== 0) ? book.lastReadSceneNumber : null;
 
-              // บังคับใช้เลขฉากปัจจุบันเป็นตัวแรก (ข้อมูลผ่านการกรองมาแล้ว)
-              const scNum = book.lastReadSceneNumber || book.currentSceneId || "?";
+const sceneTitle = book.lastReadSceneName || book.lastReadSceneTitle;
+const finalSceneTitle = (sceneTitle && !sceneTitle.includes("ตอนที่")) ? sceneTitle : null;
 
-              const sceneTitle = book.lastReadSceneName || book.lastReadSceneTitle;
-              const finalSceneTitle = (sceneTitle && !sceneTitle.includes("ตอนที่")) ? sceneTitle : null;
-
-              const sceneLabel = finalSceneTitle
-                ? `ฉากที่ ${scNum} : ${finalSceneTitle}`
-                : `ฉากที่ ${scNum}`;
-
+let sceneLabel = "ยังไม่มีฉาก";
+if (scNum) {
+  sceneLabel = finalSceneTitle ? `ฉากที่ ${scNum} : ${finalSceneTitle}` : `ฉากที่ ${scNum}`;
+} else if (finalSceneTitle) {
+  sceneLabel = finalSceneTitle;
+}
               return (
                 <div key={book.id || `${book.title}-${book.author}`} className="history-card">
                   <div className="history-card__cover">

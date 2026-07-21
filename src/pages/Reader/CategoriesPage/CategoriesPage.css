@@ -78,7 +78,7 @@
 .cat-page__category-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  gap: 16px; 
 }
 
 .cat-page__no-cat {
@@ -276,4 +276,46 @@
   .cat-page__body         { padding: 0 16px 48px; }
   .cat-page__category-grid { grid-template-columns: repeat(2, 1fr); }
   .cat-page__novel-grid   { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+}
+
+/* ── Minimal Category Card ────────────────────────────────────────── */
+.cat-page__minimal-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 16px;
+  background: #ffffff;
+  border: 1px solid #F3F4F6;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.cat-page__minimal-card:hover {
+  border-color: #FCE4F0;
+  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.08);
+  transform: translateY(-2px);
+}
+
+.cat-page__minimal-card.active {
+  background: #FEF0F6;
+  border-color: #E91E8C;
+}
+
+.cat-page__minimal-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.cat-page__minimal-card.active .cat-page__minimal-name {
+  color: #E91E8C;
+}
+
+.cat-page__minimal-count {
+  font-size: 13px;
+  color: #6B7280;
 }

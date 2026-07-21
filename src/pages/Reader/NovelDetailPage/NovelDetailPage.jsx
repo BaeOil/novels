@@ -722,7 +722,7 @@ const NovelDetailPage = () => {
               </h3>
               <p style={{ fontSize: "14px", color: "#4a5568", lineHeight: "1.6", marginBottom: "26px" }}>
                 นิยายเรื่องนี้ยังไม่มีเนื้อหาให้อ่าน <br />
-                รอนักเขียนปล่อยตอนใหม่เร็วๆ นี้นะ
+                รอนักเขียนปล่อยฉากใหม่เร็วๆ นี้นะ
               </p>
               <button
                 onClick={() => setShowNoContentDialog(false)}
