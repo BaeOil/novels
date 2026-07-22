@@ -85,6 +85,7 @@ type WriterService interface {
 	GetPendingRequests(ctx context.Context) ([]dto.WriterRequestResponse, error)
 	ApproveWriter(ctx context.Context, writerID uint) error
 	RejectWriter(ctx context.Context, writerID uint) error
+	UpdateWriterProfile(ctx context.Context, writerID int, req dto.UpdateWriterProfileRequest) error
 }
 
 type MediaService interface {

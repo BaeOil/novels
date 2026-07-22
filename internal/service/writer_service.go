@@ -95,3 +95,38 @@ func (s *writerService) RejectWriter(ctx context.Context, writerID uint) error {
 	}
 	return s.repo.RejectWriter(ctx, writerID)
 }
+
+// ✏️ Logic อัปเดตโปรไฟล์นักเขียน
+func (s *writerService) UpdateWriterProfile(ctx context.Context, writerID int, req dto.UpdateWriterProfileRequest) error {
+	if writerID == 0 {
+		return errors.New("รหัสนักเขียนไม่ถูกต้อง")
+	}
+	if req.PenName == "" {
+		return errors.New("นามปากกาต้องไม่เป็นค่าว่าง")
+	}
+
+	var contactJSON string
+	if req.ContactRequired != "" || req.ContactOptional != "" {
+		contacts := map[string]string{
+			"contact_required": req.ContactRequired,
+			"contact_optional": req.ContactOptional,
+		}
+		bytes, err := json.Marshal(contacts)
+		if err != nil {
+			return errors.New("รูปแบบข้อมูลช่องทางติดต่อไม่ถูกต้อง")
+		}
+		contactJSON = string(bytes)
+	} else if req.ContactInfo != nil {
+		if str, ok := req.ContactInfo.(string); ok {
+			contactJSON = str
+		} else {
+			bytes, err := json.Marshal(req.ContactInfo)
+			if err != nil {
+				return errors.New("รูปแบบข้อมูลช่องทางติดต่อไม่ถูกต้อง")
+			}
+			contactJSON = string(bytes)
+		}
+	}
+
+	return s.repo.UpdateWriterProfile(ctx, writerID, req, contactJSON)
+}

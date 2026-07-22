@@ -30,6 +30,7 @@ type LatestUpdate struct {
 type Writer struct {
 	WriterID       int           `json:"writer_id" db:"writer_id"`
 	UserID         int           `json:"user_id" db:"user_id"`
+	Username       string        `json:"username,omitempty"`
 	NameLastname   string        `json:"name_lastname"`
 	PenName        string        `json:"pen_name"`
 	Bio            *string       `json:"bio,omitempty"`
@@ -41,6 +42,10 @@ type Writer struct {
 	NovelCount     int           `json:"novel_count,omitempty"`
 	Novels         []WriterNovel `json:"novels,omitempty"`
 	LatestUpdate   *LatestUpdate `json:"latest_update,omitempty"`
-	TotalLikeCount int           `json:"total_like_count,omitempty" db:"total_like_count"`
-	TotalViewCount int           `json:"total_view_count,omitempty" db:"total_view_count"`
+	TotalLikeCount      int           `json:"total_like_count,omitempty" db:"total_like_count"`
+	TotalViewCount      int           `json:"total_view_count,omitempty" db:"total_view_count"`
+	TotalBookshelfCount int           `json:"total_bookshelf_count" db:"total_bookshelf_count"`
+	Categories          []Category    `json:"categories,omitempty"`
+	AppliedAt           *time.Time    `json:"applied_at,omitempty"`
+	ApprovedAt          *time.Time    `json:"approved_at,omitempty"`
 }

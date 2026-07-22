@@ -145,7 +145,7 @@ func GetBookshelfCountByNovelID(db *sql.DB, novelID int) (int, error) {
 
 func GetBookshelfCountsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 	rows, err := db.Query(`
-        SELECT n.novel_id, n.title, COALESCE(COUNT(b.id), 0) AS bookshelf_count
+        SELECT n.novel_id, n.title, COALESCE(COUNT(b.user_id), 0) AS bookshelf_count
         FROM novels n
         LEFT JOIN bookshelves b ON n.novel_id = b.novel_id
         WHERE n.author_id = $1

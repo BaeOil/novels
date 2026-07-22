@@ -197,3 +197,39 @@ func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {
 		"message": "ปฏิเสธคำขอสมัครนักเขียนเรียบร้อยแล้วค่ะ",
 	})
 }
+
+// ✏️ PUT /api/writers/me/profile - สำหรับนักเขียนอัปเดตข้อมูลโปรไฟล์ของตนเอง
+func (h *WriterHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token", http.StatusUnauthorized)
+		return
+	}
+
+	writer, err := h.service.GetWriterByUserID(int(userID))
+	if err != nil || writer == nil {
+		http.Error(w, "forbidden: คุณยังไม่ใช่นักเขียนที่ได้รับการอนุมัติ", http.StatusForbidden)
+		return
+	}
+
+	var req dto.UpdateWriterProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.UpdateWriterProfile(r.Context(), writer.WriterID, req); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "อัปเดตโปรไฟล์เรียบร้อยแล้วค่ะ",
+	})
+}

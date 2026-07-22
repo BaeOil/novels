@@ -28,3 +28,15 @@ type WriterRequestResponse struct {
 	Status       string    `json:"status"`
 	AppliedAt    time.Time `json:"applied_at"`
 }
+
+// UpdateWriterProfileRequest สำหรับรับข้อมูลอัปเดตโปรไฟล์นักเขียน
+type UpdateWriterProfileRequest struct {
+	PenName         string      `json:"pen_name"`
+	Bio             string      `json:"bio"`
+	AvatarURL       string      `json:"avatar_url"`
+	ContactInfo     interface{} `json:"contact_info"`
+	ContactRequired string      `json:"contact_required,omitempty"`
+	ContactOptional string      `json:"contact_optional,omitempty"`
+	EmailWriter     string      `json:"email_writer,omitempty"`
+	CategoryIDs     []int       `json:"category_ids"`
+}
