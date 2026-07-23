@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import ReactDOM from "react-dom";
 // 🎯 🟢 นำเข้า Link, useNavigate และ useLocation เพื่อทำระบบสลับโหมดแบบไร้รอยต่อ
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -15,6 +15,72 @@ const Navbar = () => {
     const [searchValue, setSearchValue] = useState("");
     const [searchFocused, setSearchFocused] = useState(false);
     
+    // States สำหรับ Pop-up ผลการค้นหาด่วน
+    const [recentSearches, setRecentSearches] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem("recent_searches") || "[]");
+        } catch {
+            return [];
+        }
+    });
+    const [popularNovels, setPopularNovels] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [allNovels, setAllNovels] = useState([]);
+
+    useEffect(() => {
+        const fetchSearchOverlayData = async () => {
+            try {
+                const [novelRes, catRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/novels`),
+                    fetch(`${API_BASE_URL}/categories`)
+                ]);
+                if (novelRes.ok) {
+                    const novelData = await novelRes.json();
+                    const list = novelData.novels || novelData.data?.novels || novelData.data || [];
+                    const published = list.filter(n => n.status?.toLowerCase() === "published" || n.is_published === true);
+                    setAllNovels(published);
+                    
+                    const sorted = [...published].sort((a, b) => (b.views || b.view_count || 0) - (a.views || a.view_count || 0));
+                    setPopularNovels(sorted.slice(0, 5));
+                }
+                if (catRes.ok) {
+                    const catData = await catRes.json();
+                    const list = catData.categories || catData.data || [];
+                    setCategories(list.slice(0, 5));
+                }
+            } catch (e) {
+                console.warn("Failed to fetch search overlay data:", e);
+            }
+        };
+        fetchSearchOverlayData();
+    }, []);
+
+    // ค้นหานิยายที่ใกล้เคียงเรียลไทม์ขณะพิมพ์
+    const matchingNovels = useMemo(() => {
+        if (!searchValue.trim()) return [];
+        const q = searchValue.toLowerCase().trim();
+        return allNovels.filter(n => 
+            (n.title && n.title.toLowerCase().includes(q)) ||
+            (n.pen_name && n.pen_name.toLowerCase().includes(q)) ||
+            (n.penName && n.penName.toLowerCase().includes(q))
+        ).slice(0, 3);
+    }, [searchValue, allNovels]);
+
+    // ฟังก์ชันไฮไลต์ตัวอักษรค้นหา
+    const highlightText = (text, highlight) => {
+        if (!highlight.trim()) return text;
+        const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+        return (
+            <span>
+                {parts.map((part, i) => 
+                    part.toLowerCase() === highlight.toLowerCase() 
+                        ? <span key={i} style={{ color: "#db2777", fontWeight: "800" }}>{part}</span> 
+                        : part
+                )}
+            </span>
+        );
+    };
+
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [userData, setUserData] = useState({
@@ -101,6 +167,33 @@ const Navbar = () => {
         }
     };
 
+    const handleSearchSubmit = (query) => {
+        if (!query.trim()) return;
+        const q = query.trim();
+        
+        // บันทึกคำค้นหาล่าสุด (ไม่ซ้ำ และเก็บไม่เกิน 5 คำ)
+        setRecentSearches(prev => {
+            const filtered = prev.filter(item => item !== q);
+            const next = [q, ...filtered].slice(0, 5);
+            localStorage.setItem("recent_searches", JSON.stringify(next));
+            return next;
+        });
+
+        window.dispatchEvent(new CustomEvent("search-change", { detail: q }));
+        navigate(`/categories?search=${encodeURIComponent(q)}`);
+        setSearchFocused(false);
+    };
+
+    const handleDeleteRecentSearch = (e, q) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setRecentSearches(prev => {
+            const next = prev.filter(item => item !== q);
+            localStorage.setItem("recent_searches", JSON.stringify(next));
+            return next;
+        });
+    };
+
     const handleLogout = async (event) => {
         event?.preventDefault?.();
         event?.stopPropagation?.();
@@ -181,16 +274,18 @@ const Navbar = () => {
                             <li className={`nav-item ${location.pathname === "/following-writers" ? "active" : ""}`}>
                                 <Link to="/following-writers">นักเขียนที่ติดตาม</Link>
                             </li>
-                            <li className={`nav-item ${location.pathname === "/registerwriter" ? "active" : ""}`}>
-                                <Link to="/registerwriter">สมัครนักเขียน</Link>
-                            </li>
+                            {isLoggedIn && (
+                                <li className={`nav-item ${location.pathname === "/registerwriter" ? "active" : ""}`}>
+                                    <Link to="/registerwriter">สมัครนักเขียน</Link>
+                                </li>
+                            )}
                         </>
                     )}
                 </ul>
 
                 {/* ── ส่วนขวา: ช่องค้นหา และ โซนควบคุมโหมด/สิทธิ์ผู้ใช้ ── */}
                 <div className="navbar__right">
-                    <div className={`navbar__search ${searchFocused ? "navbar__search--focused" : ""}`}>
+                    <div className={`navbar__search ${searchFocused ? "navbar__search--focused" : ""}`} style={{ position: "relative" }}>
                         <svg className="navbar__search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
                             <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
                             <path d="M11 11L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -202,8 +297,153 @@ const Navbar = () => {
                             value={searchValue}
                             onChange={(e) => setSearchValue(e.target.value)}
                             onFocus={() => setSearchFocused(true)}
-                            onBlur={() => setSearchFocused(false)}
+                            onBlur={() => setTimeout(() => setSearchFocused(false), 220)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    handleSearchSubmit(searchValue);
+                                }
+                            }}
                         />
+
+                        {/* หน้าต่างป๊อปอัปผลการค้นหาด่วน (Search Dropdown Popover) */}
+                        {searchFocused && (
+                            <div className="search-overlay-dropdown" onMouseDown={(e) => e.preventDefault()}>
+                                
+                                {searchValue.trim() !== "" ? (
+                                    /* ค้นหาคำแบบเรียลไทม์ */
+                                    <div className="search-overlay-section">
+                                        <h4 className="search-overlay-title">นิยายที่เกี่ยวข้อง</h4>
+                                        <div className="search-overlay-matching-list">
+                                            {matchingNovels.length === 0 ? (
+                                                <div style={{ padding: "14px 0", color: "#94a3b8", fontSize: "0.88rem", textAlign: "center" }}>ไม่พบนิยายที่เกี่ยวข้อง</div>
+                                            ) : (
+                                                matchingNovels.map((novel, idx) => {
+                                                    const rawCats = novel.categories || novel.Categories || [];
+                                                    const cleanCats = rawCats.map(c => typeof c === "string" ? c : (c.name || c.title)).slice(0, 2).join(", ");
+                                                    const chapterCount = novel.chapters_count || (novel.chapters ? novel.chapters.length : 0) || 0;
+                                                    
+                                                    return (
+                                                        <div 
+                                                            key={idx} 
+                                                            className="search-overlay-match-card"
+                                                            onClick={() => {
+                                                                setSearchFocused(false);
+                                                                setSearchValue("");
+                                                                navigate(`/novel/${novel.id || novel.novel_id}`);
+                                                            }}
+                                                        >
+                                                            <div className="match-card-cover">
+                                                                {novel.cover_image || novel.coverImage ? (
+                                                                    <img src={(novel.cover_image || novel.coverImage).replace("http://minio:9000", "http://localhost:9000")} alt="" />
+                                                                ) : (
+                                                                    <div className="match-card-placeholder">📘</div>
+                                                                )}
+                                                            </div>
+                                                            <div className="match-card-info">
+                                                                <div className="match-card-title">
+                                                                    {highlightText(novel.title || "", searchValue)}
+                                                                </div>
+                                                                <div className="match-card-meta">
+                                                                    {novel.pen_name || novel.penName || "ไม่ระบุ"} • {cleanCats || "ทั่วไป"} • {chapterCount} ตอน
+                                                                </div>
+                                                            </div>
+                                                            <span className="match-card-arrow">➔</span>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                        
+                                        <div 
+                                            className="search-overlay-footer-btn"
+                                            onClick={() => handleSearchSubmit(searchValue)}
+                                        >
+                                            ดูผลลัพธ์ทั้งหมดสำหรับ "{searchValue}"
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* ช่องค้นหาว่างเปล่า -> แสดงประวัติและยอดนิยม */
+                                    <>
+                                        {/* 1. ค้นหาล่าสุด */}
+                                        {recentSearches.length > 0 && (
+                                            <div className="search-overlay-section">
+                                                <h4 className="search-overlay-title">🕒 ค้นหาล่าสุด</h4>
+                                                <div className="search-overlay-recent-list">
+                                                    {recentSearches.map((item, idx) => (
+                                                        <div key={idx} className="search-overlay-recent-item">
+                                                            <span className="recent-text" onClick={() => { setSearchValue(item); handleSearchSubmit(item); }}>
+                                                                {item}
+                                                            </span>
+                                                            <button 
+                                                                type="button" 
+                                                                className="recent-delete-btn"
+                                                                onClick={(e) => handleDeleteRecentSearch(e, item)}
+                                                                title="ลบประวัติ"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 2. กำลังเป็นที่นิยม */}
+                                        {popularNovels.length > 0 && (
+                                            <div className="search-overlay-section">
+                                                <h4 className="search-overlay-title">🔥 กำลังเป็นที่นิยม</h4>
+                                                <div className="search-overlay-popular-list">
+                                                    {popularNovels.map((novel, idx) => {
+                                                        const views = novel.views || novel.view_count || 0;
+                                                        const formattedViews = views >= 1000 ? `${(views / 1000).toFixed(1)}k` : views;
+                                                        return (
+                                                            <div 
+                                                                key={idx} 
+                                                                className="search-overlay-popular-item" 
+                                                                onClick={() => {
+                                                                    setSearchFocused(false);
+                                                                    navigate(`/novel/${novel.id || novel.novel_id}`);
+                                                                }}
+                                                            >
+                                                                <span className="popular-badge">{idx + 1}</span>
+                                                                <div className="popular-info">
+                                                                    <span className="popular-title">{novel.title}</span>
+                                                                    <span className="popular-meta">✍️ {novel.pen_name || novel.penName || "ไม่ระบุ"} • 👁️ {formattedViews} ยอดอ่าน</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 3. สำรวจหมวดหมู่ */}
+                                        {categories.length > 0 && (
+                                            <div className="search-overlay-section">
+                                                <h4 className="search-overlay-title">🗂️ สำรวจหมวดหมู่</h4>
+                                                <div className="search-overlay-category-list">
+                                                    {categories.map((cat, idx) => (
+                                                        <button 
+                                                            key={idx}
+                                                            type="button" 
+                                                            className="search-overlay-cat-chip"
+                                                            onClick={() => {
+                                                                setSearchFocused(false);
+                                                                navigate(`/categories`);
+                                                                window.dispatchEvent(new CustomEvent("search-change", { detail: "" }));
+                                                            }}
+                                                        >
+                                                            {cat.name || cat.title}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                            </div>
+                        )}
                     </div>
 
                     {/* 🎯 🟢 ปุ่มสลับโหมดเชื่อมมิติ (Switch Mode Button) */}

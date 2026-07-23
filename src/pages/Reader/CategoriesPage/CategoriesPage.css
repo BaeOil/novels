@@ -1,321 +1,432 @@
-/* CategoriesPage.css */
+/* โทนสียึดสีหลักของโครงการ */
+:root {
+  --pink-500: #e91e63;
+  --pink-600: #db2777;
+  --pink-50: #fce7f3;
+  --slate-900: #0f172a;
+  --slate-700: #334155;
+  --slate-500: #64748b;
+  --slate-100: #f1f5f9;
+  --white: #ffffff;
+}
 
-.cat-page {
+.search-page {
   min-height: 100vh;
-  background: #F9FAFB;
-  font-family: 'Sarabun', sans-serif;
+  background-color: #faf9f6; /* พื้นหลังสีครีมสว่างถนอมสายตา */
+  font-family: 'Prompt', 'Sarabun', sans-serif;
+  color: var(--slate-900);
+  padding: 40px 20px;
 }
 
-/* ── Hero ─────────────────────────────────────────────────────────── */
-.cat-page__hero {
-  background: linear-gradient(160deg, #FFF0F8 0%, #ffffff 60%);
-  border-bottom: 1px solid #FCE4F0;
-  padding: 40px 40px 32px;
+.search-page-container {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.cat-page__hero-inner {
-  max-width: 900px;
+/* Header */
+.search-header {
+  margin-bottom: 24px;
 }
 
-/* แก้: var(--pink-500) ไม่ได้ define → ใช้ค่าจริง */
-.cat-page__eyebrow {
+.search-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  color: var(--slate-900);
+}
+
+.highlight-text {
+  color: var(--pink-600);
+}
+
+.search-count {
+  font-size: 0.95rem;
+  color: var(--slate-500);
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Filter Bar */
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-tab-btn {
+  background: var(--white);
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--slate-700);
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+}
+
+.filter-tab-btn:hover {
+  background: var(--slate-100);
+  border-color: #cbd5e1;
+}
+
+.filter-tab-btn.active {
+  background: var(--pink-50);
+  color: var(--pink-600);
+  border-color: var(--pink-500);
   font-weight: 700;
-  color: #E91E8C;
-  letter-spacing: 0.06em;
-  margin-bottom: 10px;
 }
 
-.cat-page__title {
-  font-size: clamp(24px, 3vw, 34px);
-  font-weight: 800;
-  color: #111827;
-  margin: 0 0 8px;
+.tab-dot {
+  font-size: 10px;
 }
 
-.cat-page__subtitle {
-  font-size: 14px;
-  color: #6B7280;
-  line-height: 1.7;
-  max-width: 480px;
-  margin: 0 0 18px;
-}
-
-.cat-page__hero-summary {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.cat-page__summary-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: #fff;
-  border: 1px solid #FCE4F0;
-  padding: 5px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #9B2060;
-}
-
-/* ── Body ─────────────────────────────────────────────────────────── */
-.cat-page__body {
-  max-width: 1160px;
-  margin: 0 auto;
-  padding: 0 40px 64px;
-}
-
-.cat-page__section {
-  padding-top: 32px;
-}
-
-/* ── Category grid ────────────────────────────────────────────────── */
-.cat-page__category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px; 
-}
-
-.cat-page__no-cat {
-  font-size: 14px;
-  color: #9CA3AF;
-  padding: 20px 0;
-}
-
-.cat-page__error-box {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 48px 24px;
-}
-
-.cat-page__retry-btn {
-  display: inline-block;
-  margin-top: 14px;
-  padding: 9px 20px;
+/* Sort Dropdown */
+.sort-select {
+  background: var(--white);
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
-  background: #FEF0F6;
-  color: #E91E8C;
-  border: 1px solid #FCE4F0;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-/* ── Category card skeleton ───────────────────────────────────────── */
-@keyframes cat-shimmer {
-  0%   { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-}
-
-.cat-page__category-skeleton {
-  border-radius: 14px;
-  border: 1px solid #F3F4F6;
-  background: #fff;
-  padding: 18px 16px;
-}
-
-.cat-page__sk {
-  background: linear-gradient(90deg, #F3F4F6 25%, #E9EBF0 50%, #F3F4F6 75%);
-  background-size: 400px 100%;
-  animation: cat-shimmer 1.4s infinite linear;
-  border-radius: 6px;
-}
-
-.cat-page__sk--icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  margin-bottom: 12px;
-}
-
-.cat-page__sk--title {
-  height: 13px;
-  width: 70%;
-  margin-bottom: 8px;
-}
-
-.cat-page__sk--count {
-  height: 11px;
-  width: 45%;
-}
-
-/* ── Novel list header ────────────────────────────────────────────── */
-.cat-page__list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #F3F4F6;
-}
-
-.cat-page__list-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: #111827;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cat-page__list-count {
-  font-size: 12px;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  color: var(--slate-700);
   font-weight: 600;
-  color: #E91E8C;
-  background: #FEF0F6;
-  padding: 2px 9px;
-  border-radius: 10px;
-}
-
-.cat-page__clear-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
-  border-radius: 20px;
-  background: #FEF0F6;
-  color: #E91E8C;
-  border: 1px solid #FCE4F0;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
+  outline: none;
   font-family: inherit;
-  transition: background 0.15s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
 }
 
-.cat-page__clear-btn:hover {
-  background: #FCE4F0;
+.sort-select:focus {
+  border-color: var(--pink-500);
 }
 
-/* ── Novel grid ───────────────────────────────────────────────────── */
-.cat-page__novel-grid {
+/* Split Layout */
+.search-body-layout {
   display: grid;
-  /* minmax คงที่ไม่เปลี่ยนตาม breakpoint */
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px;
-  /* แก้ bug การ์ดยืด: align-items: start ทำให้การ์ดสูงตามเนื้อหา */
+  grid-template-columns: 1fr 300px;
+  gap: 28px;
   align-items: start;
 }
 
-/* แก้: ลบ height: 100% ที่ทำให้การ์ดยืดออก */
-.cat-page__novel-grid .novel-card {
-  height: auto;
+@media (max-width: 992px) {
+  .search-body-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
-/* ── Novel skeleton ───────────────────────────────────────────────── */
-.cat-page__novel-skeleton {
-  border-radius: 14px;
-  border: 1px solid #F3F4F6;
-  background: #fff;
+/* ฝั่งซ้าย: รายการการ์ดนิยายแนวนอน */
+.novel-list-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.novel-horiz-card {
+  display: flex;
+  background: var(--white);
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
   overflow: hidden;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.02);
+  min-height: 180px;
 }
 
-.cat-page__sk--cover {
-  aspect-ratio: 2/3;
+.novel-horiz-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  border-color: #cbd5e1;
+}
+
+/* ปกนิยายการ์ดแนวนอน */
+.novel-horiz-cover {
+  width: 130px;
+  background: #f1f5f9;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid #f1f5f9;
+}
+
+.novel-horiz-cover img {
   width: 100%;
-  display: block;
-  background: linear-gradient(90deg, #F3F4F6 25%, #E9EBF0 50%, #F3F4F6 75%);
-  background-size: 400px 100%;
-  animation: cat-shimmer 1.4s infinite linear;
-  border-radius: 0;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
 }
 
-.cat-page__sk--line {
-  height: 11px;
-  border-radius: 5px;
-  margin-bottom: 8px;
-  background: linear-gradient(90deg, #F3F4F6 25%, #E9EBF0 50%, #F3F4F6 75%);
-  background-size: 400px 100%;
-  animation: cat-shimmer 1.4s infinite linear;
+.novel-horiz-card:hover .novel-horiz-cover img {
+  transform: scale(1.03);
 }
 
-.cat-page__sk--med   { width: 80%; }
-.cat-page__sk--short { width: 50%; }
-
-/* ── Empty state ──────────────────────────────────────────────────── */
-.cat-page__empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 64px 24px;
-  color: #9CA3AF;
+.novel-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
 }
 
-.cat-page__empty-icon {
-  font-size: 44px;
-  margin-bottom: 12px;
+/* รายละเอียดการ์ด */
+.novel-horiz-details {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0; /* ป้องกันเนื้อหาดันออกนอกกรอบ */
 }
 
-.cat-page__empty-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #374151;
+.novel-horiz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
   margin-bottom: 6px;
 }
 
-.cat-page__empty-sub {
-  font-size: 13px;
-  line-height: 1.65;
+.novel-horiz-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--slate-900);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ── Responsive ───────────────────────────────────────────────────── */
-@media (max-width: 960px) {
-  .cat-page__hero     { padding: 32px 24px 28px; }
-  .cat-page__body     { padding: 0 20px 48px; }
+.novel-horiz-author {
+  font-size: 0.82rem;
+  color: var(--slate-500);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-@media (max-width: 640px) {
-  .cat-page__hero         { padding: 28px 16px 24px; }
-  .cat-page__body         { padding: 0 16px 48px; }
-  .cat-page__category-grid { grid-template-columns: repeat(2, 1fr); }
-  .cat-page__novel-grid   { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.novel-horiz-synopsis {
+  font-size: 0.92rem;
+  color: var(--slate-500);
+  margin: 0 0 14px 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: 'Sarabun', sans-serif;
 }
 
-/* ── Minimal Category Card ────────────────────────────────────────── */
-.cat-page__minimal-card {
+.novel-horiz-footer {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  padding: 20px 16px;
-  background: #ffffff;
-  border: 1px solid #F3F4F6;
-  border-radius: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.novel-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.novel-tag-item {
+  background: var(--pink-50);
+  color: var(--pink-600);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* ข้อมูลยอดเข้าอ่าน ยอดไลก์ และสถานะ */
+.novel-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--slate-500);
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.meta-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-badge {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.status-badge.finished {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.writing {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ฝั่งขวา: กล่องแสดงหมวดหมู่ */
+.sidebar-box {
+  background: var(--white);
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.02);
+}
+
+.sidebar-box-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0 0 16px 0;
+  color: var(--slate-900);
+  border-bottom: 2px solid var(--slate-100);
+  padding-bottom: 10px;
+}
+
+.sidebar-tags-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sidebar-tag-btn {
+  background: var(--white);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--slate-700);
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
-.cat-page__minimal-card:hover {
-  border-color: #FCE4F0;
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.08);
-  transform: translateY(-2px);
+.sidebar-tag-btn:hover {
+  background: var(--slate-100);
+  border-color: #cbd5e1;
 }
 
-.cat-page__minimal-card.active {
-  background: #FEF0F6;
-  border-color: #E91E8C;
+.sidebar-tag-btn.active {
+  background: var(--pink-600);
+  color: var(--white);
+  border-color: var(--pink-600);
 }
 
-.cat-page__minimal-name {
-  font-size: 15px;
+/* Loading, Error & Empty States */
+.search-loading {
+  text-align: center;
+  padding: 60px;
+  font-size: 1.1rem;
+  color: var(--slate-500);
+  font-weight: 600;
+}
+
+.search-error {
+  text-align: center;
+  padding: 40px;
+  background: #fef2f2;
+  border-radius: 16px;
+  color: #b91c1c;
   font-weight: 700;
-  color: #111827;
-  margin-bottom: 4px;
 }
 
-.cat-page__minimal-card.active .cat-page__minimal-name {
-  color: #E91E8C;
+.search-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  background: var(--white);
+  border-radius: 20px;
+  border: 1px dashed #e2e8f0;
 }
 
-.cat-page__minimal-count {
-  font-size: 13px;
-  color: #6B7280;
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.search-empty-state h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+}
+
+.search-empty-state p {
+  color: var(--slate-500);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* 🏆 Sidebar: กำลังเป็นที่นิยม */
+.sidebar-popular-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sidebar-popular-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+  padding: 2px 0;
+}
+
+.sidebar-popular-item:hover {
+  transform: translateX(4px);
+}
+
+.popular-num {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #94a3b8; /* สีเริ่มต้นสำหรับ 4 และ 5 */
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.popular-num.top-three {
+  color: var(--pink-600); /* ลำดับ 1, 2, 3 เป็นสีชมพูตามรูปขวา */
+}
+
+.popular-text-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.popular-item-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popular-item-views {
+  font-size: 0.76rem;
+  color: var(--slate-500);
+  margin-top: 2px;
+  font-weight: 500;
 }

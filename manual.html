@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>คู่มือการใช้งานเว็บไซต์นิยายทางเลือก (Interactive Novel Writer Manual)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&family=Sarabun:wght@300;400;600;700&display=swap');
+
+    body {
+      font-family: 'Sarabun', sans-serif;
+      color: #334155;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      background-color: #ffffff;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Prompt', sans-serif;
+      color: #0f172a;
+      margin-top: 0;
+    }
+
+    /* Print styling & Page breaks */
+    @media print {
+      body {
+        background-color: #ffffff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .page-break {
+        page-break-before: always;
+        break-before: page;
+      }
+      .no-print {
+        display: none;
+      }
+    }
+
+    /* Layout Containers */
+    .page-container {
+      padding: 40px 50px;
+      max-width: 800px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+
+    /* Cover Page */
+    .cover-page {
+      height: 95vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 60px 40px;
+      box-sizing: border-box;
+      background: linear-gradient(135deg, #fff5f8 0%, #faf9f6 100%);
+      border: 10px solid #db2777;
+      border-radius: 20px;
+      margin: 20px;
+      page-break-after: always;
+    }
+
+    .cover-title {
+      font-size: 3rem;
+      font-weight: 800;
+      color: #db2777;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    .cover-subtitle {
+      font-size: 1.5rem;
+      color: #475569;
+      font-weight: 400;
+      margin-top: 10px;
+    }
+
+    .cover-meta {
+      font-size: 0.95rem;
+      color: #64748b;
+      margin-top: auto;
+      border-top: 2px solid #e2e8f0;
+      padding-top: 20px;
+    }
+
+    /* Table of Contents */
+    .toc-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+      font-family: 'Prompt', sans-serif;
+      font-size: 1.05rem;
+    }
+
+    .toc-name {
+      font-weight: 600;
+    }
+
+    .toc-dots {
+      flex-grow: 1;
+      border-bottom: 2px dotted #cbd5e1;
+      margin: 0 10px;
+    }
+
+    .toc-page {
+      font-weight: bold;
+      color: #db2777;
+    }
+
+    /* General Styling Components */
+    .section-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #db2777;
+      border-left: 6px solid #db2777;
+      padding-left: 15px;
+      margin-bottom: 25px;
+      margin-top: 20px;
+    }
+
+    .sub-section-title {
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-top: 20px;
+      margin-bottom: 12px;
+    }
+
+    p {
+      font-size: 1.05rem;
+      margin-bottom: 16px;
+      color: #334155;
+      text-align: justify;
+    }
+
+    /* Images styling */
+    .img-container {
+      margin: 20px 0;
+      text-align: center;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .img-container img {
+      max-width: 100%;
+      max-height: 380px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      object-fit: contain;
+    }
+
+    .img-caption {
+      font-size: 0.88rem;
+      color: #64748b;
+      margin-top: 8px;
+      font-family: 'Prompt', sans-serif;
+      font-weight: 600;
+    }
+
+    /* Workflow Diagram */
+    .workflow-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin: 30px 0;
+    }
+
+    .workflow-step {
+      background: #ffffff;
+      border: 2px solid #db2777;
+      color: #db2777;
+      border-radius: 12px;
+      padding: 12px 30px;
+      font-weight: bold;
+      font-size: 1.1rem;
+      font-family: 'Prompt', sans-serif;
+      box-shadow: 0 4px 10px rgba(219, 39, 119, 0.1);
+      width: 220px;
+      text-align: center;
+    }
+
+    .workflow-arrow {
+      font-size: 1.5rem;
+      color: #cbd5e1;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    /* Callout Boxes */
+    .callout {
+      background: #faf9f6;
+      border-left: 4px solid #d97706;
+      padding: 16px 20px;
+      border-radius: 0 12px 12px 0;
+      margin: 20px 0;
+    }
+
+    .callout-title {
+      font-weight: bold;
+      color: #b45309;
+      font-family: 'Prompt', sans-serif;
+      margin-bottom: 6px;
+    }
+
+    .callout-content {
+      font-size: 0.98rem;
+      margin: 0;
+      color: #475569;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: white;
+      margin-left: 6px;
+    }
+    .badge-green { background-color: #34bb55; }
+    .badge-pink { background-color: #db2777; }
+    .badge-slate { background-color: #475569; }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .feature-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .feature-card h4 {
+      margin: 0 0 8px 0;
+      color: #db2777;
+    }
+
+    .feature-card p {
+      margin: 0;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: COVER PAGE -->
+  <div class="cover-page">
+    <div>
+      <div class="cover-title">คู่มือการใช้งานระบบ<br>แพลตฟอร์มเว็บแอปพลิเคชันสำหรับสร้างและอ่านนิยายทางเลือกแบบเลือกเส้นทาง</div>
+      <div class="cover-subtitle">สำหรับนักเขียนสร้างสรรค์เนื้อเรื่อง Interactive fiction</div>
+    </div>
+    <!-- <div style="text-align: center; margin: 40px 0;">
+      <img src="logo512.png" alt="โลโก้เว็บไซต์นิยายทางเลือก" style="max-width: 200px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
+    </div> -->
+    <div class="cover-meta">
+      <!-- <strong>จัดทำโดย:</strong> นักศึกษา<br> -->
+      <strong>อัปเดตล่าสุด:</strong> 22 กรกฎาคม 2569
+    </div>
+  </div>
+
+  <!-- PAGE 2: TABLE OF CONTENTS -->
+  <div class="page-container">
+    <h2 class="section-title">สารบัญ</h2>
+    <ul class="toc-list">
+      <li class="toc-item">
+        <span class="toc-name">1. แนะนำเว็บไซต์นิยายทางเลือก</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">3</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">2. การเข้าสู่ระบบและสมัครสมาชิก</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">3</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">3. หน้า Dashboard สำหรับนักเขียน</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">5</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">4. แผนผังขั้นตอนการเขียนนิยาย (Workflow)</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">7</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">5. ขั้นตอนการสร้างตอน (Chapters)</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">9</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">6. ขั้นตอนการเพิ่มฉากย่อย (Scenes)</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">11</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">7. ขั้นตอนการเขียนเนื้อหาและฉากจบ</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">12</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">8. ขั้นตอนการสร้างตัวเลือก (Choices)</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">14</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">9. การดูและจัดการโครงสร้างเนื้อเรื่อง (Story Graph)</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">15</span>
+      </li>
+      <li class="toc-item">
+        <span class="toc-name">10. ข้อควรทราบที่สำคัญ</span>
+        <span class="toc-dots"></span>
+        <span class="toc-page">17</span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- PAGE 3: INTRO & AUTH -->
+  <div class="page-container page-break">
+    <h2 class="section-title">1. แนะนำเว็บไซต์นิยายทางเลือก</h2>
+    <p>
+      <strong>เว็บไซต์นิยายทางเลือก</strong> คือ แพลตฟอร์มเว็บแอปพลิเคชันยุคใหม่ที่ออกแบบมาสำหรับทั้งนักเขียนและนักอ่าน โดยมุ่งเน้นการเพิ่มประสบการณ์การอ่านที่มีความยืดหยุ่นและมีส่วนร่วมมากกว่านิยายรูปแบบเชิงเส้นแบบดั้งเดิม  ให้กลายเป็น <strong>"นิยายแบบโต้ตอบได้" (Interactive Fiction)</strong> ที่ผู้อ่านสามารถเลือกเส้นทางการดำเนินเรื่องของตัวเองได้ในตอนท้ายของแต่ละบท
+    </p>
+    <p>
+      <strong>จุดประสงค์หลักในการใช้งาน:</strong>
+    </p>
+    <ul>
+      <li><strong>สำหรับนักเขียน:</strong> มีเครื่องมือสร้างเรื่องราวที่มีแผนผังการดำเนินเรื่องที่ซับซ้อน ลากเส้นเชื่อมโยงแต่ละฉากได้อย่างอิสระ จัดการตอน ฉากย่อย และตัวเลือกปลายทางเพื่อสร้างฉากจบที่หลากหลาย (Multiple Endings)</li>
+      <li><strong>สำหรับนักอ่าน:</strong> ได้รับความสนุกสนานผ่านการเลือกทิศทางเนื้อเรื่องของตนเอง สะสมคลังฉากจบ (Ending Collection) และดูความคืบหน้าของเส้นทางในรูปแบบผังเรื่อง</li>
+    </ul>
+
+    <h2 class="section-title">2. การเข้าสู่ระบบและสมัครสมาชิก</h2>
+    <p>
+      ก่อนเริ่มต้นสร้างนิยาย นักเขียนจะต้องทำเข้าสู่ระบบหรือสมัครสมาชิกเพื่อเก็บข้อมูลนิยายของคุณได้อย่างปลอดภัย:
+    </p>
+    <ul>
+      <li><strong>สมัครสมาชิก (Register):</strong> คลิกที่ปุ่มสมัครสมาชิก กรอกข้อมูล ชื่อผู้ใช้, อีเมล, รหัสผ่าน และยืนยันตัวตนเพื่อสร้างบัญชีใหม่</li>
+      <li><strong>เข้าสู่ระบบ (Login):</strong> กรอกข้อมูลชื่อผู้ใช้งานและรหัสผ่านเพื่อเข้าใช้งาน โดยระบบมีปุ่มสำหรับซ่อน/แสดงรหัสผ่านเพื่อความปลอดภัย</li>
+    </ul>
+    <p>
+      เมื่อลงทะเบียนและเข้าสู่ระบบสำเร็จแล้ว จะได้รับสิทธิ์เริ่มต้นเป็นนักอ่าน หากต้องการใช้เครื่องมือสำหรับนักเขียนเพื่อสร้างนิยาย สามารถขอสิทธิ์นักเขียนได้จากเมนูสมัครนักเขียน โดยระบบจะตรวจสอบและอนุมัติให้คุณเป็นนักเขียนเพื่อเริ่มต้นสร้างสรรค์ผลงานของคุณ
+    </p>
+    
+    <div class="img-container">
+      <img src="manual_images/log-regis.png" alt="หน้าเข้าสู่ระบบและสมัครสมาชิก">
+      <div class="img-caption">รูปภาพที่ 2.1: หน้าเข้าสู่ระบบและสมัครสมาชิก</div>
+    </div>
+  </div>
+
+  <!-- PAGE 4: DASHBOARD -->
+  <div class="page-container page-break">
+    <h2 class="section-title">3. หน้า Dashboard สำหรับนักเขียน</h2>
+    <p>
+      เมื่อเข้าสู่ระบบสำเร็จ หากบัญชีได้รับสิทธิ์เป็นนักเขียน คุณสามารถใช้เครื่องมือสร้างนิยายได้จากการกดโหมดนักเขียนที่แถบเมนู และจะเริ่มต้นด้วยหน้า <strong>Dashboard</strong> ซึ่งเป็นศูนย์กลางหลักในการจัดการนิยายทั้งหมดของคุณ:
+    </p>
+    
+    <div class="features-grid">
+      <div class="feature-card">
+        <h4>➕ สร้างนิยาย (Create Novel)</h4>
+        <p>คลิกปุ่มสร้างนิยายใหม่ กรอกข้อมูลชื่อเรื่อง, คำอธิบายสั้นๆ, เลือกหมวดหมู่ , เรื่องย่อหรือแนะนำนิยาย อัปโหลดภาพปกนิยายและการตั้งค่าเบื้องต้นของนิยาย เพื่อเริ่มต้นโครงสร้างนิยายเรื่องใหม่ในระบบ</p>
+      </div>
+      <div class="feature-card">
+        <h4>✏️ แก้ไขนิยาย (Edit Novel)</h4>
+        <p>นักเขียนสามารถเลือกนิยายและกดแก้ไขเพื่อไปยังหน้าจัดการรายละเอียดนิยาย เขียนเนื้อหา และดูโครงสร้างเนื้อเรื่องนิยายได้</p>
+      </div>
+      <div class="feature-card">
+        <h4>🗑️ ลบนิยาย (Delete Novel)</h4>
+        <p>หากต้องการยกเลิกการเขียนนิยายเรื่องนั้นๆ สามารถกดยืนยันการลบนิยายออกจากระบบได้อย่างถาวร</p>
+      </div>
+      <div class="feature-card">
+        <h4>📊 สถานะนิยาย (Status Tracking)</h4>
+        <p>แสดงผลสถานะนิยายแต่ละเรื่องอย่างเด่นชัด ได้แก่ <span class="badge badge-green">เผยแพร่</span> (แสดงต่อนักอ่านทั่วไป) หรือ <span class="badge badge-slate">ฉบับร่าง</span> (เก็บไว้แก้ไขเป็นการส่วนตัว)</p>
+      </div>
+    </div>
+
+    <div class="img-container">
+      <img src="manual_images/Dashboard.png" alt="แผงควบคุม Dashboard">
+      <div class="img-caption">รูปภาพที่ 3.1: หน้า Dashboard สำหรับดูข้อมูลสถิติของนิยาย สร้างและแก้ไขจัดการสถานะนิยาย</div>
+    </div>
+  </div>
+
+  <!-- PAGE 5: WORKFLOW -->
+  <div class="page-container page-break">
+    <h2 class="section-title">4. แผนผังขั้นตอนการเขียนนิยาย (Workflow)</h2>
+    <p>
+      เพื่อให้นักเขียนเข้าใจวิธีการทำงานของระบบที่ถูกต้องและเขียนนิยายได้อย่างไหลลื่น แนะนำให้ปฏิบัติตามแผนผังความเชื่อมโยงของระบบการสร้างนิยายดังต่อไปนี้:
+    </p>
+
+    <div class="workflow-container">
+      <div class="workflow-step">1. สร้างนิยายใหม่ (Dashboard)</div>
+      <div class="workflow-arrow">↓</div>
+      <div class="workflow-step">2. จัดการตอน (Chapters)</div>
+      <div class="workflow-arrow">↓</div>
+      <div class="workflow-step">3. เพิ่มฉากย่อย (Scenes)</div>
+      <div class="workflow-arrow">↓</div>
+      <div class="workflow-step">4. เขียนเนื้อหา & ฉากจบ</div>
+      <div class="workflow-arrow">↓</div>
+      <div class="workflow-step">5. เชื่อมต่อตัวเลือก (Choices)</div>
+      <div class="workflow-arrow">↓</div>
+      <div class="workflow-step">6. ดูกราฟโครงสร้างนิยาย</div>
+    </div>
+
+    <p>
+      <strong>ทำไมต้องใช้โครงสร้างนี้?</strong> นิยายทางเลือกในระบบถูกประมวลผลเป็นแบบ Graph โดยมีโครงสร้างระดับชั้นเป็น: 
+      <br>
+      <span style="color: #db2777; font-weight: bold;">นิยาย ➔ ตอน (Chapters) ➔ ฉากย่อย (Scenes) ➔ ตัวเลือกเชื่อมโยง (Choices)</span> 
+      <br>
+      ดังนั้นคุณจะต้องสร้าง "ตอน" ขึ้นมาก่อนเพื่อรองรับ "ฉากย่อย" จากนั้นจึงเข้าไปเขียนเนื้อหาในฉากย่อย และสร้างตัวเลือกเชื่อมโยงฉากเหล่านั้นเข้าด้วยกันเป็นโครงข่ายเส้นเรื่อง
+    </p>
+  </div>
+
+  <!-- PAGE 6: CHAPTER CREATION -->
+  <div class="page-container page-break">
+    <h2 class="section-title">5. ขั้นตอนการสร้างตอน (Chapters)</h2>
+    <p>
+      ขั้นตอนเริ่มต้นหลังจากสร้างนิยายใหม่คือกดเข้าไปที่ปุ่ม **"แก้ไข"** เพื่อเข้าสู่หน้ารายการตอนของนิยายเรื่องนั้นๆ
+    </p>
+    <p>ในหน้าจัดการตอน นักเขียนสามารถดูรายละเอียดนิยายและแก้ไขได้ รวมถึง ทดลองอ่าน เพื่อตรวจสอบความถูกต้องของนิยายและการแสดงผลในมุมมองของนักอ่าน และใช้เครื่องมือจัดการโครงสร้างของนิยาย เช่น สร้างหรือลบตอน แก้ไขชื่อตอน เรียงลำดับตอน ตั้งค่าสถานะเผยแพร่ของตอนและฉาก เพิ่มหรือลบฉาก สร้างและเชื่อมตัวเลือก</p>
+    <p>
+      <strong>การสร้างตอนใหม่:</strong>
+    </p>
+    <ol>
+      <li>คลิกปุ่ม <strong>"✨ สร้างตอนใหม่"</strong></li>
+      <li>กรอกชื่อตอน หรือหัวข้อหลักของเรื่อง (เช่น "การเริ่มต้น" , "บทนำ" , "การเลือกตัวละคร")</li>
+      <li>เลือกจัดเก็บตอนเป็น <span class="badge badge-slate">ฉบับร่าง</span> หรือ <span class="badge badge-green">เผยแพร่</span></li>
+      <li>ระบบจะแสดงรายการตอนเป็นโฟลเดอร์หลัก ซึ่งภายในแต่ละตอนจะบรรจุฉากย่อยๆ เอาไว้ด้านใน</li>
+    </ol>
+
+    <div class="img-container">
+      <img src="manual_images/managechap.png" alt="หน้าต่างจัดการตอน">
+      <div class="img-caption">รูปภาพที่ 5.1: หน้าจัดการตอนและฉากย่อย แสดงโครงสร้างตอนแบบโฟลเดอร์และรายการฉากภายในตอน</div>
+    </div>
+  </div>
+
+  <!-- PAGE 7: SCENE CREATION -->
+  <div class="page-container page-break">
+    <h2 class="section-title">6. ขั้นตอนการเพิ่มฉากย่อย (Scenes)</h2>
+    <p>
+      ฉากย่อยคือส่วนสำคัญที่สุดในการเก็บข้อความเนื้อหาที่จะปรากฏแก่นักอ่าน โดยใน 1 ตอนสามารถมีหลายฉากย่อยเพื่อรองรับผลลัพธ์ทางเลือกที่แตกต่างกัน
+    </p>
+    <p>
+      <strong>การเพิ่มฉากย่อยใหม่:</strong>
+    </p>
+    <ol>
+      <li>เข้าไปที่ตอนที่ต้องการสร้างฉาก ➔ คลิกปุ่ม <strong>"+ เพิ่มฉาก"</strong> ด้านในตอนนั้น</li>
+      <li>ระบบจะพาไปยังหน้าเขียนเนื้อหาฉาก เริ่มต้นกรอกชื่อฉากสั้นๆ ที่เกี่ยวกับเนื้อหาของฉาก</li>
+      <li>คลิกปุ่ม <span class="badge badge-green">บันทึก</span>  เพื่อสร้างหรือบันทึกฉาก</li>
+      <li>เมื่อสร้างฉากย่อยแล้ว ฉากนั้นจะขึ้นปรากฏอยู่ในตอน และพร้อมสำหรับการเขียนเนื้อหาต่อไป สามารถกลับมาแก้ไขเนื้อหา ตัวเลือก หรือฉากจบได้</li>
+    </ol>
+
+    <div class="img-container">
+      <img src="manual_images/addscene.png" alt="การเพิ่มฉากใหม่">
+      <div class="img-caption">รูปภาพที่ 6.1: ตัวอย่างการกดปุ่มเพิ่มฉากย่อย เพื่อขยายเส้นเรื่องภายในตอน</div>
+    </div>
+  </div>
+
+  <!-- PAGE 8: SCENE EDITOR -->
+  <div class="page-container page-break">
+    <h2 class="section-title">7. ขั้นตอนการเขียนเนื้อหาและฉากจบ</h2>
+    <p>
+      เมื่อกดปุ่ม **"เขียนเนื้อหา"** ในฉากย่อยที่ต้องการ ระบบจะนำคุณเข้าสู่หน้าต่างเขียนรายละเอียดเนื้อหาอย่างเต็มรูปแบบ
+    </p>
+    
+    <div class="img-container">
+      <img src="manual_images/editscene.png" alt="หน้าต่างเขียนเนื้อหา">
+      <div class="img-caption">รูปภาพที่ 7.1: หน้าเขียนเนื้อหานิยายพร้อมเครื่องมือ Rich Text Editor และการกำหนดฉากจบ</div>
+    </div>
+
+    <h3 class="sub-section-title">เครื่องมือเขียนและจัดหน้า (Editor Toolbar)</h3>
+    <p>
+      ระบบใช้เครื่องมือจัดหน้าแบบ Rich Text (Quill Editor) คุณสามารถจัดตัวหนา ตัวเอียง ขีดเส้นใต้ กำหนดขนาดฟอนต์ จัดตำแหน่งข้อความ (ชิดซ้าย/กึ่งกลาง/ชิดขวา) และสามารถอัปโหลดภาพประกอบประกอบเนื้อเรื่องนิยายได้โดยตรง
+    </p>
+
+    <h3 class="sub-section-title">การตั้งค่าประเภทฉากจบ (Ending Settings)</h3>
+    <p>
+      หากฉากย่อยนั้นเป็นฉากสุดท้ายของเรื่องราวดังกล่าว นักเขียนสามารถเลื่อนสวิตช์ **"ตั้งค่าเป็นฉากจบ"** และระบุประเภทฉากจบ ได้แก่:
+      <br>
+      🌸 <strong>Good Ending</strong> | 💀 <strong>Bad Ending</strong> | 👑 <strong>True Ending</strong> | 🔮 <strong>Secret Ending</strong>
+      <br>
+      พร้อมระบุชื่อและคำอธิบายฉากจบ เพื่อปลดล็อก Achievement ลงคลังฉากจบของนักอ่านเมื่ออ่านมาถึงฉากนี้
+    </p>
+  </div>
+
+  <!-- PAGE 9: CHOICE CREATION -->
+  <div class="page-container page-break">
+    <h2 class="section-title">8. ขั้นตอนการสร้างตัวเลือก (Choices)</h2>
+    <p>
+      ตัวเลือกคือจุดเชื่อมต่อที่จะพานักอ่านเดินทางไปยังฉากถัดไป โดยนักเขียนสามารถกำหนดข้อความของปุ่มและระบุฉากปลายทางที่ต้องการให้ย้ายไปได้
+    </p>
+    
+    <div class="img-container">
+      <img src="manual_images/addchoice.png" alt="หน้าต่างจัดการทางเลือก">
+      <div class="img-caption">รูปภาพที่ 8.1: หน้าเขียนเนื้อหาในส่วนจัดการทางเลือก ข้อความปุ่ม และการเชื่อมโยงฉากต้นทางไปยังฉากปลายทาง</div>
+    </div>
+
+    <h3 class="sub-section-title">วิธีการสร้างหรือแก้ไขทางเลือก:</h3>
+    <ol>
+      <li>ในหน้าแก้ไขเขียนเนื้อหา ให้เลื่อนมาด้านล่างสุดในแถบ <strong>"ตัวเลือกท้ายตอน"</strong> ➔ คลิก <strong>"+ เพิ่มตัวเลือกใหม่"</strong></li>
+      <li>กรอกข้อความที่จะแสดงบนปุ่ม (เช่น "เปิดประตูเดินเข้าไปด้านใน")</li>
+      <li>ระบุ **"ฉากปลายทาง"** จากรายการดรอปดาวน์ (สามารถเลือกเชื่อมไปยังฉากในตอนเดียวกัน หรือข้ามไปยังฉากในตอนอื่นได้โดยเลือกตอนและฉากปลายทางที่ต้องการเชื่อม)</li>
+      <li>คลิกปุ่ม <span class="badge badge-green">บันทึก</span>  เพื่อสร้างจุดเชื่อมโยงเส้นเรื่องเข้าหากัน</li>
+    </ol>
+  </div>
+
+  <!-- PAGE 10: STORY GRAPH -->
+  <div class="page-container page-break">
+    <h2 class="section-title">9. การดูและจัดการโครงสร้างเนื้อเรื่อง</h2>
+    <p>
+      ระบบมีเครื่องมือ **"โครงสร้างเนื้อเรื่อง"** ที่ช่วยให้นักเขียนมองเห็นภาพรวมของเส้นเรื่องทั้งหมดเป็นกราฟ เพื่อวิเคราะห์ทิศทางและตรวจสอบความถูกต้อง
+    </p>
+
+    <div class="img-container">
+      <img src="manual_images/graph.png" alt="บอร์ดโครงสร้างเนื้อเรื่อง">
+      <div class="img-caption">รูปภาพที่ 9.1: กราฟโครงสร้างเนื้อเรื่องเชื่อมโยงโหนดและเส้นทางเลือกแสดงผลแบบอินเตอร์แอคทีฟ</div>
+    </div>
+
+    <h3 class="sub-section-title">เครื่องมือโครงสร้างเนื้อเรื่อง:</h3>
+    <ul>
+      <li><strong>ปุ่มเลือก :</strong> คลิกโหนดเพื่อดูรายละเอียดของฉากได้</li>
+      <li><strong>ปุ่มเชื่อม :</strong> สามารถคลิกปุ่มเครื่องมือเชื่อมแล้วกดลากจากฉากต้นทางไปยังฉากปลายทางเพื่อเชื่อมตัวเลือกได้โดยตรง และนักเขียนสามารถกดเคลิกที่เส้นเชื่อมเพื่อแก้ไขข้อความหรือปลายทางได้</li>
+      <li><strong>ปุ่มเลื่อน :</strong> คลิกค้างไว้แล้วลากเมาส์เพื่อเลื่อนมุมมองของกราฟได้อย่างอิสระ</li>
+      <li><strong>ปุ่มเพิ่ม :</strong> คลิกตรงพื้นที่ว่างในกราฟเพื่อเพิ่มโหนดฉากย่อยใหม่ โดยกรอกชื่อฉากและเลือกตอนที่ต้องการให้ฉากนั้นปรากฏ</li>
+      <li><strong>ปุ่มลบ :</strong> กดลบโหนดฉากย่อย หรือคลิกที่ข้อความตัวเลือกเพื่อกดยืนยันลบเส้นเชื่อมโยงทางเลือกออกได้ทันที</li>
+      <li><strong>หาโหนดว่าง:</strong> หากในกราฟมีโหนดจำนวนมาก นักเขียนสามารถกดปุ่มสีชมพู **"หาโหนดว่าง"** เพื่อให้ระบบซูมพาไปยังฉากที่ไม่มีเส้นทางเชื่อม เพื่อแก้ไขจุดที่ขาดหายไปได้ทันที</li>
+    </ul>
+  </div>
+
+  <!-- PAGE 11: KEY NOTES -->
+  <div class="page-container page-break">
+    <h2 class="section-title">10. ข้อควรทราบที่สำคัญ</h2>
+    <p>
+      เพื่อให้การใช้งานระบบมีประสิทธิภาพสูงสุดและไม่เกิดข้อผิดพลาดในการแสดงผลบนหน้าแผนผังหรือหน้าสำหรับนักอ่าน โปรดอ่านข้อแนะนำและกฎเกณฑ์ในการสร้างนิยายดังต่อไปนี้:
+    </p>
+
+    <div class="callout">
+      <div class="callout-title">⚠️ ระบบยังไม่รองรับโทรศัพท์มือถือ</div>
+      <p class="callout-content">
+        เว็บไซต์อยู่ในระหว่างการพัฒนา จึงออกแบบมาสำหรับการใช้งานบนคอมพิวเตอร์เท่านั้น หากคุณเข้าผ่านโทรศัพท์มือถือ ระบบจะแสดงผลไม่สมบูรณ์และอาจเกิดข้อผิดพลาดในการสร้างเนื้อเรื่องได้ หากระบบพัฒนาเสร็จสมบูรณ์ จะมีการให้ใช้งานบนโทรศัพท์มือถือได้ในอนาคต
+      </p>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">⚠️ กฎการสร้างของโครงสร้างนิยาย</div>
+      <p class="callout-content">
+        คุณจำเป็นต้องสร้าง <strong>"ตอน (Chapter)"</strong> ขึ้นมาก่อนเสมอ ➔ จึงจะสามารถสร้าง <strong>"ฉากย่อย (Scene)"</strong> ไว้ภายในตอนนั้นได้ และฉากย่อยทั้งหมดจะต้องได้รับการเขียนเนื้อหาก่อน ถึงจะสามารถนำมาเชื่อมโยงกันได้
+      </p>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">⚠️ การสร้างและซิงค์ข้อมูลบนกราฟโครงสร้างเนื้อเรื่อง</div>
+      <p class="callout-content">
+        ข้อมูลโหนดต่างๆ บนกราฟจะถูกสร้างและจัดวางตำแหน่งตามข้อมูลฉากย่อยจริงที่คุณสร้างไว้ในหน้าจัดการตอนหรือหน้าเขียนเนื้อหา หากมีการสร้าง/ลบฉากย่อยหรือทางเลือกในหน้าอื่น ข้อมูลบนกราฟจะซิงค์อัปเดตตรงกันทันทีโดยเรียลไทม์
+      </p>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">💡 การซูมโฟกัสโหนดว่าง (Orphan Focus Navigation)</div>
+      <p class="callout-content">
+        โหนดฉากที่ยังไม่ได้เชื่อมต่อ คือโหนดใดๆ ก็ตามที่ไม่ใช่ฉากจุดเริ่มต้น และ **ไม่มีเส้นทางเชื่อมโยงขาเข้า (เส้นทางที่เชื่อมจากฉากก่อนหน้า)** ซึ่งผู้อ่านจะไม่มีทางเดินเรื่องมาถึงฉากเหล่านี้ได้ ให้ใช้เครื่องมือค้นหาโหนดว่างบนแถบเพื่อตรวจสอบจุดเชื่อมต่อให้ครบถ้วน และแก้ไขให้โหนดเหล่านี้เชื่อมต่อกับฉากก่อนหน้าเพื่อให้ผู้อ่านสามารถเข้าถึงได้
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>
