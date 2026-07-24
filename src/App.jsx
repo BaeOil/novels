@@ -19,6 +19,7 @@ import NovelDetailPage from "./pages/Reader/NovelDetailPage/NovelDetailPage";
 import Storytreepage from "./pages/Reader/Storytreepage/Storytreepage";
 import ReadingPage from "./pages/Reader/Readingpage/Readingpage";
 import CategoriesPage from "./pages/Reader/CategoriesPage/CategoriesPage";
+import SearchPage from "./pages/Reader/SearchPage/SearchPage";
 import BookshelfPage from "./pages/Reader/BookshelfPage/BookshelfPage";
 import HistoryPage from "./pages/Reader/HistoryPage/HistoryPage";
 import FollowingWriters from "./pages/Reader/FollowingWriters/FollowingWriters";
@@ -33,6 +34,7 @@ import EditNovelPage from "./pages/Writer/Editnovelpage/Editnovelpage";
 import WriterProfile from "./pages/Writer/WriterProfile/WriterProfile";
 
 import Manageusers from "./pages/Admin/Manageusers/Manageusers";
+import WriterRequestsPage from "./pages/Admin/WriterRequestsPage/WriterRequestsPage";
 
 import AuthPage from "./pages/Auth/AuthPage";
 import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
@@ -407,6 +409,15 @@ const CategoriesRoute = () => {
   );
 };
 
+const SearchPageRoute = () => {
+  const navigate = useNavigate();
+  return (
+    <ReaderLayout>
+      <SearchPage onNavigate={createNavigateHandler(navigate)} />
+    </ReaderLayout>
+  );
+};
+
 const ReadingRoute = () => {
   const navigate = useNavigate();
   return (
@@ -777,6 +788,7 @@ function App() {
         <Route path="/novel/:id" element={<RedirectAdminIfNeeded><NovelDetailRoute /></RedirectAdminIfNeeded>} />
         <Route path="/category" element={<Navigate to="/categories" replace />} />
         <Route path="/categories" element={<RedirectAdminIfNeeded><CategoriesRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/search" element={<RedirectAdminIfNeeded><SearchPageRoute /></RedirectAdminIfNeeded>} />
         <Route path="/bookshelf" element={<RedirectAdminIfNeeded><BookshelfRoute /></RedirectAdminIfNeeded>} />
         <Route path="/history" element={<RedirectAdminIfNeeded><HistoryRoute /></RedirectAdminIfNeeded>} />
         <Route path="/following-writers" element={<RedirectAdminIfNeeded><FollowingWritersRoute /></RedirectAdminIfNeeded>} />
@@ -798,7 +810,8 @@ function App() {
         <Route path="/writer/:novelId/edit" element={<RedirectAdminIfNeeded><EditNovelRoute /></RedirectAdminIfNeeded>} />
           
         {/* Admin Routes */}
-        <Route path="/admin/manage-users" element={<RequireAdminRoute><Manageusers /></RequireAdminRoute>} />
+        <Route path="/admin/users" element={<RequireAdminRoute><Manageusers /></RequireAdminRoute>} />
+        <Route path="/admin/manage-users" element={<RequireAdminRoute><WriterRequestsPage /></RequireAdminRoute>} />
 
         {/* Auth Routes - ไม่มี Navbar */}
         <Route path="/login-register" element={<AuthPageRoute />} />

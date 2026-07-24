@@ -58,8 +58,20 @@ export default function FollowingWriters() {
   useEffect(() => {
     const fetchFollowingWriters = async () => {
       const token = localStorage.getItem("token");
+      
+      // อ่านข้อมูลจาก LocalStorage เสมอเพื่อเตรียมไว้สำหรับ Fallback/Merge
+      let localWriters = [];
+      try {
+        const localSaved = localStorage.getItem("local_following_writers");
+        const list = localSaved ? JSON.parse(localSaved) : [];
+        localWriters = Array.isArray(list) ? list.map(mapWriter) : [];
+      } catch (e) {
+        console.warn("Failed to read local following writers:", e);
+      }
+
       if (!token) {
-        setError("กรุณาเข้าสู่ระบบก่อนดูรายการนักเขียนที่ติดตาม");
+        // หากไม่มี token ให้ใช้เฉพาะข้อมูลจาก LocalStorage เพื่อให้ใช้งานหน้าหลักซิงค์มาหน้าติดตามได้
+        setWriters(localWriters);
         setLoading(false);
         return;
       }
@@ -80,12 +92,22 @@ export default function FollowingWriters() {
         const body = payload?.data ?? payload ?? {};
         const followedArray = Array.isArray(body) ? body : (body.following || body.writers || []);
         const followedWriters = Array.isArray(followedArray) ? followedArray.map(mapWriter) : [];
-        setWriters(followedWriters);
+        
+        // ผนวกรวมข้อมูลจาก API และ LocalStorage โดยไม่ให้ไอดีทับซ้อนกัน
+        const mergedList = [...followedWriters];
+        localWriters.forEach(lw => {
+          if (!mergedList.some(w => Number(w.id) === Number(lw.id))) {
+            mergedList.push(lw);
+          }
+        });
+
+        setWriters(mergedList);
         setError("");
       } catch (err) {
         console.error("โหลดรายการนักเขียนที่ติดตามล้มเหลว:", err);
-        setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
-        setWriters([]);
+        // หาก API ล้มเหลว ให้ใช้ข้อมูลจาก LocalStorage แทนเพื่อไม่ให้หน้าว่างเปล่า
+        setWriters(localWriters);
+        setError("");
       } finally {
         setLoading(false);
       }
@@ -94,7 +116,36 @@ export default function FollowingWriters() {
     fetchFollowingWriters();
   }, []);
 
-  const handleUnfollow = id => setWriters(p => p.filter(w => w.id !== id));
+  const handleUnfollow = async (id) => {
+    // 1. อัปเดต UI ทันที
+    setWriters(p => p.filter(w => w.id !== id));
+    
+    // 2. อัปเดตและซิงค์ลบออกจาก LocalStorage
+    try {
+      const saved = localStorage.getItem("local_following_writers");
+      let list = saved ? JSON.parse(saved) : [];
+      list = list.filter(w => Number(w.id) !== Number(id));
+      localStorage.setItem("local_following_writers", JSON.stringify(list));
+    } catch (e) {
+      console.warn("Failed to remove from local_following_writers:", e);
+    }
+
+    // 3. เรียก API ลบออกจากระบบ Backend จริง (ถ้ามี Token)
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        await fetch(`${API_BASE_URL}/api/writers/${id}/unfollow`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        });
+      } catch (e) {
+        console.warn("API unfollow request warning:", e.message);
+      }
+    }
+  };
 
   let visible = writers.filter(w =>
     w.name.toLowerCase().includes(search.toLowerCase()) ||
