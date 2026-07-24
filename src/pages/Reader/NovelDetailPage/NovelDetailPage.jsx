@@ -224,7 +224,7 @@ const NovelDetailPage = () => {
         const calculatedPercentage = totalChaptersProgress > 0
           ? Math.round((currentChapterProgress / totalChaptersProgress) * 100)
           : 0;
-
+        
         const authorDisplayName = nData.pen_name || nData.penName || nData.author_pen_name || nData.author_penName || nData.author_name || nData.authorName || nData.name_lastname || nData.name || "ไม่ทราบผู้แต่ง";
 
         setNovel({

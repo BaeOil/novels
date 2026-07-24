@@ -619,6 +619,13 @@ useEffect(() => {
 
   const tag = getSceneTagDetails(type);
 
+  // 🎯 แยกให้ชัดว่า "ไม่มีตัวเลือกไปต่อ" ไม่ได้แปลว่า "จบเรื่องแล้ว" เสมอไป
+  // ต้องเช็ค type จาก backend ควบคู่ไปด้วย ถึงจะถือว่าเป็นฉากจบจริงๆ
+  const hasNoChoices = !choices || choices.length === 0;
+  const isEndingType = type === "ending" || type === "Ending";
+  const isTrueEnding = hasNoChoices && isEndingType;
+  const isUnfinishedDeadEnd = hasNoChoices && !isEndingType;
+
   return (
     <div className={`rp rp--theme-${theme}`}>
       <div className="rp__progress-bar" style={{ width: `${readProgress}%` }} role="progressbar" />
@@ -733,7 +740,7 @@ useEffect(() => {
             />
           )}
 
-          {(!choices || choices.length === 0) && (
+          {isTrueEnding && (
             <div className="rp__ending-card">
               <div className="rp__ending-trophy-wrapper">
                 <span className="rp__ending-sparkle rp__ending-sparkle--left">✨</span>
@@ -751,6 +758,32 @@ useEffect(() => {
                 <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => setShowEndingModal(true)}>
                   ✨ คลังฉากจบของคุณ
                 </button>
+                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree") }>
+                  ดูแผนผังการอ่าน
+                </button>
+                <RestartReadingButton onRestart={handleRestartReading} />
+                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail") }>
+                  ⭠ กลับหน้ารายละเอียด
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isUnfinishedDeadEnd && (
+            <div className="rp__ending-card rp__ending-card--tbc">
+              <div className="rp__ending-trophy-wrapper">
+                <span className="rp__ending-sparkle rp__ending-sparkle--left">✏️</span>
+                <div className="rp__ending-trophy-icon">📖</div>
+                <span className="rp__ending-sparkle rp__ending-sparkle--right">⏳</span>
+              </div>
+
+              <h2 className="rp__ending-title">✏️ โปรดติดตามตอนต่อไป</h2>
+              <p className="rp__ending-subtitle">
+                เนื้อเรื่องส่วนนี้ยังเดินทางมาไม่ถึงฉากจบ <br />
+                ผู้เขียนกำลังรังสรรค์เส้นทางต่อไปอยู่ กลับมาติดตามใหม่ในภายหลังนะ!
+              </p>
+
+              <div className="rp__ending-actions">
                 <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree") }>
                   ดูแผนผังการอ่าน
                 </button>

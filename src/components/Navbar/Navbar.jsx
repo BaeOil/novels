@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import ReactDOM from "react-dom";
 // 🎯 🟢 นำเข้า Link, useNavigate และ useLocation เพื่อทำระบบสลับโหมดแบบไร้รอยต่อ
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Bell } from "lucide-react";
 import "./Navbar.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -26,6 +27,7 @@ const Navbar = () => {
     const [popularNovels, setPopularNovels] = useState([]);
     const [categories, setCategories] = useState([]);
     const [allNovels, setAllNovels] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
 
     useEffect(() => {
         const fetchSearchOverlayData = async () => {
@@ -98,6 +100,28 @@ const Navbar = () => {
                          location.pathname.startsWith("/writer/storytree") || 
                          location.pathname.startsWith("/writer/create");
 
+    const fetchUnreadCount = async (token) => {
+        if (!token) {
+            setUnreadCount(0);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                credentials: "include",
+            });
+            if (response.ok) {
+                const payload = await response.json();
+                setUnreadCount(Number(payload?.unread_count || 0));
+            }
+        } catch (err) {
+            console.warn("Failed to fetch notification count:", err);
+        }
+    };
+
     useEffect(() => {
         const handleScroll = () => {
             setIsScrolled(window.scrollY > 50);
@@ -124,9 +148,36 @@ const Navbar = () => {
         if (token) {
             setIsLoggedIn(true);
             fetchUserData(token);
+            fetchUnreadCount(token);
+        } else {
+            setUnreadCount(0);
         }
 
-        return () => window.removeEventListener("scroll", handleScroll);
+        const refreshNotifications = () => {
+            const activeToken = localStorage.getItem("token");
+            if (activeToken) {
+                fetchUnreadCount(activeToken);
+            }
+        };
+
+        const currentToken = localStorage.getItem("token");
+        if (currentToken) {
+            const eventSource = new EventSource(`${API_BASE_URL}/notifications/stream?token=${encodeURIComponent(currentToken)}`);
+            eventSource.onmessage = () => {
+                refreshNotifications();
+            };
+            return () => {
+                eventSource.close();
+                window.removeEventListener("scroll", handleScroll);
+                window.removeEventListener("notifications-updated", refreshNotifications);
+            };
+        }
+
+        window.addEventListener("notifications-updated", refreshNotifications);
+        return () => {
+            window.removeEventListener("scroll", handleScroll);
+            window.removeEventListener("notifications-updated", refreshNotifications);
+        };
     }, []);
 
     const fetchUserData = async (token) => {
@@ -445,6 +496,16 @@ const Navbar = () => {
                             </div>
                         )}
                     </div>
+
+                    <button
+                        type="button"
+                        className="navbar__notification-btn"
+                        onClick={() => navigate("/notifications")}
+                        aria-label="การแจ้งเตือน"
+                    >
+                        <Bell size={18} strokeWidth={2.2} />
+                        {unreadCount > 0 && <span className="navbar__notification-badge">{unreadCount}</span>}
+                    </button>
 
                     {/* 🎯 🟢 ปุ่มสลับโหมดเชื่อมมิติ (Switch Mode Button) */}
                     {isLoggedIn && (

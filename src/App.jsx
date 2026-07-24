@@ -22,6 +22,7 @@ import CategoriesPage from "./pages/Reader/CategoriesPage/CategoriesPage";
 import BookshelfPage from "./pages/Reader/BookshelfPage/BookshelfPage";
 import HistoryPage from "./pages/Reader/HistoryPage/HistoryPage";
 import FollowingWriters from "./pages/Reader/FollowingWriters/FollowingWriters";
+import NotificationPage from "./pages/Reader/NotificationPage/NotificationPage";
 
 import WriterDashboardPage from "./pages/Writer/WriterDashboardPage/WriterDashboardPage";
 import CreateNovelPage from "./pages/Writer/Createnovelpage/Createnovelpage";
@@ -442,6 +443,14 @@ const FollowingWritersRoute = () => {
   );
 };
 
+const NotificationRoute = () => {
+  return (
+    <ReaderLayout>
+      <NotificationPage />
+    </ReaderLayout>
+  );
+};
+
 const WriterDashboardRoute = () => {
   const navigate = useNavigate();
   const navHandler = createNavigateHandler(navigate);
@@ -771,6 +780,7 @@ function App() {
         <Route path="/bookshelf" element={<RedirectAdminIfNeeded><BookshelfRoute /></RedirectAdminIfNeeded>} />
         <Route path="/history" element={<RedirectAdminIfNeeded><HistoryRoute /></RedirectAdminIfNeeded>} />
         <Route path="/following-writers" element={<RedirectAdminIfNeeded><FollowingWritersRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/notifications" element={<RedirectAdminIfNeeded><NotificationRoute /></RedirectAdminIfNeeded>} />
         <Route path="/storytree/:novelId" element={<RedirectAdminIfNeeded><StoryTreeRoute /></RedirectAdminIfNeeded>} />
         <Route path="/reading/:novelId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />
         <Route path="/reading/:novelId/:sceneId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />

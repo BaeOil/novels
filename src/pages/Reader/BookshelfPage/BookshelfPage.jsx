@@ -9,7 +9,7 @@ import {
     Heart,
     GitBranch,
     Trash2,
-} from "lucide-react";  
+} from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -343,7 +343,7 @@ const BookshelfPage = () => {
 
                 // ลบเสร็จแล้ว ให้อัปเดต State หน้าจอทันทีเพื่อตัดรายชื่อการ์ดเล่มนั้นออก
                 setBooks(prev => prev.filter(b => b.id !== bookId));
-                
+
             } catch (err) {
                 console.error("Remove from bookshelf error:", err);
                 alert("ไม่สามารถลบนิยายออกจากชั้นหนังสือได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
@@ -434,7 +434,7 @@ const BookshelfPage = () => {
                                         >
                                             <div className="bookshelf-card__cover">
                                                 <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
-                                                <button 
+                                                <button
                                                     className="bookshelf-card__remove-btn"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -502,10 +502,10 @@ const BookshelfPage = () => {
                                         </article>
                                     );
                                 })}
-                                </div>
-                            )}
-                            
-            </>
+                            </div>
+                        )}
+
+                    </>
                 )}
             </div>
         </div >
