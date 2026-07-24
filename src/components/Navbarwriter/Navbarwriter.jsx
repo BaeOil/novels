@@ -494,7 +494,7 @@ const Navbarwriter = () => {
         });
 
         window.dispatchEvent(new CustomEvent("search-change", { detail: q }));
-        navigate(`/categories?search=${encodeURIComponent(q)}`);
+        navigate(`/search?search=${encodeURIComponent(q)}`);
         setSearchFocused(false);
     };
 
