@@ -14,11 +14,29 @@ const STEPS = [
     { num: 4, label: "ยืนยันข้อมูล" },
 ];
 
-const GENRE_OPTIONS = [
-    "ผจญภัย", "แฟนตาซี", "โรแมนติก", "ดราม่า",
-    "สยองขวัญ", "ไซไฟ", "จิตวิทยา", "ระทึกขวัญ",
-    "LGBTQ+", "มิตรภาพ", "สืบสวน",
-];
+// ─────────────────────────────────────────────
+//  Shared fetch helper (ลดโค้ดซ้ำเรื่อง token + error handling
+//  ที่เดิมเขียนแยกกันทั้งใน fetchWriterApplication และ handleSubmit)
+// ─────────────────────────────────────────────
+async function authFetch(path, options = {}) {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: {
+            ...(options.headers || {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+    });
+
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const error = new Error(data.message || data.error || `HTTP ${res.status}`);
+        error.status = res.status;
+        throw error;
+    }
+
+    return res.json().catch(() => ({}));
+}
 
 const QUILL_MODULES = {
     toolbar: [
@@ -178,27 +196,55 @@ const AvatarUpload = ({ preview, onChange }) => {
 };
 
 // ─────────────────────────────────────────────
+//  Sub Component: Page Header (เดิมก็อปโครงสร้างนี้ซ้ำ 3 จุด: approved / pending / ฟอร์มหลัก)
+// ─────────────────────────────────────────────
+const PageHeader = ({ title, subtitle }) => (
+    <div className="wr-header-wrapper">
+        <div className="wr-header">
+            <h1 className="wr-header__title">{title}</h1>
+            <p className="wr-header__sub">{subtitle}</p>
+        </div>
+    </div>
+);
+
+// ─────────────────────────────────────────────
 //  Sub Component: Genre Pills
 // ─────────────────────────────────────────────
-const GenrePills = ({ selected, onChange }) => {
-    const toggle = (genre) => {
-        if (selected.includes(genre)) {
-            onChange(selected.filter((g) => g !== genre));
+const GenrePills = ({ options, selected, onChange, loading, error, onRetry }) => {
+    const toggle = (genreId) => {
+        if (selected.includes(genreId)) {
+            onChange(selected.filter((g) => g !== genreId));
         } else {
-            onChange([...selected, genre]);
+            onChange([...selected, genreId]);
         }
     };
+
+    if (loading) {
+        return <p className="wr-genres__status">กำลังโหลดประเภทนิยาย...</p>;
+    }
+
+    if (error) {
+        return (
+            <div className="wr-genres__status wr-genres__status--error">
+                <p>ไม่สามารถโหลดประเภทนิยายได้: {error}</p>
+                <button type="button" className="wr-btn wr-btn--outline" onClick={onRetry}>
+                    ลองใหม่
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="wr-genres" role="group" aria-label="เลือกประเภทนิยาย">
-            {GENRE_OPTIONS.map((genre) => (
+            {options.map((genre) => (
                 <button
-                    key={genre}
+                    key={genre.id}
                     type="button"
-                    className={`wr-genre-pill ${selected.includes(genre) ? "wr-genre-pill--active" : ""}`}
-                    onClick={() => toggle(genre)}
-                    aria-pressed={selected.includes(genre)}
+                    className={`wr-genre-pill ${selected.includes(genre.id) ? "wr-genre-pill--active" : ""}`}
+                    onClick={() => toggle(genre.id)}
+                    aria-pressed={selected.includes(genre.id)}
                 >
-                    {genre}
+                    {genre.name}
                 </button>
             ))}
         </div>
@@ -208,20 +254,16 @@ const GenrePills = ({ selected, onChange }) => {
 // ─────────────────────────────────────────────
 //  Sub Component: Summary Card
 // ─────────────────────────────────────────────
-const SummaryCard = ({ data }) => {
+const SummaryCard = ({ data, genreOptions }) => {
+    const genreNames = data.genres
+        .map((id) => genreOptions.find((g) => g.id === id)?.name)
+        .filter(Boolean);
+
     const rows = [
         { label: "ชื่อ - นามสกุล", value: data.fullName || "—" },
         { label: "นามปากกา", value: data.penName || "—" },
-        <div className="wr-summary__row" key="bio-row">
-            <span className="wr-summary__label">แนะนำตัวนักเขียน</span>
-            <span
-                className="wr-summary__value"
-                dangerouslySetInnerHTML={{
-                    __html: data.bio || "—"
-                }}
-            />
-        </div>,
-        { label: "ประเภทนิยายที่แต่ง", value: data.genres.length ? data.genres.join(", ") : "—" },
+        { label: "แนะนำตัวนักเขียน", html: data.bio || "—" },
+        { label: "ประเภทนิยายที่แต่ง", value: genreNames.length ? genreNames.join(", ") : "—" },
         { label: "อีเมล", value: data.email || "—" },
         { label: "ช่องทางติดต่อหลัก", value: data.mainContact || "—" },
         { label: "ช่องทางอื่นๆ", value: data.otherLinks || "—" },
@@ -240,13 +282,14 @@ const SummaryCard = ({ data }) => {
 
             <div className="wr-summary__info">
                 {rows.map((row, idx) => (
-                    // เช็คว่าถ้าเป็น JSX element (สำหรับ Bio) ให้เรนเดอร์ตรงๆ
-                    React.isValidElement(row) ? row : (
-                        <div key={idx} className="wr-summary__row">
-                            <span className="wr-summary__label">{row.label}</span>
+                    <div key={idx} className="wr-summary__row">
+                        <span className="wr-summary__label">{row.label}</span>
+                        {row.html !== undefined ? (
+                            <span className="wr-summary__value" dangerouslySetInnerHTML={{ __html: row.html }} />
+                        ) : (
                             <span className="wr-summary__value">{row.value}</span>
-                        </div>
-                    )
+                        )}
+                    </div>
                 ))}
             </div>
         </div>
@@ -304,6 +347,12 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     const [writerAppError, setWriterAppError] = useState(null);
     const hasPerformedAuthCheck = useRef(false);
 
+    // ประเภทนิยาย: ดึงจาก backend จริง แทนของเดิมที่เป็น array มั่วอยู่ในโค้ด
+    const [genreOptions, setGenreOptions] = useState([]);
+    const [genresLoading, setGenresLoading] = useState(true);
+    const [genresError, setGenresError] = useState(null);
+    const [genresReloadKey, setGenresReloadKey] = useState(0);
+
     // 3. บันทึกข้อมูลลง localStorage ทุกครั้งที่ Step หรือ Form เปลี่ยนแปลง
     useEffect(() => {
         localStorage.setItem("writerRegStep", step.toString());
@@ -330,26 +379,13 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             }
 
             try {
-                const res = await fetch(`${API_BASE_URL}/api/writers/me`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-                if (!res.ok) {
-                    if (res.status === 404) {
-                        setWriterAppStatus("none");
-                    } else {
-                        const data = await res.json().catch(() => ({}));
-                        throw new Error(data.message || data.error || `HTTP ${res.status}`);
-                    }
-                } else {
-                    const data = await res.json();
-                    setWriterAppStatus(data.status || "none");
-                }
+                const data = await authFetch("/api/writers/me");
+                setWriterAppStatus(data.status || "none");
             } catch (err) {
+                // backend ส่ง 200 + {status:"none"} เสมอเมื่อยังไม่เคยสมัคร (sql.ErrNoRows)
+                // ดังนั้น catch ตรงนี้คือ error จริงๆ เท่านั้น (401/500 ฯลฯ)
                 console.error("Failed to load writer application status:", err);
-                setWriterAppError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการตรวจสอบสถานะคำขอ");
+                setWriterAppError(err.message || "เกิดข้อผิดพลาดในการตรวจสอบสถานะคำขอ");
             } finally {
                 setWriterAppLoading(false);
             }
@@ -357,6 +393,33 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
 
         fetchWriterApplication();
     }, []);
+
+    // ดึงประเภทนิยายจริงจาก backend — GET /categories คืน {status, message, data:[{category_id, name}]}
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchGenres = async () => {
+            setGenresLoading(true);
+            setGenresError(null);
+            try {
+                const data = await authFetch("/categories");
+                const list = Array.isArray(data) ? data : data.data || data.categories || [];
+                if (!cancelled) {
+                    setGenreOptions(list.map((c) => ({ id: c.category_id, name: c.name })));
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    console.error("Failed to load genres:", err);
+                    setGenresError(err.message || "โหลดประเภทนิยายไม่สำเร็จ");
+                }
+            } finally {
+                if (!cancelled) setGenresLoading(false);
+            }
+        };
+
+        fetchGenres();
+        return () => { cancelled = true; };
+    }, [genresReloadKey]);
 
     useEffect(() => {
         if (hasPerformedAuthCheck.current) return;
@@ -464,7 +527,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             formData.append("pen_name", form.penName);
             formData.append("email", form.email);
             formData.append("bio", form.bio);
-            formData.append("genres", JSON.stringify(form.genres));
+            formData.append("category_ids", JSON.stringify(form.genres));
             formData.append("main_contact", form.mainContact);
             formData.append("other_links", form.otherLinks);
 
@@ -506,12 +569,10 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     if (writerAppStatus === "approved") {
         return (
             <div className="wr-page">
-                <div className="wr-header-wrapper">
-                    <div className="wr-header">
-                        <h1 className="wr-header__title">คุณได้รับอนุมัติแล้ว</h1>
-                        <p className="wr-header__sub">คุณสามารถเข้าสู่ระบบและใช้งานพื้นที่นักเขียนได้ทันที</p>
-                    </div>
-                </div>
+                <PageHeader
+                    title="คุณได้รับอนุมัติแล้ว"
+                    subtitle="คุณสามารถเข้าสู่ระบบและใช้งานพื้นที่นักเขียนได้ทันที"
+                />
                 <div className="wr-card" style={{ minHeight: 'auto', padding: '40px' }}>
                     <p>คำขอสมัครนักเขียนของคุณได้รับการอนุมัติแล้ว ไม่สามารถยื่นคำขอซ้ำได้อีก</p>
                     <button type="button" className="wr-btn wr-btn--primary" style={{ marginTop: '20px' }} onClick={() => navigate("/writer/dashboard")}>ไปที่ Writer Dashboard</button>
@@ -523,12 +584,10 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     if (writerAppStatus === "pending") {
         return (
             <div className="wr-page">
-                <div className="wr-header-wrapper">
-                    <div className="wr-header">
-                        <h1 className="wr-header__title">สถานะการสมัคร: รอตรวจสอบ</h1>
-                        <p className="wr-header__sub">ใบสมัครของคุณกำลังอยู่ในขั้นตอนการพิจารณา</p>
-                    </div>
-                </div>
+                <PageHeader
+                    title="สถานะการสมัคร: รอตรวจสอบ"
+                    subtitle="ใบสมัครของคุณกำลังอยู่ในขั้นตอนการพิจารณา"
+                />
                 <div className="wr-card" style={{ minHeight: 'auto', textAlign: 'center', padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
                     <h2 style={{ fontFamily: "'Open Sans', serif", color: 'var(--ink)', marginBottom: '8px' }}>คุณได้ส่งใบสมัครไปแล้ว</h2>
@@ -545,12 +604,10 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     return (
         <>
             <div className="wr-page">
-                <div className="wr-header-wrapper">
-                    <div className="wr-header">
-                        <h1 className="wr-header__title">สมัครเป็นนักเขียน</h1>
-                        <p className="wr-header__sub">กรอกข้อมูลเพื่อยืนยันตัวตนของคุณในฐานะนักเขียน</p>
-                    </div>
-                </div>
+                <PageHeader
+                    title="สมัครเป็นนักเขียน"
+                    subtitle="กรอกข้อมูลเพื่อยืนยันตัวตนของคุณในฐานะนักเขียน"
+                />
 
                 {writerAppStatus === "rejected" && (
                     <div className="wr-form-notice wr-form-notice--info">
@@ -636,7 +693,14 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
 
                         <div className="wr-field">
                             <label className="wr-label">ประเภทนิยายที่แต่ง (เลือกได้มากกว่า 1 ประเภท)</label>
-                            <GenrePills selected={form.genres} onChange={(val) => setField("genres", val)} />
+                            <GenrePills
+                                options={genreOptions}
+                                selected={form.genres}
+                                onChange={(val) => setField("genres", val)}
+                                loading={genresLoading}
+                                error={genresError}
+                                onRetry={() => setGenresReloadKey((k) => k + 1)}
+                            />
                             {errors.genres && <p className="wr-field__error" role="alert">{errors.genres}</p>}
                         </div>
 
@@ -698,7 +762,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                             </div>
                         </div>
 
-                        <SummaryCard data={form} />
+                        <SummaryCard data={form} genreOptions={genreOptions} />
 
                         <div className="wr-confirm-check" style={{ marginTop: 20 }}>
                             <label className="wr-checkbox" htmlFor="confirmed">

@@ -59,9 +59,11 @@
 .notification-header h1 {
   margin: 0;
 
-  font-size: 22px;
+  font-size: 21px;
 
-  font-weight: 700;
+  font-weight: 800;
+
+  letter-spacing: -.01em;
 
   color: #111827;
 }
@@ -123,6 +125,32 @@
 .clear-button:hover {
 
   background: #f9fafb;
+
+}
+
+.read-all-button:disabled,
+.clear-button:disabled {
+
+  opacity: .5;
+
+  cursor: not-allowed;
+
+}
+
+.clear-button:disabled:hover {
+
+  background: white;
+
+}
+
+.back-button:focus-visible,
+.read-all-button:focus-visible,
+.clear-button:focus-visible,
+.tab:focus-visible {
+
+  outline: 2px solid #ec4899;
+
+  outline-offset: 2px;
 
 }
 
@@ -188,15 +216,31 @@
 
   color: white;
 
+  box-shadow: 0 4px 12px rgba(236, 72, 153, .3);
+
 }
 
 .tab span {
 
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
   margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
 
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 700;
 
-  opacity: .8;
+  background: rgba(0, 0, 0, .06);
+  border-radius: 999px;
+
+}
+
+.tab.active span {
+
+  background: rgba(255, 255, 255, .25);
 
 }
 
@@ -216,17 +260,21 @@
 
 .notification-group {
 
-  margin-bottom: 30px;
+  margin-bottom: 28px;
 
 }
 
 .group-title {
 
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
   margin-bottom: 12px;
 
   padding-left: 4px;
 
-  font-size: 13px;
+  font-size: 12.5px;
 
   font-weight: 700;
 
@@ -235,6 +283,36 @@
   text-transform: uppercase;
 
   letter-spacing: .08em;
+
+}
+
+.group-title::before {
+
+  content: "";
+
+  width: 14px;
+  height: 2px;
+
+  background: #ec4899;
+  border-radius: 999px;
+
+}
+
+.notification-group-list {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 8px;
+
+  background: #ffffff;
+
+  border: 1px solid #f1f5f9;
+
+  border-radius: 16px;
+
+  padding: 10px;
 
 }
 
@@ -260,6 +338,34 @@
 .empty-icon {
   font-size: 56px;
   margin-bottom: 18px;
+}
+
+.notification-spinner {
+
+  animation: spin 1.4s linear infinite;
+
+}
+
+@keyframes spin {
+
+  from { transform: rotate(0deg); }
+
+  to { transform: rotate(360deg); }
+
+}
+
+.notification-empty-error {
+
+  border-color: #fecdd3;
+
+  background: #fff1f2;
+
+}
+
+.notification-empty-error h2 {
+
+  color: #be123c;
+
 }
 
 .notification-empty h2 {

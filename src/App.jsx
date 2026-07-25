@@ -35,6 +35,7 @@ import WriterProfile from "./pages/Writer/WriterProfile/WriterProfile";
 
 import Manageusers from "./pages/Admin/Manageusers/Manageusers";
 import WriterRequestsPage from "./pages/Admin/WriterRequestsPage/WriterRequestsPage";
+import AdminReportsDashboard from "./pages/Admin/AdminReportsDashboard/AdminReportsDashboard"; // 🟢 1. นำเข้า AdminReportsDashboard
 
 import AuthPage from "./pages/Auth/AuthPage";
 import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
@@ -90,7 +91,6 @@ const WriterLayout = ({ children, onNavigate }) => {
   const [search, setSearch] = useState("");
 
   const currentPath = location.pathname;
-  // บังคับเลือกนิยายเฉพาะหน้าจัดการตอน, เขียนเนื้อหา, โครงสร้างเรื่อง, แก้ไขนิยาย
   const isNovelRequiredPage = 
     currentPath.includes("/chapters") || 
     currentPath.includes("/scene/") || 
@@ -98,7 +98,6 @@ const WriterLayout = ({ children, onNavigate }) => {
     currentPath.includes("/edit");
 
   useEffect(() => {
-    // ปิด Popup บังคับเลือกนิยายซ้ำซ้อน เพราะผู้ใช้กดเลือกแก้ไขนิยายจาก Dashboard แล้ว
     setShowSelector(false);
   }, [isNovelRequiredPage, location.pathname]);
 
@@ -127,14 +126,12 @@ const WriterLayout = ({ children, onNavigate }) => {
     window.dispatchEvent(new Event("novel-selected"));
     setShowSelector(false);
 
-    // หลังจากเลือกเรื่องเสร็จแล้ว ให้เปลี่ยนหน้าไปยังหน้านั้นๆ ของเรื่องที่เลือก
     const novelId = novel.id || novel.novel_id;
     if (currentPath.includes("/chapters")) {
       navigate(`/writer/${novelId}/chapters`);
     } else if (currentPath.includes("/storytree")) {
       navigate(`/writer/${novelId}/storytree`);
     } else if (currentPath.includes("/scene/")) {
-      // หน้าเขียนฉาก ย้อนกลับไปเปิดตอนแรกของนิยายที่เลือกใหม่
       try {
         const token = localStorage.getItem("token");
         const headers = { Authorization: `Bearer ${token}` };
@@ -173,7 +170,6 @@ const WriterLayout = ({ children, onNavigate }) => {
         </main>
       </div>
 
-      {/* Popup บังคับเลือกนิยาย */}
       {showSelector && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -187,7 +183,6 @@ const WriterLayout = ({ children, onNavigate }) => {
             border: "1px solid var(--pink-100)", display: "flex", flexDirection: "column",
             maxHeight: "85vh"
           }}>
-            {/* Header */}
             <div style={{
               background: "linear-gradient(135deg, var(--pink-50) 0%, var(--pink-100) 100%)",
               padding: "24px", borderBottom: "1.5px solid var(--pink-100)",
@@ -202,7 +197,6 @@ const WriterLayout = ({ children, onNavigate }) => {
               </p>
             </div>
 
-            {/* Search */}
             <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--gray-100)" }}>
               <input
                 type="text"
@@ -217,7 +211,6 @@ const WriterLayout = ({ children, onNavigate }) => {
               />
             </div>
 
-            {/* List */}
             <div style={{
               overflowY: "auto", padding: "12px 24px", flex: 1,
               display: "flex", flexDirection: "column", gap: "10px"
@@ -271,7 +264,6 @@ const WriterLayout = ({ children, onNavigate }) => {
               )}
             </div>
 
-            {/* Footer */}
             <div style={{
               padding: "16px 24px", background: "var(--gray-50)",
               borderTop: "1.5px solid var(--gray-100)", display: "flex",
@@ -523,9 +515,9 @@ const SceneEditorRoute = () => {
 
   const searchParams = new URLSearchParams(location.search);
   const fallbackChapterId = searchParams.get("chapterId") || "";
-    const fallbackSceneTitle = searchParams.get("title") || "";
-    const fallbackNovelTitle = searchParams.get("novelTitle") || "";
-    const fallbackChapterTitle = searchParams.get("chapterTitle") || "";
+  const fallbackSceneTitle = searchParams.get("title") || "";
+  const fallbackNovelTitle = searchParams.get("novelTitle") || "";
+  const fallbackChapterTitle = searchParams.get("chapterTitle") || "";
 
   useEffect(() => {
     if (!sceneId || sceneId === "new") {
@@ -742,7 +734,7 @@ const WriterRegisterPageRoute = () => {
 
 // ======================================================
 // Main Application Component
-// =====================================================
+// ======================================================
 function App() {
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -785,7 +777,7 @@ function App() {
       <Routes>
         {/* Reader Routes */}
         <Route path="/" element={<RedirectAdminIfNeeded><HomePageRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/novel/:id" element={<RedirectAdminIfNeeded><NovelDetailRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/novel/:id" element={<RedirectAdminIfNeeded><NovelDetailPage /></RedirectAdminIfNeeded>} />
         <Route path="/category" element={<Navigate to="/categories" replace />} />
         <Route path="/categories" element={<RedirectAdminIfNeeded><CategoriesRoute /></RedirectAdminIfNeeded>} />
         <Route path="/search" element={<RedirectAdminIfNeeded><SearchPageRoute /></RedirectAdminIfNeeded>} />
@@ -812,6 +804,8 @@ function App() {
         {/* Admin Routes */}
         <Route path="/admin/users" element={<RequireAdminRoute><Manageusers /></RequireAdminRoute>} />
         <Route path="/admin/manage-users" element={<RequireAdminRoute><WriterRequestsPage /></RequireAdminRoute>} />
+        {/* 🟢 2. เพิ่ม Route หน้ารายงาน/แจ้งลบ */}
+        <Route path="/admin/reports" element={<RequireAdminRoute><AdminReportsDashboard /></RequireAdminRoute>} />
 
         {/* Auth Routes - ไม่มี Navbar */}
         <Route path="/login-register" element={<AuthPageRoute />} />

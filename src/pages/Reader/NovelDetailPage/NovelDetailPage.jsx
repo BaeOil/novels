@@ -9,6 +9,8 @@ import FollowButton from "../../../components/FollowButton/FollowButton";
 import ProgressBar from "../../../components/ProgressBar/ProgressBar";
 import EndingCollection from "../../../components/EndingCollection/EndingCollection";
 import Comments from "../../../components/Comments/Comments";
+// 🌸 1. Import ปุ่มรายงานเข้ามาใช้งาน
+import ReaderReportButton from "../../../components/ReaderReportButton/ReaderReportButton";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -98,6 +100,20 @@ const NovelDetailPage = () => {
     }
   };
 
+  const fetchNovelComments = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/novels/${id}/comments`);
+      if (!response.ok) throw new Error(`failed to load comments: ${response.status}`);
+
+      const payload = await response.json().catch(() => null);
+      const commentsData = payload?.comments || payload?.data?.comments || [];
+      setComments(Array.isArray(commentsData) ? commentsData : []);
+    } catch (err) {
+      console.warn("Failed to load novel comments:", err);
+      setComments([]);
+    }
+  };
+
   useEffect(() => {
     const fetchNovel = async () => {
       if (!id) {
@@ -131,30 +147,16 @@ const NovelDetailPage = () => {
         const data = payload?.data || payload || {};
         const nData = data.novel || {};
 
+        const progressSource = data.progress || data.user_progress || data.userProgress || data || {};
+
         const resolveSceneId = (source) => {
           if (!source) return null;
           return source.current_scene_id ?? source.CurrentSceneID ?? source.currentSceneId ?? null;
         };
 
-        const progressSceneId = resolveSceneId(data);
+        const progressSceneId = resolveSceneId(progressSource);
         if (progressSceneId) {
           setNextSceneId(String(progressSceneId));
-        }
-
-        if (userId > 0 && !progressSceneId) {
-          try {
-            const treeResponse = await fetch(`${API_BASE_URL}/novels/${id}/story-tree?user_id=${userId}`, { headers });
-            const treePayload = await treeResponse.json().catch(() => null);
-            if (treeResponse.ok) {
-              const treeData = treePayload?.data || treePayload || {};
-              const treeSceneId = resolveSceneId(treeData);
-              if (treeSceneId) {
-                setNextSceneId(String(treeSceneId));
-              }
-            }
-          } catch (err) {
-            console.warn("Failed to fetch current scene from story-tree:", err);
-          }
         }
 
         let chaptersCountFromApi = 0;
@@ -174,7 +176,6 @@ const NovelDetailPage = () => {
                 const status = chapter.status ?? chapter.Status ?? "";
                 return String(status).toLowerCase() === "published";
               });
-              // นับเฉพาะตอนที่เปิดให้อ่านแล้ว
               chaptersCountFromApi = publishedChapters.length;
             }
           }
@@ -194,12 +195,12 @@ const NovelDetailPage = () => {
           console.warn("Failed to fetch comment count:", err);
           commentsCount = 0;
         }
-
-        const progressSource = data.progress || data.user_progress || data.userProgress || data || {};
         const isBookmarked = userId > 0 ? await fetchBookmarkedStatus(id, userId, headers) : false;
 
         let currentChapterProgress = progressSource.current_chapter ?? progressSource.currentChapter ?? 0;
-        const totalChaptersProgress = progressSource.total_chapters ?? progressSource.totalChapters ?? chaptersCountFromApi ?? 0;
+        const totalChaptersProgress = chaptersCountFromApi > 0
+          ? chaptersCountFromApi
+          : (progressSource.total_chapters ?? progressSource.totalChapters ?? 0);
         const totalChoices = progressSource.total_choices ?? progressSource.totalChoices ?? 0;
         const discoveredChoices = progressSource.discovered_choices ?? progressSource.discoveredChoices ?? 0;
         const totalEndings = progressSource.total_endings ?? progressSource.totalEndings ?? 0;
@@ -220,11 +221,10 @@ const NovelDetailPage = () => {
           }
         }
 
-        // 🌟 แก้ไข: คำนวณเปอร์เซ็นต์สัมพันธ์กับจำนวนตอนจริง ไม่ใช่ระดับฉากย่อย
         const calculatedPercentage = totalChaptersProgress > 0
           ? Math.round((currentChapterProgress / totalChaptersProgress) * 100)
           : 0;
-        
+
         const authorDisplayName = nData.pen_name || nData.penName || nData.author_pen_name || nData.author_penName || nData.author_name || nData.authorName || nData.name_lastname || nData.name || "ไม่ทราบผู้แต่ง";
 
         setNovel({
@@ -242,9 +242,9 @@ const NovelDetailPage = () => {
             displayName: authorDisplayName,
             penName: nData.pen_name || nData.penName || nData.author_pen_name || nData.author_penName || null,
             avatarUrl: formatMinioUrl(nData.author_avatar) || null,
-            writer_id: nData.author_writer_id || nData.author_writerId || nData.author_id || nData.user_id || null,
-            user_id: nData.user_id || nData.author_id || null,
-            id: nData.author_id || nData.user_id || null,
+            writer_id: nData.author_writer_id || nData.author_writerId || nData.author_id || null,
+            user_id: nData.user_id || null,
+            id: nData.author_writer_id || nData.author_writerId || nData.author_id || null,
           },
           synopsis: nData.captions || nData.introduction || "ไม่มีเรื่องย่อ",
 
@@ -277,6 +277,7 @@ const NovelDetailPage = () => {
           setIsFollowingAuthor(false);
         }
         setEndings(data.endings || []);
+        fetchNovelComments();
       } catch (err) {
         console.error("Fetch error:", err);
         setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -288,26 +289,44 @@ const NovelDetailPage = () => {
     fetchNovel();
   }, [id]);
 
-  const handleRead = () => {
+ const handleRead = async () => {
     const hasNoContent = novel.userProgress?.totalChapters === 0;
-    // 🎯 เช็กง่ายๆ: ถ้ามี id ฉากค้างไว้ แปลว่าเคยอ่านแล้ว ให้เปิดโหมด "อ่านต่อ"
-    const hasSavedScene = !!nextSceneId; 
 
     if (hasNoContent) {
       setShowNoContentDialog(true);
       return;
     }
 
-    if (novel.id) {
-      const previewSuffix = isPreview ? "?preview=true" : "";
+    if (!novel.id) return;
+    const previewSuffix = isPreview ? "?preview=true" : "";
+
+    if (nextSceneId) {
+      navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
+      return;
+    }
+
+    try {
+      const userId = getCurrentUserId();
+      const headers = { "Content-Type": "application/json" };
+      const token = localStorage.getItem("token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const previewQuery = isPreview ? "&preview=true" : "";
+      const treeResponse = await fetch(`${API_BASE_URL}/novels/${id}/story-tree?user_id=${userId}${previewQuery}`, { headers });
       
-      if (hasSavedScene) {
-        // 📖 อ่านต่อ: พาวิ่งไปฉากล่าสุดที่เซฟค้างไว้ของเรื่องนี้
-        navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
+      const treePayload = await treeResponse.json().catch(() => null);
+      const treeData = treePayload?.data || treePayload || {};
+
+      const firstScene = treeData.first_scene_id ?? treeData.current_scene_id ?? treeData.CurrentSceneID ?? treeData.currentSceneId ?? null;
+
+      if (firstScene) {
+        navigate(`/reading/${novel.id}/${firstScene}${previewSuffix}`);
       } else {
-        // 🚀 อ่านเลย: พาวิ่งไปจุดเริ่มต้นฉากแรกของเรื่องนี้
         navigate(`/reading/${novel.id}${previewSuffix}`);
       }
+    } catch (err) {
+      console.warn("Failed to fetch initial scene", err);
+      navigate(`/reading/${novel.id}${previewSuffix}`);
     }
   };
 
@@ -344,6 +363,10 @@ const NovelDetailPage = () => {
       setNovel((prev) => ({
         ...prev,
         isBookmarked: isBookmarked,
+        stats: {
+          ...prev.stats,
+          bookshelfCount: Math.max(0, prev.stats.bookshelfCount + (isBookmarked ? 1 : -1)),
+        },
       }));
     } catch (err) {
       console.error("Failed to update bookshelf status:", err);
@@ -459,20 +482,6 @@ const NovelDetailPage = () => {
 
   const handleEndingCollection = () => {
     setShowEndingModal(true);
-  };
-
-  const fetchNovelComments = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/novels/${id}/comments`);
-      if (!response.ok) throw new Error(`failed to load comments: ${response.status}`);
-
-      const payload = await response.json().catch(() => null);
-      const commentsData = payload?.comments || payload?.data?.comments || [];
-      setComments(Array.isArray(commentsData) ? commentsData : []);
-    } catch (err) {
-      console.warn("Failed to load novel comments:", err);
-      setComments([]);
-    }
   };
 
   const handleSendComment = async (text) => {
@@ -594,8 +603,8 @@ const NovelDetailPage = () => {
             <h1 className="novel-detail__title">{novel.title}</h1>
 
             <div className="novel-detail__author" aria-label={`ผู้แต่ง: ${novel.author.displayName}`}>
-              <div 
-                className="novel-detail__author-avatar" 
+              <div
+                className="novel-detail__author-avatar"
                 aria-hidden="true"
                 style={{ cursor: (novel.author?.writer_id || novel.author?.id || novel.author?.user_id) ? "pointer" : "default" }}
                 onClick={() => {
@@ -609,7 +618,7 @@ const NovelDetailPage = () => {
                   <span>👤</span>
                 )}
               </div>
-              <span 
+              <span
                 className="novel-detail__author-name"
                 style={{ cursor: (novel.author?.writer_id || novel.author?.id || novel.author?.user_id) ? "pointer" : "default" }}
                 onClick={() => {
@@ -637,26 +646,26 @@ const NovelDetailPage = () => {
               <ActionButtons
                 isBookmarked={novel.isBookmarked}
                 isLiked={novel.isLiked}
-                // 🎯 เปลี่ยนข้อความปุ่ม: ถ้ามีฉากค้างไว้ให้ขึ้น "อ่านต่อ" ถ้าไม่มีให้ขึ้น "อ่านเลย"
-                readLabel={nextSceneId ? "อ่านต่อ" : "อ่านเลย"}
-                readAriaLabel={nextSceneId ? "อ่านต่อ" : "อ่านเลย"}
+                readLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
+                readAriaLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
                 onRead={handleRead}
                 onBookmark={isPreview ? undefined : handleBookmark}
                 onLike={isPreview ? undefined : handleLike}
                 showBookmark={!isPreview}
                 showLike={!isPreview}
               />
-              <button
-                className="novel-detail__restart-button"
-                type="button"
-                onClick={handleRestartConfirmOpen}
-                title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
-              >
-                ⭮ เริ่มอ่านใหม่
-              </button>
+              {!isPreview && (
+                <button
+                  className="novel-detail__restart-button"
+                  type="button"
+                  onClick={handleRestartConfirmOpen}
+                  title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
+                >
+                  ⭮ เริ่มอ่านใหม่
+                </button>
+              )}
             </div>
 
-            {/* 🌟 ปรับปรุง UX ส่วนความคืบหน้า: ควบรวมฟังก์ชันจัดการความคืบหน้ามาไว้ด้วยกันอย่างเป็นระเบียบ */}
             <div className="novel-detail__progress">
               <ProgressBar
                 percentage={novel.userProgress.percentage}
@@ -825,6 +834,15 @@ const NovelDetailPage = () => {
         )}
 
       </div>
+
+      {/* 🌸 2. ปุ่มรายงานลอยข้างจอ (แสดงเฉพาะเมื่อไม่ใช่อยู่ในโหมด Preview) */}
+      {!isPreview && (
+        <ReaderReportButton
+          novelId={novel.id}
+          novelTitle={novel.title}
+          userId={getCurrentUserId()}
+        />
+      )}
     </div>
   );
 };

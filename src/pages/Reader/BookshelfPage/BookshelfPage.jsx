@@ -7,8 +7,9 @@ import "./BookshelfPage.css";
 import {
     Eye,
     Heart,
-    GitBranch,
+    BookmarkPlus,
     Trash2,
+    BookOpen,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -30,17 +31,18 @@ const getBookshelfApiUrl = (userId) => {
     return userId ? `${base}?user_id=${userId}` : base;
 };
 
-const normalizeCategoryName = (value) => {
-    if (!value) return "";
-    if (typeof value === "string") return value.trim();
-    if (typeof value === "number") return String(value);
-    return String(value.name || value.title || value.label || value.label_th || "").trim();
+const normalizeCategoryName = (cat) => {
+    if (!cat) return "";
+    if (typeof cat === "string") return cat.trim();
+    if (typeof cat === "number") return String(cat);
+    return String(cat.name || cat.Name || cat.title || cat.label || cat.label_th || "").trim();
 };
 
 const stripHtml = (html = "") => {
+    if (!html) return "";
     const div = document.createElement("div");
     div.innerHTML = html;
-    return div.textContent || "";
+    return (div.textContent || "").trim();
 };
 
 const getBookId = (item = {}) => {
@@ -66,152 +68,187 @@ const formatRelative = (iso) => {
     });
 };
 
-const normalizeReadingStatus = (statusValue, endingCount, currentSceneId) => {
-    const rawStatus = String(statusValue || "").trim().toLowerCase();
-    if (rawStatus === "want_to_read" || rawStatus === "reading" || rawStatus === "finished") {
-        return rawStatus;
+// นิยายจะถือว่า "จบ" ก็ต่อเมื่อตัวนิยายเองถูกทำเครื่องหมายว่าจบแล้วโดยผู้เขียน/ระบบ
+// เช่น "completed" / "finished" / "จบแล้ว" เท่านั้น การอ่านถึงฉากล่าสุดที่มีอยู่
+// ไม่ได้แปลว่านิยายจบ (นิยายอาจจะยังเขียนไม่จบ หรือฉากล่าสุดไม่ใช่ฉากจบเรื่องจริงๆ)
+const NOVEL_COMPLETED_VALUES = new Set(["completed", "complete", "finished", "end", "จบแล้ว"]);
+
+const isNovelCompleted = (novelStatus) =>
+    NOVEL_COMPLETED_VALUES.has(String(novelStatus || "").trim().toLowerCase());
+
+/**
+ * สถานะการอ่านของ "ผู้ใช้" ต้องแยกออกจากสถานะของ "นิยาย" ให้ชัดเจน:
+ *  - explicitStatus: สถานะการอ่านของผู้ใช้ที่ backend ส่งมาตรงๆ (ถ้ามี ให้เชื่อค่านี้เป็นหลัก)
+ *  - novelStatus: สถานะของตัวนิยายเอง (จบแล้ว/ยังเขียนอยู่) — ใช้ตัดสินร่วมกับ reachedEnding เท่านั้น
+ *  - reachedEnding: ผู้ใช้อ่านไปถึง "ฉากจบ" ของเส้นทางใดเส้นทางหนึ่งจริงๆ หรือไม่
+ *    (ไม่ใช่แค่ "มีฉากล่าสุดที่ยังไม่ได้อ่านต่อ" หรือ "นิยายมี ending อยู่บ้าง")
+ *
+ * ถ้า backend ยังไม่มี field บอก reachedEnding ตรงๆ ให้ทีม backend เพิ่ม field นี้มาด้วย
+ * (เช่น is_ending บน scene ปัจจุบัน) ไม่ควรเดาจาก ending_count ของทั้งเรื่อง เพราะนั่นคือ
+ * จำนวน ending ทั้งหมดที่นิยายมี ไม่ใช่ว่าผู้ใช้คนนี้อ่านถึงหรือยัง
+ */
+const normalizeReadingStatus = ({ explicitStatus, novelStatus, reachedEnding, currentSceneId }) => {
+    const raw = String(explicitStatus || "").trim().toLowerCase();
+    if (raw === "want_to_read" || raw === "reading" || raw === "finished") {
+        return raw;
     }
-    if (rawStatus === "unread" || rawStatus === "wanttoread") {
-        return "want_to_read";
-    }
-    if (rawStatus === "in_progress" || rawStatus === "inprogress" || rawStatus === "reading") {
-        return "reading";
-    }
-    if (rawStatus === "complete" || rawStatus === "completed" || rawStatus === "finished") {
+
+    if (isNovelCompleted(novelStatus) && reachedEnding) {
         return "finished";
     }
-    if (endingCount > 0) return "finished";
+
     if (currentSceneId > 0) return "reading";
     return "want_to_read";
 };
-const normalizeBook = (item) => ({
-    id: getBookId(item),
 
-    title:
-        item.title ||
-        item.novel?.title ||
-        "ไม่มีชื่อเรื่อง",
+const normalizeBook = (item) => {
+    // สถานะของ "ตัวนิยาย" เอง (จบแล้ว/ยังเขียนอยู่) แยกจากสถานะการอ่านของผู้ใช้
+    const novelStatus = item.novel_status || item.novel?.status || item.novel_completion_status;
 
-    author:
-        item.pen_name ||
-        item.penName ||
-        item.author_pen_name ||
-        item.author_penName ||
-        item.author_name ||
-        item.authorName ||
-        item.author?.name ||
-        item.novel?.pen_name ||
-        item.novel?.author_name ||
-        "ไม่ทราบผู้แต่ง",
+    // ผู้ใช้อ่านไปถึงฉากจบจริงๆ หรือไม่ (ต้องเป็นสัญญาณเฉพาะผู้ใช้ ไม่ใช่สถิติรวมของนิยาย)
+    const reachedEnding = Boolean(
+        item.reached_ending ??
+        item.is_ending ??
+        item.ending_reached ??
+        item.current_scene?.is_ending ??
+        item.currentScene?.isEnding ??
+        false
+    );
 
-    categories: (() => {
-        const cats =
-            item.categories ??
-            item.Categories ??
-            item.CategoryIDs ??
-            item.category_ids ??
-            [];
+    const currentSceneId =
+        item.current_scene_id ??
+        item.currentSceneId ??
+        item.novel?.current_scene_id ??
+        item.novel?.CurrentSceneID ??
+        0;
 
-        if (!Array.isArray(cats) || cats.length === 0)
-            return ["ทั่วไป"];
+    return {
+        id: getBookId(item),
 
-        return cats
-            .map((cat) => {
-                if (!cat) return null;
-                if (typeof cat === "string") return cat;
-                if (typeof cat === "number") return String(cat);
-                return (
-                    cat.name ||
-                    cat.Name ||
-                    cat.title ||
-                    cat.label ||
-                    cat.label_th
-                );
-            })
-            .filter(Boolean);
-    })(),
+        title:
+            item.title ||
+            item.novel?.title ||
+            "ไม่มีชื่อเรื่อง",
 
-    coverImage: formatMinioUrl(
-        item.cover_image ||
-        item.coverImage ||
-        item.novel?.cover_image
-    ),
+        author:
+            item.pen_name ||
+            item.penName ||
+            item.author_pen_name ||
+            item.author_penName ||
+            item.author_name ||
+            item.authorName ||
+            item.author?.name ||
+            item.novel?.pen_name ||
+            item.novel?.author_name ||
+            "ไม่ทราบผู้แต่ง",
 
-    reading_status: normalizeReadingStatus(
-        item.reading_status || item.status || item.novel?.status,
-        item.ending_count ?? item.endingCount ?? 0,
-        item.current_scene_id ?? item.currentSceneId ?? item.novel?.current_scene_id ?? item.novel?.CurrentSceneID ?? 0
-    ),
+        // คำโปรยของนิยาย — backend ส่งมาเป็น "captions" (เผื่อ endpoint อื่นใช้ชื่ออื่น จึงเก็บ fallback เดิมไว้ด้วย)
+        description: stripHtml(
+            item.captions ||
+            item.novel?.captions ||
+            item.description ||
+            item.synopsis ||
+            item.blurb ||
+            item.novel?.description ||
+            item.novel?.synopsis ||
+            ""
+        ),
 
-    latestChapter:
-        item.latest_chapter ||
-        item.latestChapter ||
-        item.last_chapter ||
-        item.chapter_title ||
-        "ยังไม่มีตอน",
+        categories: (() => {
+            const cats =
+                item.categories ??
+                item.Categories ??
+                item.CategoryIDs ??
+                item.category_ids ??
+                [];
 
-    lastReadAt:
-        item.last_read_at ||
-        item.lastReadAt ||
-        item.updated_at ||
-        item.updatedAt ||
-        item.created_at ||
-        item.createdAt ||
-        null,
+            if (!Array.isArray(cats) || cats.length === 0) return ["ทั่วไป"];
 
-    lastReadSceneTitle:
-        item.last_read_scene_title ||
-        item.lastReadSceneTitle ||
-        "ยังไม่มีประวัติการอ่าน",
+            return cats.map(normalizeCategoryName).filter(Boolean);
+        })(),
 
-    startSceneId:
-        item.start_scene_id ||
-        item.startSceneId ||
-        item.first_scene_id ||
-        item.firstSceneId ||
-        0,
+        coverImage: formatMinioUrl(
+            item.cover_image ||
+            item.coverImage ||
+            item.novel?.cover_image
+        ),
 
-    // ---------- Statistics ----------
+        reading_status: normalizeReadingStatus({
+            explicitStatus: item.reading_status || item.status,
+            novelStatus,
+            reachedEnding,
+            currentSceneId,
+        }),
 
-    totalRoutes:
-        item.paths_count ||
-        item.total_paths ||
-        item.totalRoutes ||
-        item.route_count ||
-        0,
+        latestChapter:
+            item.latest_chapter ||
+            item.latestChapter ||
+            item.last_chapter ||
+            item.chapter_title ||
+            "ยังไม่มีตอน",
 
-    currentSceneId:
-        item.current_scene_id ||
-        item.currentSceneId ||
-        0,
+        lastReadAt:
+            item.last_read_at ||
+            item.lastReadAt ||
+            item.updated_at ||
+            item.updatedAt ||
+            item.created_at ||
+            item.createdAt ||
+            null,
 
-    visitedCount:
-        item.visited_count ||
-        item.VisitedCount ||
-        0,
+        lastReadSceneTitle:
+            item.last_read_scene_title ||
+            item.lastReadSceneTitle ||
+            "ยังไม่มีประวัติการอ่าน",
 
-    endingCount:
-        item.ending_count ||
-        item.endingCount ||
-        0,
+        startSceneId:
+            item.start_scene_id ||
+            item.startSceneId ||
+            item.first_scene_id ||
+            item.firstSceneId ||
+            0,
 
-    totalScenes:
-        item.total_scenes ||
-        item.totalScenes ||
-        item.scene_count ||
-        0,
+        currentSceneId,
 
-    views:
-        item.views ||
-        item.view_count ||
-        0,
+        // ---------- Statistics ----------
 
-    likes:
-        item.like_count ||
-        item.likeCount ||
-        item.likes ||
-        0,
-});
+        // จำนวนครั้งที่นิยายเรื่องนี้ถูกเพิ่มเข้าชั้นหนังสือ (ของนิยาย ไม่ใช่ของผู้ใช้คนเดียว)
+        bookshelfCount:
+            item.bookshelf_count ||
+            item.bookshelfCount ||
+            item.shelf_count ||
+            item.saved_count ||
+            item.added_count ||
+            0,
+
+        visitedCount:
+            item.visited_count ||
+            item.VisitedCount ||
+            0,
+
+        endingCount:
+            item.ending_count ||
+            item.endingCount ||
+            0,
+
+        totalScenes:
+            item.total_scenes ||
+            item.totalScenes ||
+            item.scene_count ||
+            0,
+
+        views:
+            item.views ||
+            item.view_count ||
+            0,
+
+        likes:
+            item.like_count ||
+            item.likeCount ||
+            item.likes ||
+            0,
+    };
+};
 
 const statusLabels = {
     all: "ทั้งหมด",
@@ -284,22 +321,25 @@ const BookshelfPage = () => {
 
                     if (!historyBook) return baseBook;
 
+                    // history endpoint สะท้อนความคืบหน้าการอ่านล่าสุดได้แม่นกว่า bookshelf endpoint
+                    // จึงให้ค่าจาก historyBook ชนะสำหรับ field ที่เกี่ยวกับ "ความคืบหน้า"
+                    // ส่วน field ที่เป็นข้อมูลของตัวนิยาย/สถิติ ให้ยึดจาก baseBook เป็นหลัก
+                    // แล้วค่อย fallback ไป historyBook ถ้า baseBook ไม่มีค่า
                     return {
                         ...baseBook,
-                        ...historyBook,
-                        id: baseBook.id,
                         title: baseBook.title || historyBook.title,
                         author: baseBook.author || historyBook.author,
+                        description: baseBook.description || historyBook.description || "",
                         coverImage: baseBook.coverImage || historyBook.coverImage,
                         reading_status: historyBook.reading_status || baseBook.reading_status,
                         currentSceneId: historyBook.currentSceneId || baseBook.currentSceneId || 0,
                         lastReadAt: historyBook.lastReadAt || baseBook.lastReadAt || null,
                         lastReadSceneTitle: historyBook.lastReadSceneTitle || baseBook.lastReadSceneTitle || "ยังไม่มีประวัติการอ่าน",
-                        totalRoutes: historyBook.totalRoutes || baseBook.totalRoutes || 0,
-                        endingCount: historyBook.endingCount || baseBook.endingCount || 0,
-                        totalScenes: historyBook.totalScenes || baseBook.totalScenes || 0,
-                        views: historyBook.views || baseBook.views || 0,
-                        likes: historyBook.likes || baseBook.likes || 0,
+                        bookshelfCount: baseBook.bookshelfCount || historyBook.bookshelfCount || 0,
+                        endingCount: baseBook.endingCount || historyBook.endingCount || 0,
+                        totalScenes: baseBook.totalScenes || historyBook.totalScenes || 0,
+                        views: baseBook.views || historyBook.views || 0,
+                        likes: baseBook.likes || historyBook.likes || 0,
                     };
                 });
 
@@ -327,6 +367,14 @@ const BookshelfPage = () => {
         return books.filter((book) => book.reading_status === filter);
     }, [books, filter]);
 
+    const statusCounts = useMemo(() => {
+        const counts = { all: books.length, want_to_read: 0, reading: 0, finished: 0 };
+        books.forEach((book) => {
+            counts[book.reading_status] = (counts[book.reading_status] ?? 0) + 1;
+        });
+        return counts;
+    }, [books]);
+
     const handleRemoveBook = async (bookId, title) => {
         if (window.confirm(`คุณต้องการนำ "${title}" ออกจากชั้นหนังสือใช่หรือไม่?`)) {
             try {
@@ -334,16 +382,12 @@ const BookshelfPage = () => {
                 const headers = { "Content-Type": "application/json" };
                 if (token) headers.Authorization = `Bearer ${token}`;
 
-                // ยิง API Method DELETE ไปที่ /bookshelves พร้อมส่ง novel_id ไปใน body หรือ params
-                // (ปกติส่งผ่าน URL query หรือ body ขึ้นอยู่กับ handlers ของคุณ แต่ส่วนใหญ่ส่งเป็น params/body)
                 await axios.delete(`${API_BASE_URL}/bookshelves`, {
                     headers,
-                    data: { novel_id: bookId } // ส่ง novel_id ไปบอกหลังบ้านว่าจะลบเล่มไหน
+                    data: { novel_id: bookId },
                 });
 
-                // ลบเสร็จแล้ว ให้อัปเดต State หน้าจอทันทีเพื่อตัดรายชื่อการ์ดเล่มนั้นออก
-                setBooks(prev => prev.filter(b => b.id !== bookId));
-
+                setBooks((prev) => prev.filter((b) => b.id !== bookId));
             } catch (err) {
                 console.error("Remove from bookshelf error:", err);
                 alert("ไม่สามารถลบนิยายออกจากชั้นหนังสือได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
@@ -361,23 +405,40 @@ const BookshelfPage = () => {
                     </div>
 
                     <div className="bookshelf-page__filter">
-                        <label htmlFor="bookshelf-filter">กรองสถานะ</label>
-                        <select
-                            id="bookshelf-filter"
-                            value={filter}
-                            onChange={(e) => setFilter(e.target.value)}
-                        >
+                        <span className="bookshelf-page__filter-label">กรองสถานะ</span>
+                        <div className="bookshelf-page__filter-chips" role="tablist" aria-label="กรองสถานะการอ่าน">
                             {FILTER_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={filter === option.value}
+                                    className={`bookshelf-page__filter-chip${filter === option.value ? " bookshelf-page__filter-chip--active" : ""}`}
+                                    onClick={() => setFilter(option.value)}
+                                >
                                     {option.label}
-                                </option>
+                                    <span className="bookshelf-page__filter-count">
+                                        {statusCounts[option.value] ?? 0}
+                                    </span>
+                                </button>
                             ))}
-                        </select>
+                        </div>
                     </div>
                 </header>
 
                 {loading ? (
-                    <div className="bookshelf-page__loading">กำลังโหลดชั้นหนังสือ...</div>
+                    <div className="bookshelf-page__grid" aria-hidden="true">
+                        {Array.from({ length: 8 }).map((_, index) => (
+                            <div key={index} className="bookshelf-skeleton-card">
+                                <div className="bookshelf-skeleton-card__cover" />
+                                <div className="bookshelf-skeleton-card__body">
+                                    <div className="bookshelf-skeleton-card__line bookshelf-skeleton-card__line--title" />
+                                    <div className="bookshelf-skeleton-card__line bookshelf-skeleton-card__line--author" />
+                                    <div className="bookshelf-skeleton-card__line bookshelf-skeleton-card__line--stats" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 ) : (
                     <>
                         <div className="bookshelf-page__summary">
@@ -391,7 +452,8 @@ const BookshelfPage = () => {
 
                         {filteredBooks.length === 0 ? (
                             <div className="bookshelf-page__empty">
-                                ยังไม่มีนิยายในสถานะนี้ ลองเลือกสถานะอื่น หรือเพิ่มนิยายเข้าชั้นหนังสือของคุณ
+                                <BookOpen size={28} strokeWidth={1.5} />
+                                <p>ยังไม่มีนิยายในสถานะนี้ ลองเลือกสถานะอื่น หรือเพิ่มนิยายเข้าชั้นหนังสือของคุณ</p>
                             </div>
                         ) : (
                             <div className="bookshelf-page__grid">
@@ -418,6 +480,15 @@ const BookshelfPage = () => {
                                                 return;
                                             }
                                             navigate(`/reading/${book.id}`);
+                                            return;
+                                        }
+
+                                        if (isFinished) {
+                                            if (book.startSceneId) {
+                                                navigate(`/reading/${book.id}/${book.startSceneId}`);
+                                                return;
+                                            }
+                                            navigate(`/novel/${book.id}`);
                                         }
                                     };
 
@@ -434,6 +505,9 @@ const BookshelfPage = () => {
                                         >
                                             <div className="bookshelf-card__cover">
                                                 <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
+                                                <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
+                                                    {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
+                                                </span>
                                                 <button
                                                     className="bookshelf-card__remove-btn"
                                                     onClick={(e) => {
@@ -458,6 +532,9 @@ const BookshelfPage = () => {
 
                                                 <h2 className="bookshelf-card__title">{book.title}</h2>
                                                 <p className="bookshelf-card__author">{book.author}</p>
+                                                {book.description && (
+                                                    <p className="bookshelf-card__description">{book.description}</p>
+                                                )}
 
                                                 {!isWantToRead && (
                                                     <div className="bookshelf-card__latest-read">
@@ -468,8 +545,8 @@ const BookshelfPage = () => {
 
                                                 <div className="bookshelf-card__stats">
                                                     <div className="bookshelf-card__stat">
-                                                        <GitBranch size={17} color="#F526A2" />
-                                                        <span>{book.totalRoutes}</span>
+                                                        <BookmarkPlus size={17} color="#F526A2" />
+                                                        <span>{book.bookshelfCount}</span>
                                                     </div>
                                                     <div className="bookshelf-card__stat">
                                                         <Eye size={17} color="#F526A2" />
@@ -481,21 +558,16 @@ const BookshelfPage = () => {
                                                     </div>
                                                 </div>
 
-                                                <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
-                                                    {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
-                                                </span>
-
-                                                {/* ปุ่มอ่านเลย/อ่านต่อ สำหรับ want_to_read และ reading เท่านั้น */}
-                                                {(isWantToRead || isReading) && (
+                                                {(isWantToRead || isReading || isFinished) && (
                                                     <button
                                                         type="button"
-                                                        className={`bookshelf-card__read-btn bookshelf-card__read-btn--${isReading ? 'continue' : 'start'}`}
+                                                        className={`bookshelf-card__read-btn bookshelf-card__read-btn--${isReading ? 'continue' : isFinished ? 'reread' : 'start'}`}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             handleRead();
                                                         }}
                                                     >
-                                                        {isReading ? "📖 อ่านต่อ" : "▶ อ่านเลย"}
+                                                        {isReading ? "📖 อ่านต่อ" : isFinished ? "↺ อ่านอีกครั้ง" : "▶ อ่านเลย"}
                                                     </button>
                                                 )}
                                             </div>

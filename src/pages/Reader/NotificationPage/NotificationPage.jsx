@@ -28,7 +28,7 @@ const normalizeNotification = (item = {}) => {
     referenceId: item.reference_id ?? item.referenceId ?? null,
     referenceType: item.reference_type ?? item.referenceType ?? "system",
     createdAt: item.created_at ?? item.createdAt ?? new Date().toISOString(),
-    time: item.created_at ?? item.createdAt ?? new Date().toISOString(),
+    time: item.time ?? item.created_at ?? item.createdAt ?? new Date().toISOString(),
   };
 };
 
@@ -117,7 +117,7 @@ export default function NotificationPage() {
       const payload = await requestJson(`/notifications?limit=50`);
       const data = payload?.data ?? payload;
       const list = Array.isArray(data) ? data : Array.isArray(data?.notifications) ? data.notifications : [];
-      setItems(list.map((item) => ({ ...normalizeNotification(item), time: item.time || item.createdAt || item.created_at })));
+      setItems(list.map(normalizeNotification));
       setError("");
     } catch (err) {
       console.error("โหลดแจ้งเตือนไม่สำเร็จ", err);
@@ -257,7 +257,9 @@ export default function NotificationPage() {
       console.error("clear all failed", err);
     }
   };
-    return (
+  const hasItems = items.length > 0;
+
+  return (
     <div className="notification-page">
 
       {/* ================= HEADER ================= */}
@@ -266,20 +268,17 @@ export default function NotificationPage() {
 
         <div className="notification-header-left">
 
-          <button className="back-button" onClick={() => navigate(-1)}>
+          <button type="button" className="back-button" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
             ←
           </button>
 
           <div>
-
-            <h1>
-              🔔 การแจ้งเตือน
-            </h1>
-
+            <h1>🔔 การแจ้งเตือน</h1>
             <p>
-              {unreadCount} รายการที่ยังไม่ได้อ่าน
+              {unreadCount > 0
+                ? `${unreadCount} รายการที่ยังไม่ได้อ่าน`
+                : "อ่านครบทุกรายการแล้ว"}
             </p>
-
           </div>
 
         </div>
@@ -287,17 +286,16 @@ export default function NotificationPage() {
         <div className="notification-header-right">
 
           {unreadCount > 0 && (
-            <button
-              className="read-all-button"
-              onClick={markAllRead}
-            >
+            <button type="button" className="read-all-button" onClick={markAllRead}>
               อ่านทั้งหมด
             </button>
           )}
 
           <button
+            type="button"
             className="clear-button"
             onClick={clearAll}
+            disabled={!hasItems}
           >
             ล้างทั้งหมด
           </button>
@@ -308,7 +306,7 @@ export default function NotificationPage() {
 
       {/* ================= TAB ================= */}
 
-      <div className="notification-tabs">
+      <div className="notification-tabs" role="tablist" aria-label="กรองการแจ้งเตือน">
 
         {TABS.map((tabItem) => {
 
@@ -317,29 +315,19 @@ export default function NotificationPage() {
               ? items.length
               : tabItem.key === "unread"
               ? unreadCount
-              : items.filter(
-                  (item) =>
-                    item.type === tabItem.key
-                ).length;
+              : items.filter((item) => item.type === tabItem.key).length;
 
           return (
             <button
+              type="button"
               key={tabItem.key}
-              className={
-                tab === tabItem.key
-                  ? "tab active"
-                  : "tab"
-              }
-              onClick={() =>
-                setTab(tabItem.key)
-              }
+              role="tab"
+              aria-selected={tab === tabItem.key}
+              className={tab === tabItem.key ? "tab active" : "tab"}
+              onClick={() => setTab(tabItem.key)}
             >
               {tabItem.label}
-
-              {count > 0 && (
-                <span>{count}</span>
-              )}
-
+              {count > 0 && <span>{count}</span>}
             </button>
           );
         })}
@@ -352,66 +340,68 @@ export default function NotificationPage() {
 
         {loading ? (
           <div className="notification-empty">
-            <div className="empty-icon">⏳</div>
+            <div className="empty-icon notification-spinner">⏳</div>
             <h2>กำลังโหลดการแจ้งเตือน…</h2>
           </div>
         ) : error ? (
-          <div className="notification-empty">
+          <div className="notification-empty notification-empty-error">
             <div className="empty-icon">⚠️</div>
             <h2>{error}</h2>
+            <p>ลองใหม่อีกครั้ง หรือตรวจสอบการเชื่อมต่อของคุณ</p>
+            <button type="button" onClick={loadNotifications}>
+              ลองอีกครั้ง
+            </button>
           </div>
         ) : filtered.length === 0 ? (
 
           <div className="notification-empty">
 
             <div className="empty-icon">
-              🔔
+              {hasItems ? "🔍" : "🔔"}
             </div>
 
             <h2>
-              ยังไม่มีการแจ้งเตือน
+              {hasItems ? "ไม่มีรายการในหมวดนี้" : "ยังไม่มีการแจ้งเตือน"}
             </h2>
 
             <p>
-              การแจ้งเตือนใหม่จะปรากฏที่นี่
+              {hasItems
+                ? "ลองเลือกแท็บอื่นเพื่อดูการแจ้งเตือนประเภทอื่น"
+                : "การแจ้งเตือนใหม่จะปรากฏที่นี่"}
             </p>
 
-            <button>
-              ไปสำรวจนิยาย
-            </button>
+            {hasItems ? (
+              <button type="button" onClick={() => setTab("all")}>
+                ดูทั้งหมด
+              </button>
+            ) : (
+              <button type="button" onClick={() => navigate("/")}>
+                ไปสำรวจนิยาย
+              </button>
+            )}
 
           </div>
 
         ) : (
 
           ["วันนี้", "เมื่อวาน", "สัปดาห์นี้", "เก่ากว่านี้"]
-            .filter(
-              (group) =>
-                grouped[group]
-            )
+            .filter((group) => grouped[group])
             .map((group) => (
 
-              <section
-                key={group}
-                className="notification-group"
-              >
+              <section key={group} className="notification-group">
 
-                <h3 className="group-title">
-                  {group}
-                </h3>
+                <h3 className="group-title">{group}</h3>
 
-                {grouped[group].map(
-                  (notification) => (
-
+                <div className="notification-group-list">
+                  {grouped[group].map((notification) => (
                     <NotificationItem
                       key={notification.id}
                       notification={notification}
                       onClick={handleNotificationClick}
                       onDelete={deleteNotification}
                     />
-
-                  )
-                )}
+                  ))}
+                </div>
 
               </section>
 

@@ -1,0 +1,251 @@
+:root {
+  --pink-primary: #ff69b4;
+  --pink-hover: #ff4081;
+  --pink-soft: #fff0f6;
+  --pink-light: #fdeaf5;
+  --pink-border: #fcc2d7;
+  --text-dark: #333333;
+  --text-muted: #888888;
+  --white: #ffffff;
+}
+
+/* ปุ่ม Ribbon ลอยข้างจอ */
+.report-ribbon-btn {
+  position: fixed;
+  right: 0;
+  top: 40%;
+  transform: translateY(-50%);
+  background-color: var(--pink-primary);
+  color: var(--white);
+  border: none;
+  border-radius: 12px 0 0 12px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: -3px 4px 12px rgba(255, 105, 180, 0.3);
+  z-index: 40;
+  transition: all 0.2s ease;
+}
+
+.report-ribbon-btn:hover {
+  transform: translateY(-50%) translateX(-4px);
+  background-color: var(--pink-hover);
+}
+
+.report-ribbon-text {
+  writing-mode: vertical-rl;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* Modal Background Overlay */
+.report-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+/* Modal Card */
+.report-modal-card {
+  width: 100%;
+  max-width: 440px;
+  background-color: var(--white);
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(255, 105, 180, 0.15);
+  overflow: hidden;
+  border: 1px solid var(--pink-soft);
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Modal Header */
+.report-modal-header {
+  background: linear-gradient(135deg, #ff7bb0, #ffa3cf);
+  color: var(--white);
+  padding: 18px 22px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.report-modal-subtitle {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.report-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.report-close-btn {
+  background: rgba(255, 255, 255, 0.25);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.report-close-btn:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Modal Body */
+.report-modal-body {
+  padding: 20px 24px;
+}
+
+.report-section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: 10px;
+  display: block;
+}
+
+/* Radio Options List */
+.report-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-option-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background-color: var(--white);
+  border: 1.5px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.report-option-item:hover {
+  border-color: var(--pink-border);
+  background-color: var(--pink-soft);
+}
+
+.report-option-item.selected {
+  background-color: var(--pink-soft);
+  border-color: var(--pink-primary);
+}
+
+.report-radio-input {
+  accent-color: var(--pink-primary);
+  width: 16px;
+  height: 16px;
+}
+
+.report-option-text {
+  font-size: 14px;
+  color: var(--text-dark);
+}
+
+/* Textarea */
+.report-textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--pink-border);
+  background-color: #fffafc;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-dark);
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.report-textarea:focus {
+  border-color: var(--pink-primary);
+  box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.15);
+}
+
+/* Actions Buttons */
+.report-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-cancel {
+  flex: 1;
+  background-color: var(--white);
+  border: 1.5px solid var(--pink-border);
+  border-radius: 10px;
+  padding: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background-color: #f8f8f8;
+}
+
+.btn-submit {
+  flex: 2;
+  background: linear-gradient(135deg, var(--pink-primary), #ff85c0);
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-weight: 600;
+  color: var(--white);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 105, 180, 0.25);
+  transition: opacity 0.2s;
+}
+
+.btn-submit:disabled {
+  background: #e0e0e0;
+  box-shadow: none;
+  cursor: not-allowed;
+  color: #a0a0a0;
+}
+
+.btn-submit:not(:disabled):hover {
+  opacity: 0.92;
+}
+
+/* Success View */
+.report-success-box {
+  padding: 36px 24px;
+  text-align: center;
+}
+
+.report-success-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--pink-soft);
+  color: var(--pink-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}

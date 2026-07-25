@@ -1,7 +1,29 @@
+/* ============================================================
+   Bookshelf — โทนขาว/ชมพู
+   ตัวแปรสีถูก scope ไว้ใต้ .bookshelf-page เพื่อไม่ให้หลุดไปกระทบ
+   ส่วนอื่นของแอป และเพื่อให้ปรับโทนสีทีเดียวจากจุดเดียวได้ง่ายๆ
+   ============================================================ */
+
 .bookshelf-page {
+  --pink: #F526A2;
+  --pink-deep: #C81E86;
+  --pink-pale: #FDEAF5;
+  --pink-line: #F6DCEC;
+
+  --ink: #2B1C27;
+  --muted: #8A7683;
+
+  --status-want-bg: #F1ECF3;
+  --status-want-text: #7C6785;
+  --status-reading-bg: #FDE6F3;
+  --status-reading-text: var(--pink-deep);
+  --status-finished-bg: #E7F5EC;
+  --status-finished-text: #2E9563;
+
   padding: 40px 24px;
-  background: #fffafe;
+  background: #FFFAFD;
   min-height: 100vh;
+  color: var(--ink);
 }
 
 .bookshelf-page__container {
@@ -10,86 +32,232 @@
   margin: 0 auto;
 }
 
+/* ---------- Header ---------- */
+
 .bookshelf-page__header {
   display: flex;
   justify-content: space-between;
   gap: 18px;
   align-items: flex-end;
   flex-wrap: wrap;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .bookshelf-page__eyebrow {
-  font-size: 17px;
-  font-weight: 500;
-  color: #F526A2;
-  margin-bottom: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--pink);
+  margin: 0 0 6px;
 }
 
 .bookshelf-page__title {
-  font-size: clamp(1.1rem, 2vw, 1.3rem);
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
 }
 
 .bookshelf-page__filter {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  align-items: flex-end;
 }
 
-.bookshelf-page__filter label {
-  font-size: 0.88rem;
-  color: #4b5563;
+.bookshelf-page__filter-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
 }
 
-.bookshelf-page__filter select {
-  min-width: 130px;
-  padding: 9px 10px;
-  font-size: 0.86rem;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+.bookshelf-page__filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bookshelf-page__filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--pink-line);
   background: #ffffff;
-  color: #111827;
-  outline: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
+
+.bookshelf-page__filter-chip:hover {
+  border-color: var(--pink);
+  color: var(--pink-deep);
+}
+
+.bookshelf-page__filter-chip:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
+}
+
+.bookshelf-page__filter-chip--active {
+  background: var(--pink);
+  border-color: var(--pink);
+  color: #ffffff;
+}
+
+.bookshelf-page__filter-chip--active:hover {
+  color: #ffffff;
+}
+
+.bookshelf-page__filter-count {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  background: var(--pink-pale);
+  color: var(--pink-deep);
+}
+
+.bookshelf-page__filter-chip--active .bookshelf-page__filter-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* ---------- Summary row ---------- */
 
 .bookshelf-page__summary {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  margin-bottom: 14px;
-  color: #475569;
-  font-size: 0.8rem;
-}
-
-.bookshelf-page__summary-tag {
-  background: #fdf2f8;
-  color: #9d174d;
-  padding: 5px 10px;
-  border-radius: 999px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 0.82rem;
   font-weight: 600;
 }
 
-.bookshelf-page__loading,
-.bookshelf-page__empty {
-  padding: 20px 14px;
-  text-align: center;
-  color: #6b7280;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
+.bookshelf-page__summary-tag {
+  background: var(--pink-pale);
+  color: var(--pink-deep);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-weight: 700;
 }
+
+/* ---------- Empty state ---------- */
+
+.bookshelf-page__empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 20px;
+  text-align: center;
+  color: var(--muted);
+  background: #ffffff;
+  border: 1px dashed var(--pink-line);
+  border-radius: 18px;
+  font-size: 0.92rem;
+}
+
+.bookshelf-page__empty svg {
+  color: var(--pink);
+}
+
+.bookshelf-page__empty p {
+  margin: 0;
+  max-width: 320px;
+}
+
+/* ---------- Loading skeleton ---------- */
+
+@keyframes bookshelf-skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.bookshelf-skeleton-card {
+  background: #ffffff;
+  border: 1px solid var(--pink-line);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.bookshelf-skeleton-card__cover {
+  width: 100%;
+  aspect-ratio: 1/1;
+  background: var(--pink-pale);
+  animation: bookshelf-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.bookshelf-skeleton-card__body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bookshelf-skeleton-card__line {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--pink-pale);
+  animation: bookshelf-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.bookshelf-skeleton-card__line--title {
+  width: 85%;
+  height: 16px;
+}
+
+.bookshelf-skeleton-card__line--author {
+  width: 55%;
+}
+
+.bookshelf-skeleton-card__line--stats {
+  width: 70%;
+  margin-top: 6px;
+}
+
+/* ---------- Grid ---------- */
 
 .bookshelf-page__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(220px, 1fr));
-  gap: 24px;
+  gap: 22px;
 }
+
+@media (max-width: 1100px) {
+  .bookshelf-page__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .bookshelf-page__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .bookshelf-page__grid {
+    grid-template-columns: repeat(1, 1fr);
+  }
+}
+
+/* ---------- Card ---------- */
 
 .bookshelf-card {
   background: #ffffff;
-  border: 1px solid #ece9f2;
-  border-radius: 14px;
+  border: 1px solid var(--pink-line);
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -101,9 +269,14 @@
 }
 
 .bookshelf-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-  border-color: #f3e8ff;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(245, 38, 162, 0.14);
+  border-color: var(--pink);
+}
+
+.bookshelf-card:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
 }
 
 .bookshelf-card__cover {
@@ -111,7 +284,7 @@
   width: 100%;
   aspect-ratio: 1/1;
   overflow: hidden;
-  background: #f8fafc;
+  background: var(--pink-pale);
 }
 
 .bookshelf-card__cover img {
@@ -120,13 +293,18 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.bookshelf-card:hover .bookshelf-card__cover img {
+  transform: scale(1.05);
 }
 
 .bookshelf-card__body {
-  padding: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   flex: 1;
 }
 
@@ -139,70 +317,115 @@
   font-size: 17px;
   font-weight: 700;
   line-height: 1.35;
+  color: var(--ink);
+  margin: 0;
 
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
+  min-height: calc(1.35em * 2);
 }
 
 .bookshelf-card__author {
   margin: 0;
-  color: #343536;
-  font-size: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bookshelf-card__description {
-  font-size: 16px;
-  color: #64748b;
-  line-height: 1.45;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
 
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
 }
 
-.bookshelf-card__route {
-  margin: 0;
-  color: #475569;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
-.bookshelf-card__footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  color: #4b5563;
-  font-size: 0.72rem;
-}
+/* ---------- Reading status badge (overlay on the cover) ---------- */
 
 .bookshelf-card__status {
-  align-self: flex-start;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
   white-space: nowrap;
-  padding: 2px 6px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .bookshelf-card__status--want_to_read {
-  background: #eef2ff;
-  color: #4338ca;
+  background: var(--status-want-bg);
+  color: var(--status-want-text);
 }
 
 .bookshelf-card__status--reading {
-  background: #ffebee;
-  color: #b91c1c;
+  background: var(--status-reading-bg);
+  color: var(--status-reading-text);
 }
 
 .bookshelf-card__status--finished {
-  background: #ecfdf5;
-  color: #16a34a;
+  background: var(--status-finished-bg);
+  color: var(--status-finished-text);
 }
 
-.bookshelf-card__progress {
-  display: none;
+/* ---------- Last-read line ---------- */
+
+.bookshelf-card__latest-read {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 2px;
+  margin-bottom: 4px;
 }
+
+.bookshelf-card__latest-read span:first-child {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* ---------- Stats row ---------- */
+
+.bookshelf-card__stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-top: 12px;
+  padding-top: 12px;
+
+  border-top: 1px solid var(--pink-line);
+}
+
+.bookshelf-card__stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.bookshelf-card__stat span {
+  color: var(--ink);
+}
+
+/* ---------- Read / continue button ---------- */
 
 .bookshelf-card__read-btn {
   margin-top: auto;
@@ -213,98 +436,56 @@
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
   text-align: center;
 }
 
 .bookshelf-card__read-btn--start {
   background: linear-gradient(90deg, #F526A2, #FF7BC8);
-  color: white;
+  color: #ffffff;
 }
 
 .bookshelf-card__read-btn--start:hover {
-  background: linear-gradient(90deg, #E01A96, #FF5FB8);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(245, 38, 162, 0.3);
+  box-shadow: 0 6px 16px rgba(245, 38, 162, 0.32);
+  filter: brightness(1.03);
 }
 
 .bookshelf-card__read-btn--continue {
-  background: linear-gradient(90deg, #10B981, #34D399);
-  color: white;
+  background: linear-gradient(90deg, #C81E86, #F526A2);
+  color: #ffffff;
 }
 
 .bookshelf-card__read-btn--continue:hover {
-  background: linear-gradient(90deg, #059669, #10B981);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 6px 16px rgba(200, 30, 134, 0.32);
+  filter: brightness(1.03);
 }
 
-.bookshelf-card__latest {
-  margin-top: 10px;
-  font-size: 14px;
-  color: #555;
-  line-height: 1.5;
-  font-weight: 500;
-
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.bookshelf-card__read-btn--reread {
+  background: #ffffff;
+  color: var(--pink-deep);
+  border: 1.5px solid var(--pink-line);
 }
 
-.bookshelf-card__stats {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  margin-top: 14px;
-  padding-top: 12px;
-
-  border-top: 1px solid #ececec;
+.bookshelf-card__read-btn--reread:hover {
+  border-color: var(--pink);
+  background: var(--pink-pale);
+  transform: translateY(-2px);
 }
 
-.bookshelf-card__stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-
-  font-size: 14px;
-  color: #666;
-  font-weight: 600;
+.bookshelf-card__read-btn:focus-visible {
+  outline: 2px solid var(--pink-deep);
+  outline-offset: 2px;
 }
 
-.bookshelf-card__stat span {
-  color: #333;
-}
+/* ---------- Remove-from-shelf button ---------- */
 
-.bookshelf-card__tags--small .genre-tag {
-  font-size: 12px;
-  padding: 3px 10px;
-
-}
-
-@media (max-width:1100px) {
-  .bookshelf-page__grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width:760px) {
-  .bookshelf-page__grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width:480px) {
-  .bookshelf-page__grid {
-    grid-template-columns: repeat(1, 1fr);
-  }
-}
-/* --- ปุ่มลบออกจากชั้นหนังสือ --- */
 .bookshelf-card__remove-btn {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
   border: none;
   border-radius: 50%;
   width: 32px;
@@ -314,7 +495,7 @@
   justify-content: center;
   color: #ef4444;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transition: all 0.2s ease;
   z-index: 10;
   opacity: 0;
@@ -330,51 +511,8 @@
   transform: scale(1.1);
 }
 
-/* --- เวลาที่อ่านล่าสุด --- */
-.bookshelf-card__latest-read {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  font-size: 0.72rem;
-  color: #64748b;
-  margin-top: 2px;
-  margin-bottom: 6px;
-}
-
-.bookshelf-card__latest-read span:first-child {
-  font-weight: 700;
-  color: #334155;
-}
-
-/* --- ปรับแต่งแถบความคืบหน้า --- */
-.bookshelf-card__progress {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 12px;
-  border-top: 1px dashed #ececec;
-}
-
-.bookshelf-card__progress-text {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.bookshelf-card__progress-bar {
-  width: 100%;
-  height: 6px;
-  background: #f1f5f9;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.bookshelf-card__progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  transition: width 0.3s ease;
+.bookshelf-card__remove-btn:focus-visible {
+  opacity: 1;
+  outline: 2px solid #ef4444;
+  outline-offset: 2px;
 }

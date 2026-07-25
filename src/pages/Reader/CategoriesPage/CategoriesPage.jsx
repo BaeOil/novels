@@ -7,31 +7,32 @@ import "./CategoriesPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
+// เดิม hardcode "http://minio:9000" -> "http://localhost:9000" ไว้ตรงๆ ในโค้ด
+// (พังทันทีถ้า deploy จริงหรือเปลี่ยน infra) ย้ายมาตั้งผ่าน env แทน — ค่า default ยังเหมือนเดิมทุกอย่าง
+const MEDIA_INTERNAL_HOST = import.meta.env.VITE_MEDIA_INTERNAL_HOST || "http://minio:9000";
+const MEDIA_PUBLIC_HOST = import.meta.env.VITE_MEDIA_PUBLIC_HOST || "http://localhost:9000";
+
+function resolveCoverUrl(url) {
+  if (!url) return null;
+  return url.replace(MEDIA_INTERNAL_HOST, MEDIA_PUBLIC_HOST);
+}
+
 // ปรับแต่งคีย์สีอ่อนจางๆ สไตล์พาสเทลพรีเมียมตามข้อกำหนดใหม่ของผู้ใช้งาน
+// (คีย์ต้องตรงกับชื่อหมวดหมู่จริงในตาราง categories เท่านั้น — เดิมมี alias เผื่อไว้หลายชื่อที่ไม่มีจริงและใช้ไม่ถึงเลย)
 const CATEGORY_THEMES = {
-  "โรแมนซ์":    { emoji: "🌸", bg: "#FFF1F2", border: "#FFE4E6", text: "#E11D48" },
   "โรแมนติก":   { emoji: "🌸", bg: "#FFF1F2", border: "#FFE4E6", text: "#E11D48" },
   "แฟนตาซี":   { emoji: "⚡", bg: "#F5F3FF", border: "#EDE9FE", text: "#7C3AED" },
   "สืบสวน":    { emoji: "🔍", bg: "#F8FAFC", border: "#E2E8F0", text: "#475569" },
   "สยองขวัญ":  { emoji: "🩸", bg: "#FEF2F2", border: "#FEE2E2", text: "#DC2626" },
   "ไซไฟ":      { emoji: "🚀", bg: "#F0F9FF", border: "#E0F2FE", text: "#0284C7" },
-  "Sci-Fi":    { emoji: "🚀", bg: "#F0F9FF", border: "#E0F2FE", text: "#0284C7" },
   "คอมเมดี้":   { emoji: "😂", bg: "#FEFCE8", border: "#FEF9C3", text: "#CA8A04" },
-  "ตลก":       { emoji: "😂", bg: "#FEFCE8", border: "#FEF9C3", text: "#CA8A04" },
   "ดราม่า":    { emoji: "🎭", bg: "#FFF5F5", border: "#FFE3E3", text: "#E03131" },
   "ผจญภัย":    { emoji: "🌿", bg: "#F0FDF4", border: "#DCFCE7", text: "#16A34A" },
-  "แอคชัน":    { emoji: "⚔️", bg: "#F0FDF4", border: "#DCFCE7", text: "#16A34A" },
-  "แอคชั่น":    { emoji: "⚔️", bg: "#F0FDF4", border: "#DCFCE7", text: "#16A34A" },
 };
 
 const normalizeNovel = (data) => {
   const rawCats = data.categories ?? data.Categories ?? data.category_ids ?? data.CategoryIDs ?? [];
   const statusInfo = getNovelStatusInfo(data);
-  
-  const isActuallyPublished = data.status?.toLowerCase() === "published" || 
-                              data.is_published === true || 
-                              statusInfo.isPublished || 
-                              statusInfo.mode === "published";
 
   const cleanCategories = Array.isArray(rawCats) 
     ? rawCats.map(c => {
@@ -56,7 +57,9 @@ const normalizeNovel = (data) => {
       chaptersCount: data.chapters_count ?? data.chaptersCount ?? (data.chapters ? data.chapters.length : 0),
     },
     status: data.status || "draft",
-    isPublished: isActuallyPublished,
+    // isPublished = เผยแพร่ให้อ่านได้หรือยัง, isCompleted = แต่งจบเรื่องหรือยัง — คนละแกนกัน ห้ามใช้แทนกัน
+    isPublished: statusInfo.isPublished,
+    isCompleted: statusInfo.isCompleted,
   };
 };
 
@@ -191,11 +194,11 @@ const CategoriesPage = () => {
       );
     }
 
-    // 3. กรองประเภทสถานะ
+    // 3. กรองประเภทสถานะ (จบแล้ว vs กำลังเขียน ต้องเช็ค isCompleted ไม่ใช่ published)
     if (statusFilter === "finished") {
-      result = result.filter(n => n.status?.toLowerCase() === "published");
+      result = result.filter(n => n.isCompleted);
     } else if (statusFilter === "writing") {
-      result = result.filter(n => n.status?.toLowerCase() !== "published");
+      result = result.filter(n => !n.isCompleted);
     }
 
     // 4. เรียงลำดับ
@@ -357,8 +360,8 @@ const CategoriesPage = () => {
           /* 📌 Grid View */
           <div className="novel-grid-layout">
             {paginatedNovels.map((novel) => {
-              const statusInfo = getNovelStatusInfo(novel);
-              const isFinished = statusInfo.mode === "published" || novel.status?.toLowerCase() === "published" || statusInfo.isPublished;
+              // จบแล้ว = isCompleted เท่านั้น ไม่เกี่ยวกับ isPublished/เผยแพร่
+              const isFinished = novel.isCompleted;
 
               return (
                 <div 
@@ -373,7 +376,7 @@ const CategoriesPage = () => {
                   <div className="novel-grid-cover">
                     {novel.coverImage ? (
                       <img 
-                        src={novel.coverImage.replace("http://minio:9000", "http://localhost:9000")} 
+                        src={resolveCoverUrl(novel.coverImage)} 
                         alt={novel.title} 
                         loading="lazy"
                       />
@@ -416,8 +419,8 @@ const CategoriesPage = () => {
           /* 📌 List View */
           <div className="novel-list-vertical">
             {paginatedNovels.map((novel) => {
-              const statusInfo = getNovelStatusInfo(novel);
-              const isFinished = statusInfo.mode === "published" || novel.status?.toLowerCase() === "published" || statusInfo.isPublished;
+              // จบแล้ว = isCompleted เท่านั้น ไม่เกี่ยวกับ isPublished/เผยแพร่
+              const isFinished = novel.isCompleted;
 
               return (
                 <article 
@@ -428,7 +431,7 @@ const CategoriesPage = () => {
                   <div className="novel-horiz-cover">
                     {novel.coverImage ? (
                       <img 
-                        src={novel.coverImage.replace("http://minio:9000", "http://localhost:9000")} 
+                        src={resolveCoverUrl(novel.coverImage)} 
                         alt={novel.title} 
                         loading="lazy"
                       />

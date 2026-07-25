@@ -924,3 +924,73 @@
   background: #ffe4e6;
   border-color: #fbcfe8;
 }
+
+/* 🔔 Notification Bell & Red Badge */
+.navbar__notification-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: #64748b;
+    transition: all 0.2s ease;
+}
+
+.navbar__notification-btn:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+}
+
+.navbar__notification-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background-color: #ef4444;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: bold;
+    border-radius: 9999px;
+    padding: 1px 6px;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
+    border: 2px solid #ffffff;
+    pointer-events: none;
+}
+/* เพิ่มสีให้เมนูที่กำลังเปิดอยู่ */
+.nav-item.active-menu a {
+    color: #db2777 !important; /* เปลี่ยนเป็นสีชมพู หรือสีธีมเว็บของคุณ */
+    font-weight: 700;
+    position: relative;
+}
+
+.nav-item.active-menu a {
+    color: #db2777 !important;
+    font-weight: 700;
+    text-decoration: underline !important;
+    text-decoration-color: #db2777 !important;
+    text-decoration-thickness: 3px !important; /* ความหนาของเส้น */
+    text-underline-offset: 6px !important;     /* ระยะห่างเส้นใต้กับตัวหนังสือ */
+}
+
+/* บังคับซ่อนเส้นใต้ของเดิมที่อาจจะซ้อนกันตอน Hover */
+.nav-item.active-menu a:hover {
+    text-decoration: underline !important;
+    text-decoration-color: #db2777 !important;
+    text-decoration-thickness: 3px !important;
+    text-underline-offset: 6px !important;
+}
+
+/* ปิด ::after (ถ้าในโค้ดเดิมมีการวาดเส้นด้วย ::after เอาไว้) */
+.nav-item.active-menu a::after,
+.nav-item.active-menu a:hover::after {
+    display: none !important;
+}

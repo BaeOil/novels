@@ -243,10 +243,21 @@ useEffect(() => {
       setLoading(true);
       setError(null);
       try {
-        let url = "";
-        const query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
+        let url = ""; 
         
-        if (!activeSceneId || activeSceneId === "undefined" || activeSceneId === "0") {
+        let query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
+        
+        if (isPreviewMode) {
+          query += query ? "&preview=true" : "?preview=true";
+        }
+        
+        // 🎯 ดักจับ 'new' เพื่อไม่ให้ยิงไป API /scenes/new จนเกิด 404
+        const isInvalidSceneId = !activeSceneId || 
+                                 activeSceneId === "undefined" || 
+                                 activeSceneId === "0" || 
+                                 activeSceneId === "new";
+
+        if (isInvalidSceneId) {
           url = `${BASE_URL}/novels/${novelId}/start${query}`;
         } else {
           url = `${BASE_URL}/scenes/${activeSceneId}${query}`;
@@ -276,17 +287,11 @@ useEffect(() => {
             return;
           }
 
-          // 1. ตั้งค่าข้อมูลฉาก
           setSceneData(resData.data);
           const loadedSceneId = resData.data.scene_id || resData.data.id;
           
-          // 2. ซิงค์อัปเดต State ภายในให้ตรงกันครั้งเดียว
           setCurrentSceneId(loadedSceneId);
-          
-          // 3. เรียกดึงคอมเมนต์ของฉากนั้นทันทีหลังจากได้ข้อมูลมา
           fetchSceneComments(loadedSceneId);
-          
-          // 4. บันทึกความคืบหน้าการอ่านลงดาต้าเบส (จะเกิดขึ้นครั้งเดียวเมื่อฉากเปลี่ยนจริงเท่านั้น)
           updateReadingProgress(novelId, loadedSceneId, resData.data.type);
 
         } else {

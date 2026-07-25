@@ -82,29 +82,67 @@
 
 .nav-item a {
   text-decoration: none;
-  color: #333;
+  color: #555;
   font-weight: 500;
   font-size: 15px;
   position: relative;
+  padding-bottom: 4px;
   transition: color 0.2s ease;
 }
 
-.nav-item.active a::after,
-.nav-item a:hover::after {
+/* ── underline pill ── */
+.nav-item a::after {
   content: '';
   position: absolute;
-  bottom: -6px;
-  left: 0;
-  width: 100%;
-  height: 2px;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2.5px;
+  border-radius: 99px;
   background-color: var(--pink-500);
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 🎯 จัดการ Layout ฝั่งขวา (ค้นหา + อวาตาร์) ให้ขนานกันตรงๆ */
+/* hover: ขยาย underline ออก */
+.nav-item a:hover {
+  color: var(--pink-500);
+}
+.nav-item a:hover::after {
+  width: 100%;
+}
+
+/* active: สีเข้มขึ้น + underline เต็ม + dot บอก position */
+.nav-item.active > a {
+  color: var(--pink-500);
+  font-weight: 700;
+}
+.nav-item.active > a::after {
+  width: 100%;
+}
+
+/* 🎯 จัดการ Layout ฝั่งขวา (ค้นหา + กระดิ่ง + mode-switch + avatar) */
 .navbar__right {
   display: flex;
   align-items: center;
-  gap: 16px; /* ระยะห่างระหว่างช่องค้นหากับรูปโปรไฟล์ */
+  gap: 10px;
+  flex-shrink: 0;   /* ป้องกัน right zone หดจนปุ่มทับกัน */
+  position: relative;
+  z-index: 5;
+}
+
+.navbar__search-zone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+/* กระดิ่งและปุ่มกลมๆ ห้ามหด */
+.navbar__notification-btn,
+.nav-profile-trigger {
+  flex-shrink: 0;
 }
 
 .navbar__notification-btn {
@@ -159,6 +197,8 @@
   padding: 6px 14px;
   transition: all 0.2s ease;
   width: 180px;
+  flex-shrink: 1;
+  min-width: 120px;
 }
 
 .navbar__search--focused {
@@ -195,7 +235,7 @@
   position: absolute;
   top: calc(100% + 12px);
   right: 0;
-  width: 320px;
+  width: min(320px, calc(100vw - 32px));
   background: #ffffff;
   border-radius: 20px;
   border: 1px solid rgba(244, 143, 177, 0.2);

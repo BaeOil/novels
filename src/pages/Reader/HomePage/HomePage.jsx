@@ -11,22 +11,38 @@ const formatMinioUrl = (url) => {
   return url.replace('http://minio:9000', 'http://localhost:9000');
 };
 
+const formatNumber = (num) => {
+  if (!num) return 0;
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M+";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "k+";
+  return num;
+};
+
+const getTagClass = (cat) => {
+  if (!cat) return "tag-romance";
+  const c = cat.toLowerCase();
+  if (c.includes("รัก") || c.includes("โรแมน") || c.includes("romance")) return "tag-romance";
+  if (c.includes("แฟนตา") || c.includes("เวท") || c.includes("fantasy")) return "tag-fantasy";
+  if (c.includes("สืบสวน") || c.includes("สอบสวน") || c.includes("mystery")) return "tag-mystery";
+  if (c.includes("ต่อสู้") || c.includes("บู๊") || c.includes("action")) return "tag-action";
+  if (c.includes("สยอง") || c.includes("ผี") || c.includes("horror")) return "tag-horror";
+  if (c.includes("ไซไฟ") || c.includes("อนาคต") || c.includes("scifi")) return "tag-scifi";
+  if (c.includes("ดราม่า") || c.includes("ชีวิต") || c.includes("drama")) return "tag-drama";
+  return "tag-romance";
+};
+
 const HomePage = ({ onNavigate }) => {
   const [novels, setNovels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Spotlight Genre State
+  const [continueReadingNovels, setContinueReadingNovels] = useState([]);
+
   const [activeGenre, setActiveGenre] = useState("romance");
-
-  // Follow State for monthly featured writer
   const [isFollowed, setIsFollowed] = useState(false);
-
-  // Toast State
+  const [followerOffset, setFollowerOffset] = useState(0); // 🟢 ตัวจำค่าเพิ่ม/ลดผู้ติดตามทันที
   const [toast, setToast] = useState({ isOpen: false, message: "" });
   const navigate = useNavigate();
 
-  // ดึงข้อมูลนิยายทั้งหมดจากฐานระบบผ่าน API
   useEffect(() => {
     const fetchNovels = async () => {
       try {
@@ -42,24 +58,21 @@ const HomePage = ({ onNavigate }) => {
         const raw = payload?.data?.novels ?? payload?.data ?? payload?.novels ?? payload;
         const candidates = Array.isArray(raw) ? raw : (Array.isArray(raw?.novels) ? raw.novels : []);
 
-        // กรองเฉพาะเรื่องที่เผยแพร่หรือจบแล้ว
         const publishedNovels = candidates.filter((data) => {
           const statusInfo = getNovelStatusInfo(data);
           if (!statusInfo.rawStatus) return true;
           return statusInfo.mode === "published" || statusInfo.mode === "completed-published";
         });
 
-        // แปลงฟอร์แมตข้อมูลนิยายสำหรับการ์ดและวิจารณ์
         const formatted = publishedNovels.map((data) => {
           const statusInfo = getNovelStatusInfo(data);
-          
-          // ตรวจจับรูปปกหรืออีโมจิ
           const coverImg = formatMinioUrl(data.cover_image);
           const hasCover = !!coverImg;
 
           return {
             id: data.novel_id || data.id,
             title: data.title || "ไม่มีชื่อเรื่อง",
+            createdAt: data.created_at || data.createdAt || null, // 🟢 ดึงวันที่สร้างมาใช้เช็คความใหม่
             categories: (() => {
               const cats = data.categories ?? data.Categories ?? data.CategoryIDs ?? data.category_ids ?? [];
               if (!Array.isArray(cats) || cats.length === 0) return ["ทั่วไป"];
@@ -72,13 +85,15 @@ const HomePage = ({ onNavigate }) => {
             })(),
             coverImage: coverImg,
             coverEmoji: data.cover_emoji || (hasCover ? "" : "🔮"),
-            bg: data.cover_bg || (data.novel_id % 3 === 0 ? "#FFF0F8" : data.novel_id % 3 === 1 ? "#F5F3FF" : "#F0F9FF"),
+            bg: data.cover_bg || "#F5F3FF", // เลิกใช้ Math กะโหลกกะลา ใช้สีโทนสว่างเป็น Default
             author: {
-              id: data.author_id || data.writer_id || data.user_id || 3,
+              id: data.author_id || data.writer_id || data.user_id || 0, // 🟢 เปลี่ยนจาก 3 เป็น 0 เพื่อไม่ให้ไปชนกับ User ที่มีอยู่จริง
               displayName: data.pen_name || data.author_pen_name || data.author_name || data.username || "ไม่ทราบผู้แต่ง",
               avatarUrl: formatMinioUrl(data.author_avatar),
+              bio: data.author_bio || data.bio,
+              follower_count: data.author_follower_count || data.follower_count || 0
             },
-            synopsis: data.captions || data.introduction || "ไม่มีคำโปรย",
+            synopsis: data.captions || data.introduction || data.synopsis || "ไม่มีคำโปรย", // 🟢 ดึงคำโปรยให้ครบ
             views: data.views || data.view_count || 0,
             like_count: data.like_count || data.likes || 0,
             bookshelf_count: data.bookshelf_count || data.bookmarks || 0,
@@ -100,7 +115,6 @@ const HomePage = ({ onNavigate }) => {
     fetchNovels();
   }, []);
 
-  // แสดง Toast Alert ข้อความลอย
   const showToast = (message) => {
     setToast({ isOpen: true, message });
     setTimeout(() => {
@@ -115,120 +129,127 @@ const HomePage = ({ onNavigate }) => {
     }
   };
 
-  // 1. คำนวณนิยายที่เป็นที่นิยม (Trending) - เรียงตามจำนวนยอดเข้าชม (views) สูงสุด
   const trendingNovels = useMemo(() => {
     return [...novels].sort((a, b) => b.views - a.views).slice(0, 8);
   }, [novels]);
 
-  // 2. คำนวณนิยายใหม่ล่าสุด (New Releases) - ดึงนิยายล่าสุดสูงสุด 6 เรื่อง
   const newReleases = useMemo(() => {
     return [...novels].sort((a, b) => b.id - a.id).slice(0, 6);
   }, [novels]);
 
-  // 3. หมวดหมู่คงที่สำหรับการเลือก Spotlight
   const GENRES_LIST = [
     { key: "romance", name: "โรแมนติก", emoji: "🌸" },
     { key: "fantasy", name: "แฟนตาซี", emoji: "⚡" },
     { key: "mystery", name: "สืบสวน", emoji: "🔍" },
     { key: "horror", name: "สยองขวัญ", emoji: "🩸" },
-    { key: "action", name: "แอคชั่น", emoji: "⚔️" },
     { key: "scifi", name: "ไซไฟ", emoji: "🚀" },
-    { key: "comedy", name: "ตลก", emoji: "😂" },
+    { key: "comedy", name: "คอมเมดี้", emoji: "😂" },
     { key: "drama", name: "ดราม่า", emoji: "🌿" },
   ];
 
-  // 4. กรองนิยายแนว Spotlight ตามหมวดหมู่ที่คลิกเลือกแบบ Dynamic
   const spotlightNovels = useMemo(() => {
     const activeLabel = GENRES_LIST.find(g => g.key === activeGenre)?.name || "โรแมนติก";
-    const filtered = novels.filter(n => 
-      n.categories.some(cat => 
-        cat.toLowerCase().includes(activeGenre) || 
+    const filtered = novels.filter(n =>
+      n.categories.some(cat =>
+        cat.toLowerCase().includes(activeGenre) ||
         cat.includes(activeLabel)
       )
     );
-    // หากไม่มี ให้ใช้นิยายทั้งหมดแสดงแทน หรือมี Fallback
     return filtered.length > 0 ? filtered.slice(0, 4) : novels.slice(0, 4);
   }, [novels, activeGenre]);
 
-  // 5. คำนวณยอดรวมต่างๆ แบบ Dynamic จากระบบจริง
   const statsSummary = useMemo(() => {
     const totalNovels = novels.length || 0;
-    const totalViews = novels.reduce((acc, curr) => acc + curr.views, 0) || 0;
-    // ค้นหาจำนวนนักเขียนที่ไม่ซ้ำกัน
-    const uniqueAuthors = new Set(novels.map(n => n.author.displayName)).size || 0;
-    
-    // แปลงหน่วยตัวเลขให้ดูสวยงาม
-    const formatNumber = (num) => {
-      if (num >= 1000000) return (num / 1000000).toFixed(1) + "M+";
-      if (num >= 1000) return (num / 1000).toFixed(1) + "k+";
-      return num;
-    };
+    const totalViews = novels.reduce((acc, curr) => acc + (curr.views || 0), 0);
+    const uniqueAuthors = new Set(novels.filter(n => n.author.id !== 0).map(n => n.author.id)).size || 0;
 
     return {
-      novelsCount: totalNovels > 0 ? totalNovels + 4500 : 4800,
-      authorsCount: uniqueAuthors > 0 ? uniqueAuthors + 500 : 580,
-      viewsCount: totalViews > 0 ? formatNumber(totalViews + 1200000) : "1.2M+",
-      pathsCount: "25k+",
+      novelsCount: totalNovels,
+      authorsCount: uniqueAuthors,
+      viewsCount: formatNumber(totalViews),
+      // 🟢 ลบการแสดง "กำลังคำนวณ" แบบหลอกๆ ทิ้ง
     };
   }, [novels]);
 
-  // 6. นักเขียนเด่นประจำเดือน (Featured Writer) - ดึงข้อมูลแบบ Dynamic จากนักเขียนคนแรกของนิยายฮิต
   const featuredWriter = useMemo(() => {
+    if (trendingNovels.length === 0) return null;
     const topNovel = trendingNovels[0];
-    const writerName = topNovel?.author.displayName || "makeawish";
-    
-    // คัดกรองนิยายอื่นๆ ของผู้แต่งคนนี้
-    const works = novels.filter(n => n.author.displayName === writerName).slice(0, 3);
-    const fallbackWorks = novels.slice(0, 3);
+    const author = topNovel.author || {};
+    if (!author.id) return null;
+
+    const writerName = author.displayName || "ไม่ทราบผู้แต่ง";
+    const works = novels.filter(n => n.author.id === author.id).slice(0, 3);
+
+    // 🟢 ดึงข้อมูลที่เคยเซฟใน LocalStorage มาเช็คผู้ติดตามตั้งต้น
+    let initialFollowers = author.follower_count || 0;
+    try {
+      const saved = localStorage.getItem("local_following_writers");
+      const list = saved ? JSON.parse(saved) : [];
+      const savedWriter = list.find(w => Number(w.id) === Number(author.id));
+      if (savedWriter && savedWriter.follower_count) {
+        initialFollowers = Math.max(initialFollowers, savedWriter.follower_count);
+      }
+    } catch (e) {
+      console.warn("Failed to read followers from LocalStorage:", e);
+    }
 
     return {
-      id: topNovel?.author.id || 3,
+      id: author.id,
       name: writerName,
       handle: `@${writerName.replace(/\s+/g, '').toLowerCase()}`,
-      bio: "นักเขียนยอดนิยมประจำเดือน ผู้เขียนเรื่องราวด้วยทางเลือกลึกลับซับซ้อนที่ผู้อ่านหลงใหล",
+      bio: author.bio || "นักเขียนผู้สร้างสรรค์เรื่องราวแห่ง StoryVerse",
       avatarLetter: writerName.charAt(0).toUpperCase(),
-      followersCount: "1.2k",
-      viewsCount: "4.8k",
-      worksCount: works.length > 0 ? works.length : 3,
-      worksList: works.length > 0 ? works : fallbackWorks.map(n => ({...n, author: {id: topNovel?.author.id || 3, displayName: writerName}})),
+      followersCount: initialFollowers,
+      viewsCount: formatNumber(works.reduce((acc, w) => acc + (w.views || 0), 0)),
+      worksCount: works.length,
+      worksList: works,
     };
   }, [novels, trendingNovels]);
 
-  // 7. อ่านต่อจากที่ค้างไว้ (Continue Reading)
-  const continueReadingNovels = useMemo(() => {
-    // ดึงประวัติอ่านจาก localStorage หรือใช้ mock-up เรื่องยอดฮิตสัก 2 เรื่องเพื่อความงดงามของดีไซน์
-    return novels.slice(0, 2).map((n, idx) => ({
-      ...n,
-      progress: idx === 0 ? 45 : 28,
-      lastReadLocation: idx === 0 ? "ตอนที่ 3 ฉาก 1.2 — ลำธารแห่งแสง" : "ตอนที่ 6 — กลิ่นอายแห่งความลับ",
-    }));
-  }, [novels]);
+  useEffect(() => {
+    const fetchReadHistory = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-  // 8. ข้อมูลนิยายแสดง stack ลอยตัวใน Hero
-  const heroFeaturedNovel = useMemo(() => {
-    return trendingNovels[0] || {
-      id: 7,
-      title: "แสงสุดท้ายแห่งเอลฟ์",
-      author: { displayName: "makeawish" },
-      coverEmoji: "🌟",
-      bg: "#FFF0F8"
+      try {
+        const response = await axios.get(`${API_BASE_URL}/history`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const historyPayload = response.data?.data?.history || response.data?.history || response.data?.novels || response.data || [];
+        const historyData = Array.isArray(historyPayload) ? historyPayload : [];
+
+        const formattedHistory = historyData.slice(0, 4).map((novel) => {
+          const total = novel.total_scenes > 0 ? novel.total_scenes : 1;
+          const visited = novel.visited_count || 0;
+          const progressPercent = Math.min(Math.round((visited / total) * 100), 100);
+
+          return {
+            id: novel.novel_id || novel.id,
+            title: novel.title,
+            coverImage: formatMinioUrl(novel.cover_image),
+            coverEmoji: novel.cover_emoji || "🔮",
+            bg: novel.cover_bg || "#FFF0F8",
+            categories: novel.categories?.map(c => c.name || c) || ["ทั่วไป"],
+            progress: progressPercent,
+            lastReadLocation: novel.last_read_scene_name || novel.last_read_scene_title || "อ่านล่าสุด",
+          };
+        });
+
+        setContinueReadingNovels(formattedHistory);
+      } catch (err) {
+        console.warn("ไม่สามารถดึงประวัติการอ่านได้:", err.message);
+      }
     };
+
+    fetchReadHistory();
+  }, []);
+
+  const heroFeaturedNovel = useMemo(() => {
+    // 🟢 ลบข้อมูล "เอลฟ์" ตัวปลอมออกไป ดึงจากข้อมูลจริง ถ้าไม่มีก็คืนค่า null
+    return trendingNovels.length > 0 ? trendingNovels[0] : null;
   }, [trendingNovels]);
 
-  // ฟังก์ชันแมปสัญลักษณ์ tag css
-  const getTagClass = (cat) => {
-    const c = cat.toLowerCase();
-    if (c.includes("รัก") || c.includes("โรแมน") || c.includes("romance")) return "tag-romance";
-    if (c.includes("แฟนตา") || c.includes("เวท") || c.includes("fantasy")) return "tag-fantasy";
-    if (c.includes("สืบสวน") || c.includes("สอบสวน") || c.includes("mystery")) return "tag-mystery";
-    if (c.includes("ต่อสู้") || c.includes("บู๊") || c.includes("action")) return "tag-action";
-    if (c.includes("สยอง") || c.includes("ผี") || c.includes("horror")) return "tag-horror";
-    if (c.includes("ไซไฟ") || c.includes("อนาคต") || c.includes("scifi")) return "tag-scifi";
-    if (c.includes("ดราม่า") || c.includes("ชีวิต") || c.includes("drama")) return "tag-drama";
-    return "tag-romance";
-  };
-
-  // เช็คสถานะการติดตามผู้แต่งประจำเดือนจาก LocalStorage
   useEffect(() => {
     if (!featuredWriter?.id) return;
     try {
@@ -236,6 +257,13 @@ const HomePage = ({ onNavigate }) => {
       const list = saved ? JSON.parse(saved) : [];
       const hasFollowed = list.some(w => Number(w.id) === Number(featuredWriter.id));
       setIsFollowed(hasFollowed);
+
+      // 🟢 ถ้าใน DB เป็น 0 แต่เราเคยติดตามไว้ ให้ตั้ง offset ปรับตัวเลขขั้นต่ำเป็น 1
+      if (hasFollowed && featuredWriter.followersCount === 0) {
+        setFollowerOffset(1);
+      } else {
+        setFollowerOffset(0);
+      }
     } catch (e) {
       console.warn("Failed to read follow states:", e);
     }
@@ -243,29 +271,28 @@ const HomePage = ({ onNavigate }) => {
 
   return (
     <div className="home-container-new">
-      
+
       {/* ═══ 1. HERO SECTION ═══ */}
       <section className="hero">
         <div className="hero-inner">
-          
           <div className="hero-left">
             <div className="hero-eyebrow">
               <i className="ti ti-star-filled"></i>
               <span>นิยายทางเลือกแบบ Interactive</span>
             </div>
-            
+
             <h1 className="hero-title">
               ทุกตัวเลือก<br />
               <em>เปลี่ยนชะตา</em><br />
               ของเรื่องราว
             </h1>
-            
+
             <p className="hero-sub">
               สัมผัสประสบการณ์การอ่านนิยายทางเลือกที่คุณคือผู้กำหนดจุดจบ ทุกการตัดสินใจสร้างเรื่องราวที่แตกต่างและไม่ซ้ำใคร
             </p>
-            
+
             <div className="hero-ctas">
-              <button 
+              <button
                 className="btn-hero-primary"
                 onClick={() => {
                   if (novels.length > 0) {
@@ -284,53 +311,54 @@ const HomePage = ({ onNavigate }) => {
           </div>
 
           <div className="hero-right">
-            <div className="book-stack">
-              <div className="book-card-float book-behind2"></div>
-              <div className="book-card-float book-behind1"></div>
-              <div 
-                className="book-card-float book-main"
-                onClick={() => {
-                  handleReadNovel(heroFeaturedNovel.id);
-                  showToast(`เปิดเรื่อง: ${heroFeaturedNovel.title}`);
-                }}
-              >
-                {heroFeaturedNovel.coverImage ? (
-                  <img 
-                    src={heroFeaturedNovel.coverImage} 
-                    alt="cover" 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} 
-                  />
-                ) : (
-                  <>
-                    <span className="book-emoji">{heroFeaturedNovel.coverEmoji || "🌟"}</span>
-                    <div className="book-title-float">{heroFeaturedNovel.title}</div>
-                    <div className="book-author-float">โดย {heroFeaturedNovel.author?.displayName}</div>
-                  </>
-                )}
-              </div>
-              
-              <div className="float-badge float-badge-1">
-                <i className="ti ti-trending-up" style={{ color: "var(--pink)" }}></i>
-                <div>
-                  <span>กำลังนิยม</span>
-                  <sub>#1 สัปดาห์นี้</sub>
+            {heroFeaturedNovel && (
+              <div className="book-stack">
+                <div className="book-card-float book-behind2"></div>
+                <div className="book-card-float book-behind1"></div>
+                <div
+                  className="book-card-float book-main"
+                  onClick={() => {
+                    handleReadNovel(heroFeaturedNovel.id);
+                    showToast(`เปิดเรื่อง: ${heroFeaturedNovel.title}`);
+                  }}
+                >
+                  {heroFeaturedNovel.coverImage ? (
+                    <img
+                      src={heroFeaturedNovel.coverImage}
+                      alt="cover"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
+                    />
+                  ) : (
+                    <>
+                      <span className="book-emoji">{heroFeaturedNovel.coverEmoji}</span>
+                      <div className="book-title-float">{heroFeaturedNovel.title}</div>
+                      <div className="book-author-float">โดย {heroFeaturedNovel.author?.displayName}</div>
+                    </>
+                  )}
                 </div>
-              </div>
-              
-              <div className="float-badge float-badge-2">
-                <i className="ti ti-git-branch" style={{ color: "#7C3AED" }}></i>
-                <div>
-                  <span>ทางเลือกเยอะ</span>
-                  <sub>ที่รอค้นพบ</sub>
-                </div>
-              </div>
-            </div>
-          </div>
 
+                <div className="float-badge float-badge-1">
+                  <i className="ti ti-trending-up" style={{ color: "var(--pink)" }}></i>
+                  <div>
+                    <span>กำลังนิยม</span>
+                    <sub>#1 สัปดาห์นี้</sub>
+                  </div>
+                </div>
+
+                <div className="float-badge float-badge-2">
+                  <i className="ti ti-git-branch" style={{ color: "#7C3AED" }}></i>
+                  <div>
+                    <span>ทางเลือกเยอะ</span>
+                    <sub>ที่รอค้นพบ</sub>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* ═══ 2. TRENDING SECTION (Horizontal Scroll) ═══ */}
+      {/* ═══ 2. TRENDING SECTION ═══ */}
       <section className="section sec-gap">
         <div className="sec-head">
           <div>
@@ -352,17 +380,17 @@ const HomePage = ({ onNavigate }) => {
               const rank = index + 1;
               const rankClass = rank === 1 ? "gold" : rank === 2 ? "silver" : rank === 3 ? "bronze" : "";
               return (
-                <div 
-                  key={novel.id} 
+                <div
+                  key={novel.id}
                   className="trending-card"
                   onClick={() => handleReadNovel(novel.id)}
                 >
                   <div className="tc-cover" style={{ background: novel.bg }}>
                     {novel.coverImage ? (
-                      <img 
-                        src={novel.coverImage} 
-                        alt={novel.title} 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      <img
+                        src={novel.coverImage}
+                        alt={novel.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                     ) : (
                       novel.coverEmoji
@@ -378,22 +406,15 @@ const HomePage = ({ onNavigate }) => {
                       ))}
                     </div>
                     <div className="tc-title">{novel.title}</div>
+                    <div className="tc-excerpt" style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "4px 0", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {novel.synopsis}
+                    </div>
                     <div className="tc-author">{novel.author.displayName}</div>
-                    
+
                     <div className="tc-stats">
-                      <div className="tc-stat">
-                        <i className="ti ti-eye"></i>
-                        {novel.views >= 1000 ? (novel.views / 1000).toFixed(1) + "k" : novel.views}
-                      </div>
-                      <div className="tc-stat">
-                        <i className="ti ti-books"></i>
-                        {novel.chapters_count || 1} ตอน
-                      </div>
-                      <div className="tc-stat">
-                        <span className={`status-badge ${novel.is_completed ? "s-complete" : "s-ongoing"}`}>
-                          {novel.is_completed ? "จบ" : "เขียนอยู่"}
-                        </span>
-                      </div>
+                      <div className="tc-stat" title="เพิ่มเข้าชั้น"><i className="ti ti-bookmark"></i>{formatNumber(novel.bookshelf_count)}</div>
+                      <div className="tc-stat" title="ยอดวิว"><i className="ti ti-eye"></i>{formatNumber(novel.views)}</div>
+                      <div className="tc-stat" title="ยอดถูกใจ"><i className="ti ti-heart"></i>{formatNumber(novel.like_count)}</div>
                     </div>
                   </div>
                 </div>
@@ -421,54 +442,61 @@ const HomePage = ({ onNavigate }) => {
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>ไม่มีนิยายใหม่ในขณะนี้</div>
         ) : (
           <div className="new-grid">
-            {newReleases.map((novel, idx) => (
-              <div 
-                key={novel.id} 
-                className="novel-row-card"
-                onClick={() => handleReadNovel(novel.id)}
-              >
-                <div className="nrc-cover" style={{ background: novel.bg }}>
-                  {novel.coverImage ? (
-                    <img 
-                      src={novel.coverImage} 
-                      alt={novel.title} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} 
-                    />
-                  ) : (
-                    novel.coverEmoji
-                  )}
-                </div>
+            {newReleases.map((novel) => {
+              // 🟢 ระบบเช็คของใหม่ของจริง เช็คว่าวันที่สร้างน้อยกว่า 30 วันหรือไม่
+              let isReallyNew = false;
+              if (novel.createdAt) {
+                const hoursSinceCreation = (new Date() - new Date(novel.createdAt)) / (1000 * 60 * 60);
+                isReallyNew = hoursSinceCreation <= 24;
+              }
 
-                <div className="nrc-body">
-                  <div className="nrc-meta">
-                    {novel.categories.slice(0, 2).map((cat, i) => (
-                      <span key={i} className={`nrc-tag ${getTagClass(cat)}`}>{cat}</span>
-                    ))}
-                    {idx < 3 && <span className="nrc-new">ใหม่</span>}
+              return (
+                <div
+                  key={novel.id}
+                  className="novel-row-card"
+                  onClick={() => handleReadNovel(novel.id)}
+                >
+                  <div className="nrc-cover" style={{ background: novel.bg }}>
+                    {novel.coverImage ? (
+                      <img
+                        src={novel.coverImage}
+                        alt={novel.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }}
+                      />
+                    ) : (
+                      novel.coverEmoji
+                    )}
                   </div>
-                  <div className="nrc-title">{novel.title}</div>
-                  <div className="nrc-tagline">{novel.synopsis}</div>
-                  
-                  <div className="nrc-footer">
-                    <div className="nrc-author">
-                      <i className="ti ti-pencil"></i>{novel.author.displayName}
+
+                  <div className="nrc-body">
+                    <div className="nrc-meta">
+                      {novel.categories.slice(0, 2).map((cat, i) => (
+                        <span key={i} className={`nrc-tag ${getTagClass(cat)}`}>{cat}</span>
+                      ))}
+                      {isReallyNew && <span className="nrc-new">ใหม่</span>}
                     </div>
-                    <div className="nrc-stat nrc-stat-right">
-                      <i className="ti ti-books"></i>{novel.chapters_count || 1} ตอน
-                    </div>
-                    <div className="nrc-stat">
-                      <i className="ti ti-heart"></i>
-                      {novel.like_count >= 1000 ? (novel.like_count / 1000).toFixed(1) + "k" : novel.like_count}
+                    <div className="nrc-title">{novel.title}</div>
+                    <div className="nrc-tagline">{novel.synopsis}</div>
+
+                    <div className="nrc-footer">
+                      <div className="nrc-author">
+                        <i className="ti ti-pencil"></i>{novel.author.displayName}
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <div className="nrc-stat" title="เพิ่มเข้าชั้น"><i className="ti ti-bookmark"></i>{formatNumber(novel.bookshelf_count)}</div>
+                        <div className="nrc-stat" title="ยอดวิว"><i className="ti ti-eye"></i>{formatNumber(novel.views)}</div>
+                        <div className="nrc-stat" title="ยอดถูกใจ"><i className="ti ti-heart"></i>{formatNumber(novel.like_count)}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
 
-      {/* ═══ 4. GENRE SPOTLIGHT SECTION (Dark Theme) ═══ */}
+      {/* ═══ 4. GENRE SPOTLIGHT SECTION ═══ */}
       <section className="genre-spotlight">
         <div className="section">
           <div className="sec-head">
@@ -481,18 +509,16 @@ const HomePage = ({ onNavigate }) => {
             </Link>
           </div>
 
-          {/* แถบแคปซูลเลือกหมวด */}
           <div className="genre-scroll">
             {GENRES_LIST.map((g) => {
-              // คำนวณจำนวนเรื่องในระบบต่อแนว (Dynamic)
-              const count = novels.filter(n => 
-                n.categories.some(cat => 
-                  cat.toLowerCase().includes(g.key) || 
+              const count = novels.filter(n =>
+                n.categories.some(cat =>
+                  cat.toLowerCase().includes(g.key) ||
                   cat.includes(g.name)
                 )
               ).length;
               return (
-                <div 
+                <div
                   key={g.key}
                   className={`genre-pill-card ${activeGenre === g.key ? "on" : ""}`}
                   onClick={() => setActiveGenre(g.key)}
@@ -507,41 +533,36 @@ const HomePage = ({ onNavigate }) => {
             })}
           </div>
 
-          {/* การ์ดนิยายแนว Dark */}
           {loading ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.4)' }}>กำลังโหลดนิยายแนวนี้...</div>
           ) : (
             <div className="dark-cards">
               {spotlightNovels.map((novel) => (
-                <div 
-                  key={novel.id} 
+                <div
+                  key={novel.id}
                   className="dark-novel-card"
                   onClick={() => handleReadNovel(novel.id)}
                 >
                   <div className="dnc-cover" style={{ background: novel.bg }}>
                     {novel.coverImage ? (
-                      <img 
-                        src={novel.coverImage} 
-                        alt={novel.title} 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      <img
+                        src={novel.coverImage}
+                        alt={novel.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                     ) : (
                       novel.coverEmoji
                     )}
                   </div>
-                  
+
                   <div className="dnc-body">
                     <div className="dnc-title">{novel.title}</div>
                     <div className="dnc-meta">{novel.author.displayName}</div>
-                    
+
                     <div className="dnc-stats">
-                      <div className="dnc-stat">
-                        <i className="ti ti-books"></i>{novel.chapters_count || 1} ตอน
-                      </div>
-                      <div className="dnc-stat">
-                        <i className="ti ti-heart"></i>
-                        {novel.like_count >= 1000 ? (novel.like_count / 1000).toFixed(1) + "k" : novel.like_count}
-                      </div>
+                      <div className="dnc-stat" title="เพิ่มเข้าชั้น"><i className="ti ti-bookmark"></i>{formatNumber(novel.bookshelf_count)}</div>
+                      <div className="dnc-stat" title="ยอดวิว"><i className="ti ti-eye"></i>{formatNumber(novel.views)}</div>
+                      <div className="dnc-stat" title="ยอดถูกใจ"><i className="ti ti-heart"></i>{formatNumber(novel.like_count)}</div>
                     </div>
                   </div>
                 </div>
@@ -553,7 +574,7 @@ const HomePage = ({ onNavigate }) => {
       </section>
 
       {/* ═══ 5. CONTINUE READING SECTION ═══ */}
-      {novels.length > 0 && (
+      {continueReadingNovels.length > 0 && (
         <section className="section sec-gap">
           <div className="sec-head">
             <div>
@@ -564,17 +585,17 @@ const HomePage = ({ onNavigate }) => {
 
           <div className="new-grid">
             {continueReadingNovels.map((novel) => (
-              <div 
-                key={novel.id} 
+              <div
+                key={novel.id}
                 className="novel-row-card"
                 onClick={() => handleReadNovel(novel.id)}
               >
                 <div className="nrc-cover" style={{ background: novel.bg }}>
                   {novel.coverImage ? (
-                    <img 
-                      src={novel.coverImage} 
-                      alt={novel.title} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} 
+                    <img
+                      src={novel.coverImage}
+                      alt={novel.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }}
                     />
                   ) : (
                     novel.coverEmoji
@@ -583,7 +604,7 @@ const HomePage = ({ onNavigate }) => {
 
                 <div className="nrc-body">
                   <div className="nrc-meta">
-                    {novel.categories.slice(0, 2).map((cat, i) => (
+                    {novel.categories?.slice(0, 2).map((cat, i) => (
                       <span key={i} className={`nrc-tag ${getTagClass(cat)}`}>{cat}</span>
                     ))}
                     <span style={{ padding: "2px 8px", borderRadius: "999px", fontSize: "10px", fontWeight: "600", background: "#FEF3C7", color: "#92400E", border: "0.5px solid #FCD34D" }}>
@@ -592,12 +613,11 @@ const HomePage = ({ onNavigate }) => {
                   </div>
                   <div className="nrc-title">{novel.title}</div>
                   <div className="nrc-tagline">{novel.lastReadLocation}</div>
-                  
-                  {/* Progress Bar */}
+
                   <div style={{ height: "4px", background: "var(--border-m)", borderRadius: "999px", overflow: "hidden", margin: "6px 0" }}>
                     <div style={{ height: "4px", width: `${novel.progress}%`, background: "linear-gradient(90deg, var(--pink), #FF6EB4)", borderRadius: "999px" }}></div>
                   </div>
-                  
+
                   <div className="nrc-footer">
                     <div className="nrc-author">
                       <i className="ti ti-book-2"></i>อ่านไปแล้ว {novel.progress}%
@@ -615,150 +635,151 @@ const HomePage = ({ onNavigate }) => {
       )}
 
       {/* ═══ 6. FEATURED WRITER SPOTLIGHT ═══ */}
-      <section className="writer-spotlight" style={{ marginTop: "56px" }}>
-        <div className="writer-inner">
-          
-          <div className="writer-profile">
-            <div className="writer-avatar">
-              {featuredWriter.avatarLetter}
-              <div className="writer-badge">
-                <i className="ti ti-pencil"></i>
-              </div>
-            </div>
-            
-            <div>
-              <div className="writer-name">{featuredWriter.name}</div>
-              <div className="writer-handle">{featuredWriter.handle} · นักเขียนประจำเดือน</div>
-            </div>
-            
-            <p className="writer-bio">{featuredWriter.bio}</p>
-            
-            <div className="writer-stats">
-              <div className="ws">
-                <div className="ws-val">{featuredWriter.worksCount}</div>
-                <div className="ws-label">นิยาย</div>
-              </div>
-              <div className="ws">
-                <div className="ws-val">{featuredWriter.followersCount}</div>
-                <div className="ws-label">ผู้ติดตาม</div>
-              </div>
-              <div className="ws">
-                <div className="ws-val">{featuredWriter.viewsCount}</div>
-                <div className="ws-label">ยอดอ่าน</div>
-              </div>
-            </div>
-            
-            <button 
-              className={`follow-btn ${isFollowed ? "followed" : ""}`}
-              onClick={async () => {
-                const token = localStorage.getItem("token");
-                const nextState = !isFollowed;
-                
-                // 1. อัปเดต state และบันทึก/ลบลง LocalStorage เสมอ เพื่อให้หน้านักเขียนที่ติดตามอัปเดตทันที
-                setIsFollowed(nextState);
-                try {
-                  const saved = localStorage.getItem("local_following_writers");
-                  let list = saved ? JSON.parse(saved) : [];
-                  if (nextState) {
-                    const writerObject = {
-                      id: featuredWriter.id,
-                      writer_id: featuredWriter.id,
-                      pen_name: featuredWriter.name,
-                      bio: featuredWriter.bio,
-                      avatar_url: null,
-                      follower_count: 1200,
-                      novel_count: featuredWriter.worksCount,
-                      novels: featuredWriter.worksList.map(w => ({
-                        novel_id: w.id,
-                        title: w.title,
-                        cover_image: w.coverImage,
-                        cover_emoji: w.coverEmoji
-                      }))
-                    };
-                    list = list.filter(w => Number(w.id) !== Number(featuredWriter.id));
-                    list.push(writerObject);
-                  } else {
-                    list = list.filter(w => Number(w.id) !== Number(featuredWriter.id));
-                  }
-                  localStorage.setItem("local_following_writers", JSON.stringify(list));
-                } catch (e) {
-                  console.warn("LocalStorage follow sync failed:", e);
-                }
+      {featuredWriter && (
+        <section className="writer-spotlight" style={{ marginTop: "56px" }}>
+          <div className="writer-inner">
 
-                showToast(nextState ? `กดติดตาม @${featuredWriter.name} เรียบร้อย!` : `ยกเลิกการติดตาม @${featuredWriter.name}`);
-
-                // 2. ส่งคำขอไปยัง API จริงของ Go Backend
-                if (token) {
-                  try {
-                    const endpoint = nextState 
-                      ? `${API_BASE_URL}/api/writers/${featuredWriter.id}/follow`
-                      : `${API_BASE_URL}/api/writers/${featuredWriter.id}/unfollow`;
-                    await axios.post(endpoint, {}, {
-                      headers: { Authorization: `Bearer ${token}` }
-                    });
-                  } catch (err) {
-                    console.warn("API follow/unfollow request failed (using local sync fallback):", err.message);
-                  }
-                }
-              }}
-            >
-              {isFollowed ? (
-                <>
-                  <i className="ti ti-user-check"></i>ติดตามแล้ว
-                </>
-              ) : (
-                <>
-                  <i className="ti ti-user-plus"></i>ติดตาม
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* ผลงานของนักเขียนใน spotlight */}
-          <div className="writer-works">
-            {featuredWriter.worksList.map((work) => (
-              <div 
-                key={work.id} 
-                className="writer-work"
-                onClick={() => handleReadNovel(work.id)}
-              >
-                <div className="ww-cover" style={{ background: work.bg }}>
-                  {work.coverImage ? (
-                    <img 
-                      src={work.coverImage} 
-                      alt={work.title} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} 
-                    />
-                  ) : (
-                    work.coverEmoji
-                  )}
+            <div className="writer-profile">
+              <div className="writer-avatar">
+                {featuredWriter.avatarLetter}
+                <div className="writer-badge">
+                  <i className="ti ti-pencil"></i>
                 </div>
+              </div>
 
-                <div className="ww-body">
-                  <div className="ww-title">{work.title}</div>
-                  <div className="ww-excerpt">{work.synopsis}</div>
-                  
-                  <div className="ww-stats">
-                    <div className="ww-stat">
-                      <i className="ti ti-books"></i>{work.chapters_count || 1} ตอน
+              <div>
+                <div className="writer-name">{featuredWriter.name}</div>
+                <div className="writer-handle">{featuredWriter.handle} · นักเขียนประจำเดือน</div>
+              </div>
+
+              <p className="writer-bio">{featuredWriter.bio}</p>
+
+              <div className="writer-stats">
+                <div className="ws">
+                  <div className="ws-val">{featuredWriter.worksCount}</div>
+                  <div className="ws-label">นิยาย</div>
+                </div>
+                <div className="ws">
+                  <div className="ws-val">{featuredWriter.followersCount + followerOffset}</div>
+                  <div className="ws-label">ผู้ติดตาม</div>
+                </div>
+                <div className="ws">
+                  <div className="ws-val">{featuredWriter.viewsCount}</div>
+                  <div className="ws-label">ยอดอ่านรวม</div>
+                </div>
+              </div>
+
+              <button
+                className={`follow-btn ${isFollowed ? "followed" : ""}`}
+                onClick={async () => {
+                  const token = localStorage.getItem("token");
+                  const nextState = !isFollowed;
+
+                  setIsFollowed(nextState);
+
+                  // คำนวณยอดผู้ติดตามใหม่
+                  const currentTotal = featuredWriter.followersCount + followerOffset;
+                  const newCount = nextState ? currentTotal + 1 : Math.max(0, currentTotal - 1);
+
+                  setFollowerOffset(prev => nextState ? prev + 1 : prev - 1);
+
+                  try {
+                    const saved = localStorage.getItem("local_following_writers");
+                    let list = saved ? JSON.parse(saved) : [];
+                    if (nextState) {
+                      const writerObject = {
+                        id: featuredWriter.id,
+                        writer_id: featuredWriter.id,
+                        pen_name: featuredWriter.name,
+                        bio: featuredWriter.bio,
+                        avatar_url: null,
+                        follower_count: newCount,
+                        novel_count: featuredWriter.worksCount,
+                        novels: featuredWriter.worksList.map(w => ({
+                          novel_id: w.id,
+                          title: w.title,
+                          cover_image: w.coverImage,
+                          cover_emoji: w.coverEmoji
+                        }))
+                      };
+                      list = list.filter(w => Number(w.id) !== Number(featuredWriter.id));
+                      list.push(writerObject);
+                    } else {
+                      list = list.filter(w => Number(w.id) !== Number(featuredWriter.id));
+                    }
+                    localStorage.setItem("local_following_writers", JSON.stringify(list));
+                  } catch (e) {
+                    console.warn("LocalStorage follow sync failed:", e);
+                  }
+
+                  showToast(nextState ? `กดติดตาม @${featuredWriter.name} เรียบร้อย!` : `ยกเลิกการติดตาม @${featuredWriter.name}`);
+
+                  if (token) {
+                    try {
+                      const endpoint = nextState
+                        ? `${API_BASE_URL}/api/writers/${featuredWriter.id}/follow`
+                        : `${API_BASE_URL}/api/writers/${featuredWriter.id}/unfollow`;
+                      await axios.post(endpoint, {}, {
+                        headers: { Authorization: `Bearer ${token}` }
+                      });
+                    } catch (err) {
+                      console.warn("API follow/unfollow request failed:", err.message);
+                    }
+                  }
+                }}
+              >
+                {isFollowed ? (
+                  <>
+                    <i className="ti ti-user-check"></i>ติดตามแล้ว
+                  </>
+                ) : (
+                  <>
+                    <i className="ti ti-user-plus"></i>ติดตาม
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="writer-works">
+              {featuredWriter.worksList.map((work) => (
+                <div
+                  key={work.id}
+                  className="writer-work"
+                  onClick={() => handleReadNovel(work.id)}
+                >
+                  <div className="ww-cover" style={{ background: work.bg }}>
+                    {work.coverImage ? (
+                      <img
+                        src={work.coverImage}
+                        alt={work.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
+                      />
+                    ) : (
+                      work.coverEmoji
+                    )}
+                  </div>
+
+                  <div className="ww-body">
+                    <div className="ww-title">{work.title}</div>
+                    <div className="ww-excerpt" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {work.synopsis}
                     </div>
-                    <div className="ww-stat">
-                      <i className="ti ti-heart"></i>
-                      {work.like_count >= 1000 ? (work.like_count / 1000).toFixed(1) + "k" : work.like_count}
-                    </div>
-                    <div className="ww-stat">
-                      <i className="ti ti-git-branch"></i>3+ จุดจบ
+
+                    <div className="ww-stats" style={{ display: 'flex', gap: '12px' }}>
+                      <div className="ww-stat" title="เพิ่มเข้าชั้น"><i className="ti ti-bookmark"></i>{formatNumber(work.bookshelf_count)}</div>
+                      <div className="ww-stat" title="ยอดวิว"><i className="ti ti-eye"></i>{formatNumber(work.views)}</div>
+                      <div className="ww-stat" title="ยอดถูกใจ"><i className="ti ti-heart"></i>{formatNumber(work.like_count)}</div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
           </div>
+        </section>
+      )}
 
-        </div>
-      </section>
-
-      {/* ═══ 7. CTA BANNER (Join Writing) ═══ */}
+      {/* ═══ 7. CTA BANNER ═══ */}
       <section className="cta-banner">
         <div className="cta-inner">
           <h2 className="cta-title">พร้อมเขียนเรื่องราวของคุณ?</h2>
@@ -779,7 +800,6 @@ const HomePage = ({ onNavigate }) => {
         <div className="footer-sub">© 2569 StoryVerse · ทุกตัวเลือกสร้างชะตากรรมเรื่องราว</div>
       </footer>
 
-      {/* Toast Alert popup overlay */}
       {toast.isOpen && (
         <div className="toast-bar">
           <i className="ti ti-info-circle"></i>

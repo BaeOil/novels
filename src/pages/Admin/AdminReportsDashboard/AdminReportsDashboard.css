@@ -1,0 +1,140 @@
+.admin-reports-container {
+  padding: 32px;
+  background-color: #fffafc;
+  min-height: 100vh;
+  font-family: inherit;
+}
+
+/* Header & Stat Cards */
+.admin-reports-header {
+  margin-bottom: 24px;
+}
+
+.admin-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid #ffe3ec;
+  box-shadow: 0 4px 12px rgba(255, 105, 180, 0.05);
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ff69b4;
+  margin-top: 4px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #888888;
+}
+
+/* Table Container */
+.admin-table-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #ffe3ec;
+  box-shadow: 0 4px 16px rgba(255, 105, 180, 0.06);
+  overflow: hidden;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.admin-table th {
+  background-color: #fff0f6;
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #ff4081;
+  font-weight: 600;
+}
+
+.admin-table td {
+  padding: 16px;
+  border-bottom: 1px solid #fff0f6;
+  font-size: 14px;
+  color: #444444;
+}
+
+.admin-table tr:hover {
+  background-color: #fffdfd;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.badge-pending {
+  background-color: #fff0f6;
+  color: #ff69b4;
+  border: 1px solid #ffc2d7;
+}
+
+.badge-approved {
+  background-color: #e6fcf5;
+  color: #0ca678;
+  border: 1px solid #96f2d7;
+}
+
+.badge-rejected {
+  background-color: #f1f3f5;
+  color: #868e96;
+  border: 1px solid #dee2e6;
+}
+
+/* Action Buttons */
+.admin-btn-group {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action-approve {
+  background-color: #ff69b4;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.btn-action-approve:hover {
+  background-color: #ff4081;
+}
+
+.btn-action-reject {
+  background-color: #f8f9fa;
+  color: #666;
+  border: 1px solid #ddd;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-action-reject:hover {
+  background-color: #e9ecef;
+}
