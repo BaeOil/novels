@@ -70,6 +70,7 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(dbConn)
 	authRepo := repository.NewAuthRepository(dbConn)
 	writerRepo := repository.NewWriterRepository(dbConn) // 👈 ผูกเชื่อมตารางสมัครนักเขียนเข้าฐานข้อมูลจริง
+	reportRepo := repository.NewReportRepository(dbConn)
 
 	// Ensure MinIO bucket exists
 	ctx := context.Background()
@@ -99,6 +100,8 @@ func main() {
 
 	// 🟢 สร้างบริการระบบ Authentication สมาชิกของแท้
 	authService := service.NewAuthService(authRepo)
+	notificationService := service.NewNotificationService(dbConn)
+	reportService := service.NewReportService(reportRepo)
 
 	// สร้าง ServeMux ใหม่
 	mux := http.NewServeMux()
@@ -118,6 +121,8 @@ func main() {
 		mediaService,
 		categoryService,
 		*authService, // 👈 ส่งบริการ Authen เข้าพ่วงท้ายแถวโดยใช้ * แกะ Pointer ออกตามโครงสร้างเดิม
+		notificationService,
+		reportService,
 	)
 
 	// -----------------------

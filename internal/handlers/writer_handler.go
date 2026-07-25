@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"novel-be/internal/dto"
 	"novel-be/internal/middleware"
@@ -14,12 +15,13 @@ import (
 )
 
 type WriterHandler struct {
-	service      service.WriterService
-	mediaService service.MediaService
+	service             service.WriterService
+	mediaService        service.MediaService
+	notificationService service.NotificationService
 }
 
-func NewWriterHandler(s service.WriterService, ms service.MediaService) *WriterHandler {
-	return &WriterHandler{service: s, mediaService: ms}
+func NewWriterHandler(s service.WriterService, ms service.MediaService, ns service.NotificationService) *WriterHandler {
+	return &WriterHandler{service: s, mediaService: ms, notificationService: ns}
 }
 
 // ✍️ 1. ท่อยื่นคำขอเป็นนักเขียน -> POST /api/writers/apply
@@ -52,8 +54,8 @@ func (h *WriterHandler) Apply(w http.ResponseWriter, r *http.Request) {
 			ContactOptional: r.FormValue("other_links"),
 		}
 
-		if genresValue := r.FormValue("genres"); genresValue != "" {
-			_ = json.Unmarshal([]byte(genresValue), &req.Genres)
+		if categoryIDsValue := r.FormValue("category_ids"); categoryIDsValue != "" {
+			_ = json.Unmarshal([]byte(categoryIDsValue), &req.CategoryIDs)
 		}
 
 		file, handler, err := r.FormFile("avatar")
@@ -126,6 +128,12 @@ func (h *WriterHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	if err := h.service.ApproveWriter(r.Context(), uint(writerID)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if h.notificationService != nil {
+		if err := h.notificationService.NotifyWriterApproved(writerID); err != nil {
+			log.Printf("NotifyWriterApproved failed: %v", err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

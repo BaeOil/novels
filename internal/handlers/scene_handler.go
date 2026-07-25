@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"novel-be/internal/models"
 	"novel-be/internal/service"
@@ -14,7 +15,7 @@ func toPtr(s string) *string {
 	return &s
 }
 
-func CreateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
+func CreateSceneHandler(sceneService service.SceneService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req CreateSceneRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -46,15 +47,25 @@ func CreateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 			return
 		}
 
+		if err := notificationService.NotifySceneUpdated(req.NovelID, sceneID); err != nil {
+			log.Printf("NotifySceneUpdated failed: %v", err)
+		}
+
 		WriteJSON(w, http.StatusCreated, map[string]any{"message": "scene created", "scene_id": sceneID})
 	}
 }
 
-func UpdateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
+func UpdateSceneHandler(sceneService service.SceneService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sceneID, err := extractIDFromPath(r.URL.Path, "/scenes/")
 		if err != nil {
 			WriteError(w, http.StatusBadRequest, "invalid id parameter")
+			return
+		}
+
+		existingScene, err := sceneService.GetScene(sceneID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "scene not found")
 			return
 		}
 
@@ -71,6 +82,8 @@ func UpdateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 
 		scene := models.Scene{
 			SceneID:           sceneID,
+			NovelID:           existingScene.NovelID,
+			ChapterID:         existingScene.ChapterID,
 			Title:             req.Title,
 			Content:           req.Content,
 			Type:              req.Type,
@@ -87,6 +100,10 @@ func UpdateSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 		if err := sceneService.UpdateScene(scene); err != nil {
 			WriteError(w, http.StatusBadRequest, err.Error())
 			return
+		}
+
+		if err := notificationService.NotifySceneUpdated(scene.NovelID, sceneID); err != nil {
+			log.Printf("NotifySceneUpdated failed: %v", err)
 		}
 
 		if req.Choices != nil {

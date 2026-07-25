@@ -25,14 +25,12 @@ func RequireAuth(next http.Handler) http.Handler {
 		}
 
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "ไม่พบบัตรผ่าน (Token) กรุณาเข้าสู่ระบบค่ะ", http.StatusUnauthorized)
-			return
-		}
-
 		tokenString := extractBearerToken(authHeader)
 		if tokenString == "" {
-			http.Error(w, "ไม่พบบัตรผ่านที่ถูกต้องใน Header", http.StatusUnauthorized)
+			tokenString = r.URL.Query().Get("token")
+		}
+		if tokenString == "" {
+			http.Error(w, "ไม่พบบัตรผ่าน (Token) กรุณาเข้าสู่ระบบค่ะ", http.StatusUnauthorized)
 			return
 		}
 
@@ -108,4 +106,3 @@ func extractBearerToken(header string) string {
 	}
 	return strings.TrimSpace(header)
 }
-

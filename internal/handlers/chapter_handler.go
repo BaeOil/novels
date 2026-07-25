@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	"novel-be/internal/service"
 )
 
-func CreateChapterHandler(chapterService service.ChapterService) http.HandlerFunc {
+func CreateChapterHandler(chapterService service.ChapterService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -37,6 +38,10 @@ func CreateChapterHandler(chapterService service.ChapterService) http.HandlerFun
 		if err != nil {
 			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+
+		if err := notificationService.NotifyNovelChapterPublished(req.NovelID, chapterID); err != nil {
+			log.Printf("NotifyNovelChapterPublished failed: %v", err)
 		}
 
 		RespondWithJSON(w, http.StatusCreated, map[string]any{"message": "chapter created", "chapter_id": chapterID})

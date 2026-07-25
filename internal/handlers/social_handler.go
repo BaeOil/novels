@@ -14,7 +14,7 @@ import (
 	"novel-be/internal/service"
 )
 
-func AddLikeHandler(socialService service.SocialService) http.HandlerFunc {
+func AddLikeHandler(socialService service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -44,11 +44,15 @@ func AddLikeHandler(socialService service.SocialService) http.HandlerFunc {
 			return
 		}
 
+		if err := notificationService.NotifyLike(req.NovelID, req.UserID); err != nil {
+			log.Printf("NotifyLike failed: %v", err)
+		}
+
 		WriteJSON(w, http.StatusCreated, map[string]string{"message": "like recorded"})
 	}
 }
 
-func RemoveLikeHandler(socialService service.SocialService) http.HandlerFunc {
+func RemoveLikeHandler(socialService service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -76,6 +80,10 @@ func RemoveLikeHandler(socialService service.SocialService) http.HandlerFunc {
 		if err := socialService.RemoveLike(int(userID), novelID); err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+
+		if err := notificationService.DeleteLikeNotification(novelID, int(userID)); err != nil {
+			log.Printf("DeleteLikeNotification failed: %v", err)
 		}
 
 		WriteJSON(w, http.StatusOK, map[string]string{"message": "like removed"})
@@ -231,7 +239,7 @@ func GetBookshelfCountHandler(socialService service.SocialService) http.HandlerF
 	}
 }
 
-func AddCommentHandler(socialService service.SocialService) http.HandlerFunc {
+func AddCommentHandler(socialService service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -260,6 +268,10 @@ func AddCommentHandler(socialService service.SocialService) http.HandlerFunc {
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+
+		if err := notificationService.NotifyComment(req.NovelID, req.UserID, req.Content); err != nil {
+			log.Printf("NotifyComment failed: %v", err)
 		}
 
 		WriteJSON(w, http.StatusCreated, map[string]any{"message": "comment added", "comment_id": commentID})
@@ -304,10 +316,16 @@ func RemoveCommentHandler(socialService service.SocialService) http.HandlerFunc 
 	}
 }
 
-func AddFollowHandler(socialService service.SocialService) http.HandlerFunc {
+func AddFollowHandler(socialService service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		userID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || userID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
@@ -317,6 +335,7 @@ func AddFollowHandler(socialService service.SocialService) http.HandlerFunc {
 			return
 		}
 
+		req.FollowerID = int(userID)
 		if err := req.Validate(); err != nil {
 			WriteError(w, http.StatusBadRequest, err.Error())
 			return
@@ -328,11 +347,15 @@ func AddFollowHandler(socialService service.SocialService) http.HandlerFunc {
 			return
 		}
 
+		if err := notificationService.NotifyFollow(req.FollowingID, req.FollowerID); err != nil {
+			log.Printf("NotifyFollow failed: %v", err)
+		}
+
 		WriteJSON(w, http.StatusCreated, map[string]string{"message": "follow recorded"})
 	}
 }
 
-func FollowWriterHandler(socialService service.SocialService) http.HandlerFunc {
+func FollowWriterHandler(socialService service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -357,6 +380,10 @@ func FollowWriterHandler(socialService service.SocialService) http.HandlerFunc {
 		if err := socialService.AddFollow(models.Follow{FollowerID: int(userID), FollowingID: writerID}); err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+
+		if err := notificationService.NotifyFollow(writerID, int(userID)); err != nil {
+			log.Printf("NotifyFollow failed: %v", err)
 		}
 
 		WriteJSON(w, http.StatusCreated, map[string]any{"message": "follow recorded", "writer_id": writerID})

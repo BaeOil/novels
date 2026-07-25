@@ -201,9 +201,11 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context) ([]dto.Wri
 	query := `
 		SELECT w.writer_id, w.user_id, u.username, w.name_lastname, w.pen_name, w.bio, w.email_writer, w.contact_info::text, w.status, w.applied_at
 		FROM writers w
-LEFT JOIN users u ON u.user_id = w.user_id
-WHERE w.writer_id = $1
-LIMIT 1`
+		LEFT JOIN users u ON u.user_id = w.user_id
+		WHERE w.status = 'pending'
+		ORDER BY w.applied_at DESC
+	`
+
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -213,12 +215,28 @@ LIMIT 1`
 	var requests []dto.WriterRequestResponse
 	for rows.Next() {
 		var resp dto.WriterRequestResponse
-		err := rows.Scan(&resp.WriterID, &resp.UserID, &resp.Username, &resp.NameLastname, &resp.PenName, &resp.Bio, &resp.EmailWriter, &resp.ContactInfo, &resp.Status, &resp.AppliedAt)
+		err := rows.Scan(
+			&resp.WriterID,
+			&resp.UserID,
+			&resp.Username,
+			&resp.NameLastname,
+			&resp.PenName,
+			&resp.Bio,
+			&resp.EmailWriter,
+			&resp.ContactInfo,
+			&resp.Status,
+			&resp.AppliedAt,
+		)
 		if err != nil {
 			return nil, err
 		}
 		requests = append(requests, resp)
 	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return requests, nil
 }
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,7 +13,7 @@ import (
 	"novel-be/internal/service"
 )
 
-func NovelsHandler(novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
+func NovelsHandler(novelService service.NovelService, writerService service.WriterService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -60,6 +61,11 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 			if err != nil {
 				WriteError(w, http.StatusInternalServerError, err.Error())
 				return
+			}
+			if isPublished {
+				if err := notificationService.NotifyNewNovelPublished(novelID); err != nil {
+					log.Printf("NotifyNewNovelPublished failed: %v", err)
+				}
 			}
 			WriteJSON(w, http.StatusCreated, map[string]any{"message": "novel created", "novel_id": novelID})
 		default:
@@ -119,7 +125,7 @@ func DeleteNovelHandler(novelService service.NovelService, writerService service
 	}
 }
 
-func UpdateNovelHandler(novelService service.NovelService, sceneService service.SceneService, writerService service.WriterService) http.HandlerFunc {
+func UpdateNovelHandler(novelService service.NovelService, sceneService service.SceneService, writerService service.WriterService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -227,6 +233,12 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 		if err := novelService.UpdateNovel(updatedNovel); err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+
+		if updatedNovel.IsPublished && !novelPtr.IsPublished {
+			if err := notificationService.NotifyNewNovelPublished(novelID); err != nil {
+				log.Printf("NotifyNewNovelPublished failed: %v", err)
+			}
 		}
 
 		WriteJSON(w, http.StatusOK, map[string]string{"message": "novel updated"})
