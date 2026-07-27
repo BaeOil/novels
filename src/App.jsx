@@ -775,24 +775,26 @@ function App() {
     <Router>
       <NavbarWrapper />
       <Routes>
-        {/* Reader Routes */}
-        <Route path="/" element={<RedirectAdminIfNeeded><HomePageRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/novel/:id" element={<RedirectAdminIfNeeded><NovelDetailPage /></RedirectAdminIfNeeded>} />
+        {/* Reader & Public Routes (Allowed for all users & Admin) */}
+        <Route path="/" element={<HomePageRoute />} />
+        <Route path="/novel/:id" element={<NovelDetailPage />} />
         <Route path="/category" element={<Navigate to="/categories" replace />} />
-        <Route path="/categories" element={<RedirectAdminIfNeeded><CategoriesRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/search" element={<RedirectAdminIfNeeded><SearchPageRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/categories" element={<CategoriesRoute />} />
+        <Route path="/search" element={<SearchPageRoute />} />
         <Route path="/bookshelf" element={<RedirectAdminIfNeeded><BookshelfRoute /></RedirectAdminIfNeeded>} />
         <Route path="/history" element={<RedirectAdminIfNeeded><HistoryRoute /></RedirectAdminIfNeeded>} />
         <Route path="/following-writers" element={<RedirectAdminIfNeeded><FollowingWritersRoute /></RedirectAdminIfNeeded>} />
         <Route path="/notifications" element={<RedirectAdminIfNeeded><NotificationRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/storytree/:novelId" element={<RedirectAdminIfNeeded><StoryTreeRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/reading/:novelId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/reading/:novelId/:sceneId" element={<RedirectAdminIfNeeded><ReadingRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/storytree/:novelId" element={<StoryTreeRoute />} />
+        <Route path="/reading/:novelId" element={<ReadingRoute />} />
+        <Route path="/reading/:novelId/:sceneId" element={<ReadingRoute />} />
 
-        {/* Writer Routes */}
+        {/* Public Writer Profile Pages */}
+        <Route path="/writer/profile/:id" element={<WriterProfileRoute />} />
+        <Route path="/writer/:id/profile" element={<WriterProfileRoute />} />
+
+        {/* Writer Private Workspace Routes (Restricted for Admin) */}
         <Route path="/writer/profile" element={<RedirectAdminIfNeeded><WriterProfileRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/profile/:id" element={<RedirectAdminIfNeeded><WriterProfileRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/:id/profile" element={<RedirectAdminIfNeeded><WriterProfileRoute /></RedirectAdminIfNeeded>} />
         <Route path="/writer/dashboard" element={<RedirectAdminIfNeeded><WriterDashboardRoute /></RedirectAdminIfNeeded>} />
         <Route path="/writer/create" element={<RedirectAdminIfNeeded><CreateNovelRoute /></RedirectAdminIfNeeded>} />
         <Route path="/writer/:novelId/chapters" element={<RedirectAdminIfNeeded><ChapterManagerRoute /></RedirectAdminIfNeeded>} />

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom"; 
+// 🟢 quill.snow.css ต้องมาก่อน ReadingPage.css เสมอ ไม่งั้นสไตล์ default ของกล่อง editor
+// (padding, line-height, cursor) จะ override ทับสไตล์การอ่านที่ตั้งใจออกแบบไว้ (ดู .rp__body.ql-editor ใน css)
+import "react-quill-new/dist/quill.snow.css";
 import "./ReadingPage.css";
-import "react-quill-new/dist/quill.snow.css"; // 🟢 จุดที่ 1: นำเข้าดีไซน์การจัดหน้าของ Quill
 import ReadingBreadcrumb from "../../../components/ReadingBreadcrumb/ReadingBreadcrumb";
 import ChoiceButtons from "../../../components/ChoiceButtons/ChoiceButtons";
 import RestartReadingButton from "../../../components/RestartReadingButton/RestartReadingButton";
@@ -10,7 +12,9 @@ import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import Comments from "../../../components/Comments/Comments";
 import EndingUnlockedModal from "../../../components/EndingUnlockedModal/EndingUnlockedModal";
 
-const BASE_URL = "http://localhost:8080"; 
+// 🟢 เดิม hardcode "http://localhost:8080" ตรงๆ ทำให้ build ขึ้น production แล้วยังยิงไป localhost
+// เปลี่ยนให้อ่านจาก env ก่อน ถ้าไม่มีค่อย fallback เป็น localhost ตอน dev เหมือนเดิม
+const BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:8080";
 
 const ReadingPage = ({
   userId = 0,
@@ -48,7 +52,6 @@ const ReadingPage = ({
 
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [readProgress, setReadProgress] = useState(0);
-  const [selectedChoiceId, setSelectedChoiceId] = useState(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkProcessing, setBookmarkProcessing] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -59,6 +62,9 @@ const ReadingPage = ({
   // State สำหรับ Pop-up ยินดีด้วย ค้นพบฉากจบใหม่
   const [showEndingModal, setShowEndingModal] = useState(false);
   const [allNovelEndings, setAllNovelEndings] = useState([]);
+
+  // Pop-up ชวนเพิ่มเข้าชั้นหนังสือ ตอนอ่านมาถึงตอนล่าสุดที่ยังไม่จบเรื่อง
+  const [bookmarkNudgeDismissed, setBookmarkNudgeDismissed] = useState(false);
 
   const fetchSceneComments = async (sceneId) => {
     if (!sceneId) return;
@@ -142,6 +148,10 @@ const ReadingPage = ({
     }
   };
 
+
+  useEffect(() => {
+    setBookmarkNudgeDismissed(false);
+  }, [currentSceneId]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -331,7 +341,6 @@ useEffect(() => {
   }, [sceneData]);
 
   const handleChoose = async (choice) => {
-    setSelectedChoiceId(choice.choice_id);
     setIsTransitioning(true);
 
     try {
@@ -366,7 +375,6 @@ useEffect(() => {
       navigate(`/reading/${novelId}/${choice.to_scene_id}${nextQuery ? `?${nextQuery}` : ""}`);
       setCurrentSceneId(choice.to_scene_id);
       setIsTransitioning(false);
-      setSelectedChoiceId(null);
     }, 350);
   };
 
@@ -412,6 +420,52 @@ useEffect(() => {
   const handleThemeChange = (value) => {
     setTheme(value);
     saveReadingSettings({ theme: value });
+  };
+
+  // 🎯 เพิ่ม/ลบชั้นหนังสือจริง (ของเดิมมีแค่เช็คสถานะเฉยๆ ไม่เคยมีปุ่มกดใช้งาน)
+  // ยืนยัน endpoint แล้วจาก AddToBookshelfHandler / RemoveFromBookshelfHandler ทั้งคู่ผ่าน
+  // middleware.RequireAuth คือดึง user_id จาก token เอง ไม่ต้องส่ง user_id มาเอง
+  const handleToggleBookmark = async (nextValue) => {
+    if (!effectiveUserId) {
+      navigate("/login-register");
+      return;
+    }
+    if (bookmarkProcessing) return;
+
+    setBookmarkProcessing(true);
+    const previousValue = isBookmarked;
+    setIsBookmarked(nextValue); // อัปเดตหน้าจอทันทีให้รู้สึกลื่น แล้วค่อย rollback ถ้า error
+
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      // 🎯 backend ดึง user_id จาก token ผ่าน middleware.RequireAuth เอง (ไม่อ่านจาก body/query)
+      // ฝั่งนี้เลยส่งแค่ novel_id พอ — DELETE อ่าน novel_id จาก query, POST อ่านจาก JSON body
+      const response = nextValue
+        ? await fetch(`${BASE_URL}/bookshelves`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ novel_id: parseInt(novelId) }),
+          })
+        : await fetch(`${BASE_URL}/bookshelves?novel_id=${novelId}`, {
+            method: "DELETE",
+            headers,
+          });
+
+      if (!response.ok) {
+        throw new Error(`bookshelf update failed (${response.status})`);
+      }
+
+      showToast(nextValue ? "เพิ่มเข้าชั้นหนังสือแล้ว" : "นำออกจากชั้นหนังสือแล้ว");
+    } catch (err) {
+      console.error("Failed to update bookshelf:", err);
+      setIsBookmarked(previousValue);
+      showToast("ไม่สามารถอัปเดตชั้นหนังสือได้ในขณะนี้");
+    } finally {
+      setBookmarkProcessing(false);
+    }
   };
 
   const handleRestartReading = async () => {
@@ -686,30 +740,25 @@ useEffect(() => {
               onThemeChange={handleThemeChange}
             />
 
-            <div className="rp__header-group" style={{ textAlign: "center", marginBottom: "25px" }}>
-              <div className="rp__novel-subtitle" style={{ fontSize: "1.1rem", color: "#666", marginBottom: "6px" }}>
+            <div className="rp__header-group">
+              <div className="rp__novel-subtitle">
                 เรื่อง : {novelTitleUsed}
               </div>
 
-              <h1 className="rp__title" style={{ fontSize: "2.2rem", fontWeight: "bold", margin: "10px 0", color: "#111" }}>
+              <h1 className="rp__title">
                 {sceneTitle || (type === "start" ? "จุดเริ่มต้นการเดินทาง" : "ดำเนินเรื่องย่อย")}
               </h1>
 
-              <div className="rp__scene-meta" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontSize: "1.05rem", color: "#555", marginTop: "15px", flexWrap: "wrap" }}>
-                <span style={{ color: "#4a5568", fontWeight: "600" }}>
+              <div className="rp__meta">
+                <span className="rp__meta-chapter">
                   📂 {currentOrder ? `ตอนที่ ${currentOrder} : ` : "ตอน : "}
                   {chapterTitleUsed || (type === "start" ? "บทนำ" : "บททั่วไป")}
                 </span>
-                <span style={{ color: "#ccc" }}>|</span>
-                <span style={{ 
-                  backgroundColor: tag.bg, 
-                  color: tag.color, 
-                  padding: "3px 12px", 
-                  borderRadius: "12px", 
-                  fontSize: "0.85rem", 
-                  fontWeight: "bold",
-                  letterSpacing: "0.5px"
-                }}>
+                <span className="rp__meta-sep">|</span>
+                <span
+                  className="rp__meta-tag"
+                  style={{ backgroundColor: tag.bg, color: tag.color }}
+                >
                   {tag.text}
                 </span>
               </div>
@@ -741,7 +790,6 @@ useEffect(() => {
                 to_scene_id: c.to_scene_id
               }))}
               onChoose={handleChoose}
-              selectedChoiceId={selectedChoiceId}
             />
           )}
 
@@ -823,6 +871,48 @@ useEffect(() => {
         onViewStoryTree={() => handleLocalNavigate("story-tree")}
         onRestartReading={handleRestartReading}
       />
+
+      {/* 🎯 Pop-up ชวนเพิ่มเข้าชั้นหนังสือ ลอยกลางจอ แสดงเฉพาะตอนอ่านถึงตอนล่าสุด (ยังไม่ใช่ฉากจบ) และยังไม่เคยเพิ่ม
+          หมายเหตุ: ต้องวางนอก .rp__article เพราะ .rp__article มี transform ติดอยู่ (ใช้ทำ animation เปลี่ยนฉาก)
+          ซึ่งจะทำให้ position:fixed ของลูกข้างในอ้างอิงกรอบของ .rp__article แทน viewport จริง ทำให้ popup เพี้ยนไม่กึ่งกลางจอ */}
+      {isUnfinishedDeadEnd && !isBookmarked && !bookmarkNudgeDismissed && (
+        <div
+          className="rp__modal-overlay"
+          onClick={() => setBookmarkNudgeDismissed(true)}
+        >
+          <div className="rp__bookmark-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="rp__modal-close"
+              onClick={() => setBookmarkNudgeDismissed(true)}
+              aria-label="ปิด"
+            >
+              ✕
+            </button>
+            <div className="rp__bookmark-modal-icon">📌</div>
+            <h3 className="rp__bookmark-modal-title">อ่านมาถึงตอนล่าสุดแล้ว!</h3>
+            <p className="rp__bookmark-modal-text">
+              เพิ่มเรื่องนี้เข้าชั้นหนังสือไว้ จะได้ไม่พลาดตอนใหม่ที่นักเขียนอัปเดต
+            </p>
+            <ActionButtons
+              showRead={false}
+              showLike={false}
+              isBookmarked={isBookmarked}
+              onBookmark={(nextValue) => {
+                handleToggleBookmark(nextValue);
+                setBookmarkNudgeDismissed(true);
+              }}
+            />
+            <button
+              type="button"
+              className="rp__bookmark-modal-skip"
+              onClick={() => setBookmarkNudgeDismissed(true)}
+            >
+              ไว้ทีหลัง
+            </button>
+          </div>
+        </div>
+      )}
 
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-[120] rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-xl shadow-slate-900/20">

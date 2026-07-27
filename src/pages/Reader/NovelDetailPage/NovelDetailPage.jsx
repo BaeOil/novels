@@ -6,10 +6,9 @@ import NovelCoverCard from "../../../components/NovelCoverCard/NovelCoverCard";
 import GenreTag from "../../../components/GenreTag/GenreTag";
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import FollowButton from "../../../components/FollowButton/FollowButton";
-import ProgressBar from "../../../components/ProgressBar/ProgressBar";
+import NovelProgressBar from "../../../components/NovelProgressBar/NovelProgressBar";
 import EndingCollection from "../../../components/EndingCollection/EndingCollection";
 import Comments from "../../../components/Comments/Comments";
-// 🌸 1. Import ปุ่มรายงานเข้ามาใช้งาน
 import ReaderReportButton from "../../../components/ReaderReportButton/ReaderReportButton";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -20,6 +19,7 @@ const initialNovelState = {
   categories: [],
   coverImage: null,
   coverEmoji: "📘",
+  status: "draft",
   author: {
     displayName: "ไม่ทราบผู้แต่ง",
     avatarUrl: null,
@@ -50,6 +50,28 @@ const formatMinioUrl = (url) => {
   return url.replace('http://minio:9000', 'http://localhost:9000');
 };
 
+const stripHtml = (html = "") => {
+  if (!html) return "";
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return (div.textContent || "").trim();
+};
+
+// ใช้ร่วมกันระหว่าง showNoContentDialog กับ showRestartConfirm แทนที่จะก็อปปี้
+// โครง overlay/กล่องเดิมซ้ำสองรอบด้วย inline style คนละชุด (คนละสีกับธีมหลักของเว็บ)
+const SimpleModal = ({ onClose, maxWidth = 400, children }) => (
+  <div
+    className="novel-detail__modal-overlay"
+    onClick={(e) => {
+      if (e.target === e.currentTarget && onClose) onClose();
+    }}
+  >
+    <div className="novel-detail__modal-box" style={{ maxWidth }}>
+      {children}
+    </div>
+  </div>
+);
+
 const NovelDetailPage = () => {
   const { id } = useParams();
   const location = useLocation();
@@ -68,6 +90,7 @@ const NovelDetailPage = () => {
   const [restartLoading, setRestartLoading] = useState(false);
   const [restartError, setRestartError] = useState(null);
   const [bookmarkProcessing, setBookmarkProcessing] = useState(false);
+  const [likeProcessing, setLikeProcessing] = useState(false);
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
 
   const getCurrentUserId = () => {
@@ -227,9 +250,22 @@ const NovelDetailPage = () => {
 
         const authorDisplayName = nData.pen_name || nData.penName || nData.author_pen_name || nData.author_penName || nData.author_name || nData.authorName || nData.name_lastname || nData.name || "ไม่ทราบผู้แต่ง";
 
+        // "synopsis" เป็นข้อความสั้นที่ render เป็น plain text ตรงๆ (ไม่ผ่าน dangerouslySetInnerHTML)
+        // ถ้าไม่มี captions จะ fallback ไปที่ introduction ซึ่งเป็น HTML (ดู synopsis_detail ด้านล่าง
+        // ที่ต้องใช้ dangerouslySetInnerHTML) — ถ้าไม่ strip ก่อน จะเห็น tag <p> โผล่มาเป็นตัวหนังสือจริงๆ
+        // และถ้าใช้ introduction เต็มๆ ก็จะซ้ำกับเนื้อหาที่โชว์เต็มอยู่แล้วในส่วน "แนะนำเรื่อง" ด้านล่าง
+        // จึงตัดให้สั้นลงเมื่อต้อง fallback
+        const shortSynopsis = nData.captions
+          ? stripHtml(nData.captions)
+          : (() => {
+            const plain = stripHtml(nData.introduction || "");
+            return plain.length > 150 ? `${plain.slice(0, 150)}…` : plain;
+          })();
+
         setNovel({
           id: nData.novel_id || nData.id || id,
           title: nData.title || "ไม่พบชื่อเรื่อง",
+          status: nData.status || "draft",
           categories: Array.isArray(nData.categories)
             ? Array.from(new Set(
               nData.categories
@@ -246,7 +282,7 @@ const NovelDetailPage = () => {
             user_id: nData.user_id || null,
             id: nData.author_writer_id || nData.author_writerId || nData.author_id || null,
           },
-          synopsis: nData.captions || nData.introduction || "ไม่มีเรื่องย่อ",
+          synopsis: shortSynopsis || "ไม่มีเรื่องย่อ",
 
           stats: {
             views: nData.views || 0,
@@ -289,7 +325,7 @@ const NovelDetailPage = () => {
     fetchNovel();
   }, [id]);
 
- const handleRead = async () => {
+  const handleRead = async () => {
     const hasNoContent = novel.userProgress?.totalChapters === 0;
 
     if (hasNoContent) {
@@ -313,7 +349,7 @@ const NovelDetailPage = () => {
 
       const previewQuery = isPreview ? "&preview=true" : "";
       const treeResponse = await fetch(`${API_BASE_URL}/novels/${id}/story-tree?user_id=${userId}${previewQuery}`, { headers });
-      
+
       const treePayload = await treeResponse.json().catch(() => null);
       const treeData = treePayload?.data || treePayload || {};
 
@@ -375,8 +411,6 @@ const NovelDetailPage = () => {
       setBookmarkProcessing(false);
     }
   };
-
-  const [likeProcessing, setLikeProcessing] = useState(false);
 
   const handleLike = async (isLiked) => {
     if (!id) return;
@@ -540,6 +574,37 @@ const NovelDetailPage = () => {
     );
   }
 
+  // 🟢 หากนิยายถูกระงับ (banned) ให้แสดงหน้าแจ้งเตือนและซ่อนเนื้อหา
+  if (novel.status === "banned") {
+    return (
+      <div className="novel-detail">
+        <div className="novel-detail__container" style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: "64px", marginBottom: "16px" }}>⚠️</div>
+          <h2 style={{ fontSize: "24px", color: "#e53e3e", marginBottom: "12px" }}>
+            นิยายเรื่องนี้ถูกระงับการเผยแพร่ชั่วคราว
+          </h2>
+          <p style={{ color: "#718096", marginBottom: "24px", fontSize: "16px" }}>
+            เนื้อหานี้อยู่ระหว่างการตรวจสอบโดยผู้ดูแลระบบ เนื่องจากได้รับการรายงานว่าอาจขัดต่อเงื่อนไขการใช้งาน
+          </p>
+          <button
+            onClick={() => navigate("/")}
+            style={{
+              padding: "10px 24px",
+              backgroundColor: "#E91E8C",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold"
+            }}
+          >
+            กลับหน้าหลัก
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="novel-detail">
       {isPreview && (
@@ -667,14 +732,13 @@ const NovelDetailPage = () => {
             </div>
 
             <div className="novel-detail__progress">
-              <ProgressBar
-                percentage={novel.userProgress.percentage}
-                currentChapter={novel.userProgress.currentChapter}
-                totalChapters={novel.userProgress.totalChapters}
-                discoveredChoices={novel.userProgress.discoveredChoices}
-                totalChoices={novel.userProgress.totalChoices}
+              <NovelProgressBar
+                novelId={novel.id}
+                autoFetch={true}
+                isPreview={isPreview}
                 onStoryMapClick={handleStoryMap}
                 onEndingCollectionClick={handleEndingCollection}
+                onContinueRead={handleRead}
               />
             </div>
           </main>
@@ -734,108 +798,53 @@ const NovelDetailPage = () => {
         />
 
         {showNoContentDialog && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-            background: "rgba(0, 0, 0, 0.45)", display: "flex", alignItems: "center",
-            justifyContent: "center", zIndex: 9999, backdropFilter: "blur(5px)",
-            transition: "all 0.3s ease"
-          }}>
-            <div style={{
-              background: "#ffffff", padding: "36px 32px", borderRadius: "20px",
-              maxWidth: "400px", width: "90%", textAlign: "center",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-            }}>
-              <div style={{ fontSize: "54px", marginBottom: "16px", animation: "bounce 2s infinite" }}>✍️✨</div>
-              <h3 style={{ fontSize: "19px", fontWeight: "700", color: "#1a202c", marginBottom: "12px", fontFamily: "inherit" }}>
-                นักเขียนกำลังรังสรรค์เนื้อหา
-              </h3>
-              <p style={{ fontSize: "14px", color: "#4a5568", lineHeight: "1.6", marginBottom: "26px" }}>
-                นิยายเรื่องนี้ยังไม่มีเนื้อหาให้อ่าน <br />
-                รอนักเขียนปล่อยฉากใหม่เร็วๆ นี้นะ
-              </p>
-              <button
-                onClick={() => setShowNoContentDialog(false)}
-                style={{
-                  width: "100%", padding: "13px", borderRadius: "12px",
-                  background: "#E91E8C", color: "#ffffff",
-                  border: "none", fontWeight: "600", cursor: "pointer",
-                  fontSize: "15px", boxShadow: "0 4px 6px -1px rgba(233, 30, 99, 0.3)"
-                }}
-              >
-                รับทราบ ยินดีรอคอย
-              </button>
-            </div>
-          </div>
+          <SimpleModal onClose={() => setShowNoContentDialog(false)} maxWidth={400}>
+            <div className="novel-detail__modal-emoji">✍️✨</div>
+            <h3 className="novel-detail__modal-title">นักเขียนกำลังรังสรรค์เนื้อหา</h3>
+            <p className="novel-detail__modal-text">
+              นิยายเรื่องนี้ยังไม่มีเนื้อหาให้อ่าน <br />
+              รอนักเขียนปล่อยฉากใหม่เร็วๆ นี้นะ
+            </p>
+            <button
+              className="novel-detail__modal-primary-btn"
+              onClick={() => setShowNoContentDialog(false)}
+            >
+              รับทราบ ยินดีรอคอย
+            </button>
+          </SimpleModal>
         )}
 
         {showRestartConfirm && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            background: "rgba(0, 0, 0, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}>
-            <div style={{
-              background: "#ffffff",
-              padding: "32px",
-              borderRadius: "18px",
-              maxWidth: "420px",
-              width: "90%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-              textAlign: "center"
-            }}>
-              <h3 style={{ marginBottom: "12px", fontSize: "1.25rem" }}>เริ่มอ่านใหม่</h3>
-              <p style={{ marginBottom: "20px", color: "#4a5568", lineHeight: 1.6 }}>
-                การเริ่มอ่านใหม่นี้จะคืนสถานะความคืบหน้าและผังเรื่องกลับไปยังจุดเริ่มต้น แต่จะยังเก็บตอนจบที่คุณค้นพบไว้
-              </p>
-              {restartError && (
-                <div style={{ marginBottom: "14px", color: "#b91c1c" }}>{restartError}</div>
-              )}
-              <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={handleRestartConfirmClose}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: "12px",
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#334155",
-                    cursor: "pointer"
-                  }}
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRestart}
-                  disabled={restartLoading}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: "12px",
-                    border: "none",
-                    background: "#E91E8C",
-                    color: "#ffffff",
-                    fontWeight: 700,
-                    cursor: restartLoading ? "not-allowed" : "pointer"
-                  }}
-                >
-                  {restartLoading ? "กำลังเริ่มใหม่..." : "ยืนยันเริ่มอ่านใหม่"}
-                </button>
-              </div>
+          <SimpleModal onClose={handleRestartConfirmClose} maxWidth={420}>
+            <h3 className="novel-detail__modal-title novel-detail__modal-title--left">เริ่มอ่านใหม่</h3>
+            <p className="novel-detail__modal-text novel-detail__modal-text--left">
+              การเริ่มอ่านใหม่นี้จะคืนสถานะความคืบหน้าและผังเรื่องกลับไปยังจุดเริ่มต้น แต่จะยังเก็บตอนจบที่คุณค้นพบไว้
+            </p>
+            {restartError && (
+              <div className="novel-detail__modal-error">{restartError}</div>
+            )}
+            <div className="novel-detail__modal-actions">
+              <button
+                type="button"
+                className="novel-detail__modal-secondary-btn"
+                onClick={handleRestartConfirmClose}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="novel-detail__modal-primary-btn"
+                onClick={handleRestart}
+                disabled={restartLoading}
+              >
+                {restartLoading ? "กำลังเริ่มใหม่..." : "ยืนยันเริ่มอ่านใหม่"}
+              </button>
             </div>
-          </div>
+          </SimpleModal>
         )}
 
       </div>
 
-      {/* 🌸 2. ปุ่มรายงานลอยข้างจอ (แสดงเฉพาะเมื่อไม่ใช่อยู่ในโหมด Preview) */}
       {!isPreview && (
         <ReaderReportButton
           novelId={novel.id}

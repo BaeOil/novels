@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Users, BookOpen, Bell, ChevronDown, ChevronRight, BookImage } from "lucide-react";
 import FollowButton from "../FollowButton/FollowButton";
 import "./WriterCard.css";
 
 const STATUS_CFG = {
   ongoing:  { label: "กำลังเขียน", color: "#059669", bg: "#ECFDF5" },
   finished: { label: "จบแล้ว",    color: "#6B7280", bg: "#F3F4F6" },
+  banned:   { label: "ถูกระงับ",   color: "#DC2626", bg: "#FEE2E2" },
 };
 
 function Avatar({ writer, size = 52 }) {
@@ -61,13 +63,13 @@ export default function WriterCard({ writer, onUnfollow, isFollowing = false }) 
 
             <div className="countRow">
               <div className="countItem">
-                <span>👥</span>
+                <Users size={13} />
                 <span>
                   <strong>{writer.followers.toLocaleString()}</strong> ผู้ติดตาม
                 </span>
               </div>
               <div className="countItem">
-                <span>📚</span>
+                <BookOpen size={13} />
                 <span>
                   <strong>{writer.novelCount?.toLocaleString?.() ?? writer.novels.length}</strong> เรื่อง
                 </span>
@@ -80,7 +82,7 @@ export default function WriterCard({ writer, onUnfollow, isFollowing = false }) 
         {writer.latestUpdate && (
           <div className="updatePill">
             <div className="updateMain">
-              <div className="updateTag">🔔 อัปเดตล่าสุด</div>
+              <div className="updateTag"><Bell size={11} /> อัปเดตล่าสุด</div>
               <div className="updateTitle">{writer.latestUpdate.title}</div>
               <div className="updateDetailBlock">
                 <div>{writer.latestUpdate.detail}</div>
@@ -97,10 +99,10 @@ export default function WriterCard({ writer, onUnfollow, isFollowing = false }) 
             className="accordionToggle"
           >
             <span className="accordionLabel">
-              📖 นิยายทั้งหมด ({writer.novelCount?.toLocaleString?.() ?? writer.novels.length} เรื่อง)
+              <BookOpen size={13} /> นิยายทั้งหมด ({writer.novelCount?.toLocaleString?.() ?? writer.novels.length} เรื่อง)
             </span>
             <span className={`accordionArrow ${expanded ? "accordionArrowExpanded" : ""}`}>
-              ▼
+              <ChevronDown size={14} />
             </span>
           </button>
 
@@ -130,7 +132,7 @@ export default function WriterCard({ writer, onUnfollow, isFollowing = false }) 
                       />
                     ) : (
                       <div className="novelCover novelCoverPlaceholder">
-                        📘
+                        <BookImage size={16} />
                       </div>
                     )}
                     <div className="novelInfo">
@@ -143,7 +145,7 @@ export default function WriterCard({ writer, onUnfollow, isFollowing = false }) 
                       >
                         {s.label}
                       </span>
-                      <span className="chevronRight">›</span>
+                      <ChevronRight size={14} className="chevronRight" />
                     </div>
                   </div>
                 );

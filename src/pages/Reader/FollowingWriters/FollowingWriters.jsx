@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Search, X, ArrowUpDown, ArrowLeft, AlertTriangle, Feather } from "lucide-react";
 import WriterCard from "../../../components/WriterCard/WriterCard"; // เรียกใช้ Component ย่อยที่แยกออกมา
 import "./FollowingWriters.css";
 
@@ -42,6 +44,7 @@ function mapWriter(writer) {
 }
 
 export default function FollowingWriters() {
+  const navigate = useNavigate();
   const [writers, setWriters] = useState([]);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
@@ -147,10 +150,13 @@ export default function FollowingWriters() {
     }
   };
 
-  let visible = writers.filter(w =>
-    w.name.toLowerCase().includes(search.toLowerCase()) ||
-    w.novels.some(n => n.title.includes(search))
-  );
+  let visible = writers.filter(w => {
+    const q = search.toLowerCase();
+    return (
+      w.name.toLowerCase().includes(q) ||
+      w.novels.some(n => n.title.toLowerCase().includes(q))
+    );
+  });
   if (sort === "followers") visible = [...visible].sort((a,b) => b.followers - a.followers);
   if (sort === "name")      visible = [...visible].sort((a,b) => a.name.localeCompare(b.name));
 
@@ -159,7 +165,9 @@ export default function FollowingWriters() {
       {/* Header (ลบจำนวนตอนจบรวมออกไปแล้ว เหลือแค่จำนวนคนตามบรีฟ) */}
       <div className="header">
         <div className="headerContent">
-          <button className="backBtn">←</button>
+          <button className="backBtn" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
+            <ArrowLeft size={18} />
+          </button>
           <div>
             <div className="headerTitle">นักเขียนที่ติดตาม</div>
             <div className="headerSubtitle">{loading ? "กำลังโหลด..." : `${writers.length} คน`}</div>
@@ -171,7 +179,7 @@ export default function FollowingWriters() {
         {/* search + sort */}
         <div className="filterRow">
           <div className="searchBar">
-            <span className="searchIcon">🔍</span>
+            <span className="searchIcon"><Search size={16} /></span>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -179,13 +187,15 @@ export default function FollowingWriters() {
               className="searchInput"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="clearBtn">✕</button>
+              <button onClick={() => setSearch("")} className="clearBtn" aria-label="ล้างคำค้นหา">
+                <X size={14} />
+              </button>
             )}
           </div>
 
           <div className="sortWrapper">
             <button onClick={() => setShowSort(p => !p)} className="sortTrigger">
-              ↕ <span className="sortLabel">{SORT_OPTIONS[sort]}</span>
+              <ArrowUpDown size={14} /> <span className="sortLabel">{SORT_OPTIONS[sort]}</span>
             </button>
             
             {showSort && (
@@ -209,7 +219,7 @@ export default function FollowingWriters() {
 
         {error && (
           <div className="emptyState">
-            <div className="emptyIcon">⚠️</div>
+            <div className="emptyIcon"><AlertTriangle size={40} /></div>
             <div className="emptyTitle">ไม่สามารถโหลดข้อมูลได้</div>
             <div className="emptyText">{error}</div>
           </div>
@@ -217,7 +227,9 @@ export default function FollowingWriters() {
 
         {!error && visible.length === 0 ? (
           <div className="emptyState">
-            <div className="emptyIcon">{search ? "🔍" : "✍️"}</div>
+            <div className="emptyIcon">
+              {search ? <Search size={40} /> : <Feather size={40} />}
+            </div>
             <div className="emptyTitle">
               {search ? "ไม่พบนักเขียนที่ค้นหา" : "ยังไม่ได้ติดตามนักเขียนคนไหน"}
             </div>

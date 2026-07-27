@@ -10,43 +10,13 @@ import "quill/dist/quill.snow.css";
 import "./SceneEditorPage.css";
 import Toggle from "../../../components/Toggle/Toggle";
 import EndingSettings from "../../../components/EndingSettings/EndingSettings";
-import Quill from "quill";
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 // ─────────────────────────────────────────────
-// React Quill config
-// ─────────────────────────────────────────────
-const QUILL_TOOLBAR_OPTIONS = [
-  [{ header: [1, 2, 3, false] }],
-  [{ size: ["small", false, "large", "huge"] }],
-  ["bold", "italic", "underline", "strike"],
-  [{ color: [] }, { background: [] }],
-  [{ list: "ordered" }, { list: "bullet" }],
-  [{ align: [] }],
-  ["link", "image"],
-  ["clean"],
-];
-const quillFormats = [
-  'header',
-  'font',
-  'size',
-  'bold',
-  'italic',
-  'underline',
-  'strike',
-  'blockquote',
-  'list',
-  'bullet',
-  'indent',
-  'link',
-  'image',
-  'video',
-  'align',
-  'color',
-  'background'
-];
+// หมายเหตุ: การตั้งค่า toolbar/formats ของ Quill จริงอยู่ที่ `quillModules`
+// (useMemo ด้านล่าง) — ของเดิมที่เคยประกาศซ้ำไว้ตรงนี้ไม่เคยถูกใช้งาน จึงลบออก
 // ─────────────────────────────────────────────
 // Choice Card Component (อัปเดตลอจิกแบบเดียวกับหน้า Chapter Manager)
 // ─────────────────────────────────────────────
@@ -60,8 +30,21 @@ const ChoiceCard = ({
   onSave,
   onDelete,
 }) => {
-  const allScenes = (Array.isArray(allTargetOptions) ? allTargetOptions : []).flatMap((ch) => {
-    const scenes = Array.isArray(ch.scenes) ? ch.scenes : [];
+  // 🔢 เรียงตอนตามลำดับ episode/order_index และเรียงฉากตามลำดับในตอน
+  // ก่อนจะแบนราบเป็น allScenes เดียว เพื่อให้ index ที่ใช้ตัดสิน Forward-Only
+  // สะท้อนลำดับการอ่านจริง ไม่ใช่ลำดับที่ API เผอิญคืนมา
+  const sortedChaptersForFlow = [...(Array.isArray(allTargetOptions) ? allTargetOptions : [])].sort((a, b) => {
+    const aOrder = a.episode ?? a.order_index ?? a.chapterNumber ?? 0;
+    const bOrder = b.episode ?? b.order_index ?? b.chapterNumber ?? 0;
+    return aOrder - bOrder;
+  });
+
+  const allScenes = sortedChaptersForFlow.flatMap((ch) => {
+    const scenes = [...(Array.isArray(ch.scenes) ? ch.scenes : [])].sort((a, b) => {
+      const aOrder = a.order_index ?? a.orderIndex ?? a.sceneNumber ?? 0;
+      const bOrder = b.order_index ?? b.orderIndex ?? b.sceneNumber ?? 0;
+      return aOrder - bOrder;
+    });
     const chapterTitle = ch.title || ch.chapterTitle || "";
     const chapterId = ch.id || ch.chapter_id || ch.ChapterID || ch.chapter_id || "";
     return scenes.map((s) => ({
@@ -131,10 +114,13 @@ const ChoiceCard = ({
   const fromSceneIndex = allScenes.findIndex(s => String(s.sceneId) === String(currentSceneId));
 
   const sameChapterScenes = allScenes.filter((scene) => String(scene.chapterId) === String(currentChapterId));
+  // 🛡️ กรอง "ตอนอื่น" ใน dropdown ด้วยกฎ Forward-Only เช่นกัน: ตอนที่ไม่มีฉากใดอยู่ข้างหน้า
+  // ฉากปัจจุบันเลยจะไม่ถูกนำมาแสดงเป็นตัวเลือกตั้งแต่แรก (เดิมกรองแค่ตอนเลือก "ฉาก" ปลายทาง
+  // แต่ตัว "ตอน" เองไม่ได้กรอง ทำให้ตอนก่อนหน้าที่เชื่อมย้อนกลับไม่ได้ยังโผล่ในลิสต์)
   const otherChapterOptions = Array.from(
     new Map(
       allScenes
-        .filter((scene) => String(scene.chapterId) !== String(currentChapterId))
+        .filter((scene, idx) => String(scene.chapterId) !== String(currentChapterId) && idx > fromSceneIndex)
         .map((scene) => [String(scene.chapterId), { chapterId: scene.chapterId, chapterTitle: scene.chapterTitle }])
     )
   ).map(([, value]) => value);
@@ -197,16 +183,19 @@ const ChoiceCard = ({
     if (found) setTargetLabel(found.label || found.chapterTitle);
   };
 
+  const [formError, setFormError] = useState("");
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
   const handleSaveEdit = () => {
     // 🛑 ตรวจสอบการกรอกข้อความ
     if (!text || text.trim() === "") {
-      alert("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
+      setFormError("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
       return;
     }
 
     // 🛑 ตรวจสอบการเลือกปลายทาง
     if (!subScene || subScene === "") {
-      alert("กรุณาเลือกฉากปลายทางที่ต้องการเชื่อมโยง");
+      setFormError("กรุณาเลือกฉากปลายทางที่ต้องการเชื่อมโยง");
       return;
     }
 
@@ -215,19 +204,21 @@ const ChoiceCard = ({
     const targetSceneIndex = allScenes.findIndex(s => String(s.sceneId) === String(targetSceneId));
 
     if (fromSceneIndex === -1 || targetSceneIndex === -1) {
-      alert("❌ ไม่พบข้อมูลตำแหน่งของฉากในระบบ กรุณาตรวจสอบอีกครั้ง");
+      setFormError("❌ ไม่พบข้อมูลตำแหน่งของฉากในระบบ กรุณาตรวจสอบอีกครั้ง");
       return;
     }
 
     // 🛑 [✨ ตรรกะกฎเหล็ก Forward-Only]
     if (targetSceneIndex <= fromSceneIndex) {
       if (targetSceneIndex === fromSceneIndex) {
-        alert("❌ ไม่สามารถบันทึกได้: ระบบไม่อนุญาตให้สร้างช้อยส์โยงเข้าหาฉากตัวเองเด็ดขาด");
+        setFormError("❌ ไม่สามารถบันทึกได้: ระบบไม่อนุญาตให้สร้างช้อยส์โยงเข้าหาฉากตัวเองเด็ดขาด");
       } else {
-        alert("❌ ไม่สามารถบันทึกได้: ระบบทำงานด้วยกฎเดินหน้าอย่างเดียว (Forward-Only) ห้ามสร้างช้อยส์โยงย้อนกลับไปยังฉากก่อนหน้า");
+        setFormError("❌ ไม่สามารถบันทึกได้: ระบบทำงานด้วยกฎเดินหน้าอย่างเดียว (Forward-Only) ห้ามสร้างช้อยส์โยงย้อนกลับไปยังฉากก่อนหน้า");
       }
       return;
     }
+
+    setFormError("");
 
     const updatedChoice = {
       ...choice,
@@ -241,7 +232,7 @@ const ChoiceCard = ({
     setIsEditing(false);
   };
 
-  const handleCancelEdit = () => {
+  const performDiscardEdit = () => {
     if (choice.id && String(choice.id).startsWith("choice-new-")) {
       onDelete(choice.id);
     } else {
@@ -255,18 +246,37 @@ const ChoiceCard = ({
         (resolvedScene ? `${resolvedScene.chapterTitle} › ${resolvedScene.sceneLabel}` : "เลือกฉากปลายทาง...")
       );
       setSelectedChapterId(initialChapterId);
+      setFormError("");
       setIsEditing(false);
+    }
+    setShowDiscardConfirm(false);
+  };
+
+  const handleCancelEdit = () => {
+    const originalText = (choice.text ?? choice.label ?? choice.Label ?? "").trim();
+    const hasUnsavedChanges =
+      text.trim() !== originalText ||
+      targetType !== initialScope ||
+      String(subScene) !== String(initialTargetSubScene);
+
+    // ⚠️ ถ้ามีข้อความ/การตั้งค่าที่พิมพ์ไว้แล้วยังไม่ได้กดยืนยัน ให้ถามก่อนทิ้งข้อมูล
+    if (hasUnsavedChanges && text.trim() !== "") {
+      setShowDiscardConfirm(true);
+    } else {
+      performDiscardEdit();
     }
   };
 
   const COLORS = ["#db2777", "#f59e0b", "#14b8a6", "#8b5cf6", "#ec4899"];
+  const accentColor = COLORS[index % COLORS.length];
 
   return (
-    <div className="se-choice">
+    <>
+    <div className="se-choice" style={{ "--choice-accent": accentColor }}>
       <div
         className="se-choice__num"
         style={{
-          background: COLORS[index % COLORS.length],
+          background: accentColor,
           color: "#ffffff",
         }}
       >
@@ -276,33 +286,30 @@ const ChoiceCard = ({
       <div className="se-choice__body">
         {!isEditing ? (
           <div className="se-choice__view">
+            <p className="se-choice__view-text">
+              {text || <span className="se-choice__view-value--empty">ยังไม่ได้ระบุข้อความ...</span>}
+            </p>
             <div className="se-choice__view-row">
-              <span className="se-choice__view-label">ข้อความ :</span>
-              <span className="se-choice__view-value">
-                {text || <span className="se-choice__view-value--empty">ยังไม่ได้ระบุข้อความ...</span>}
-              </span>
-            </div>
-            <div className="se-choice__view-row">
-              <span className="se-choice__view-label">ปลายทาง :</span>
-              <span className="se-choice__view-value">
-                {subScene ? targetLabel : <span className="se-choice__view-value--empty">ยังไม่ได้เลือกฉากปลายทาง...</span>}
-              </span>
+              <span className="se-choice__view-label">ไปยัง</span>
+              {subScene ? (
+                <span className="se-choice__dest-pill">→ {targetLabel}</span>
+              ) : (
+                <span className="se-choice__view-value--empty">ยังไม่ได้เลือกฉากปลายทาง...</span>
+              )}
             </div>
             <div className="se-choice__actions">
               <button
                 type="button"
                 className="se-choice__btn-action se-choice__btn-action--del"
-                onClick={() => {
-                  // แจ้งเตือนคอนเฟิร์มก่อนลบ แบบเดียวกับ ConfirmModal
-                  if (window.confirm(`คุณต้องการลบตัวเลือก "${text || 'ไม่มีข้อความ'}" ใช่หรือไม่?`)) {
-                    onDelete(choice.id);
-                  }
-                }}
+                onClick={() => onDelete(choice.id)}
+                // ยืนยันการลบผ่าน custom modal ("ยืนยันการลบตัวเลือก?") ที่ระดับหน้าหลักอยู่แล้ว
+                // (deleteChoice จะเปิด modal เองถ้าเป็นตัวเลือกที่บันทึกแล้ว)
               >
                 ลบตัวเลือก
               </button>
               <button type="button" className="se-choice__btn-action se-choice__btn-action--edit" onClick={() => setIsEditing(true)}>✏️ แก้ไข</button>
             </div>
+
           </div>
         ) : (
           <div className="se-choice__config">
@@ -382,9 +389,17 @@ const ChoiceCard = ({
               </div>
             </div>
 
+            {formError && <div className="se-choice__error">{formError}</div>}
+
             <div className="se-choice__actions">
               <button type="button" className="se-choice__btn-action se-choice__btn-action--cancel" onClick={handleCancelEdit}>❌ ยกเลิก</button>
-              <button type="button" className="se-choice__btn-action se-choice__btn-action--save" onClick={handleSaveEdit}>
+              <button
+                type="button"
+                className="se-choice__btn-action se-choice__btn-action--save"
+                onClick={handleSaveEdit}
+                disabled={forwardOnlySceneOptions.length === 0}
+                title={forwardOnlySceneOptions.length === 0 ? "ไม่มีฉากถัดไปให้เลือกโยง จึงยังยืนยันไม่ได้" : undefined}
+              >
                 ✓ ยืนยันการแก้ไข
               </button>
             </div>
@@ -392,6 +407,20 @@ const ChoiceCard = ({
         )}
       </div>
     </div>
+
+    {showDiscardConfirm && (
+      <ConfirmModal
+        icon="⚠️"
+        title="ยกเลิกการแก้ไขตัวเลือกนี้?"
+        description="ข้อความและการตั้งค่าที่พิมพ์ไว้จะหายไปทันที เนื่องจากยังไม่ได้กดยืนยันการแก้ไข"
+        cancelText="กลับไปแก้ไขต่อ"
+        confirmText="ทิ้งข้อมูลและยกเลิก"
+        variant="danger"
+        onCancel={() => setShowDiscardConfirm(false)}
+        onConfirm={performDiscardEdit}
+      />
+    )}
+    </>
   );
 };
 
@@ -724,6 +753,46 @@ const SceneTreeSidebar = ({
 };
 
 // ─────────────────────────────────────────────
+// Confirm Modal (ใช้ร่วมกันสำหรับ dialog แจ้งเตือน/ยืนยันแบบกึ่งกลางจอ
+// เช่น ยืนยันการลบตัวเลือก, เตือนยังไม่ได้บันทึก, ยืนยันการเผยแพร่)
+// ─────────────────────────────────────────────
+const ConfirmModal = ({
+  icon = "⚠️",
+  title,
+  description,
+  cancelText = "ยกเลิก",
+  confirmText,
+  onCancel,
+  onConfirm,
+  variant = "default", // "default" | "danger" | "publish"
+}) => {
+  const iconVariantClass =
+    variant === "danger" ? " se-modal-icon--danger" : variant === "publish" ? " se-modal-icon--publish" : "";
+  const confirmVariantClass =
+    variant === "danger" ? " se-modal-btn--danger" : variant === "publish" ? " se-modal-btn--publish" : " se-modal-btn--save";
+
+  return (
+    <div className="se-modal-overlay">
+      <div className="se-modal-content">
+        <div className={`se-modal-icon${iconVariantClass}`}>{icon}</div>
+        {title && <h3 className="se-modal-title">{title}</h3>}
+        {description && <p className="se-modal-desc">{description}</p>}
+        <div className="se-modal-actions">
+          <button type="button" className="se-modal-btn se-modal-btn--cancel" onClick={onCancel}>
+            {cancelText}
+          </button>
+          {confirmText && (
+            <button type="button" className={`se-modal-btn${confirmVariantClass}`} onClick={onConfirm}>
+              {confirmText}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────
 const SceneEditorPage = ({
@@ -816,6 +885,7 @@ const SceneEditorPage = ({
   // States สำหรับ dialog เพิ่มตอน/ฉากใหม่
   const [showAddChapterDialog, setShowAddChapterDialog] = useState(false);
   const [showAddSceneDialog, setShowAddSceneDialog] = useState(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState("");
   const [newSceneTitle, setNewSceneTitle] = useState("");
   const [selectedChapterForNewScene, setSelectedChapterForNewScene] = useState(null);
@@ -1218,7 +1288,7 @@ const SceneEditorPage = ({
     return () => window.removeEventListener("beforeunload", handler);
   }, [saveDraftToStorage]);
 
-  const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null, overrideIsEnding = null) => {
+  const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null, overrideIsEnding = null, showToast = false) => {
     setIsSaving(true);
     setErrorMsg(null);
     try {
@@ -1310,6 +1380,9 @@ const SceneEditorPage = ({
 
         if (savedSceneId) {
           setIsSaving(false);
+          if (showToast) {
+            try { sessionStorage.setItem("toastMessage", "บันทึกฉากเรียบร้อยแล้ว"); } catch (e) { /* ignore */ }
+          }
           // Replace the current history entry so that pressing Back
           // doesn't return to the temporary `scene=new` route.
           const chapterQuery = targetChapterId ? `?chapterId=${encodeURIComponent(targetChapterId)}` : "";
@@ -1327,6 +1400,11 @@ const SceneEditorPage = ({
 
       await fetchSceneData();
       window.dispatchEvent(new Event("novel-data-updated"));
+
+      if (showToast) {
+        setToastMessage("บันทึกฉากเรียบร้อยแล้ว");
+        setTimeout(() => setToastMessage(null), 2500);
+      }
     } catch (err) {
       console.error("Save scene error:", err);
       setErrorMsg(err.message || "ไม่สามารถบันทึกข้อมูลฉากได้");
@@ -1348,11 +1426,8 @@ const SceneEditorPage = ({
       await handleSave(true, false);
 
       // 2. เผยแพร่ตัวตอนเพื่อให้คนอ่านมองเห็นด้วย
-      const authToken = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${authToken}`
-      };
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const chRes = await fetch(`${API_BASE_URL}/chapters/${targetChapterId}`, { headers });
       if (chRes.ok) {
@@ -1377,7 +1452,8 @@ const SceneEditorPage = ({
         }
       }
 
-      alert("เผยแพร่ตอนและฉากย่อยเรียบร้อยแล้วค่ะ!");
+      setToastMessage("เผยแพร่ตอนและฉากย่อยเรียบร้อยแล้ว");
+      setTimeout(() => setToastMessage(null), 2500);
       await fetchSceneData();
     } catch (err) {
       console.error("Publish error:", err);
@@ -1496,7 +1572,7 @@ const SceneEditorPage = ({
     }
 
     if (!token) {
-      alert("กรุณาเข้าสู่ระบบก่อนเพิ่มฉาก");
+      setErrorMsg("กรุณาเข้าสู่ระบบก่อนเพิ่มฉาก");
       return;
     }
 
@@ -1569,11 +1645,8 @@ const SceneEditorPage = ({
   if (!newChapterTitle.trim()) return;
 
   try {
-    const token = localStorage.getItem("token");
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     // 💡 คำนวณลำดับตอนถัดไปอัตโนมัติ
     const nextEpisode = (Array.isArray(chapters) ? chapters.length : 0) + 1;
@@ -1648,7 +1721,7 @@ const SceneEditorPage = ({
 
   } catch (err) {
     console.error("เกิดข้อผิดพลาดในการสร้างตอน:", err);
-    alert(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+    setErrorMsg(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
   }
 };
   const savedText = lastSaved
@@ -1809,32 +1882,6 @@ const SceneEditorPage = ({
       }
     }
   }, [sceneId, isLoading]);
-  useEffect(() => {
-    // เช็กว่าโหลดเสร็จแล้วค่อยทำงาน (กันบัค DOM ยังไม่สร้าง)
-    if (!isLoading) {
-      try {
-        if (sessionStorage.getItem("focusSceneTitle") === "true") {
-          setTimeout(() => {
-            const el = document.getElementById("scene-title");
-            if (el) {
-              el.focus();
-              if (typeof el.select === "function") el.select();
-            }
-          }, 100);
-          sessionStorage.removeItem("focusSceneTitle");
-        }
-
-        const pendingToast = sessionStorage.getItem("toastMessage");
-        if (pendingToast) {
-          setToastMessage(pendingToast);
-          setTimeout(() => setToastMessage(null), 2000);
-          sessionStorage.removeItem("toastMessage");
-        }
-      } catch (err) {
-        // ignore
-      }
-    }
-  }, [sceneId, isLoading]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -1856,20 +1903,7 @@ const SceneEditorPage = ({
         {/* Header */}
         <header className="se-header">
           {toastMessage && (
-            <div style={{
-              position: 'fixed',
-              top: '24px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: '#16a34a',
-              color: '#fff',
-              padding: '12px 24px',
-              borderRadius: '10px',
-              zIndex: 9999,
-              boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-              fontWeight: '600',
-              fontSize: '15px'
-            }}>
+            <div className="se-toast">
               ✓ {toastMessage}
             </div>
           )}
@@ -1939,20 +1973,7 @@ const SceneEditorPage = ({
       {/* Header */}
       <header className="se-header">
         {toastMessage && (
-          <div style={{
-            position: 'fixed',
-            top: '24px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#16a34a',
-            color: '#fff',
-            padding: '12px 24px',
-            borderRadius: '10px',
-            zIndex: 9999,
-            boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-            fontWeight: '600',
-            fontSize: '15px'
-          }}>
+          <div className="se-toast">
             ✓ {toastMessage}
           </div>
         )}
@@ -1994,17 +2015,37 @@ const SceneEditorPage = ({
           {isSaving && <span className="se-header__saving">กำลังบันทึก...</span>}
           {!isSaving && savedText && <span className="se-header__saved">✓ {savedText}</span>}
 
-          <button className="se-header__btn se-header__btn--save" onClick={() => handleSave(null, false)}>
+          <button
+            className="se-header__btn se-header__btn--save"
+            onClick={() => handleSave(null, false, null, null, true)}
+            disabled={isSaving}
+          >
             บันทึก
           </button>
 
-          <button className="se-header__btn se-header__btn--publish" onClick={handlePublish}>
+          <button
+            className="se-header__btn se-header__btn--publish"
+            onClick={() => setShowPublishConfirm(true)}
+            disabled={isSaving}
+          >
             เผยแพร่เลย
           </button>
         </div>
       </header>
 
-      {errorMsg && <div className="se-error-banner" style={{ background: "#FEE2E2", color: "#DC2626", padding: "12px", textAlign: "center" }}>{errorMsg}</div>}
+      {errorMsg && (
+        <div className="se-error-banner">
+          <span>{errorMsg}</span>
+          <button
+            type="button"
+            className="se-error-banner__close"
+            onClick={() => setErrorMsg(null)}
+            aria-label="ปิดข้อความแจ้งเตือน"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="se-body">
         {/* Sidebar */}
@@ -2101,7 +2142,7 @@ const SceneEditorPage = ({
                   choice={choice}
                   index={i}
                   allTargetOptions={chapters}
-                  currentChapterId={chapterId}
+                  currentChapterId={effectiveChapterId}
                   currentSceneId={sceneId}
                   onUpdate={updateChoice}
                   onSave={saveChoiceImmediately}
@@ -2121,34 +2162,29 @@ const SceneEditorPage = ({
 
       {/* Dialog เพิ่มตอนใหม่ */}
       {showAddChapterDialog && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
-        }}>
-          <div style={{
-            background: "white", padding: "24px", borderRadius: "12px", maxWidth: "400px", width: "90%"
-          }}>
-            <h3 style={{ marginBottom: "16px", fontSize: "16px", fontWeight: 600 }}>เพิ่มตอนใหม่</h3>
+        <div className="se-modal-overlay">
+          <div className="se-modal-content se-modal-content--form">
+            <h3 className="se-modal-form-title">เพิ่มตอนใหม่</h3>
             <input
               type="text"
+              className="se-input se-modal-form-input"
               placeholder="ชื่อตอน..."
               value={newChapterTitle}
               onChange={(e) => setNewChapterTitle(e.target.value)}
-              style={{
-                width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ddd", marginBottom: "16px"
-              }}
               onKeyPress={(e) => e.key === "Enter" && handleConfirmAddChapter()}
             />
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <div className="se-modal-form-actions">
               <button
+                type="button"
+                className="se-modal-btn se-modal-btn--cancel se-modal-btn--sm"
                 onClick={() => setShowAddChapterDialog(false)}
-                style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #ddd", background: "white" }}
               >
                 ยกเลิก
               </button>
               <button
+                type="button"
+                className="se-modal-btn se-modal-btn--save se-modal-btn--sm"
                 onClick={handleConfirmAddChapter}
-                style={{ padding: "8px 16px", borderRadius: "6px", background: "var(--pink-500)", color: "white", border: "none" }}
               >
                 สร้าง
               </button>
@@ -2159,35 +2195,17 @@ const SceneEditorPage = ({
 
       {/* Dialog ตั้งค่าฉากจบ */}
       {showEndingSettingsDialog && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0,0,0,0.45)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1100,
-          padding: "20px",
-        }}>
-          <div style={{
-            width: "100%",
-            maxWidth: "640px",
-            borderRadius: "24px",
-            overflow: "hidden",
-            boxShadow: "0 18px 60px rgba(15, 23, 42, 0.18)",
-            background: "#fff",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid #e5e7eb" }}>
+        <div className="se-modal-overlay">
+          <div className="se-modal-content se-modal-content--wide">
+            <div className="se-modal-panel-header">
               <div>
-                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#111827" }}>กำหนดรายละเอียดฉากจบของคุณ</div>
-                <div style={{ fontSize: "0.9rem", color: "#6b7280", marginTop: "4px" }}>ข้อมูลส่วนนี้จะแสดงให้ผู้อ่านเห็น หลังจากอ่านมาถึงและปลดล็อกฉากจบนี้แล้วเท่านั้น</div>
+                <div className="se-modal-panel-title">กำหนดรายละเอียดฉากจบของคุณ</div>
+                <div className="se-modal-panel-subtitle">ข้อมูลส่วนนี้จะแสดงให้ผู้อ่านเห็น หลังจากอ่านมาถึงและปลดล็อกฉากจบนี้แล้วเท่านั้น</div>
               </div>
               <button
+                type="button"
+                className="se-modal-panel-close"
                 onClick={() => setShowEndingSettingsDialog(false)}
-                style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "1.1rem", color: "#6b7280" }}
                 aria-label="ปิด"
               >
                 ×
@@ -2214,34 +2232,29 @@ const SceneEditorPage = ({
 
       {/* Dialog เพิ่มฉากใหม่ */}
       {showAddSceneDialog && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
-        }}>
-          <div style={{
-            background: "white", padding: "24px", borderRadius: "12px", maxWidth: "400px", width: "90%"
-          }}>
-            <h3 style={{ marginBottom: "16px", fontSize: "16px", fontWeight: 600 }}>เพิ่มฉากใหม่</h3>
+        <div className="se-modal-overlay">
+          <div className="se-modal-content se-modal-content--form">
+            <h3 className="se-modal-form-title">เพิ่มฉากใหม่</h3>
             <input
               type="text"
+              className="se-input se-modal-form-input"
               placeholder="ชื่อฉาก..."
               value={newSceneTitle}
               onChange={(e) => setNewSceneTitle(e.target.value)}
-              style={{
-                width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ddd", marginBottom: "16px"
-              }}
               onKeyPress={(e) => e.key === "Enter" && handleConfirmAddScene()}
             />
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <div className="se-modal-form-actions">
               <button
+                type="button"
+                className="se-modal-btn se-modal-btn--cancel se-modal-btn--sm"
                 onClick={() => setShowAddSceneDialog(false)}
-                style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #ddd", background: "white" }}
               >
                 ยกเลิก
               </button>
               <button
+                type="button"
+                className="se-modal-btn se-modal-btn--save se-modal-btn--sm"
                 onClick={handleConfirmAddScene}
-                style={{ padding: "8px 16px", borderRadius: "6px", background: "var(--pink-500)", color: "white", border: "none" }}
               >
                 สร้าง
               </button>
@@ -2249,84 +2262,46 @@ const SceneEditorPage = ({
           </div>
         </div>
       )}
-      {/* Dialog ยืนยันการลบตัวเลือก (Custom Delete Confirmation Modal) */}
+      {/* Dialog ยืนยันการลบตัวเลือก */}
       {choiceToDelete && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(26, 22, 36, 0.45)", backdropFilter: "blur(4px)",
-          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300
-        }}>
-          <div style={{
-            background: "white", padding: "32px", borderRadius: "20px", maxWidth: "420px", width: "90%",
-            boxShadow: "0 20px 50px rgba(45, 27, 61, 0.15)", textAlign: "center",
-            border: "1px solid var(--gray-100)", animation: "se-scale-up 0.2s ease"
-          }}>
-            <div style={{
-              width: "60px", height: "60px", borderRadius: "50%", background: "#fee2e2",
-              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px",
-              color: "#dc2626", fontSize: "28px"
-            }}>
-              ⚠️
-            </div>
-            <h3 style={{ marginBottom: "12px", fontSize: "18px", fontWeight: 700, color: "var(--black)" }}>
-              ยืนยันการลบตัวเลือก?
-            </h3>
-            <p style={{ color: "var(--gray-600)", fontSize: "14px", lineHeight: "1.6", marginBottom: "24px" }}>
-              คุณแน่ใจหรือไม่ที่จะลบตัวเลือกนี้? การดำเนินการนี้จะลบเส้นทางการเชื่อมโยงของฉากปลายทางออกและไม่สามารถกู้คืนได้
-            </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-              <button
-                onClick={() => setChoiceToDelete(null)}
-                style={{
-                  flex: 1, padding: "10px 18px", borderRadius: "10px", border: "1px solid var(--gray-300)",
-                  background: "white", color: "var(--gray-600)", fontWeight: "600", fontSize: "14px", cursor: "pointer",
-                  transition: "all 0.15s ease"
-                }}
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={confirmDeleteChoice}
-                style={{
-                  flex: 1, padding: "10px 18px", borderRadius: "10px", border: "none",
-                  background: "#dc2626", color: "white", fontWeight: "600", fontSize: "14px", cursor: "pointer",
-                  transition: "all 0.15s ease", boxShadow: "0 4px 12px rgba(220, 38, 38, 0.2)"
-                }}
-              >
-                ลบตัวเลือก
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          variant="danger"
+          title="ยืนยันการลบตัวเลือก?"
+          description="คุณแน่ใจหรือไม่ที่จะลบตัวเลือกนี้? การดำเนินการนี้จะลบเส้นทางการเชื่อมโยงของฉากปลายทางออกและไม่สามารถกู้คืนได้"
+          cancelText="ยกเลิก"
+          confirmText="ลบตัวเลือก"
+          onCancel={() => setChoiceToDelete(null)}
+          onConfirm={confirmDeleteChoice}
+        />
       )}
 
-      {/* 🛑 Dialog แจ้งเตือนเมื่อลืมบันทึก (Custom Popup) */}
+      {/* 🛑 Dialog แจ้งเตือนเมื่อลืมบันทึก */}
       {pendingAction && (
-        <div className="se-modal-overlay">
-          <div className="se-modal-content">
-            <div className="se-modal-icon">⚠️</div>
-            <h3 className="se-modal-title">มีเนื้อหาที่ยังไม่ได้บันทึก</h3>
-            <p className="se-modal-desc">
-              กรุณาบันทึกข้อมูลก่อน
-              {pendingAction === "preview" ? "เข้าสู่โหมดทดลองอ่าน" : "ออกจากหน้านี้"}
-              เพื่อป้องกันการสูญหาย
-            </p>
-            <div className="se-modal-actions">
-              <button
-                className="se-modal-btn se-modal-btn--cancel"
-                onClick={() => handleDiscardPendingAction(pendingAction)}
-              >
-                {pendingAction === "back" ? "ออกโดยไม่บันทึก" : "ยกเลิก"}
-              </button>
-              <button
-                className="se-modal-btn se-modal-btn--save"
-                onClick={() => handleConfirmPendingAction(pendingAction)}
-              >
-                ✓ บันทึก
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="มีเนื้อหาที่ยังไม่ได้บันทึก"
+          description={`กรุณาบันทึกข้อมูลก่อน${pendingAction === "preview" ? "เข้าสู่โหมดทดลองอ่าน" : "ออกจากหน้านี้"}เพื่อป้องกันการสูญหาย`}
+          cancelText={pendingAction === "back" ? "ออกโดยไม่บันทึก" : "ยกเลิก"}
+          confirmText="✓ บันทึก"
+          onCancel={() => handleDiscardPendingAction(pendingAction)}
+          onConfirm={() => handleConfirmPendingAction(pendingAction)}
+        />
+      )}
+
+      {/* Dialog ยืนยันก่อนเผยแพร่ */}
+      {showPublishConfirm && (
+        <ConfirmModal
+          variant="publish"
+          icon="🚀"
+          title="ยืนยันการเผยแพร่?"
+          description="ระบบจะเผยแพร่ทั้งฉากนี้และตอนทั้งตอนให้ผู้อ่านมองเห็นทันที คุณสามารถกลับมาแก้ไขหรือเปลี่ยนสถานะได้ภายหลัง"
+          cancelText="ยกเลิก"
+          confirmText="เผยแพร่"
+          onCancel={() => setShowPublishConfirm(false)}
+          onConfirm={() => {
+            setShowPublishConfirm(false);
+            handlePublish();
+          }}
+        />
       )}
     </div>
   );

@@ -5,6 +5,13 @@
   border: 1px solid #F3F4F6;
   overflow: hidden;
   box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(45, 27, 61, 0.08);
+  border-color: #FCE4F0;
 }
 
 .cardTop {
@@ -112,6 +119,9 @@
 }
 
 .updateTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 700;
   color: #E91E8C;
@@ -159,13 +169,16 @@
 }
 
 .accordionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 700;
   color: #6B7280;
 }
 
 .accordionArrow {
-  font-size: 12px;
+  display: flex;
   color: #9CA3AF;
   transition: transform .2s;
 }
@@ -205,6 +218,13 @@
   object-fit: cover;
   background-color: #E5E7EB;
   flex-shrink: 0;
+}
+
+.novelCoverPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9CA3AF;
 }
 
 .novelInfo {
@@ -250,11 +270,6 @@
   gap: 10px;
 }
 
-.confirmGroup {
-  display: flex;
-  gap: 6px;
-}
-
 .btnWorks {
   padding: 10px;
   border-radius: 12px;
@@ -269,42 +284,4 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-}
-
-.btnUnfollow {
-  padding: 10px;
-  border-radius: 12px;
-  background: #F3F4F6;
-  color: #6B7280;
-  border: 1.5px solid #E5E7EB;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.btnConfirmDelete {
-  flex: 1;
-  padding: 10px;
-  border-radius: 12px;
-  background: #EF4444;
-  color: #fff;
-  border: none;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.btnCancelDelete {
-  flex: 1;
-  padding: 10px;
-  border-radius: 12px;
-  background: #F3F4F6;
-  color: #6B7280;
-  border: none;
-  font-weight: 600;
-  font-size: 12px;
-  cursor: pointer;
-  font-family: inherit;
 }

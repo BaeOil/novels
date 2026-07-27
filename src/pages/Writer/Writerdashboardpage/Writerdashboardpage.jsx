@@ -1,18 +1,9 @@
-// ══════════════════════════════════════════════════════════════
-//  หน้า Dashboard ฝั่งนักเขียน — Redesign Layout ย้าย ตอน/ฉาก ขึ้นบนปก
-//
-//  Backend API connected (Updated to matching your Go Backend):
-//    - GET    /api/me/novels            -> รายการนิยายทั้งหมดของผู้ใช้คนนี้ (Novels List)
-//    - DELETE /api/v1/writer/novels/:id -> ลบนิยายเรื่องที่เลือก
-// ══════════════════════════════════════════════════════════════
-
 import React, { useState, useEffect, useCallback } from "react";
 import "./WriterDashboardPage.css";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-// ── format ตัวเลขใหญ่ ──
 const fmt = (n) => {
   if (!n || isNaN(n)) return "0";
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : String(n);
@@ -28,32 +19,11 @@ const formatCoverUrl = (url) => {
   return formatted;
 };
 
-// ── Stat cards definition ──
 const STAT_CARDS = [
-  {
-    key: "totalNovels",
-    label: "นิยายทั้งหมด",
-    icon: "📚",
-    colorClass: "scard--pink",
-  },
-  {
-    key: "totalLikes",
-    label: "จำนวนการกดถูกใจ",
-    icon: "💖",
-    colorClass: "scard--purple",
-  },
-  {
-    key: "totalViews",
-    label: "ยอดเข้าชมทั้งหมด",
-    icon: "📈",
-    colorClass: "scard--blue",
-  },
-  {
-    key: "totalBookmarks",
-    label: "จำนวนเพิ่มเข้าชั้น",
-    icon: "📥",
-    colorClass: "scard--green",
-  },
+  { key: "totalNovels", label: "นิยายทั้งหมด", icon: "📚", colorClass: "scard--pink" },
+  { key: "totalLikes", label: "จำนวนการกดถูกใจ", icon: "💖", colorClass: "scard--purple" },
+  { key: "totalViews", label: "ยอดเข้าชมทั้งหมด", icon: "📈", colorClass: "scard--blue" },
+  { key: "totalBookmarks", label: "จำนวนเพิ่มเข้าชั้น", icon: "📥", colorClass: "scard--green" },
 ];
 
 const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
@@ -66,8 +36,6 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   const [novels, setNovels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // ✨ State สำหรับช่องค้นหา
   const [searchQuery, setSearchQuery] = useState("");
   
   const buildAuthHeaders = () => {
@@ -76,27 +44,21 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     return { Authorization: `Bearer ${token}` };
   };
 
-  // ── ฟังก์ชันดึงข้อมูลจากหลังบ้าน ──────────────────────────────
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const headers = buildAuthHeaders();
-      if (!headers) {
-        throw new Error("กรุณาเข้าสู่ระบบก่อนดูแดชบอร์ดนักเขียน");
-      }
+      if (!headers) throw new Error("กรุณาเข้าสู่ระบบก่อนดูแดชบอร์ดนักเขียน");
 
       const response = await fetch(`${API_BASE_URL}/api/me/novels`, { headers });
       
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
-        }
+        if (response.status === 401) throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
         throw new Error("ไม่สามารถดึงข้อมูลนิยายได้");
       }
 
       const result = await response.json();
-      
       let fetchedNovels = result?.novels || result?.data?.novels || [];
       
       if (Array.isArray(fetchedNovels)) {
@@ -142,9 +104,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   const handleDeleteNovel = async (novelId) => {
     try {
       const headers = buildAuthHeaders();
-      if (!headers) {
-        throw new Error("กรุณาเข้าสู่ระบบก่อนลบนิยาย");
-      }
+      if (!headers) throw new Error("กรุณาเข้าสู่ระบบก่อนลบนิยาย");
 
       const response = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
         method: "DELETE",
@@ -187,7 +147,6 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     );
   }
 
-  // ✨ ตัวกรองนิยายตามคำค้นหา
   const filteredNovels = novels.filter(novel => {
     const title = novel.title || novel.Title || "";
     return title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -200,11 +159,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
           <h1 className="wdb__title">Dashboard</h1>
           <p className="wdb__sub">ภาพรวมผลงานของคุณทั้งหมด</p>
         </div>
-        <button
-          className="wdb__create-btn"
-          onClick={() => onNavigate("create-novel")}
-          aria-label="สร้างนิยายเรื่องใหม่"
-        >
+        <button className="wdb__create-btn" onClick={() => onNavigate("create-novel")} aria-label="สร้างนิยายเรื่องใหม่">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M7 1v12M1 7h12" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
           </svg>
@@ -228,14 +183,12 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
         ))}
       </div>
 
-      {/* ── Novel list header + Search ── */}
       <div className="wdb__novels-header">
         <div>
           <h2 className="wdb__novels-title">นิยายของฉัน</h2>
           <p className="wdb__novels-count">{filteredNovels.length} เรื่องที่พบ (เรียงตามอัปเดตล่าสุด)</p>
         </div>
         
-        {/* 🔍 ช่องค้นหา */}
         <div className="wdb__search">
           <svg className="wdb__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
@@ -271,13 +224,8 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
           </div>
         )}
 
-        {/* ซ่อนปุ่มสร้างนิยายใหม่ในกริดถ้ากำลังพิมพ์ค้นหาอยู่ จะได้ไม่เกะกะ */}
         {!searchQuery && (
-          <button
-            className="wdb__empty-card"
-            onClick={() => onNavigate("create-novel")}
-            aria-label="สร้างนิยายใหม่"
-          >
+          <button className="wdb__empty-card" onClick={() => onNavigate("create-novel")} aria-label="สร้างนิยายใหม่">
             <span className="wdb__empty-icon">✦</span>
             <span className="wdb__empty-label">สร้างนิยายใหม่</span>
             <span className="wdb__empty-sub">เริ่มเรื่องราวใหม่ของคุณ</span>
@@ -290,11 +238,11 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
 
 const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
   const [showConfirm, setShowConfirm] = useState(false);
-  // ✨ เพิ่ม State สำหรับเช็กคำยืนยันการลบ
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const title = novel.title || "";
   const coverImage = novel.cover_image || novel.coverImage;
+  const isBanned = novel.status === "banned";
   
   const statusInfo = getNovelStatusInfo(novel);
   const statusVariant = statusInfo.isCompleted ? "completed" : statusInfo.isPublished ? "published" : "draft";
@@ -311,15 +259,9 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
   const visibleCategories = parsedCategories.slice(0, maxDisplay);
   const remainingCount = parsedCategories.length - maxDisplay;
 
-  // ดึงข้อมูล โครงสร้าง (ตอน / Scene / Choice / Ending)
   const chapterCount = novel.total_chapters ?? novel.chapter_count ?? novel.chapterCount ?? 0;
   const sceneCount = novel.total_scenes ?? novel.scene_count ?? novel.sceneCount ?? 0;
- 
-  const views = novel.total_views ?? novel.view_count ?? novel.stats?.views ?? novel.views ?? 0;
-  const likes = novel.total_likes ?? novel.like_count ?? novel.stats?.likes ?? novel.likes ?? 0;
-  const bookmarks = novel.total_bookmarks ?? novel.bookmark_count ?? novel.stats?.bookmarks ?? novel.bookmarks ?? 0;
 
-  // ฟังก์ชันคำนวณเวลาอัปเดตล่าสุด
   const getUpdatedText = (rawDate) => {
     if (!rawDate) return "ไม่มีการอัปเดต";
     try {
@@ -350,7 +292,6 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
 
   const updatedAtText = getUpdatedText(novel.updated_at || novel.updatedAt || novel.created_at || novel.createdAt);
 
-  // ฟังก์ชันปิด Modal และรีเซ็ตค่า Text ยืนยัน
   const handleCloseConfirm = () => {
     setShowConfirm(false);
     setDeleteConfirmText("");
@@ -371,10 +312,16 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
           />
         ) : null}
 
-        {/* ป้ายสถานะมุมบนซ้ายของการ์ด */}
-        <span className={`nvc__status ${status === "published" ? "nvc__status--pub" : status === "completed" ? "nvc__status--completed" : "nvc__status--draft"}`}>
-          {statusInfo.mode === "completed-published" ? "จบแล้ว • เผยแพร่" : statusInfo.mode === "completed-draft" ? "จบแล้ว • ฉบับร่าง" : status === "published" ? "เผยแพร่" : "ฉบับร่าง"}
-        </span>
+        {/* 🟢 เช็กสถานะ Banned หากโดนระงับ ให้แสดง Badge สีแดง */}
+        {isBanned ? (
+          <span className="nvc__status" style={{ backgroundColor: "#ef4444", color: "#ffffff" }}>
+            ⚠️ ถูกระงับการเผยแพร่
+          </span>
+        ) : (
+          <span className={`nvc__status ${status === "published" ? "nvc__status--pub" : status === "completed" ? "nvc__status--completed" : "nvc__status--draft"}`}>
+            {statusInfo.mode === "completed-published" ? "จบแล้ว • เผยแพร่" : statusInfo.mode === "completed-draft" ? "จบแล้ว • ฉบับร่าง" : status === "published" ? "เผยแพร่" : "ฉบับร่าง"}
+          </span>
+        )}
 
         {/* ปุ่มลบ */}
         <button className="nvc__cover-del" onClick={() => setShowConfirm(true)} title="ลบนิยาย">
@@ -386,9 +333,7 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
       <div className="nvc__body">
         <h3 className="nvc__title" title={title}>{title}</h3>
         
-        {/* ข้อมูลการอัปเดต */}
         <p className="nvc__date">{updatedAtText}</p>        
-        {/* สรุปโครงสร้างนิยายทางเลือก */}
         <div className="nvc__story-stats">
           <span>📄 {chapterCount} ตอน</span>
           <span>🎬 {sceneCount} ฉาก</span>

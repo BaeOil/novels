@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 
 const normalizeNotification = (item = {}) => {
   const type = item.type === "follow" ? "follower" : item.type || "system";
-  const actorName = item.actor_name || item.actor?.name || "StoryVerse";
+  const actorName = item.actor_name || item.actor?.name || "StoryVerse System";
   const actorColor = item.actor_color || item.actor?.avatarColor || "#E91E8C";
   const actorAvatar = item.actor_avatar || item.actor?.avatar || "";
 
@@ -63,6 +63,7 @@ const requestJson = async (path, options = {}) => {
 const TABS = [
   { key: "all", label: "ทั้งหมด" },
   { key: "unread", label: "ยังไม่อ่าน" },
+  { key: "system", label: "ระบบ" },
   { key: "novel_update", label: "นิยาย" },
   { key: "comment", label: "คอมเมนต์" },
   { key: "like", label: "ถูกใจ ❤️" },
@@ -70,22 +71,18 @@ const TABS = [
 ];
 
 function relativeTime(date) {
-  const diff =
-    (Date.now() - new Date(date)) / 1000;
+  const diff = (Date.now() - new Date(date)) / 1000;
 
   if (diff < 60) return "เมื่อสักครู่";
-  if (diff < 3600)
-    return `${Math.floor(diff / 60)} นาทีที่แล้ว`;
-  if (diff < 86400)
-    return `${Math.floor(diff / 3600)} ชั่วโมงที่แล้ว`;
+  if (diff < 3600) return `${Math.floor(diff / 60)} นาทีที่แล้ว`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ชั่วโมงที่แล้ว`;
   if (diff < 172800) return "เมื่อวาน";
 
   return `${Math.floor(diff / 86400)} วันที่แล้ว`;
 }
 
 function groupLabel(date) {
-  const diff =
-    (Date.now() - new Date(date)) / 86400000;
+  const diff = (Date.now() - new Date(date)) / 86400000;
 
   if (diff < 1) return "วันนี้";
   if (diff < 2) return "เมื่อวาน";
@@ -132,9 +129,7 @@ export default function NotificationPage() {
     loadNotifications();
 
     const token = localStorage.getItem("token");
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     const eventSource = new EventSource(`${API_BASE_URL}/notifications/stream?token=${encodeURIComponent(token)}`);
     eventSource.onmessage = (event) => {
@@ -142,7 +137,7 @@ export default function NotificationPage() {
         const payload = JSON.parse(event.data);
         setItems((prev) => [normalizeNotification(payload), ...prev]);
       } catch {
-        // ignore heartbeat messages
+        // ignore heartbeat
       }
     };
 
@@ -157,9 +152,7 @@ export default function NotificationPage() {
     return items
       .filter((item) => {
         if (tab === "all") return true;
-        if (tab === "unread")
-          return !item.read;
-
+        if (tab === "unread") return !item.read;
         return item.type === tab;
       })
       .map((item) => ({
@@ -173,10 +166,7 @@ export default function NotificationPage() {
 
     filtered.forEach((item) => {
       const label = groupLabel(item.time);
-
-      if (!result[label])
-        result[label] = [];
-
+      if (!result[label]) result[label] = [];
       result[label].push(item);
     });
 
@@ -208,21 +198,17 @@ export default function NotificationPage() {
 
     try {
       if (refType === "novel" && refId) {
-        // App routes use /novel/:id (singular)
         navigate(`/novel/${refId}`);
         return;
       }
       if (refType === "chapter" && refId) {
-        // No dedicated public /chapters/:id route in app; fallback to novel detail
         navigate(`/novel/${refId}`);
         return;
       }
       if (refType === "user" && refId) {
-        // Profile routes include /writer/:id/profile
         navigate(`/writer/${refId}/profile`);
         return;
       }
-      // system or unknown: no navigation (optional: navigate to dashboard)
     } catch (err) {
       console.error("navigation failed", err);
     }
@@ -261,17 +247,12 @@ export default function NotificationPage() {
 
   return (
     <div className="notification-page">
-
       {/* ================= HEADER ================= */}
-
       <header className="notification-header">
-
         <div className="notification-header-left">
-
           <button type="button" className="back-button" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
             ←
           </button>
-
           <div>
             <h1>🔔 การแจ้งเตือน</h1>
             <p>
@@ -280,11 +261,9 @@ export default function NotificationPage() {
                 : "อ่านครบทุกรายการแล้ว"}
             </p>
           </div>
-
         </div>
 
         <div className="notification-header-right">
-
           {unreadCount > 0 && (
             <button type="button" className="read-all-button" onClick={markAllRead}>
               อ่านทั้งหมด
@@ -299,17 +278,12 @@ export default function NotificationPage() {
           >
             ล้างทั้งหมด
           </button>
-
         </div>
-
       </header>
 
       {/* ================= TAB ================= */}
-
       <div className="notification-tabs" role="tablist" aria-label="กรองการแจ้งเตือน">
-
         {TABS.map((tabItem) => {
-
           const count =
             tabItem.key === "all"
               ? items.length
@@ -331,13 +305,10 @@ export default function NotificationPage() {
             </button>
           );
         })}
-
       </div>
 
       {/* ================= CONTENT ================= */}
-
       <div className="notification-content">
-
         {loading ? (
           <div className="notification-empty">
             <div className="empty-icon notification-spinner">⏳</div>
@@ -353,23 +324,18 @@ export default function NotificationPage() {
             </button>
           </div>
         ) : filtered.length === 0 ? (
-
           <div className="notification-empty">
-
             <div className="empty-icon">
               {hasItems ? "🔍" : "🔔"}
             </div>
-
             <h2>
               {hasItems ? "ไม่มีรายการในหมวดนี้" : "ยังไม่มีการแจ้งเตือน"}
             </h2>
-
             <p>
               {hasItems
                 ? "ลองเลือกแท็บอื่นเพื่อดูการแจ้งเตือนประเภทอื่น"
                 : "การแจ้งเตือนใหม่จะปรากฏที่นี่"}
             </p>
-
             {hasItems ? (
               <button type="button" onClick={() => setTab("all")}>
                 ดูทั้งหมด
@@ -379,19 +345,13 @@ export default function NotificationPage() {
                 ไปสำรวจนิยาย
               </button>
             )}
-
           </div>
-
         ) : (
-
           ["วันนี้", "เมื่อวาน", "สัปดาห์นี้", "เก่ากว่านี้"]
             .filter((group) => grouped[group])
             .map((group) => (
-
               <section key={group} className="notification-group">
-
                 <h3 className="group-title">{group}</h3>
-
                 <div className="notification-group-list">
                   {grouped[group].map((notification) => (
                     <NotificationItem
@@ -402,15 +362,10 @@ export default function NotificationPage() {
                     />
                   ))}
                 </div>
-
               </section>
-
             ))
-
         )}
-
       </div>
-
     </div>
   );
 }

@@ -65,7 +65,7 @@
 
 /* Title */
 .novel-detail__title {
-  font-family: 'Open Sans', serif;
+  font-family: 'Open Sans', sans-serif;
   font-size: clamp(28px, 4vw, 42px);
   font-weight: 700;
   color: var(--ink);
@@ -438,60 +438,119 @@
     gap: 4px;
   }
 }
-/* ── ปุ่มเริ่มอ่านใหม่ (ใต้ Progress Card) ── */
-.novel-detail__restart-wrapper {
+
+/* ─────────────────────────────
+   Shared simple modal (no-content dialog / restart confirm)
+   ใช้ token เดียวกับที่เหลือของหน้านี้ (--pink-500, --gray-*)
+   แทนสี hex ลอยๆ ที่ไม่ตรงกับธีมของเว็บ
+───────────────────────────── */
+
+.novel-detail__modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
   display: flex;
-  justify-content: flex-end; /* จัดปุ่มให้อยู่มุมขวาล่าง */
-  margin-top: 12px;
-}
-
-.novel-detail__restart-btn-outline {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid var(--gray-200);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--gray-500);
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
 }
 
-/* ตอนเอาเมาส์ชี้ จะเปลี่ยนเป็นสีแดงอ่อนๆ เตือนว่าเป็นการ Reset */
-.novel-detail__restart-btn-outline:hover {
-  border-color: #fca5a5;
-  color: #ef4444; 
-  background: #fef2f2;
-}/* ── ปุ่มเริ่มอ่านใหม่ (ใต้ Progress Card) ── */
-.novel-detail__restart-wrapper {
+.novel-detail__modal-box {
+  background: var(--white);
+  width: 100%;
+  padding: 32px;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.novel-detail__modal-emoji {
+  font-size: 54px;
+  margin-bottom: 16px;
+  animation: novel-detail-bounce 2s infinite;
+}
+
+@keyframes novel-detail-bounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-10px); }
+  60% { transform: translateY(-5px); }
+}
+
+.novel-detail__modal-title {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+
+.novel-detail__modal-title--left {
+  text-align: left;
+}
+
+.novel-detail__modal-text {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  color: var(--gray-600);
+  line-height: 1.6;
+  margin-bottom: 26px;
+}
+
+.novel-detail__modal-text--left {
+  text-align: left;
+}
+
+.novel-detail__modal-error {
+  color: #b91c1c;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+.novel-detail__modal-actions {
   display: flex;
-  justify-content: flex-end; /* จัดปุ่มให้อยู่มุมขวาล่าง */
-  margin-top: 12px;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
-.novel-detail__restart-btn-outline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid var(--gray-200);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--gray-500);
+.novel-detail__modal-primary-btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 13px;
+  border-radius: 12px;
+  border: none;
+  background: var(--pink-500);
+  color: var(--white);
   font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
+  font-size: 15px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(219, 39, 119, 0.25);
+  transition: opacity 0.15s ease;
 }
 
-/* ตอนเอาเมาส์ชี้ จะเปลี่ยนเป็นสีแดงอ่อนๆ เตือนว่าเป็นการ Reset */
-.novel-detail__restart-btn-outline:hover {
-  border-color: #fca5a5;
-  color: #ef4444; 
-  background: #fef2f2;
+.novel-detail__modal-primary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.novel-detail__modal-secondary-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--gray-100);
+  background: var(--white);
+  color: var(--gray-600);
+  font-family: 'Sarabun', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.novel-detail__modal-secondary-btn:hover {
+  border-color: var(--pink-300);
+  background: var(--pink-50);
 }

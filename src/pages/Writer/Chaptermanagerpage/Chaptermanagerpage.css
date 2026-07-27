@@ -737,6 +737,18 @@
   box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
 }
 
+.cm-btn--danger-solid {
+  background: #ef4444;
+  color: #ffffff;
+  border: 1px solid #ef4444;
+  font-weight: 700;
+}
+
+.cm-btn--danger-solid:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
 /* Save button */
 .cm-chapter__header-edit-row .cm-btn:nth-child(2),
 .cm-sidebar__new-form .cm-btn:not(.cm-btn--outline),
@@ -828,4 +840,104 @@
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   margin: 20px 0;
+}
+
+/* ══════════════════════════════════════════
+   Ban Warning Banner
+══════════════════════════════════════════ */
+.cm-ban-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.06);
+}
+
+.cm-ban-banner__icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.cm-ban-banner__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cm-ban-banner__title {
+  margin: 0 0 8px 0;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.cm-ban-banner__text {
+  margin: 0 0 4px 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #7f1d1d;
+}
+
+.cm-ban-banner__action {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ══════════════════════════════════════════
+   Generic Modal (used by AppealModal)
+══════════════════════════════════════════ */
+.cm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 16px;
+}
+
+.cm-modal-box {
+  background-color: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.cm-modal-box__title {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.cm-modal-box__desc {
+  color: #4b5563;
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.cm-modal-box__textarea {
+  resize: vertical;
+  min-height: 100px;
+  margin-bottom: 20px;
+}
+
+.cm-modal-box__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }

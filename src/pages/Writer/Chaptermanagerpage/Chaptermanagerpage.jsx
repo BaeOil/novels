@@ -7,7 +7,8 @@ import { getNovelStatusInfo } from "../../../utils/novelStatus";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const IMAGE_BASE_URL = import.meta.env.VITE_IMAGE_BASE_URL || "http://localhost:9000";
 const getToken = () => localStorage.getItem("token");
 
 // 🕒 ฟังก์ชันแปลงเวลาแบบ Global ตัวเดียวใช้ทั้งไฟล์
@@ -38,9 +39,8 @@ const formatThaiDate = (dateString, includeTime = false) => {
 };
 
 const formatNovelCoverImage = (cover) => {
-  if (!cover) return null;
-  if (typeof cover !== "string") return null;
-  return cover.replace("http://minio:9000", "http://localhost:9000");
+  if (!cover || typeof cover !== "string") return null;
+  return cover.replace("http://minio:9000", IMAGE_BASE_URL);
 };
 
 const getNovelCategoryNames = (novel) => {
@@ -60,13 +60,84 @@ const getNovelCategoryNames = (novel) => {
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabel = "ยืนยัน" }) => {
   if (!isOpen) return null;
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000, padding: '16px' }}>
-      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
-        <h3 style={{ marginTop: 0, color: '#111827', fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>{title}</h3>
-        <p style={{ color: '#4b5563', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>{message}</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+    <div className="cm-modal-overlay">
+      <div className="cm-modal-box">
+        <h3 className="cm-modal-box__title">{title}</h3>
+        <p className="cm-modal-box__desc">{message}</p>
+        <div className="cm-modal-box__actions">
           <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={onCancel}>ยกเลิก</button>
-          <button className="cm-btn cm-btn--sm" style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', fontWeight: 'bold' }} onClick={onConfirm}>{confirmLabel}</button>
+          <button className="cm-btn cm-btn--sm cm-btn--danger-solid" onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ข้อความ default ของแบนเนอร์แจ้งเตือนแบน — ส่งผ่าน props มา override ได้ ไม่ hardcode ในตัว UI
+const BAN_NOTICE_DEFAULTS = {
+  reason: "ตรวจพบเนื้อหาที่ละเมิดข้อตกลงและเงื่อนไขการใช้งานของแพลตฟอร์ม",
+  solution: "โปรดตรวจสอบและแก้ไขเนื้อหาให้ถูกต้องตามกฎระเบียบชุมชน จากนั้นกดปุ่มส่งเรื่องขอปลดแบนเพื่อแจ้งแอดมิน",
+};
+
+const BanWarningBanner = ({
+  reason = BAN_NOTICE_DEFAULTS.reason,
+  solution = BAN_NOTICE_DEFAULTS.solution,
+  onRequestAppeal,
+}) => {
+  return (
+    <div className="cm-ban-banner" role="alert">
+      <div className="cm-ban-banner__icon">🚫</div>
+      <div className="cm-ban-banner__body">
+        <h3 className="cm-ban-banner__title">นิยายเรื่องนี้ถูกระงับการเผยแพร่ (Banned)</h3>
+        <p className="cm-ban-banner__text"><strong>สาเหตุ:</strong> {reason}</p>
+        <p className="cm-ban-banner__text"><strong>วิธีแก้ไข:</strong> {solution}</p>
+      </div>
+      <div className="cm-ban-banner__action">
+        <button type="button" className="cm-btn cm-btn--sm cm-btn--danger" onClick={onRequestAppeal}>
+          📨 ส่งเรื่องขอปลดแบน
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const AppealModal = ({ isOpen, onSubmit, onCancel, isSubmitting = false }) => {
+  const [reasonText, setReasonText] = useState("");
+
+  useEffect(() => {
+    if (isOpen) setReasonText("");
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+  const trimmedReason = reasonText.trim();
+
+  return (
+    <div className="cm-modal-overlay">
+      <div className="cm-modal-box">
+        <h3 className="cm-modal-box__title">ส่งเรื่องขอปลดแบน</h3>
+        <p className="cm-modal-box__desc">
+          กรุณาชี้แจงรายละเอียดการแก้ไขหรือเหตุผลที่ต้องการขอปลดแบนนิยายเรื่องนี้ ทีมงานจะตรวจสอบและติดต่อกลับ
+        </p>
+        <textarea
+          className="cm-input cm-modal-box__textarea"
+          rows={5}
+          placeholder="พิมพ์ข้อความชี้แจงของคุณที่นี่..."
+          value={reasonText}
+          onChange={(e) => setReasonText(e.target.value)}
+          disabled={isSubmitting}
+        />
+        <div className="cm-modal-box__actions">
+          <button type="button" className="cm-btn cm-btn--outline cm-btn--sm" onClick={onCancel} disabled={isSubmitting}>
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            className="cm-btn cm-btn--sm cm-btn--primary"
+            onClick={() => onSubmit(trimmedReason)}
+            disabled={isSubmitting || !trimmedReason}
+          >
+            {isSubmitting ? "กำลังส่ง..." : "ยืนยันส่งเรื่อง"}
+          </button>
         </div>
       </div>
     </div>
@@ -136,7 +207,16 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
           </div>
         </div>
 
-        <div className="cm-banner__right shrink-0 flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div 
+          className="cm-banner__right shrink-0 flex items-center gap-2" 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            flexShrink: 0,
+            opacity: statusInfo.isBanned ? 0.7 : 1
+          }}
+        >
           <span
             className="cm-banner__status"
             style={{
@@ -147,7 +227,17 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
           >
             ● {statusInfo.label}
           </span>
-          <button className="cm-btn cm-btn--outline cm-btn--sm" onClick={onEdit}>
+          <button 
+            className="cm-btn cm-btn--outline cm-btn--sm" 
+            onClick={(e) => {
+              if (statusInfo.isBanned) {
+                e.preventDefault();
+                alert("นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน");
+                return;
+              }
+              onEdit();
+            }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "4px" }}>
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -157,7 +247,14 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
           <button
             className={`cm-btn cm-btn--sm ${!isPublishedNovel ? 'cm-btn--primary bg-pink-500 border-pink-500 text-white' : 'cm-btn--outline'}`}
             style={{ ...(!isPublishedNovel ? { backgroundColor: '#fe9ad3', borderColor: '#fe9ad3', color: '#ffffff' } : {}) }}
-            onClick={onToggleStatus}
+            onClick={(e) => {
+              if (statusInfo.isBanned) {
+                e.preventDefault();
+                alert("นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน");
+                return;
+              }
+              onToggleStatus();
+            }}
             disabled={isUpdatingNovelStatus}
           >
             {isUpdatingNovelStatus ? 'กำลังอัปเดต...' : (isPublishedNovel ? "เปลี่ยนเป็นฉบับร่าง" : "เผยแพร่เรื่องนี้")}
@@ -183,7 +280,26 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
 
   const [text, setText] = useState(choiceText);
   const [subScene, setSubScene] = useState(choiceTargetSceneId);
-  const [selectedChapterId, setSelectedChapterId] = useState(null);
+
+  // 📝 อาเรย์รวมฉากทั้งหมด
+  const allScenes = (sceneOptions || []).flatMap((ch, index) => {
+    const chTitle = ch.episode ?? ch.Episode ?? ch.title ?? ch.Title ?? `ตอนที่ ${index + 1}`;
+    const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID;
+    const chScenes = (ch.scenes ?? ch.Scenes) || [];
+    return chScenes.map((s) => ({
+      value: s.id ?? s.ID ?? s.scene_id ?? s.SceneID,
+      label: (s.title ?? s.Title) || "(ฉากไม่มีชื่อ)",
+      chapterLabel: chTitle,
+      chapterId: chId,
+      type: s.type ?? s.Type,
+    }));
+  });
+
+  const targetScene = allScenes.find((scene) => String(scene.value) === String(choiceTargetSceneId));
+
+  // Initialize States
+  const [scope, setScope] = useState(() => (targetScene ? (String(targetScene.chapterId) === String(currentChapterId) ? "same" : "other") : "same"));
+  const [selectedChapterId, setSelectedChapterId] = useState(() => targetScene?.chapterId || currentChapterId);
 
   const [isEditing, setIsEditing] = useState(isNew);
   const [isSaving, setIsSaving] = useState(false);
@@ -198,48 +314,23 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
     };
   }, []);
 
-  // 📝 อาเรย์รวมฉากทั้งหมด เรียงตามลำดับเส้นเวลาของเรื่อง (Global Narrative Sequence)
-  const allScenes = (sceneOptions || []).flatMap((ch, index) => {
-    const chTitle = ch.episode ?? ch.Episode ?? ch.title ?? ch.Title ?? `ตอนที่ ${index + 1}`;
-    const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID;
-    const chScenes = (ch.scenes ?? ch.Scenes) || [];
-    return chScenes.map((s) => ({
-      value: s.id ?? s.ID ?? s.scene_id ?? s.SceneID,
-      label: (s.title ?? s.Title) || "(ฉากไม่มีชื่อ)",
-      chapterLabel: chTitle,
-      chapterId: chId,
-      type: s.type ?? s.Type,
-    }));
-  });
-
   const chapterOptions = (sceneOptions || []).map((ch) => ({
     value: ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID,
     label: ch.title ?? ch.Title ?? "(ยังไม่มีชื่อบท)",
   }));
 
-  const targetScene = allScenes.find((scene) => String(scene.value) === String(choiceTargetSceneId));
-  const [scope, setScope] = useState(() => (targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same"));
-
-  const initialScope = targetScene ? (targetScene.chapterId === currentChapterId ? "same" : "other") : "same";
-  const effectiveScope = scope || initialScope || "same";
-  const firstOtherChapterId = chapterOptions.find((ch) => String(ch.value) !== String(currentChapterId))?.value ?? chapterOptions[0]?.value ?? null;
-  const defaultChapterId = targetScene?.chapterId ?? chapterOptions[0]?.value ?? null;
-  const effectiveChapterId = effectiveScope === "same"
-    ? currentChapterId
-    : selectedChapterId ?? (String(defaultChapterId) !== String(currentChapterId) ? defaultChapterId : firstOtherChapterId);
-
-  // 🔍 หาตำแหน่ง Index ของฉากต้นทางปัจจุบันในไทม์ไลน์ใหญ่
-  const fromSceneIndex = allScenes.findIndex(s => String(s.value) === String(fromSceneId));
-
-  // 🛡️ กรองฉากปลายทางใน Dropdown: แสดงเฉพาะฉากที่มีตำแหน่ง "มากกว่า" ฉากปัจจุบันเท่านั้น (Forward-Only)
-  const currentChapterScenes = allScenes.filter((scene) => {
-    if (String(scene.chapterId) !== String(effectiveChapterId)) return false;
-    const sceneIndexInAll = allScenes.findIndex(s => String(s.value) === String(scene.value));
-    return sceneIndexInAll > fromSceneIndex; // ต้องอยู่ข้างหน้าเท่านั้น
+  // 🔍 กรองฉากปลายทางตาม Scope และ Chapter ที่เลือก
+  const activeChapterId = scope === "same" ? currentChapterId : selectedChapterId;
+  
+  const availableTargetScenes = allScenes.filter((scene) => {
+    // ต้องตรงกับ Chapter ที่เลือก
+    if (String(scene.chapterId) !== String(activeChapterId)) return false;
+    // ห้ามเลือกฉากตัวเอง
+    if (String(scene.value) === String(fromSceneId)) return false;
+    return true;
   });
 
-  const effectiveSubScene = subScene || (isNew ? "" : choiceTargetSceneId || currentChapterScenes[0]?.value || "");
-  const selectedTargetScene = allScenes.find((scene) => String(scene.value) === String(effectiveSubScene));
+  const selectedTargetScene = allScenes.find((scene) => String(scene.value) === String(subScene));
 
   const handleSaveChoice = async () => {
     if (!text || text.trim() === "") {
@@ -247,35 +338,20 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
       return;
     }
 
-    if (!effectiveSubScene || effectiveSubScene === "") {
+    if (!subScene || subScene === "") {
       alert("กรุณาเลือกฉากปลายทางที่ต้องการเชื่อมโยง");
       return;
     }
 
-    const currentFromSceneId = fromSceneId;
-    const targetSceneId = effectiveSubScene;
-
-    // 🔍 หา Index เพื่อเปรียบเทียบความสัมพันธ์ของลำดับฉาก
-    const targetSceneIndex = allScenes.findIndex(s => String(s.value) === String(targetSceneId));
-
-    if (fromSceneIndex === -1 || targetSceneIndex === -1) {
-      alert("❌ ไม่พบข้อมูลตำแหน่งของฉากในระบบ กรุณาตรวจสอบอีกครั้ง");
-      return;
-    }
-
-    // 🛑 [✨ ตรรกะใหม่ตามที่สั่ง] ตรวจสอบกฎเหล็ก: ฉากปลายทางต้องมากกว่าฉากปัจจุบันเสมอ ห้ามเท่ากับ(ตัวเอง) และห้ามย้อนกลับ(<)
-    if (targetSceneIndex <= fromSceneIndex) {
-      if (targetSceneIndex === fromSceneIndex) {
-        alert("❌ ไม่สามารถบันทึกได้: ระบบไม่อนุญาตให้สร้างช้อยส์โยงเข้าหาฉากตัวเองเด็ดขาด");
-      } else {
-        alert("❌ ไม่สามารถบันทึกได้: ระบบทำงานด้วยกฎเดินหน้าอย่างเดียว (Forward-Only) ห้ามสร้างช้อยส์โยงย้อนกลับไปยังฉากก่อนหน้า");
-      }
+    // 🛑 ตรวจสอบห้ามเชื่อมโยงเข้าหาตัวเอง
+    if (String(subScene) === String(fromSceneId)) {
+      alert("❌ ไม่สามารถบันทึกได้: ระบบไม่อนุญาตให้สร้างช้อยส์โยงเข้าหาฉากตัวเอง");
       return;
     }
 
     const payload = {
-      from_scene_id: parseInt(choice.from_scene_id ?? choice.fromSceneID ?? currentChapterId, 10),
-      to_scene_id: parseInt(effectiveSubScene, 10) || 0,
+      from_scene_id: parseInt(fromSceneId || currentChapterId, 10),
+      to_scene_id: parseInt(subScene, 10) || 0,
       label: text.trim(),
     };
 
@@ -352,31 +428,37 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
           <div style={{ display: 'flex', gap: '10px' }}>
             <div className="cm-choice__field" style={{ flex: 1 }}>
               <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>เชื่อมไปตอนใด</label>
-              <select className="cm-select" value={effectiveScope} onChange={(e) => {
-                const nextScope = e.target.value;
-                setScope(nextScope);
-                if (nextScope === "same") {
-                  setSelectedChapterId(currentChapterId);
-                  setSubScene("");
-                } else {
-                  const nextChapterId = selectedChapterId || firstOtherChapterId;
-                  setSelectedChapterId(nextChapterId);
-                  setSubScene("");
-                }
-              }}>
+              <select 
+                className="cm-select" 
+                value={scope} 
+                onChange={(e) => {
+                  const nextScope = e.target.value;
+                  setScope(nextScope);
+                  setSubScene(""); // ล้างค่าฉากเมื่อสลับโหมด
+                  if (nextScope === "same") {
+                    setSelectedChapterId(currentChapterId);
+                  } else {
+                    const firstOtherCh = chapterOptions.find((ch) => String(ch.value) !== String(currentChapterId));
+                    if (firstOtherCh) setSelectedChapterId(firstOtherCh.value);
+                  }
+                }}
+              >
                 <option value="same">ไปฉากในตอนเดียวกัน</option>
                 <option value="other">ไปฉากในตอนอื่น</option>
               </select>
             </div>
 
-            {effectiveScope === "other" && (
+            {scope === "other" && (
               <div className="cm-choice__field" style={{ flex: 1 }}>
                 <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>เลือกตอนปลายทาง</label>
-                <select className="cm-select" value={effectiveChapterId || ""} onChange={(e) => {
-                  const chapterId = e.target.value;
-                  setSelectedChapterId(chapterId);
-                  setSubScene("");
-                }}>
+                <select 
+                  className="cm-select" 
+                  value={selectedChapterId || ""} 
+                  onChange={(e) => {
+                    setSelectedChapterId(e.target.value);
+                    setSubScene(""); // ล้างค่าฉากเมื่อเปลี่ยนตอนปลายทาง
+                  }}
+                >
                   <option value="">-- เลือกตอน --</option>
                   {chapterOptions.filter((ch) => String(ch.value) !== String(currentChapterId)).map((ch) => (
                     <option key={`target-chapter-opt-${ch.value}`} value={ch.value}>{ch.label}</option>
@@ -387,9 +469,13 @@ const ChoiceRow = ({ choice, sceneOptions = [], currentChapterId, onUpdate, onCr
 
             <div className="cm-choice__field" style={{ flex: 1 }}>
               <label className="cm-choice__label" style={{ fontSize: '12.5px', fontWeight: 'bold' }}>เลือกฉากปลายทาง</label>
-              <select className="cm-select" value={effectiveSubScene || ""} onChange={(e) => setSubScene(e.target.value)}>
-                <option value="">{currentChapterScenes.length > 0 ? "-- กรุณาเลือกฉากปลายทาง --" : "-- ไม่มีฉากถัดไปที่สามารถเลือกโยงได้ --"}</option>
-                {currentChapterScenes.map((s) => (
+              <select 
+                className="cm-select" 
+                value={subScene || ""} 
+                onChange={(e) => setSubScene(e.target.value)}
+              >
+                <option value="">{availableTargetScenes.length > 0 ? "-- กรุณาเลือกฉากปลายทาง --" : "-- ไม่มีฉากที่เลือกได้ --"}</option>
+                {availableTargetScenes.map((s) => (
                   <option key={`target-scene-opt-${s.value}`} value={s.value}>{s.chapterLabel} › {s.label}</option>
                 ))}
               </select>
@@ -989,7 +1075,7 @@ const ChapterPanel = ({
             element = document.getElementById(`scene-card-${lastSceneId}`);
           }
         }
-      } 
+      }
       // กรณีที่ 2: เพิ่งกลับมาจากการแก้ไขฉาก -> เลื่อนไปหาฉากนั้นเลย
       else {
         element = document.getElementById(`scene-card-${target}`);
@@ -998,16 +1084,16 @@ const ChapterPanel = ({
       // ถ้าเจอเป้าหมาย ให้เลื่อนจอ + ทำไฮไลต์กรอบกระพริบให้ผู้ใช้สังเกตง่ายๆ
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
+
         // ไฮไลต์เรืองแสงสีชมพูแป๊บนึง
         const originalBoxShadow = element.style.boxShadow;
         element.style.transition = 'box-shadow 0.4s ease-out';
         element.style.boxShadow = '0 0 0 3px #db2777, 0 0 15px rgba(219, 39, 119, 0.4)';
-        
-        setTimeout(() => { 
-          element.style.boxShadow = originalBoxShadow || '0 8px 20px rgba(0, 0, 0, 0.04)'; 
+
+        setTimeout(() => {
+          element.style.boxShadow = originalBoxShadow || '0 8px 20px rgba(0, 0, 0, 0.04)';
         }, 2000);
-        
+
         // เลื่อนเสร็จแล้วล้างความจำทิ้ง จะได้ไม่เลื่อนซ้ำเวลา Refresh หน้าเว็บ
         sessionStorage.removeItem("focusSceneTarget");
       }
@@ -1356,6 +1442,8 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
+  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
 
   const fetchNovelAndChapters = async (isSilent = false) => {
     if (!currentNovelId) {
@@ -1509,6 +1597,11 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
   const handleAddChapter = async () => {
     if (!currentNovelId) return;
+    const statusInfo = getNovelStatusInfo(novel);
+    if (statusInfo.isBanned) {
+      alert('นิยายถูกระงับ ไม่สามารถเพิ่มตอนได้');
+      return;
+    }
     try {
       const episodeNumber = (chapters?.length || 0) + 1;
       const title = draftChapterTitle?.trim() || `ตอนที่ ${episodeNumber}`;
@@ -1574,6 +1667,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
   const handleAddScene = async (chapterId) => {
     if (!chapterId) return;
+    if (getNovelStatusInfo(novel).isBanned) {
+      alert('นิยายถูกระงับ ไม่สามารถเพิ่มฉากได้');
+      return;
+    }
     sessionStorage.setItem("focusSceneTarget", `new_in_${chapterId}`);
     if (typeof onNavigate === "function") {
       const novelTitleVal = novel?.title || novel?.novelTitle || novel?.name || "";
@@ -1606,6 +1703,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const handleToggleNovelStatus = async () => {
     if (!currentNovelId || !novel) return;
     const currentStatusInfo = getNovelStatusInfo(novel);
+    if (currentStatusInfo.isBanned) {
+      alert("นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน");
+      return;
+    }
     const nextStatus = currentStatusInfo.isPublished ? "draft" : "published";
     const title = nextStatus === "published" ? "เผยแพร่นิยาย" : "เปลี่ยนนิยายเป็นฉบับร่าง";
     const message = nextStatus === "published"
@@ -1617,6 +1718,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       message,
       confirmLabel: "ตกลง",
       action: async () => {
+        if (currentStatusInfo.isBanned) {
+          alert("นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบและส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน");
+          return;
+        }
         setIsUpdatingNovelStatus(true);
         try {
           const payload = {
@@ -1645,6 +1750,39 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     });
   };
 
+  const handleOpenAppealModal = () => setIsAppealModalOpen(true);
+
+  const handleCloseAppealModal = () => {
+    if (isSubmittingAppeal) return; // กันปิด modal ระหว่างกำลังส่งอยู่
+    setIsAppealModalOpen(false);
+  };
+
+  const handleSubmitAppeal = async (reasonText) => {
+    if (!currentNovelId || !reasonText.trim()) return;
+    setIsSubmittingAppeal(true);
+    const authToken = getToken();
+    try {
+      const res = await fetch(`${API_BASE}/api/writer/novels/appeal`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ novel_id: currentNovelId, reason: reasonText.trim() })
+      });
+
+      if (!res.ok) throw new Error(`ส่งคำขอไม่สำเร็จ (status ${res.status})`);
+
+      setIsAppealModalOpen(false);
+      alert("ส่งเรื่องขอปลดแบนเรียบร้อยแล้ว");
+    } catch (err) {
+      console.error("ส่งเรื่องขอปลดแบนล้มเหลว:", err);
+      alert("เกิดข้อผิดพลาด ไม่สามารถส่งเรื่องขอปลดแบนได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsSubmittingAppeal(false);
+    }
+  };
+
   const handleOpenPreview = () => {
     const idToOpen = currentNovelId || (novel && (novel.id || novel.novel_id || novel.novelId));
     if (!idToOpen) {
@@ -1661,6 +1799,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
 
   const handleDeleteChapter = async (chapterId) => {
     if (!chapterId) return;
+    if (getNovelStatusInfo(novel).isBanned) {
+      alert('นิยายถูกระงับ ไม่สามารถลบตอนได้');
+      return;
+    }
     openConfirmDialog({
       title: "ยืนยันการลบตอน",
       message: "การกระทำนี้จะลบฉากทั้งหมดในตอนนี้ด้วย",
@@ -1707,8 +1849,8 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     return title.includes(search) || episode.includes(search);
   });
   if (loading) {
-  return <LoadingScreen message="กำลังโหลดข้อมูลหน้าจัดการตอน..." />;
-}
+    return <LoadingScreen message="กำลังโหลดข้อมูลหน้าจัดการตอน..." />;
+  }
 
   return (
     <div className="cm-layout">
@@ -1735,6 +1877,17 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             </button>
           </div>
         </div>
+
+        {(novel?.status === "banned" ||
+          novel?.status === "ban" ||
+          novel?.status === "suspended" ||
+          novel?.is_banned === true ||
+          novel?.isBanned === true) && (
+            <BanWarningBanner
+              reason={novel?.ban_reason || novel?.banReason}
+              onRequestAppeal={handleOpenAppealModal}
+            />
+          )}
 
         <NovelBanner
           novel={novel}
@@ -1773,6 +1926,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             </p>
             <button
               onClick={openCreateChapterForm}
+              disabled={getNovelStatusInfo(novel).isBanned}
               style={{
                 background: 'linear-gradient(135deg, #db2777 0%, #be185d 100%)',
                 color: '#ffffff',
@@ -1818,7 +1972,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
           ☰ รายชื่อตอนทั้งหมด ({searchTerm ? `${filteredChapters.length}/${chapters.length}` : chapters.length})
         </div>
 
-        <button className="cm-sidebar__add" onClick={openCreateChapterForm}>
+        <button className="cm-sidebar__add" onClick={openCreateChapterForm} disabled={getNovelStatusInfo(novel).isBanned}>
           ✨ สร้างตอนใหม่
         </button>
 
@@ -1899,6 +2053,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                     const chStatus = (ch.status || ch.Status || "draft").toString().toLowerCase();
                     const isChapterPublished = chStatus === "published" || chStatus === "active";
                     const isLocked = lockedChapterIds.has(chKey);
+
                     return (
                       <Draggable
                         key={`chapter-sidebar-item-${chKey}-${index}`}
@@ -1964,6 +2119,13 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
           onCancel={closeConfirmDialog}
         />
       )}
+
+      <AppealModal
+        isOpen={isAppealModalOpen}
+        isSubmitting={isSubmittingAppeal}
+        onSubmit={handleSubmitAppeal}
+        onCancel={handleCloseAppealModal}
+      />
     </div>
   );
 };

@@ -1,14 +1,18 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import ReactFlow, {
   Background,
   Controls,
   MiniMap,
   Handle,
   Position,
+  useReactFlow,
+  ReactFlowProvider,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import "./StoryTreePage.css";
+
+import EndingCollection from "../../../components/EndingCollection/EndingCollection";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -20,25 +24,31 @@ const NODE_STATUS = {
   ENDING_LOCKED: "ending_locked",
 };
 
-const STATUS_STYLE = {
-  [NODE_STATUS.VISITED]: { stroke: "#4CAF82", fill: "#F0FBF5", text: "#2E7A55" },
-  [NODE_STATUS.CURRENT]: { stroke: "#E91E8C", fill: "#FFF0F5", text: "#E91E8C" },
-  [NODE_STATUS.LOCKED]: { stroke: "#C8C3D4", fill: "#F9F9FB", text: "#9E9589" },
-  [NODE_STATUS.ENDING_UNLOCKED]: { stroke: "#F7C940", fill: "#FFFDE7", text: "#8B6D00" },
-  [NODE_STATUS.ENDING_LOCKED]: { stroke: "#C8C3D4", fill: "#F9F9FB", text: "#9E9589" },
+const formatDate = (dateStr) => {
+  if (!dateStr) return null;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return null;
+  }
+};
+
+const stripHtml = (text) => {
+  if (!text || typeof text !== "string") return "";
+  return text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 };
 
 const StoryNode = ({ data }) => {
   const currentStatus = data.computedStatus || NODE_STATUS.LOCKED;
-  const style = STATUS_STYLE[currentStatus] || STATUS_STYLE[NODE_STATUS.LOCKED];
-
   const sceneType = data.type || "normal";
+  
   const isLocked = currentStatus === NODE_STATUS.LOCKED || currentStatus === NODE_STATUS.ENDING_LOCKED;
-
-  const stripHtml = (text) => {
-    if (!text || typeof text !== "string") return "";
-    return text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-  };
 
   const getPrefix = () => {
     if (sceneType === "start") return "▶ ";
@@ -47,107 +57,83 @@ const StoryNode = ({ data }) => {
     return "📖 ";
   };
 
-  const sceneTitle = stripHtml(data.title || data.scene_name || data.name || data.label || data.chapter_name || `ฉากที่ ${data.id}`);
-  const sceneDescription = stripHtml(data.summary || data.description || data.short_content || data.content_summary || data.content || data.Content || data.content_html || data.html_content || "อ่านต่อเพื่อค้นหาความลับในฉากนี้...");
+  const sceneTitle = stripHtml(data.title || data.scene_name || data.name || data.label || data.chapter_name || "เนื้อเรื่อง");
+  const sceneDescription = stripHtml(data.summary || data.description || data.short_content || data.content_summary || data.content || "อ่านต่อเพื่อค้นหาความลับในฉากนี้...");
 
   const chapterLabel = data.chapter_title || data.ChapterTitle || data.chapterName || data.chapter_name;
   const chapterEpisode = data.chapter_episode || data.chapterEpisode || data.episode || data.chapter_order || data.chapterOrder;
-  const sceneNumber = data.scene_number || data.sceneNumber || data.order || data.scene_order || data.id;
 
   const footerLabel = sceneType === "start"
     ? "จุดเริ่มต้น"
-    : sceneType === "ending"
-      ? "ฉากจบ"
-      : chapterEpisode
-        ? `ตอนที่ ${chapterEpisode}`
-        : chapterLabel
-          ? chapterLabel
-          : `ฉากที่ ${sceneNumber}`;
+    : chapterEpisode
+      ? `ตอนที่ ${chapterEpisode}`
+      : chapterLabel || "";
+
+  const nodeStatusClass = `story-node--${currentStatus}`;
+  const highlightedClass = data.isHighlightedPath ? "story-node--highlighted" : "";
 
   return (
     <>
-      <Handle type="target" position={Position.Left} isConnectable={false} style={{ opacity: 0, pointerEvents: 'none' }} />
+      <Handle type="target" position={Position.Left} isConnectable={false} className="stp-handle" />
 
-      <div
-        className={`story-node ${currentStatus === NODE_STATUS.CURRENT ? "story-node--current" : ""} ${data.isHighlightedPath ? "story-node--highlighted" : ""}`}
-        style={{
-          borderColor: style.stroke,
-          background: style.fill,
-          color: style.text,
-          padding: "14px",
-          width: "280px",
-          minHeight: "120px",
-          borderRadius: "10px",
-          boxShadow: data.isHighlightedPath ? "0 0 20px rgba(233, 30, 140, 0.25)" : "0 5px 10px -2px rgba(0, 0, 0, 0.08)",
-          borderWidth: "2px",
-          borderStyle: "solid",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between"
-        }}
-      >
+      <div className={`story-node ${nodeStatusClass} ${highlightedClass}`}>
         <div>
-          <div className="story-node__label" style={{ fontWeight: "700", fontSize: "13px", marginBottom: "8px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div className="story-node__label">
             {getPrefix()}
             {isLocked ? "เนื้อเรื่องยังไม่เปิดเผย" : sceneTitle}
           </div>
 
-          <div className="story-node__desc" style={{ fontSize: "11px", color: isLocked ? "#a0aec0" : "#4a5568", lineHeight: "1.5", minHeight: "40px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+          <div className="story-node__desc">
             {isLocked ? "ผ่านเงื่อนไขในฉากก่อนหน้าเพื่อปลดล็อกแผนผังการอ่านทางเลือกนี้" : sceneDescription}
           </div>
         </div>
 
-        <div style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-          <div className="story-node__chapter" style={{ fontSize: "11px", opacity: 0.75, wordBreak: "break-word", flex: 1 }}>
+        <div className="story-node__footer">
+          <div className="story-node__chapter">
             {footerLabel}
           </div>
-          <div style={{ fontSize: "10px", padding: "4px 8px", borderRadius: "999px", background: "rgba(233, 30, 99, 0.12)", color: "#c2185b", whiteSpace: "nowrap" }}>
-            {sceneType === "start" ? "เริ่มต้น" : sceneType === "ending" ? "ฉากจบ" : `ฉากที่ ${sceneNumber}`}
-          </div>
+          
+          {sceneType === "start" && (
+            <div className="story-node__badge">เริ่มต้น</div>
+          )}
+          {sceneType === "ending" && !isLocked && (
+            <div className="story-node__badge">ฉากจบ</div>
+          )}
         </div>
       </div>
 
-      <Handle type="source" position={Position.Right} isConnectable={false} style={{ opacity: 0, pointerEvents: 'none' }} />
+      <Handle type="source" position={Position.Right} isConnectable={false} className="stp-handle" />
     </>
   );
 };
 
-// 🔒 ย้ายออกมาไว้นอก Component ตามคำแนะนำใน Console เพื่อแก้ Warning สีเหลืองข้อแรกตัวบนสุดครับ
 const nodeTypes = {
   storyNode: StoryNode,
 };
 
-const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
-  const { novelId: urlNovelId } = useParams();
-  const activeNovelId = propNovelId || urlNovelId;
+const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
+  const reactFlowInstance = useReactFlow();
   const location = useLocation();
+  const navigate = useNavigate();
+
   const highlightSceneId = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get("highlight_scene") || params.get("highlightScene");
   }, [location.search]);
 
-  const getCurrentUserId = () => {
-    const userJson = localStorage.getItem("user");
-    if (!userJson) return 0;
-    try {
-      const user = JSON.parse(userJson);
-      return user?.id || user?.user_id || 0;
-    } catch (err) {
-      console.error("Failed to parse user from localStorage:", err);
-      return 0;
-    }
-  };
-
-  const effectiveUserId = getCurrentUserId() || userId;
-
   const [treeData, setTreeData] = useState(null);
   const [novelDetail, setNovelDetail] = useState(null);
-  const [publishedChapterCount, setPublishedChapterCount] = useState(null);
+  const [endings, setEndings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showEndingModal, setShowEndingModal] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [restartLoading, setRestartLoading] = useState(false);
   const [restartError, setRestartError] = useState(null);
+
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const hoverTimerRef = useRef(null);
 
   const loadAllData = async () => {
     if (!activeNovelId || activeNovelId === "undefined") {
@@ -159,34 +145,29 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
+      const token = localStorage.getItem("token");
+      const headers = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
+
       try {
-        const novelRes = await fetch(`${BASE_URL}/novels/${activeNovelId}`);
+        const novelRes = await fetch(`${BASE_URL}/novels/${activeNovelId}${query}`, { headers });
         if (novelRes.ok) {
           const novelJson = await novelRes.json();
-          setNovelDetail(novelJson?.data?.novel || novelJson?.data || novelJson);
+          const payloadData = novelJson?.data || novelJson || {};
+          setNovelDetail(payloadData?.novel || payloadData);
+          
+          if (Array.isArray(payloadData?.endings)) {
+            setEndings(payloadData.endings);
+          }
         }
       } catch (e) {
         console.warn("ดึงข้อมูลนิยายหลักไม่สำเร็จ:", e);
       }
 
-        // ดึงจำนวนตอนที่เผยแพร่จริงจาก endpoint บท เพื่อใช้เป็นตัวหารในสถิติ
-        try {
-          const chRes = await fetch(`${BASE_URL}/novels/${activeNovelId}/chapters`);
-          if (chRes.ok) {
-            const chJson = await chRes.json();
-            const chapters = chJson?.data?.chapters || chJson?.chapters || chJson?.data || chJson;
-            if (Array.isArray(chapters)) {
-              const publishedCount = chapters.filter(c => c.is_published === true || c.status === 'published').length;
-              setPublishedChapterCount(publishedCount);
-            }
-          }
-        } catch (e) {
-          // ไม่บล็อกการโหลดผัง แต่เก็บ log ไว้
-          console.warn('ไม่สามารถดึงรายการบทเพื่อคำนวนจำนวนตอนที่เผยแพร่ได้:', e);
-        }
-
-      const query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
-      const response = await fetch(`${BASE_URL}/novels/${activeNovelId}/story-tree${query}`);
+      const response = await fetch(`${BASE_URL}/novels/${activeNovelId}/story-tree${query}`, { headers });
       if (!response.ok) {
         throw new Error("ไม่สามารถเรียกดูแผนผังนิยายกิ่งไม้จากฐานข้อมูลได้");
       }
@@ -213,76 +194,83 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
   const { computedNodes, computedEdges, autoStats } = useMemo(() => {
     if (!treeData || !treeData.nodes) return { computedNodes: [], computedEdges: [], autoStats: null };
 
-    const rawNodes = treeData.nodes;
+    const rawNodes = treeData.nodes || [];
     const rawEdges = treeData.edges || [];
 
-    const uniqueRawNodes = (() => {
-      const seen = new Set();
-      return rawNodes.filter((node) => {
-        const id = String(node.id);
-        if (!id || seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      });
-    })();
-
-    // Filter nodes/edges to only those that are connected (appear in any edge as source or target)
-    const connectedNodeIds = new Set();
-    rawEdges.forEach(e => {
-      const from = String(e.from_id || e.from);
-      const to = String(e.to_id || e.to);
-      if (from) connectedNodeIds.add(from);
-      if (to) connectedNodeIds.add(to);
+    const endingsList = treeData.endings || treeData.ending_list || [];
+    const unlockedEndingsMap = {};
+    endingsList.forEach(e => {
+      if (e.is_unlocked) {
+        unlockedEndingsMap[String(e.scene_id || e.id)] = e;
+      }
     });
 
-    // Ensure the start node is always included even if it has no edges
-    const startCandidate = uniqueRawNodes.find(n => n.type === "start") || uniqueRawNodes[0] || rawNodes[0];
+    const publishedNodes = rawNodes.filter(n => n.is_published !== false && n.status !== "draft");
+    
+    const startCandidate = publishedNodes.find(n => n.type === "start") || publishedNodes[0];
     const startCandidateId = startCandidate ? String(startCandidate.id) : null;
-    const connectedRawNodes = uniqueRawNodes.filter(n => connectedNodeIds.has(String(n.id)) || (startCandidateId && String(n.id) === startCandidateId));
+    const reachableNodeIds = new Set();
+    
+    if (startCandidateId) {
+      const queue = [startCandidateId];
+      reachableNodeIds.add(startCandidateId);
+      
+      while (queue.length > 0) {
+        const currId = queue.shift();
+        const outgoingEdges = rawEdges.filter(e => String(e.from_id || e.from) === currId);
+        
+        outgoingEdges.forEach(e => {
+          const toId = String(e.to_id || e.to);
+          if (!reachableNodeIds.has(toId) && publishedNodes.some(n => String(n.id) === toId)) {
+            reachableNodeIds.add(toId);
+            queue.push(toId);
+          }
+        });
+      }
+    }
+
+    const connectedRawNodes = publishedNodes.filter(n => reachableNodeIds.has(String(n.id)));
+    const connectedNodeIds = new Set(connectedRawNodes.map(n => String(n.id)));
+
     const filteredEdges = rawEdges.filter(e => {
       const from = String(e.from_id || e.from);
       const to = String(e.to_id || e.to);
       return connectedNodeIds.has(from) && connectedNodeIds.has(to);
     });
 
-    const startNode = connectedRawNodes.find(n => n.type === "start") || connectedRawNodes[0] || uniqueRawNodes.find(n => n.type === "start") || uniqueRawNodes[0] || rawNodes[0];
-    const startNodeIdStr = startNode ? String(startNode.id) : null;
+    const startNodeIdStr = startCandidateId;
     const currentSceneIdStr = treeData.current_scene_id ? String(treeData.current_scene_id) : null;
-    const hasBackendCurrent = uniqueRawNodes.some(n => n.is_current === true);
+    const hasBackendCurrent = connectedRawNodes.some(n => n.is_current === true);
 
     const parentMap = {};
+    const adjList = {};
+    const inDegree = {};
+    
+    connectedRawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
+    
     filteredEdges.forEach(e => {
       const from = String(e.from_id || e.from);
       const to = String(e.to_id || e.to);
       if (!parentMap[to]) parentMap[to] = [];
       parentMap[to].push(from);
+      if (adjList[from] && inDegree[to] !== undefined) { 
+        adjList[from].push(to); 
+        inDegree[to]++; 
+      }
     });
 
-    const adjList = {};
-    const inDegree = {};
-    // Build adjacency only for connected nodes/edges
-    connectedRawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
-    filteredEdges.forEach(e => {
-      const from = String(e.from_id || e.from);
-      const to = String(e.to_id || e.to);
-      if (adjList[from] && inDegree[to] !== undefined) { adjList[from].push(to); inDegree[to]++; }
-    });
-    const levels = {}; const queue = [];
+    const levels = {};
+    const queue = [];
     connectedRawNodes.forEach(n => { if (inDegree[n.id] === 0 || n.type === "start") { levels[n.id] = 0; queue.push(n.id); } });
     while (queue.length > 0) {
-      const curr = queue.shift(); const currLevel = levels[curr] || 0;
+      const curr = queue.shift();
+      const currLevel = levels[curr] || 0;
       (adjList[curr] || []).forEach(child => { if (levels[child] === undefined) { levels[child] = currLevel + 1; queue.push(child); } });
     }
+
     const levelCounts = {};
     connectedRawNodes.forEach(n => { const lv = levels[n.id] || 0; levelCounts[lv] = (levelCounts[lv] || 0) + 1; });
     const levelCurrentTracker = {};
-
-    const activeNodeIds = new Set();
-    connectedRawNodes.forEach(n => {
-      if (n.type === "start" || n.is_current || n.is_unlocked) {
-        activeNodeIds.add(String(n.id));
-      }
-    });
 
     const highlightId = highlightSceneId ? String(highlightSceneId) : null;
     const highlightPathNodes = new Set();
@@ -295,14 +283,12 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
         if (!parents.length) break;
         const parentId = String(parents[0]);
         highlightPathNodes.add(parentId);
-        const edge = rawEdges.find((edgeNode) => {
+        const edge = filteredEdges.find((edgeNode) => {
           const fromId = String(edgeNode.from_id || edgeNode.from);
           const toId = String(edgeNode.to_id || edgeNode.to);
           return fromId === parentId && toId === currentId;
         });
-        if (edge) {
-          highlightPathEdges.add(String(edge.id || `e-${parentId}-${currentId}`));
-        }
+        if (edge) highlightPathEdges.add(String(edge.id || `e-${parentId}-${currentId}`));
         currentId = parentId;
       }
     }
@@ -318,26 +304,33 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       const totalInLevel = levelCounts[lv] || 1;
       const yPosition = (branchIndex - (totalInLevel - 1) / 2) * 320;
 
-      let computedStatus = NODE_STATUS.LOCKED;
-      const parents = parentMap[nodeIdStr] || [];
-      const isAnyParentActive = parents.some(pId => activeNodeIds.has(pId));
-
       const isCurrentNode = node.is_current || (currentSceneIdStr ? nodeIdStr === currentSceneIdStr : (!hasBackendCurrent && nodeIdStr === startNodeIdStr));
       const isHighlight = highlightPathNodes.has(nodeIdStr);
+
+      const endingData = unlockedEndingsMap[nodeIdStr];
+      const isNodeUnlocked = node.is_unlocked || node.is_visited || !!endingData;
+      
+      const finalVisitedDate = endingData?.unlocked_at || 
+                               endingData?.reached_at || 
+                               endingData?.discovered_at || 
+                               node.visited_at || 
+                               node.read_at || 
+                               node.unlocked_at;
+
+      let computedStatus = NODE_STATUS.LOCKED;
 
       if (node.type === "start") {
         computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.VISITED;
       } else if (node.type === "ending") {
-        // 🔧 เช็ค isCurrentNode สำหรับ ending node ด้วย
         if (isCurrentNode) {
           computedStatus = NODE_STATUS.CURRENT;
         } else {
-          computedStatus = node.is_unlocked ? NODE_STATUS.ENDING_UNLOCKED : NODE_STATUS.ENDING_LOCKED;
+          computedStatus = isNodeUnlocked ? NODE_STATUS.ENDING_UNLOCKED : NODE_STATUS.ENDING_LOCKED;
         }
       } else {
         if (isCurrentNode) {
           computedStatus = NODE_STATUS.CURRENT;
-        } else if (node.is_unlocked) {
+        } else if (isNodeUnlocked) {
           computedStatus = NODE_STATUS.VISITED;
         } else {
           computedStatus = NODE_STATUS.LOCKED;
@@ -348,7 +341,7 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
         id: nodeIdStr,
         type: "storyNode",
         position: { x: xPosition + 60, y: yPosition + 220 },
-        data: { ...node, computedStatus, isHighlightedPath: isHighlight },
+        data: { ...node, computedStatus, isHighlightedPath: isHighlight, finalVisitedDate },
       };
     });
 
@@ -356,58 +349,105 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       const fromId = String(edge.from_id || edge.from);
       const toId = String(edge.to_id || edge.to);
       const sourceNodeMapped = mappedNodes.find(n => n.id === fromId);
+      const targetNodeMapped = mappedNodes.find(n => n.id === toId);
 
-      const isSourceActive = sourceNodeMapped?.data?.computedStatus === NODE_STATUS.CURRENT ||
-        sourceNodeMapped?.data?.computedStatus === NODE_STATUS.VISITED;
+      const isSourceVisited = sourceNodeMapped?.data?.computedStatus === NODE_STATUS.VISITED || sourceNodeMapped?.data?.computedStatus === NODE_STATUS.CURRENT;
+      const isTargetVisited = targetNodeMapped?.data?.computedStatus === NODE_STATUS.VISITED || targetNodeMapped?.data?.computedStatus === NODE_STATUS.CURRENT || targetNodeMapped?.data?.computedStatus === NODE_STATUS.ENDING_UNLOCKED;
 
+      const isWalkedPath = isSourceVisited && isTargetVisited;
       const edgeId = String(edge.id || `e-${fromId}-${toId}-${idx}`);
       const isHighlightedEdge = highlightPathEdges.has(edgeId);
+
       return {
         id: edgeId,
         source: fromId,
         target: toId,
-        animated: isHighlightedEdge || isSourceActive,
-        label: edge.label || edge.choice_text || edge.text || "???",
+        animated: isHighlightedEdge || isWalkedPath,
+        label: edge.label || edge.choice_text || edge.text || "",
         labelStyle: { fill: "#4a5568", fontWeight: 500, fontSize: 11 },
         labelBgPadding: [4, 4],
         labelBgRadius: 4,
-        labelBgStyle: { fill: "#ffffff", fillOpacity: 1, stroke: "#cbd5e1", strokeWidth: 1 },
+        labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95, stroke: "#cbd5e1", strokeWidth: 1 },
         labelBgBorderRadius: 4,
         style: {
-          stroke: isHighlightedEdge ? "#E91E8C" : isSourceActive ? "#4CAF82" : "#D0CCD7",
-          strokeWidth: isHighlightedEdge ? 4 : 2,
-          filter: isHighlightedEdge ? "drop-shadow(0 0 12px rgba(233, 30, 140, 0.25))" : "",
+          stroke: isHighlightedEdge || isWalkedPath ? "#E91E8C" : "#CBD5E1",
+          strokeWidth: isHighlightedEdge || isWalkedPath ? 3 : 2,
+          pointerEvents: "none",
         },
         type: "smoothstep",
       };
     });
 
-    const visitedScenesCount = mappedNodes.filter(n => n.data.computedStatus === NODE_STATUS.VISITED || n.data.computedStatus === NODE_STATUS.CURRENT).length;
+    // 🟢 แก้ไขตรงนี้: เพิ่ม ENDING_UNLOCKED เข้าไปในฉากที่ค้นพบแล้ว
+    const visitedScenesCount = mappedNodes.filter(
+      (n) =>
+        n.data.computedStatus === NODE_STATUS.VISITED ||
+        n.data.computedStatus === NODE_STATUS.CURRENT ||
+        n.data.computedStatus === NODE_STATUS.ENDING_UNLOCKED
+    ).length;
 
-    const discoveredChoicesCount = mappedEdges.filter(edge => {
-      const targetNode = mappedNodes.find(n => n.id === edge.target);
-      return targetNode && (
-        targetNode.data.computedStatus === NODE_STATUS.VISITED ||
-        targetNode.data.computedStatus === NODE_STATUS.CURRENT ||
-        targetNode.data.computedStatus === NODE_STATUS.ENDING_UNLOCKED
+    const discoveredChoicesCount = mappedEdges.filter((edge) => {
+      const targetNode = mappedNodes.find((n) => n.id === edge.target);
+      return (
+        targetNode &&
+        (targetNode.data.computedStatus === NODE_STATUS.VISITED ||
+          targetNode.data.computedStatus === NODE_STATUS.CURRENT ||
+          targetNode.data.computedStatus === NODE_STATUS.ENDING_UNLOCKED)
       );
     }).length;
 
-    const unlockedEndingsCount = mappedNodes.filter(n => n.data.computedStatus === NODE_STATUS.ENDING_UNLOCKED).length;
+    const unlockedEndingsCount = mappedNodes.filter(
+      (n) => n.data.computedStatus === NODE_STATUS.ENDING_UNLOCKED
+    ).length;
 
     return {
       computedNodes: mappedNodes,
       computedEdges: mappedEdges,
       autoStats: {
         visitedScenes: visitedScenesCount,
-        totalScenes: connectedRawNodes.length,
         discoveredChoices: discoveredChoicesCount,
-        totalChoices: filteredEdges.length,
         unlockedEndings: unlockedEndingsCount,
-        totalEndings: connectedRawNodes.filter(n => n.type === "ending").length || 3
-      }
+      },
     };
-  }, [treeData]);
+  }, [treeData, highlightSceneId]);
+
+  const endingsForModal = useMemo(() => {
+    if (endings && endings.length > 0) {
+      return endings;
+    }
+
+    const rawList = treeData?.endings || treeData?.ending_list || [];
+    return rawList.map((item) => ({
+      ...item,
+      id: item.id || item.ending_id,
+      scene_id: item.scene_id || item.sceneId || item.id,
+      title: item.title || item.ending_title || item.name || "ฉากจบ",
+      description: stripHtml(item.description || item.ending_description || item.summary || item.content || ""),
+      type: item.type || item.ending_type || "ending",
+      is_unlocked: item.is_unlocked ?? item.unlocked ?? true,
+    }));
+  }, [endings, treeData]);
+
+  const handleFocusCurrent = useCallback(() => {
+    const currentNode = computedNodes.find(n => n.data?.computedStatus === NODE_STATUS.CURRENT);
+    if (currentNode && reactFlowInstance) {
+      reactFlowInstance.setCenter(
+        currentNode.position.x + 140,
+        currentNode.position.y + 60,
+        { zoom: 1.1, duration: 800 }
+      );
+    }
+  }, [computedNodes, reactFlowInstance]);
+
+  const handleOpenEndingModal = () => setShowEndingModal(true);
+
+  const handleGoToDetail = () => {
+    if (onNavigate) {
+      onNavigate("novel-detail", { novelId: activeNovelId });
+    } else {
+      navigate(`/novels/${activeNovelId}`);
+    }
+  };
 
   const handleRestartConfirmOpen = () => {
     setRestartError(null);
@@ -445,12 +485,12 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
         throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
       }
 
-      const startSceneId = payload?.data?.start_scene_id || payload?.data?.StartSceneID || payload?.start_scene_id || payload?.startSceneId;
+      const startSceneId = payload?.data?.start_scene_id || payload?.data?.StartSceneID || payload?.start_scene_id;
       setShowRestartConfirm(false);
-      if (startSceneId) {
-        onNavigate?.("reading", { novelId: activeNovelId, sceneId: startSceneId });
+      if (onNavigate) {
+        onNavigate("reading", { novelId: activeNovelId, sceneId: startSceneId });
       } else {
-        onNavigate?.("reading", { novelId: activeNovelId });
+        navigate(`/read/${activeNovelId}${startSceneId ? `?sceneId=${startSceneId}` : ""}`);
       }
     } catch (err) {
       setRestartError(err.message || "ไม่สามารถเริ่มอ่านใหม่ได้ในขณะนี้");
@@ -460,25 +500,18 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
   };
 
   const handleNodeClick = async (_, node) => {
-    const currentStatus = node.data?.computedStatus;
+    const targetNode = node.data ? node : { data: node };
+    const currentStatus = targetNode.data?.computedStatus;
     const clickable = currentStatus === NODE_STATUS.CURRENT ||
       currentStatus === NODE_STATUS.VISITED ||
       currentStatus === NODE_STATUS.ENDING_UNLOCKED;
 
     if (!clickable) return;
+    const targetSceneId = targetNode.data?.id || targetNode.id;
 
-    // 🎯 ดึง ID มาเช็ก และแปลงเป็น String เพื่อความชัวร์
-    const targetSceneId = node.data?.id || node.id; 
-    
-    console.log("=== Debug แผนผังนักอ่าน ===");
-    console.log("novelId ที่ได้รับ:", activeNovelId);
-    console.log("sceneId ที่ถูกคลิก:", targetSceneId);
-
-    // 🚀 ยิง API ไปอัปเดต Backend ทันที (ถอดเงื่อนไขจุกจิกออกเพื่อให้มันพยายามยิงเสมอ)
     try {
       const token = localStorage.getItem("token");
       if (token) {
-        // เปลี่ยนเป็นคิวรีหารูปแบบ URL ตามที่คุณใช้ (ลองใช้ endpoint /history/progress หรือปรับตาม backend)
         await fetch(`${BASE_URL}/history/progress`, {
           method: "POST",
           headers: {
@@ -490,86 +523,59 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
             scene_id: Number(targetSceneId),
           }),
         });
-        console.log("✅ ยิง API บันทึกฉากใหม่สำเร็จ!");
-      } else {
-        console.warn("❌ ไม่พบ Token ใน localStorage เลยไม่ได้ยิง API");
       }
     } catch (err) {
-      console.error("💥 เกิด Error ตอนยิง API:", err);
+      console.error("เกิด Error ตอนอัปเดตความคืบหน้า:", err);
     }
 
-    // ➡️ เปลี่ยนหน้าหลังจากยิงคำสั่ง (หรือลองยิงแล้ว)
     if (onNavigate) {
-      onNavigate("reading", {
-        novelId: activeNovelId,
-        initialSceneId: targetSceneId,
-      });
+      onNavigate("reading", { novelId: activeNovelId, initialSceneId: targetSceneId });
+    } else {
+      navigate(`/read/${activeNovelId}?sceneId=${targetSceneId}`);
     }
   };
+
+  const handleNodeMouseEnter = (event, node) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    const status = node.data?.computedStatus;
+    
+    if (status === NODE_STATUS.LOCKED || status === NODE_STATUS.ENDING_LOCKED) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 12 });
+    setHoveredNode(node);
+  };
+
+  const handleNodeMouseLeave = () => {
+    hoverTimerRef.current = setTimeout(() => setHoveredNode(null), 250);
+  };
+
+  const handleTooltipMouseEnter = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+  };
+  const handleTooltipMouseLeave = () => setHoveredNode(null);
 
   if (!effectiveUserId) {
     return (
       <div className="stp">
         <div className="stp__container">
           <div className="stp__actions">
-
-            <button
-              className="stp__back"
-              onClick={() =>
-                onNavigate &&
-                onNavigate("novel-detail", { novelId: activeNovelId })
-              }
-            >
-              ← กลับรายละเอียด
-            </button>
-
-            <button
-              className="stp__restart-btn"
-              type="button"
-              onClick={handleRestartConfirmOpen}
-            >
-              🔄 เริ่มอ่านใหม่
-            </button>
-
+            <button className="stp__back" onClick={handleGoToDetail}>← กลับรายละเอียด</button>
+            <button className="stp__restart-btn" type="button" onClick={handleRestartConfirmOpen}>↻ เริ่มอ่านใหม่</button>
           </div>
-
           <div className="stp__header">
-            <h1 className="stp__title">
-              แผนผังการอ่าน
-              <span className="stp__title-sep"> — </span>
-              <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span>
-            </h1>
+            <h1 className="stp__title">แผนผังการอ่าน<span className="stp__title-sep"> — </span><span className="stp__title-novel">{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span></h1>
+            <p className="stp__subtitle">สำรวจทางเลือกที่คุณเคยเดินผ่านมา</p>
           </div>
-
           <div className="stp__main">
             <div className="stp__flow-wrapper stp__placeholder-wrapper">
               <div className="stp__placeholder-card">
                 <span className="stp__placeholder-tag">ล็อกอินก่อน</span>
                 <h2 className="stp__placeholder-title">ล็อกอินเพื่อดูสตอรี่แมพทั้งหมด</h2>
-                <p className="stp__placeholder-text">
-                  ระบบจะแสดงผังโครงสร้างหน้าให้เห็นชัดเจน แต่การเปิดโหนดและสถานะต่าง ๆ จะต้องเข้าสู่ระบบก่อน
-                </p>
-
-                {typeof onNavigate === "function" ? (
-                  <button className="stp__placeholder-button" onClick={() => onNavigate("login")}>ไปที่หน้าเข้าสู่ระบบ</button>
-                ) : (
-                  <a className="stp__placeholder-button" href="/login-register">ไปที่หน้าเข้าสู่ระบบ</a>
-                )}
+                <p className="stp__placeholder-text">ระบบจะแสดงผังโครงสร้างหน้าให้เห็นชัดเจน แต่การเปิดโหนดและสถานะต่าง ๆ จะต้องเข้าสู่ระบบก่อน</p>
+                <button className="stp__placeholder-button" onClick={() => onNavigate ? onNavigate("login") : navigate("/login")}>ไปที่หน้าเข้าสู่ระบบ</button>
               </div>
             </div>
-
-            <aside className="stp__sidebar">
-              <div className="stp__stat-card stp__placeholder-sidecard">
-                <div className="stp__stat-card-title">โครงสร้างหน้าสตอรี่แมพ</div>
-                <div className="stp__stat-item">
-                  <span className="stp__stat-label">สถานะ</span>
-                  <span className="stp__stat-value stp__stat-value--pink">ล็อกอินเพื่อเปิด</span>
-                </div>
-                <p className="stp__placeholder-note">
-                  หน้านี้จะแสดง layout และโครงสร้างผังเรื่องแบบกว้าง ๆ แต่เนื้อหาโหนดจะยังไม่เปิดจนกว่าจะเข้าสู่ระบบ
-                </p>
-              </div>
-            </aside>
           </div>
         </div>
       </div>
@@ -578,17 +584,16 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
 
   if (loading) {
     return (
-      <div style={{ padding: "100px", textAlign: "center", color: "#666" }}>
-        <div style={{ width: "40px", height: "40px", border: "4px solid #f3f3f3", borderTop: "4px solid #E91E8C", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
-        <p style={{ fontSize: "1.1rem" }}>กำลังเตรียมข้อมูลแผนผังการอ่าน...</p>
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      <div className="stp__loading-state">
+        <div className="stp__spinner" />
+        <p>กำลังเตรียมข้อมูลแผนผังการอ่าน...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: "60px", textAlign: "center", color: "#f44336" }}>
+      <div className="stp__error-state">
         <h3>💥 โหลดผังโครงสร้างไม่สำเร็จ</h3>
         <p>{error}</p>
       </div>
@@ -596,180 +601,59 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
   }
 
   const finalTitle = novelDetail?.title || treeData?.novel_title || "ผังโครงสร้างเนื้อเรื่อง";
-  const stats = autoStats || {
-    visitedScenes: 0,
-    totalScenes: 0,
-    discoveredChoices: 0,
-    totalChoices: 0,
-    unlockedEndings: 0,
-    totalEndings: 0
-  };
+  const stats = autoStats || { visitedScenes: 0, discoveredChoices: 0, unlockedEndings: 0 };
+  const formattedVisitedDate = formatDate(hoveredNode?.data?.finalVisitedDate);
 
   return (
     <div className="stp">
       <div className="stp__container">
         <div className="stp__actions">
-
-          <button
-            className="stp__back"
-            onClick={() =>
-              onNavigate &&
-              onNavigate("novel-detail", { novelId: activeNovelId })
-            }
-          >
-            ← กลับรายละเอียด
-          </button>
-
-          <button
-            className="stp__restart-btn"
-            type="button"
-            onClick={handleRestartConfirmOpen}
-          >
-            ↻ เริ่มอ่านใหม่
-          </button>
-
+          <div className="stp__actions-group">
+            <button className="stp__back" onClick={handleGoToDetail}>← กลับรายละเอียด</button>
+          </div>
+          <div className="stp__actions-group">
+            <button className="stp__focus-btn" type="button" onClick={handleFocusCurrent}>🎯 โฟกัสจุดปัจจุบัน</button>
+            {stats.unlockedEndings > 0 && (
+              <button className="stp__ending-btn" type="button" onClick={handleOpenEndingModal}>🏆 ดูคลังฉากจบ</button>
+            )}
+            <button className="stp__restart-btn" type="button" onClick={handleRestartConfirmOpen}>↻ เริ่มอ่านใหม่</button>
+          </div>
         </div>
 
         <div className="stp__header">
-          <h1 className="stp__title">
-            แผนผังการอ่าน
-            <span className="stp__title-sep">{" "}—{" "}</span>
-            <span className="stp__title-novel" style={{ color: "#E91E8C" }}>{finalTitle}</span>
-          </h1>
+          <h1 className="stp__title">แผนผังการอ่าน<span className="stp__title-sep">{" "}—{" "}</span><span className="stp__title-novel">{finalTitle}</span></h1>
+          <p className="stp__subtitle">สำรวจทางเลือกที่คุณเคยเดินผ่านมา</p>
         </div>
 
         <div className="stp__main">
-          {/* Top stats bar (numbers only, above the graph) */}
           <div className="stp__survey-stats">
-
             <div className="stp__survey-card pink">
-              <div className="stp__survey-icon">
-                📖
-              </div>
-
-              <div className="stp__survey-content">
-                <span className="stp__survey-title">
-                  อ่านถึงตอนที่
-                </span>
-
-                <div className="stp__survey-number">
-                  <span>{stats.visitedScenes}</span>
-                  <small> / {publishedChapterCount ?? stats.totalScenes}</small>
-                </div>
-
-                <div className="stp__progress">
-                  <div
-                    className="stp__progress-fill pink"
-                    style={{
-                      width: `${(publishedChapterCount ?? stats.totalScenes)
-                        ? (stats.visitedScenes / (publishedChapterCount ?? stats.totalScenes)) * 100
-                        : 0
-                        }%`,
-                    }}
-                  />
-                </div>
-              </div>
+              <div className="stp__survey-icon">📖</div>
+              <div className="stp__survey-content"><span className="stp__survey-title">ฉากที่ค้นพบ</span><div className="stp__survey-number"><span>{stats.visitedScenes}</span></div></div>
             </div>
-
             <div className="stp__survey-card green">
-
-              <div className="stp__survey-icon">
-                🧩
-              </div>
-
-              <div className="stp__survey-content">
-
-                <span className="stp__survey-title">
-                  ทางเลือกที่ค้นพบ
-                </span>
-
-                <div className="stp__survey-number">
-                  <span>{stats.discoveredChoices}</span>
-                  <small> / {stats.totalChoices}</small>
-                </div>
-
-                <div className="stp__progress">
-                  <div
-                    className="stp__progress-fill green"
-                    style={{
-                      width: `${stats.totalChoices
-                        ? (stats.discoveredChoices / stats.totalChoices) * 100
-                        : 0
-                        }%`,
-                    }}
-                  />
-                </div>
-
-              </div>
-
+              <div className="stp__survey-icon">🧩</div>
+              <div className="stp__survey-content"><span className="stp__survey-title">ทางเลือกที่ค้นพบ</span><div className="stp__survey-number"><span>{stats.discoveredChoices}</span></div></div>
             </div>
-
             <div className="stp__survey-card yellow">
-
-              <div className="stp__survey-icon">
-                🏁
-              </div>
-
-              <div className="stp__survey-content">
-
-                <span className="stp__survey-title">
-                  ฉากจบที่ปลดล็อก
-                </span>
-
-                <div className="stp__survey-number">
-                  <span>{stats.unlockedEndings}</span>
-                  <small> / {stats.totalEndings}</small>
-                </div>
-
-                <div className="stp__progress">
-                  <div
-                    className="stp__progress-fill yellow"
-                    style={{
-                      width: `${stats.totalEndings
-                        ? (stats.unlockedEndings / stats.totalEndings) * 100
-                        : 0
-                        }%`,
-                    }}
-                  />
-                </div>
-
-              </div>
-
+              <div className="stp__survey-icon">🏁</div>
+              <div className="stp__survey-content"><span className="stp__survey-title">ฉากจบ</span><div className="stp__survey-number"><span>{stats.unlockedEndings}</span></div></div>
             </div>
-
           </div>
 
-          <div className="stp__flow-wrapper" style={{ width: "100%", background: "#f8f9fa", borderRadius: "8px", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-
-
+          <div className="stp__flow-wrapper">
             <div className="stp__legend-floating">
-
               {[
                 { color: "#E91E8C", label: "จุดปัจจุบัน" },
-                { color: "#4CAF82", label: "ปลดล็อกแล้ว" },
-                { color: "#F7C940", label: "ตอนจบปลดแล้ว" },
-                { color: "#C8C3D4", label: "ยังไม่ปลดล็อก" },
+                { color: "#4CAF82", label: "ค้นพบแล้ว" },
+                { color: "#C8C3D4", label: "ยังไม่ค้นพบ" },
+                { color: "#F7C940", label: "ฉากจบ" },
               ].map(item => (
-
-                <div
-                  key={item.label}
-                  className="stp__legend-floating-item"
-                >
-                  <span
-                    className="stp__legend-floating-dot"
-                    style={{
-                      background: item.color
-                    }}
-                  />
-
-                  <span>
-                    {item.label}
-                  </span>
-
+                <div key={item.label} className="stp__legend-floating-item">
+                  <span className="stp__legend-floating-dot" style={{ background: item.color }} />
+                  <span>{item.label}</span>
                 </div>
-
               ))}
-
             </div>
 
             {computedNodes.length > 0 ? (
@@ -777,23 +661,16 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
                 nodes={computedNodes}
                 edges={computedEdges}
                 nodeTypes={nodeTypes}
-
-                style={{
-                  width: "100%",
-                  height: "100%"
-                }}
-
                 fitView
-                fitViewOptions={{
-                  padding: 0.2
-                }}
-
+                fitViewOptions={{ padding: 0.2 }}
                 zoomOnScroll
                 panOnDrag
                 nodesDraggable
                 nodesConnectable={false}
                 elementsSelectable={false}
                 onNodeClick={handleNodeClick}
+                onNodeMouseEnter={handleNodeMouseEnter}
+                onNodeMouseLeave={handleNodeMouseLeave}
                 proOptions={{ hideAttribution: true }}
               >
                 <Background gap={24} size={1} color="#e2e8f0" />
@@ -807,77 +684,72 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
                     return "#cbd5e1";
                   }}
                   maskColor="rgba(248, 249, 250, 0.7)"
-                  style={{ borderRadius: "6px", border: "1px solid #cbd5e1" }}
                 />
               </ReactFlow>
             ) : (
-              <div style={{ textAlign: "center", color: "#718096", padding: "20px" }}>
-                <span style={{ fontSize: "40px" }}>🍁</span>
-                <p style={{ marginTop: "12px", fontSize: "15px", fontWeight: "500" }}>นิยายเรื่องนี้ยังไม่มีการเพิ่มตอนหรือฉากเนื้อเรื่อง</p>
-                <p style={{ fontSize: "13px", opacity: 0.8 }}>โปรดติดตามชมแผนผังการอ่านอีกครั้งเมื่อนักเขียนเริ่มลงเนื้อหา</p>
+              <div className="stp__empty-state">
+                <span className="stp__empty-icon">🍁</span>
+                <p className="stp__empty-title">นิยายเรื่องนี้ยังไม่มีการเพิ่มตอนหรือฉากเนื้อเรื่องที่เผยแพร่</p>
+                <p className="stp__empty-sub">โปรดติดตามชมแผนผังการอ่านอีกครั้งเมื่อนักเขียนเริ่มลงเนื้อหา</p>
+              </div>
+            )}
+
+            {hoveredNode && (
+              <div
+                className="stp__hover-tooltip"
+                style={{ top: tooltipPos.y, left: tooltipPos.x }}
+                onMouseEnter={handleTooltipMouseEnter}
+                onMouseLeave={handleTooltipMouseLeave}
+              >
+                <div className="stp__hover-title">{hoveredNode.data?.chapter_title || hoveredNode.data?.title || "ฉากเนื้อเรื่อง"}</div>
+                <div className="stp__hover-episode">{hoveredNode.data?.chapter_episode ? `ตอนที่ ${hoveredNode.data.chapter_episode}` : hoveredNode.data?.chapter_name || ""}</div>
+                
+                {formattedVisitedDate && <div className="stp__hover-date">ค้นพบเมื่อ {formattedVisitedDate}</div>}
+                
+                <button
+                  type="button"
+                  className="stp__hover-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNodeClick(null, hoveredNode);
+                    setHoveredNode(null);
+                  }}
+                >
+                  อ่านอีกครั้ง
+                </button>
               </div>
             )}
           </div>
-
         </div>
+
+        <EndingCollection
+          isOpen={showEndingModal}
+          endings={endingsForModal}
+          onClose={() => setShowEndingModal(false)}
+          onViewStoryMap={(sceneId) => {
+            setShowEndingModal(false);
+            if (sceneId && reactFlowInstance) {
+              const targetNode = computedNodes.find(n => String(n.id) === String(sceneId));
+              if (targetNode) {
+                reactFlowInstance.setCenter(
+                  targetNode.position.x + 140,
+                  targetNode.position.y + 60,
+                  { zoom: 1.1, duration: 800 }
+                );
+              }
+            }
+          }}
+        />
+
         {showRestartConfirm && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            background: "rgba(0, 0, 0, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}>
-            <div style={{
-              background: "#ffffff",
-              padding: "32px",
-              borderRadius: "18px",
-              maxWidth: "420px",
-              width: "90%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-              textAlign: "center"
-            }}>
-              <h3 style={{ marginBottom: "12px", fontSize: "1.25rem" }}>เริ่มอ่านใหม่</h3>
-              <p style={{ marginBottom: "20px", color: "#4a5568", lineHeight: 1.6 }}>
-                การเริ่มอ่านใหม่นี้จะคืนสถานะความคืบหน้าและผังเรื่องกลับไปยังจุดเริ่มต้น แต่จะยังเก็บตอนจบที่คุณค้นพบไว้
-              </p>
-              {restartError && (
-                <div style={{ marginBottom: "14px", color: "#b91c1c" }}>{restartError}</div>
-              )}
-              <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={handleRestartConfirmClose}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: "12px",
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#334155",
-                    cursor: "pointer"
-                  }}
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRestart}
-                  disabled={restartLoading}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: "12px",
-                    border: "none",
-                    background: "#E91E8C",
-                    color: "#ffffff",
-                    fontWeight: 700,
-                    cursor: restartLoading ? "not-allowed" : "pointer"
-                  }}
-                >
+          <div className="stp__modal-overlay">
+            <div className="stp__modal-card">
+              <h3 className="stp__modal-title">เริ่มอ่านใหม่</h3>
+              <p className="stp__modal-desc">การเริ่มอ่านใหม่นี้จะคืนสถานะความคืบหน้าและผังเรื่องกลับไปยังจุดเริ่มต้น แต่จะยังเก็บตอนจบที่คุณค้นพบไว้</p>
+              {restartError && <div className="stp__modal-error">{restartError}</div>}
+              <div className="stp__modal-actions">
+                <button type="button" className="stp__modal-cancel" onClick={handleRestartConfirmClose}>ยกเลิก</button>
+                <button type="button" className="stp__modal-confirm" onClick={handleRestart} disabled={restartLoading}>
                   {restartLoading ? "กำลังเริ่มใหม่..." : "ยืนยันเริ่มอ่านใหม่"}
                 </button>
               </div>
@@ -887,7 +759,30 @@ const StoryTreePage = ({ novelId: propNovelId, userId = 0, onNavigate }) => {
       </div>
     </div>
   );
+};
 
+const StoryTreePage = (props) => {
+  const { novelId: urlNovelId } = useParams();
+  const activeNovelId = props.novelId || urlNovelId;
+
+  const getCurrentUserId = () => {
+    const userJson = localStorage.getItem("user");
+    if (!userJson) return 0;
+    try {
+      const user = JSON.parse(userJson);
+      return user?.id || user?.user_id || 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const effectiveUserId = getCurrentUserId() || props.userId || 0;
+
+  return (
+    <ReactFlowProvider>
+      <StoryTreeInner {...props} activeNovelId={activeNovelId} effectiveUserId={effectiveUserId} />
+    </ReactFlowProvider>
+  );
 };
 
 export default StoryTreePage;

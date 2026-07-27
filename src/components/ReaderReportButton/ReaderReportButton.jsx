@@ -153,23 +153,31 @@ export default function ReaderReportButton({ novelId, novelTitle = "นิยา
                 </div>
 
                 <div style={{ marginTop: "16px" }}>
-                  <label className="report-section-label">รายละเอียดเพิ่มเติม (ถ้ามี)</label>
+                  <label className="report-section-label">รายละเอียดเพิ่มเติม (ระบุตอนที่พบปัญหา)</label>
                   <textarea
                     className="report-textarea"
                     rows={3}
-                    placeholder="อธิบายปัญหาที่คุณพบเพิ่มเติม..."
+                    placeholder="โปรดระบุรายละเอียด เช่น พบเนื้อหาไม่เหมาะสมในตอนที่ 3, ก๊อปปี้มาจากเรื่อง..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
 
-                <div className="report-modal-actions">
+                <div style={{ marginTop: "12px", fontSize: "12px", color: "#718096" }}>
+                  *การรายงานเท็จหรือกลั่นแกล้งผู้อื่น อาจส่งผลให้บัญชีของคุณถูกระงับการใช้งาน
+                </div>
+
+                <div className="report-modal-actions" style={{ marginTop: "20px" }}>
                   <button className="btn-cancel" onClick={resetAndClose}>
                     ยกเลิก
                   </button>
                   <button
                     className="btn-submit"
-                    disabled={!reason || status === "sending"}
+                    disabled={
+                      !reason ||
+                      (reason === "other" && description.trim().length < 3) ||
+                      status === "sending"
+                    }
                     onClick={handleSubmit}
                   >
                     {status === "sending" ? (

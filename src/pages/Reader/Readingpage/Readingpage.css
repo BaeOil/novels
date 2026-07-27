@@ -159,19 +159,147 @@
     font-size: 11px;
 }
 
+/* ── Novel subtitle (เหนือชื่อตอน) ── */
+.rp__header-group {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.rp__novel-subtitle {
+    font-size: 1.1rem;
+    color: var(--gray-600);
+    margin-bottom: 6px;
+    opacity: 0.85;
+}
+
 /* ── Meta ── */
 .rp__meta {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-size: 13px;
+    gap: 10px;
+    font-size: 1.05rem;
     color: var(--gray-300);
     margin-bottom: 36px;
+    flex-wrap: wrap;
+}
+
+.rp__meta-chapter {
+    color: var(--gray-600);
+    font-weight: 600;
 }
 
 .rp__meta-sep {
     color: var(--gray-100);
+}
+
+.rp__meta-tag {
+    padding: 3px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+/* ── Bookmark nudge popup (ลอยกลางจอ พร้อม backdrop) ── */
+.rp__modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 20px;
+    animation: rpOverlayFadeIn 0.25s ease;
+}
+
+@keyframes rpOverlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.rp__bookmark-modal {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    background: linear-gradient(145deg, #ffffff 0%, #fffbf2 45%, #fff0f6 100%);
+    border: 1.5px solid #fce7f3;
+    border-radius: 24px;
+    padding: 40px 28px 28px;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+    animation: fadeInEnding 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.rp__modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rp__modal-close:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.rp__bookmark-modal-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+.rp__bookmark-modal-title {
+    font-family: 'Open Sans', serif;
+    font-size: 19px;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 8px;
+}
+
+.rp__bookmark-modal-text {
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 22px;
+}
+
+.rp__bookmark-modal .action-buttons {
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
+.rp__bookmark-modal-skip {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 4px;
+}
+
+.rp__bookmark-modal-skip:hover {
+    color: #64748b;
+}
+
+@media (max-width: 600px) {
+    .rp__bookmark-modal {
+        padding: 32px 22px 22px;
+    }
 }
 
 /* ── Body text ── */
@@ -201,7 +329,25 @@
     color: #f8fafc;
 }
 
-.rp__paragraph {
+/* 🟢 บังคับให้ชนะ default ของ quill.snow.css เสมอ (กันปัญหา import order / class ชนกันที่ทำให้ format เบี้ยว)
+   ของเดิม .ql-editor มาพร้อม padding, line-height, cursor แบบกล่อง editor ที่แก้ไขได้
+   ซึ่งไม่เหมาะกับหน้าอ่านอย่างเดียว เลย override ทิ้งตรงนี้ที่เดียว */
+.rp__body.ql-editor {
+    padding: 0;
+    height: auto;
+    overflow: visible;
+    background: transparent;
+    cursor: default;
+}
+
+.rp__body.ql-editor > * {
+    cursor: default;
+}
+
+/* ระยะเยื้อง/ระยะห่างย่อหน้าของเนื้อเรื่องจริง (เดิมชื่อ .rp__paragraph แต่ไม่เคยถูกใช้
+   เพราะเนื้อหามาจาก dangerouslySetInnerHTML เป็น <p> เปล่าๆ ไม่มี class ผูกกับ selector
+   ของเนื้อหาจริงตรงๆ แทน) */
+.rp__body.ql-editor p {
     margin-bottom: 28px;
     text-indent: 2em;
     font-family: 'Sarabun', sans-serif;
@@ -379,13 +525,7 @@
         font-size: 16px;
     }
 
-    .rp__paragraph:first-child::first-letter {
+    .rp__body.ql-editor p:first-child::first-letter {
         font-size: 3.2em;
     }
-}
-.reading-content-area p {
-  margin-top: 0;
-  margin-bottom: 12px; /* ระยะห่างระหว่างย่อหน้า */
-  line-height: 1.8;     /* ระยะห่างระหว่างบรรทัด อ่านแล้วไม่เบียดกัน */
-  font-size: 18px;      /* ขนาดฟอนต์มาตรฐานสำหรับนิยาย */
 }
