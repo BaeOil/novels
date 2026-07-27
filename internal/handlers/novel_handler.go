@@ -245,6 +245,39 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 	}
 }
 
+// UnbanNovelHandler allows an admin to unban a novel
+func UnbanNovelHandler(novelService service.NovelService) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != http.MethodPatch {
+            WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+            return
+        }
+        // Ensure admin role
+        role, ok := middleware.GetRoleFromContext(r.Context())
+        if !ok || role != "admin" {
+            WriteError(w, http.StatusForbidden, "Forbidden: admin role required")
+            return
+        }
+        // Extract novel ID from URL path /api/admin/novels/{id}/unban
+        parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+        if len(parts) < 5 {
+            WriteError(w, http.StatusBadRequest, "invalid path")
+            return
+        }
+        novelID, err := strconv.Atoi(parts[3])
+        if err != nil || novelID <= 0 {
+            WriteError(w, http.StatusBadRequest, "invalid novel id")
+            return
+        }
+        // Perform unban via service
+        if err := novelService.UnbanNovel(r.Context(), novelID); err != nil {
+            WriteError(w, http.StatusInternalServerError, err.Error())
+            return
+        }
+        WriteJSON(w, http.StatusOK, map[string]string{"message": "novel unbanned"})
+    }
+}
+
 func extractNovelIDFromPath(urlPath string) (int, error) {
 	if strings.HasPrefix(urlPath, "/novels/") {
 		return extractIDFromPath(urlPath, "/novels/")

@@ -15,6 +15,7 @@ type NovelRepository interface {
 	UpdateNovel(models.Novel) error
 	UpdateCoverImage(id int, url string) error
 	DeleteNovel(id int) error
+	UnbanNovel(id int) error
 }
 
 type SceneRepository interface {

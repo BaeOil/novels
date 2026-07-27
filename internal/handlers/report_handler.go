@@ -90,3 +90,38 @@ func (h *ReportHandler) UpdateReportStatus(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "status updated successfully"})
 }
+
+// 📌 4. API: รับเรื่องขอปลดแบนจากนักเขียน (POST /api/writer/novels/appeal)
+func (h *ReportHandler) CreateAppeal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// ดึง userID ของนักเขียนจาก Token
+	userIDUint, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userIDUint == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req dto.CreateAppealRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.NovelID <= 0 || req.Reason == "" {
+		http.Error(w, "novel_id and reason are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.CreateAppeal(r.Context(), int(userIDUint), req); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "appeal submitted successfully"})
+}

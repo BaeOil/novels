@@ -16,6 +16,7 @@ type NovelService interface {
 	UpdateNovel(models.Novel) error
 	UpdateNovelCover(id int, url string) error
 	DeleteNovel(id int) error
+	UnbanNovel(ctx context.Context, novelID int) error
 }
 
 type SceneService interface {

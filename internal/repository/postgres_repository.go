@@ -75,6 +75,12 @@ func (r *postgresNovelRepository) DeleteNovel(id int) error {
 	return DeleteNovel(r.db, id)
 }
 
+// UnbanNovel updates novel status to draft and clears ban flags.
+func (r *postgresNovelRepository) UnbanNovel(id int) error {
+	_, err := r.db.Exec(`UPDATE novels SET status = $1, is_banned = false, ban_reason = NULL, updated_at = NOW() WHERE novel_id = $2`, "draft", id)
+	return err
+}
+
 // ======= Scene Repository Methods =======
 
 func (r *postgresSceneRepository) GetSceneByID(id int) (*models.Scene, error) {

@@ -61,6 +61,9 @@ func RegisterRoutes(
 	// 🚨 ท่อฝั่งคนอ่าน: ส่งรายงานนิยาย (บังคับล็อกอินถึงจะรายงานได้)
 	mux.Handle("/api/reports", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(reportHandler.CreateReport))))
 
+	// 🟢 ท่อฝั่งนักเขียน: ยื่นเรื่องขอปลดแบนนิยาย (บังคับล็อกอินถึงจะยื่นเรื่องได้)
+	mux.Handle("/api/writer/novels/appeal", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(reportHandler.CreateAppeal))))
+
 	// Legacy alias for Writer Dashboard delete route
 	mux.Handle("/api/v1/writer/novels/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
@@ -83,7 +86,7 @@ func RegisterRoutes(
 
 	// 👑 ท่อฝั่งแอดมิน: กดอนุมัติ/ปฏิเสธ อัปเกรดฐานะคำขอให้กลายเป็นนักเขียน
 	mux.Handle("/api/admin/writers/approve", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(writerHandler.Approve))))
-	mux.Handle("/api/admin/writers/reject", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(writerHandler.Reject)))) // ------------------------------------------
+	mux.Handle("/api/admin/writers/reject", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(writerHandler.Reject))))
 
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการรายงานนิยาย
 	// GET /api/admin/reports -> ดึงรายการรีพอร์ตทั้งหมด

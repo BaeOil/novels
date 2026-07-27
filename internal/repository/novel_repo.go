@@ -3,15 +3,39 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json" // 👈 อย่าลืม import ตัวนี้เพิ่ม
+	"encoding/json"
+	"strings"
+
 	"novel-be/internal/models"
 )
+
+func deriveNovelStateForResponse(dbStatus, latestBanReason string) (string, bool, string) {
+	normalizedStatus := strings.TrimSpace(strings.ToLower(dbStatus))
+	switch normalizedStatus {
+	case "banned":
+		return "banned", true, strings.TrimSpace(latestBanReason)
+	case "completed-published":
+		return "completed-published", false, ""
+	case "completed-draft":
+		return "completed-draft", false, ""
+	case "published":
+		return "published", false, ""
+	case "draft":
+		return "draft", false, ""
+	default:
+		if normalizedStatus == "" {
+			return "draft", false, ""
+		}
+		return normalizedStatus, false, strings.TrimSpace(latestBanReason)
+	}
+}
 
 func GetNovels(db *sql.DB) ([]models.Novel, error) {
 	rows, err := db.Query(`
 		SELECT 
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
+				WHEN n.status = 'banned' THEN 'banned'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
 				WHEN n.is_published THEN 'published'
@@ -25,6 +49,14 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			w.name_lastname, w.pen_name,
 			COALESCE(COUNT(DISTINCT l.id), 0) AS like_count,
 			(SELECT COALESCE(COUNT(*), 0) FROM bookshelves b WHERE b.novel_id = n.novel_id) AS bookshelf_count,
+			COALESCE((
+				SELECT r.reason
+				FROM reports r
+				WHERE r.novel_id = n.novel_id
+				  AND r.status = 'resolved'
+				ORDER BY r.created_at DESC, r.report_id DESC
+				LIMIT 1
+			), '') AS ban_reason,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -50,7 +82,8 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 	for rows.Next() {
 		var n models.Novel
 		var authorName, penName *string
-		var categoriesJSON []byte // ตัวแปรมารับค่า JSON
+		var categoriesJSON []byte
+		var banReason string
 
 		err := rows.Scan(
 			&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status, &n.IsPublished, &n.IsCompleted,
@@ -58,6 +91,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,
 			&n.LikeCount, &n.BookshelfCount,
+			&banReason,
 			&categoriesJSON,
 		)
 		if err != nil {
@@ -70,6 +104,8 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 		if penName != nil {
 			n.PenName = *penName
 		}
+
+		n.Status, n.IsBanned, n.BanReason = deriveNovelStateForResponse(n.Status, banReason)
 
 		// แปลง JSON Byte ให้กลับกลายเป็น Array ใน Go
 		if len(categoriesJSON) > 0 {
@@ -92,6 +128,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 		SELECT 
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
+				WHEN n.status = 'banned' THEN 'banned'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
 				WHEN n.is_published THEN 'published'
@@ -105,6 +142,14 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 			w.name_lastname, w.pen_name,
 			COALESCE(COUNT(DISTINCT l.id), 0) AS like_count,
 			(SELECT COALESCE(COUNT(*), 0) FROM bookshelves b WHERE b.novel_id = n.novel_id) AS bookshelf_count,
+			COALESCE((
+				SELECT r.reason
+				FROM reports r
+				WHERE r.novel_id = n.novel_id
+				  AND r.status = 'resolved'
+				ORDER BY r.created_at DESC, r.report_id DESC
+				LIMIT 1
+			), '') AS ban_reason,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -125,12 +170,14 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 	var authorName, penName *string
 	var categoriesJSON []byte
 
+	var banReason string
 	err := row.Scan(
 		&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status, &n.IsPublished, &n.IsCompleted,
 		&n.AuthorID, &n.Views, &n.CreatedAt, &n.UpdatedAt,
 		&n.ChapterCount, &n.SceneCount,
 		&authorName, &penName,
 		&n.LikeCount, &n.BookshelfCount,
+		&banReason,
 		&categoriesJSON,
 	)
 	if err != nil {
@@ -142,6 +189,8 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 	if penName != nil {
 		n.PenName = *penName
 	}
+
+	n.Status, n.IsBanned, n.BanReason = deriveNovelStateForResponse(n.Status, banReason)
 
 	// แปลง JSON
 	if len(categoriesJSON) > 0 {
@@ -280,6 +329,7 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 		SELECT 
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
+				WHEN n.status = 'banned' THEN 'banned'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
 				WHEN n.is_published THEN 'published'
@@ -292,6 +342,14 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 			w.name_lastname, w.pen_name,
 			(SELECT COALESCE(COUNT(*), 0) FROM likes l WHERE l.novel_id = n.novel_id) AS like_count,
 			(SELECT COALESCE(COUNT(*), 0) FROM bookshelves b WHERE b.novel_id = n.novel_id) AS bookshelf_count,
+			COALESCE((
+				SELECT r.reason
+				FROM reports r
+				WHERE r.novel_id = n.novel_id
+				  AND r.status = 'resolved'
+				ORDER BY r.created_at DESC, r.report_id DESC
+				LIMIT 1
+			), '') AS ban_reason,
 			-- รวมหมวดหมู่เป็น JSON Array
 			COALESCE(
 				json_agg(
@@ -317,6 +375,7 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 		var n models.Novel
 		var authorName, penName *string
 		var categoriesJSON []byte
+		var banReason string
 
 		err := rows.Scan(
 			&n.ID, &n.Title, &n.Captions, &n.Introduction, &n.CoverImage, &n.Status, &n.IsPublished, &n.IsCompleted,
@@ -324,6 +383,7 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 			&n.ChapterCount, &n.SceneCount,
 			&authorName, &penName,
 			&n.LikeCount, &n.BookshelfCount,
+			&banReason,
 			&categoriesJSON,
 		)
 		if err != nil {
@@ -336,6 +396,8 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 		if penName != nil {
 			n.PenName = *penName
 		}
+
+		n.Status, n.IsBanned, n.BanReason = deriveNovelStateForResponse(n.Status, banReason)
 
 		if len(categoriesJSON) > 0 {
 			err = json.Unmarshal(categoriesJSON, &n.Categories)

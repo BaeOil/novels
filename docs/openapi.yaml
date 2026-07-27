@@ -1345,20 +1345,42 @@ components:
     Novel:
       type: object
       properties:
-        id:
+        novel_id:
           type: integer
         title:
           type: string
-        description:
+        captions:
+          type: string
+        introduction:
           type: string
         cover_image:
           type: string
-        author_id:
-          type: integer
-        category_id:
-          type: integer
         status:
           type: string
+        is_published:
+          type: boolean
+        is_completed:
+          type: boolean
+        is_banned:
+          type: boolean
+        ban_reason:
+          type: string
+        author_id:
+          type: integer
+        author_name:
+          type: string
+        pen_name:
+          type: string
+        views:
+          type: integer
+        chapter_count:
+          type: integer
+        scene_count:
+          type: integer
+        like_count:
+          type: integer
+        bookshelf_count:
+          type: integer
 
     Chapter:
       type: object

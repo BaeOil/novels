@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"novel-be/internal/models"
 	"novel-be/internal/repository"
 	"strings"
@@ -55,6 +56,11 @@ func (s *novelService) UpdateNovelCover(id int, url string) error {
 
 func (s *novelService) DeleteNovel(id int) error {
 	return s.repo.DeleteNovel(id)
+}
+
+// UnbanNovel allows admin to unban a novel, setting status to 'draft' and clearing ban flags.
+func (s *novelService) UnbanNovel(ctx context.Context, novelID int) error {
+	return s.repo.UnbanNovel(novelID)
 }
 
 // 🟢 ฟังก์ชันช่วยเช็ค (ถ้าไฟล์อื่นเรียกใช้)

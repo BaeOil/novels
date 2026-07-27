@@ -13,6 +13,8 @@ type Novel struct {
 	Status                string     `json:"status"`
 	IsPublished           bool       `json:"is_published,omitempty"`
 	IsCompleted           bool       `json:"is_completed,omitempty"`
+	IsBanned              bool       `json:"is_banned"`
+	BanReason             string     `json:"ban_reason"`
 	AuthorID              int        `json:"author_id"`
 	AuthorName            string     `json:"author_name"`
 	PenName               string     `json:"pen_name"`

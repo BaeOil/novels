@@ -12,6 +12,7 @@ type ReportService interface {
 	CreateReport(ctx context.Context, userID int, req dto.CreateReportRequest) error
 	GetPendingReports(ctx context.Context) ([]dto.ReportResponse, error)
 	UpdateReportStatus(ctx context.Context, reportID int, req dto.UpdateReportStatusRequest) error
+	CreateAppeal(ctx context.Context, userID int, req dto.CreateAppealRequest) error
 }
 
 type reportService struct {
@@ -53,4 +54,16 @@ func (s *reportService) UpdateReportStatus(ctx context.Context, reportID int, re
 	}
 
 	return s.repo.UpdateReportStatus(ctx, reportID, req.Status)
+}
+
+func (s *reportService) CreateAppeal(ctx context.Context, userID int, req dto.CreateAppealRequest) error {
+	if req.NovelID <= 0 {
+		return errors.New("invalid novel ID")
+	}
+	if req.Reason == "" {
+		return errors.New("appeal reason is required")
+	}
+
+	// เรียกใช้งาน repository
+	return s.repo.CreateAppeal(ctx, userID, req)
 }

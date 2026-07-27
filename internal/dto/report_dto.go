@@ -18,9 +18,19 @@ type ReportResponse struct {
 	Reason     string    `json:"reason"`
 	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
+	NovelCover     string    `json:"novel_cover"`
+	NovelSynopsis  string    `json:"novel_synopsis"`
+	AuthorPenName  string    `json:"author_pen_name"`
+	AuthorUserID  int       `json:"author_user_id"`
 }
 
 // UpdateReportStatusRequest ใช้ตอนแอดมินกดเปลี่ยนสถานะ (เช่น เป็น 'resolved' หรือ 'rejected')
 type UpdateReportStatusRequest struct {
 	Status string `json:"status"`
+}
+
+// CreateAppealRequest ใช้สำหรับนักเขียนยื่นเรื่องขอปลดแบนนิยาย
+type CreateAppealRequest struct {
+	NovelID int    `json:"novel_id"`
+	Reason  string `json:"reason"` // รายละเอียดที่นักเขียนชี้แจง
 }
