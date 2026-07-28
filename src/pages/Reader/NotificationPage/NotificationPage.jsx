@@ -23,7 +23,6 @@ const normalizeNotification = (item = {}) => {
     },
     title: item.title ?? null,
     body: item.message ?? item.body ?? "",
-    cover: item.cover_image ?? item.cover ?? item.novelCover ?? null,
     novelCover: item.cover_image ?? item.cover ?? item.novelCover ?? null,
     referenceId: item.reference_id ?? item.referenceId ?? null,
     referenceType: item.reference_type ?? item.referenceType ?? "system",
@@ -97,6 +96,7 @@ export default function NotificationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("all");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const unreadCount = items.filter((i) => !i.read).length;
 
@@ -135,7 +135,10 @@ export default function NotificationPage() {
     eventSource.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        setItems((prev) => [normalizeNotification(payload), ...prev]);
+        const incoming = normalizeNotification(payload);
+        setItems((prev) =>
+          prev.some((item) => item.id === incoming.id) ? prev : [incoming, ...prev]
+        );
       } catch {
         // ignore heartbeat
       }
@@ -185,16 +188,13 @@ export default function NotificationPage() {
 
   const handleNotificationClick = async (notification) => {
     if (!notification) return;
-    try {
-      if (!notification.read) {
-        await markRead(notification.id);
-      }
-    } catch (err) {
-      // markRead already logs
+
+    if (!notification.read) {
+      await markRead(notification.id);
     }
 
-    const refType = notification.referenceType || notification.reference_type || "system";
-    const refId = notification.referenceId ?? notification.reference_id ?? null;
+    const refType = notification.referenceType || "system";
+    const refId = notification.referenceId ?? null;
 
     try {
       if (refType === "novel" && refId) {
@@ -234,13 +234,15 @@ export default function NotificationPage() {
     }
   };
 
-  const clearAll = async () => {
+  const confirmClearAll = async () => {
     try {
       await requestJson(`/notifications`, { method: "DELETE" });
       setItems([]);
       window.dispatchEvent(new Event("notifications-updated"));
     } catch (err) {
       console.error("clear all failed", err);
+    } finally {
+      setShowClearConfirm(false);
     }
   };
   const hasItems = items.length > 0;
@@ -273,13 +275,51 @@ export default function NotificationPage() {
           <button
             type="button"
             className="clear-button"
-            onClick={clearAll}
+            onClick={() => setShowClearConfirm(true)}
             disabled={!hasItems}
           >
             ล้างทั้งหมด
           </button>
         </div>
       </header>
+
+      {/* ================= CLEAR ALL CONFIRM MODAL ================= */}
+      {showClearConfirm && (
+        <div
+          className="confirm-modal-overlay"
+          onClick={() => setShowClearConfirm(false)}
+        >
+          <div
+            className="confirm-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="clear-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="confirm-modal-icon">🗑️</div>
+            <h2 id="clear-confirm-title">ล้างการแจ้งเตือนทั้งหมด?</h2>
+            <p>
+              การแจ้งเตือนทั้งหมด {items.length} รายการจะถูกลบถาวร และไม่สามารถกู้คืนได้
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="confirm-modal-cancel"
+                onClick={() => setShowClearConfirm(false)}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="confirm-modal-confirm"
+                onClick={confirmClearAll}
+              >
+                ล้างทั้งหมด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= TAB ================= */}
       <div className="notification-tabs" role="tablist" aria-label="กรองการแจ้งเตือน">

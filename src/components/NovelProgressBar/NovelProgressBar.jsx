@@ -12,6 +12,8 @@ const NODE_STATUS = {
   ENDING_LOCKED: "ending_locked",
 };
 
+const ITEMS_PER_PAGE = 6;
+
 const stripHtml = (text) => {
   if (!text || typeof text !== "string") return "";
   return text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
@@ -29,6 +31,7 @@ const NovelProgressBar = ({
   const [visitedNodes, setVisitedNodes] = useState([]);
   const [latestNode, setLatestNode] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const getCurrentUserId = () => {
     const userJson = localStorage.getItem("user");
@@ -133,6 +136,26 @@ const NovelProgressBar = ({
     };
   }, [novelId, autoFetch, isPreview]);
 
+  useEffect(() => {
+    if (!visitedNodes.length) {
+      setCurrentPage(1);
+      return;
+    }
+    const idx = latestNode ? visitedNodes.findIndex((n) => n.id === latestNode.id) : -1;
+    const targetPage = idx >= 0 ? Math.floor(idx / ITEMS_PER_PAGE) + 1 : 1;
+    setCurrentPage(targetPage);
+  }, [visitedNodes, latestNode]);
+
+  const totalPages = Math.max(1, Math.ceil(visitedNodes.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedNodes = visitedNodes.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  );
+
+  const goToPrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
+  const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
+
   const getChapterLabel = (node) => {
     if (!node) return "";
     const episode = node.chapter_episode || node.chapterEpisode || node.episode || node.chapter_order;
@@ -220,7 +243,7 @@ const NovelProgressBar = ({
         </div>
         
         <ul className="timeline-list">
-          {visitedNodes.map((node) => {
+          {paginatedNodes.map((node) => {
             const isCurrent = latestNode?.id === node.id;
             return (
               <li key={node.id} className={`timeline-item ${isCurrent ? "active" : ""}`}>
@@ -238,6 +261,32 @@ const NovelProgressBar = ({
             );
           })}
         </ul>
+
+        {totalPages > 1 && (
+          <div className="timeline-pagination">
+            <button
+              type="button"
+              className="timeline-page-btn"
+              onClick={goToPrevPage}
+              disabled={safePage === 1}
+              aria-label="หน้าก่อนหน้า"
+            >
+              ← ก่อนหน้า
+            </button>
+            <span className="timeline-page-indicator">
+              หน้า {safePage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="timeline-page-btn"
+              onClick={goToNextPage}
+              disabled={safePage === totalPages}
+              aria-label="หน้าถัดไป"
+            >
+              ถัดไป →
+            </button>
+          </div>
+        )}
 
         <div className="timeline-actions-row">
           <button type="button" className="btn-view-map" onClick={onStoryMapClick}>

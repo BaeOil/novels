@@ -20,7 +20,7 @@ const formatRelativeTime = (iso) => {
 const TYPE_CONFIG = {
   novel_update: {
     icon: "📖",
-    action: "อัปเดตนิยายของคุณ",
+    action: "อัปเดตนิยายเรื่องใหม่",
     accent: "#f59e0b",
     accentSoft: "#fffbeb",
     hasPreview: true,

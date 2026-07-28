@@ -306,6 +306,72 @@
   white-space: nowrap;
 }
 
+/* ── Guest Placeholder (Not Logged In) ── */
+.stp__placeholder-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: linear-gradient(180deg, #fffafd 0%, #ffffff 60%);
+}
+
+.stp__placeholder-card {
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  padding: 40px 36px;
+  background: #ffffff;
+  border: 1.5px solid #f6d9e9;
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(233, 30, 140, 0.08);
+}
+
+.stp__placeholder-tag {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: #ffe5f3;
+  color: #e91e8c;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.stp__placeholder-title {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 12px;
+}
+
+.stp__placeholder-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #64748b;
+  margin: 0 0 24px;
+}
+
+.stp__placeholder-button {
+  padding: 11px 28px;
+  border: none;
+  border-radius: 24px;
+  background: #E91E8C;
+  color: #ffffff;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 6px 16px rgba(233, 30, 140, 0.25);
+}
+
+.stp__placeholder-button:hover {
+  background: #d81b82;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(233, 30, 140, 0.32);
+}
+
 /* ── Floating Legend ── */
 .stp__legend-floating {
   position: absolute;

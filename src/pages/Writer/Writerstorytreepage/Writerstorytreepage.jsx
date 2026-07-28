@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactFlow, {
   Handle,
   Position,
@@ -111,6 +111,62 @@ const formatNodeStatus = (node) => {
   return WRITER_NODE_STATUS.NORMAL;
 };
 
+// ==========================================
+// DAG Guard: ตรวจสอบ Backward / Cycle ก่อนเชื่อมเส้นทุกครั้ง
+// ==========================================
+// ตรวจสอบว่าถ้าเชื่อม sourceId -> targetId แล้ว จะทำให้กราฟกลายเป็นวงวน (Cycle)
+// หรือเป็นการเชื่อมย้อนกลับ (Backward) หรือไม่ โดยอนุญาตให้เชื่อม "ไปข้างหน้า" เท่านั้น
+// วิธีตรวจ: เดินตามเส้นทางที่มีอยู่จริงจาก targetId ไปข้างหน้า ถ้าเดินย้อนไปเจอ sourceId ได้
+// แปลว่าเส้นทางเดิมมันวนกลับมาหา source อยู่แล้ว -> ห้ามเชื่อมเส้นใหม่นี้ (จะเกิด Loop)
+const wouldCreateCycle = (sourceId, targetId, edgeList) => {
+  const source = normalizeId(sourceId);
+  const target = normalizeId(targetId);
+  if (!source || !target) return false;
+  if (source === target) return true; // ห้ามลากเส้นกลับเข้าฉากตัวเอง (self-loop)
+
+  // สร้าง adjacency list จากเส้นเชื่อมที่มีอยู่จริงบนกราฟ (ไม่นับ cursor-edge ซึ่งเป็นเส้น preview ชั่วคราว)
+  const adjacency = new Map();
+  (edgeList || []).forEach((edge) => {
+    if (!edge || edge.id === "cursor-edge") return;
+    const from = normalizeId(edge.source ?? edge.fromId ?? edge.from_id);
+    const to = normalizeId(edge.target ?? edge.toId ?? edge.to_id);
+    if (!from || !to) return;
+    if (!adjacency.has(from)) adjacency.set(from, []);
+    adjacency.get(from).push(to);
+  });
+
+  // DFS จาก target ไล่ตามทิศทางเดิมของกราฟ ถ้าไปเจอ source ได้ แสดงว่ามีทางกลับไปหา source อยู่แล้ว
+  const visited = new Set();
+  const stack = [target];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === source) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    const neighbors = adjacency.get(current) || [];
+    for (const n of neighbors) stack.push(n);
+  }
+  return false;
+};
+
+// เทียบ "ลำดับฉาก" (เลขตอน.เลขฉาก) เพื่อกันกรณีเชื่อมย้อนกลับที่ไม่ได้เกิด Cycle ในกราฟ
+// เช่น ฉากที่ 1.2 -> 1.1 : กรณีนี้ยังไม่มีเส้นทางวนกลับจริงในกราฟ (wouldCreateCycle จะไม่จับ)
+// แต่ในเชิงลำดับเนื้อเรื่องถือว่า "ย้อนกลับ" อยู่ดี เพราะฉากปลายทางเกิดขึ้น "ก่อน" ฉากต้นทาง
+// posMap: Map ที่ได้จาก scenePositionMap (key = sceneId, value = { chapterNumber, sceneNumber })
+const getSceneOrderKey = (sceneId, posMap) => {
+  const pos = posMap?.get(normalizeId(sceneId));
+  if (!pos || !pos.chapterNumber || !pos.sceneNumber) return null; // ฉากใหม่/ชั่วคราวที่ยังไม่มีลำดับ -> ไม่ทราบ ปล่อยให้ไปเช็คด้วยกราฟแทน
+  return pos.chapterNumber * 1000000 + pos.sceneNumber;
+};
+
+const isBackwardByScenePosition = (sourceId, targetId, posMap) => {
+  const sourceKey = getSceneOrderKey(sourceId, posMap);
+  const targetKey = getSceneOrderKey(targetId, posMap);
+  if (sourceKey === null || targetKey === null) return false; // ไม่มีข้อมูลลำดับฝั่งใดฝั่งหนึ่ง ปล่อยผ่านเงื่อนไขนี้
+  return targetKey <= sourceKey; // ฉากปลายทางต้องอยู่ "หลัง" ฉากต้นทางเท่านั้น ห้ามเท่ากันหรือย้อนกลับ
+};
+
+
 const StoryNode = ({ data }) => {
   const status = data.status;
   const style = WRITER_NODE_STYLE[status] || WRITER_NODE_STYLE[WRITER_NODE_STATUS.NORMAL];
@@ -165,10 +221,14 @@ const StoryNode = ({ data }) => {
   );
 };
 
-// add stable nodeTypes at module top-level to avoid React Flow warning #002
+// add stable nodeTypes/edgeTypes at module top-level to avoid React Flow warning #002
+// (การประกาศ object เหล่านี้นอก component ทำให้ reference คงที่ทุกรอบ render
+// ถ้าประกาศไว้ข้างในและไม่ใช้ useMemo จะเป็น object ใหม่ทุกครั้ง ทำให้ ReactFlow คิดว่า nodeTypes/edgeTypes เปลี่ยน แล้วรีเซ็ต internal state ใหม่ทุกครั้ง)
 const nodeTypes = {
   writerNode: StoryNode,
 };
+
+const edgeTypes = {};
 
 const LegendBar = () => (
   <div className="wst-legend" role="list" aria-label="คำอธิบายสัญลักษณ์">
@@ -178,6 +238,41 @@ const LegendBar = () => (
         <span className="wst-legend__label">{item.label}</span>
       </div>
     ))}
+  </div>
+);
+
+// Modal overlay ที่ใช้ร่วมกันสำหรับ popup ทั้งหมดในหน้านี้ (เพิ่ม/ลบฉาก, จัดการทางเลือก, ยืนยันต่างๆ)
+// เดิมแต่ละ popup ก็อปวางสไตล์ overlay/กล่องซ้ำกันทั้ง 5 จุด จึงรวมมาไว้ที่เดียว
+const WstModalOverlay = ({
+  onClose,
+  maxWidth = 440,
+  borderColor = "#bfdbfe",
+  shadowColor = "rgba(37, 99, 235, 0.15)",
+  overlayOpacity = 0.35,
+  textAlign,
+  children,
+}) => (
+  <div
+    style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: `rgba(15, 23, 42, ${overlayOpacity})`, display: "flex",
+      alignItems: "center", justifyContent: "center", zIndex: 100000,
+      padding: "16px", backdropFilter: "blur(4px)",
+    }}
+    onClick={(e) => {
+      if (e.target === e.currentTarget && onClose) onClose();
+    }}
+  >
+    <div
+      style={{
+        backgroundColor: "#fff", padding: "28px", borderRadius: "24px",
+        width: "100%", maxWidth, boxShadow: `0 20px 50px ${shadowColor}`,
+        fontFamily: '"Outfit", "Sarabun", sans-serif', border: `1px solid ${borderColor}`,
+        ...(textAlign ? { textAlign } : {}),
+      }}
+    >
+      {children}
+    </div>
   </div>
 );
 
@@ -518,13 +613,6 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     };
   }, [nodes, edges, treeData]);
 
-  // แมปข้อมูลเบื้องต้นเฉพาะโหนดที่ส่งตรงมาจาก Backend เท่านั้น
-  const sceneMapBackendOnly = useMemo(() => {
-    const map = new Map();
-    uniqueNodes.forEach((scene) => map.set(getNodeId(scene), scene));
-    return map;
-  }, [uniqueNodes]);
-
   // คำนวณ scenePositionMap เพื่อใช้ดึงเลขตอนและเลขฉาก
   const scenePositionMap = useMemo(() => {
     const map = new Map();
@@ -611,7 +699,6 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
   // create editable react-flow state initialized from computed flowNodes/flowEdges
   const [rfNodes, setRfNodes, onNodesChangeRF] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChangeRF] = useEdgesState([]);
-  const [selection, setSelection] = useState({ nodes: [], edges: [] });
 
   // รายการโหนดที่ยังไม่ได้เชื่อมต่อ (Orphan Nodes - ทั้งโหนดไร้เส้นเชื่อม และโหนดที่มีเฉพาะขาออกแต่ไม่มีขาเข้า)
   const orphanNodes = useMemo(() => {
@@ -629,6 +716,21 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       return (!isStartNode && !hasIncoming) || n.data?.status === WRITER_NODE_STATUS.ORPHAN || n.data?.status === "orphan";
     });
   }, [rfNodes, rfEdges]);
+
+  // ฟังก์ชันแพนกล้องซูมไปยังโหนดฉากที่ระบุ (ใช้ตอนกดเลือก "ทางเลือกก่อนหน้า/ถัดไป" ใน Sidebar)
+  const focusOnScene = useCallback((sceneId) => {
+    if (!sceneId) return;
+    const targetNode = rfNodes.find((n) => String(n.id) === String(sceneId));
+
+    if (targetNode) {
+      setCenter(targetNode.position.x + NODE_WIDTH / 2, targetNode.position.y + NODE_HEIGHT / 2, {
+        zoom: 1.15,
+        duration: 700,
+      });
+    }
+
+    setSelectedSceneId(String(sceneId));
+  }, [rfNodes, setCenter]);
 
   // ฟังก์ชันวนพาผู้ใช้ซูมไปยังตำแหน่งโหนดที่ยังไม่เชื่อมต่อทีละโหนด
   const handleFocusNextOrphan = useCallback(() => {
@@ -771,12 +873,27 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setRfEdges((eds) => addEdge(edge, eds));
   }, [setRfEdges]);
 
-  const handleSelectionChange = useCallback((sel) => {
-    setSelection({
-      nodes: sel?.nodes || [],
-      edges: sel?.edges || [],
-    });
-  }, []);
+  // ตรวจสอบก่อนเชื่อมเส้นทุกครั้ง (ครอบคลุมทั้งการลากเชื่อมใหม่ผ่าน Handle, ลากย้ายปลายเส้นเดิม/Reconnect,
+  // และโหมดคลิกเชื่อมแบบ custom) อนุญาตให้เชื่อม "ไปข้างหน้า" เท่านั้น มี 2 ชั้นการตรวจ:
+  //   1) เทียบลำดับฉาก (เลขตอน.เลขฉาก) - จับกรณีย้อนกลับที่ยังไม่เกิด Cycle จริงในกราฟ เช่น 1.2 -> 1.1
+  //   2) ไล่กราฟ (wouldCreateCycle) - จับกรณีวนลูปจริงๆ / กันไว้สำหรับโหนดใหม่ที่ยังไม่มีเลขลำดับ
+  // คืนค่า reason เป็น string (null = ผ่าน) เพื่อให้ฝั่ง UI เลือกข้อความ toast ที่ตรงประเด็นได้
+  const getConnectionBlockReason = useCallback((sourceId, targetId) => {
+    const source = normalizeId(sourceId);
+    const target = normalizeId(targetId);
+    if (!source || !target) return "invalid";
+    if (source === target) return "self";
+    if (isBackwardByScenePosition(source, target, scenePositionMap)) return "backward";
+    if (wouldCreateCycle(source, target, rfEdges)) return "cycle";
+    return null;
+  }, [scenePositionMap, rfEdges]);
+
+  // หมายเหตุ: ฟังก์ชันนี้ถูกเรียกบ่อยระหว่างลาก (drag) จึงจงใจไม่แสดง toast ที่นี่ (React Flow จะแสดงเส้น
+  // เป็นสีแดง/สถานะ invalid ให้เองตาม CSS ของ .react-flow__connection ในไฟล์ css) ส่วนโหมดคลิกเชื่อมแบบ custom
+  // (handleNodeClick) จะแสดง toast อธิบายเหตุผลให้ผู้ใช้ชัดเจนอีกชั้นหนึ่ง
+  const isValidConnection = useCallback((connection) => {
+    return getConnectionBlockReason(connection?.source, connection?.target) === null;
+  }, [getConnectionBlockReason]);
 
   // ฟังก์ชันสร้างโหนดเปล่าชั่วคราวลงกราฟตามพิกัด Canvas ทันทีโดยมีข้อมูลตอนที่เลือก
   const addSceneOnCanvasLocal = useCallback((x, y, chosenChapterId) => {
@@ -820,9 +937,9 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     
     setRfNodes((nds) => [...nds, newNode]);
     showToast("เพิ่มโหนดว่างเปล่าแล้ว! ดับเบิลคลิกหรือกดแก้ไขเพื่อเขียนเนื้อหา", "success");
-    changeMode("select");
+    changeMode(interactionMode); // คงเครื่องมือปัจจุบันไว้ (ไม่บังคับกลับไปโหมดเลือก) แค่ล้าง state ค้าง
     setSelectedSceneId(tempId); // ตั้งค่าโฟกัสโหนดใหม่
-  }, [novelId, onNavigate, showToast, changeMode, setRfNodes, novelChapters]);
+  }, [novelId, onNavigate, showToast, changeMode, interactionMode, setRfNodes, novelChapters]);
 
   // ฟังก์ชันดักคลิกบน Canvas พื้นหลัง (แสดงโมดอลเลือกตอนสังกัด)
   const handlePaneClick = useCallback((e) => {
@@ -914,13 +1031,25 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setShowEdgeUpdateConfirm(true);
   }, []);
 
-  const onEdgeUpdateEnd = useCallback((_, edge) => {
+  const onEdgeUpdateEnd = useCallback((event, edge) => {
     if (!edgeUpdateSuccessful.current) {
-      setSelectedEdge(edge);
-      setShowDeleteChoiceConfirm(true);
+      // ปล่อยเมาส์ทับโหนดอื่น แต่ onEdgeUpdate ไม่ถูกเรียก (แปลว่าไม่ผ่าน isValidConnection คือ
+      // ย้อนกลับ/วนลูป หรือปลายทางไม่ถูกต้อง) -> แจ้งเตือนเหตุผลให้ชัดเจน แทนที่จะขึ้น popup ลบเส้น
+      const droppedOnNode = event?.target?.closest?.(".react-flow__node");
+      if (droppedOnNode) {
+        showToast(
+          "ไม่สามารถย้ายจุดเชื่อมต่อไปยังฉากนี้ได้ เพราะเป็นการเชื่อมย้อนกลับไปยังฉากก่อนหน้า หรือจะทำให้เกิดการวนลูปของเนื้อเรื่อง (เชื่อมได้เฉพาะไปข้างหน้าเท่านั้น)",
+          "warn"
+        );
+        fetchStoryTreeAndChapters(); // ดึงตำแหน่งเส้นเดิมกลับมา ป้องกันเส้นค้างผิดตำแหน่งบนจอ
+      } else {
+        // ปล่อยเมาส์บนพื้นที่ว่าง (ลากหลุดออกจากโหนดใดๆ) -> ถือว่าผู้ใช้ต้องการลบเส้นนี้ (พฤติกรรมเดิม)
+        setSelectedEdge(edge);
+        setShowDeleteChoiceConfirm(true);
+      }
     }
     edgeUpdateSuccessful.current = true;
-  }, []);
+  }, [showToast, fetchStoryTreeAndChapters]);
 
   const handleConfirmEdgeUpdate = async () => {
     if (!pendingEdgeUpdate) return;
@@ -933,6 +1062,25 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     const newSourceId = normalizeId(newConnection.source);
     const newTargetId = normalizeId(newConnection.target);
     const choiceLabel = oldEdge.label || "เลือกเส้นทางนี้";
+
+    // อนุญาตให้มีหลายทางเลือกไปยังฉากปลายทางเดียวกันได้ แต่ต้องไม่ซ้ำทั้งต้นทาง+ปลายทาง+ชื่อทางเลือก
+    // (ไม่นับเส้นเดิมที่กำลังลากย้ายอยู่ตอนนี้ ไม่งั้นจะชนกับตัวมันเอง)
+    const normalizedChoiceLabel = String(choiceLabel).trim().toLowerCase();
+    const isDuplicateAfterMove = normalizedEdges.some((e) => {
+      if (String(e.id) === String(oldEdge.id)) return false; // ข้ามเส้นเดิมที่กำลังย้าย
+      return (
+        String(e.fromId) === String(newSourceId) &&
+        String(e.toId) === String(newTargetId) &&
+        getChoiceLabel(e).trim().toLowerCase() === normalizedChoiceLabel
+      );
+    });
+    if (isDuplicateAfterMove) {
+      showToast("มีตัวเลือกชื่อนี้ไปยังฉากเดียวกันอยู่แล้ว กรุณาแก้ไขชื่อทางเลือกให้ไม่ซ้ำก่อนย้ายเส้น", "warn");
+      setShowEdgeUpdateConfirm(false);
+      setPendingEdgeUpdate(null);
+      fetchStoryTreeAndChapters(); // คืนตำแหน่งเส้นเดิมกลับมาบนจอ
+      return;
+    }
 
     const token = localStorage.getItem("token");
     const headers = { 
@@ -1303,7 +1451,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       window.dispatchEvent(new Event("novel-data-updated"));
       setShowEdgeModal(false);
       setSelectedEdge(null);
-      changeMode("select");
+      changeMode(interactionMode); // คงเครื่องมือปัจจุบันไว้ ไม่บังคับสลับกลับไปโหมดเลือก
     } catch (err) {
       console.error("Update connection error:", err);
       showToast("ไม่สามารถบันทึกการแก้ไขเส้นได้", "warn");
@@ -1420,7 +1568,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       setShowDeleteChoiceConfirm(false);
       setShowEdgeModal(false);
       setSelectedEdge(null);
-      changeMode("select"); // เปลี่ยนโหมดกลับเป็น select เสมอหลังลบเสร็จ
+      changeMode(interactionMode); // คงเครื่องมือปัจจุบันไว้ (เช่นถ้ากำลังอยู่โหมดลบ ให้ลบต่อได้เรื่อยๆ โดยไม่ต้องกดเลือกเครื่องมือใหม่)
     }
   };
 
@@ -1451,16 +1599,16 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         window.dispatchEvent(new Event("novel-data-updated"));
       }
       
-      // ล้างค่าและเปลี่ยนโหมดกลับเป็น select
+      // ล้างค่าและคงเครื่องมือปัจจุบันไว้ (ไม่บังคับกลับเป็น select)
       setShowDeleteModal(false);
       setSceneToDelete(null);
-      changeMode("select");
+      changeMode(interactionMode);
       setSelectedSceneId(null);
     } catch (err) {
       console.error("Delete scene error:", err);
       showToast("เกิดข้อผิดพลาดในการลบฉาก", "warn");
     }
-  }, [sceneToDelete, novelId, showToast, changeMode, setRfNodes, setRfEdges]);
+  }, [sceneToDelete, novelId, showToast, changeMode, interactionMode, setRfNodes, setRfEdges]);
 
   const onNodesChangeWrapper = useCallback((changes) => {
     onNodesChangeRF(changes);
@@ -1590,12 +1738,20 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       
       if (connectSource) {
         if (node.id === connectSource.id) return;
-        
-        const isDuplicated = normalizedEdges.some(
-          e => String(e.fromId) === String(connectSource.id) && String(e.toId) === String(node.id)
-        );
-        if (isDuplicated) {
-          showToast("เชื่อมทางนี้ไว้แล้วในระบบ", "warn");
+
+        // ป้องกันเชื่อมย้อนกลับ (Backward ตามลำดับฉาก) หรือทำให้เกิดวงวน (Cycle) รักษาโครงสร้างให้เป็น DAG
+        // หมายเหตุ: ไม่บล็อกกรณี "ปลายทางซ้ำ" ที่ตรงนี้ เพราะอนุญาตให้มีหลายทางเลือกไปยังฉากเดียวกันได้
+        // ถ้าตั้งชื่อทางเลือกต่างกัน (จะตรวจชื่อซ้ำอีกทีตอนกดยืนยันใน handleConfirmConnect)
+        // จงใจไม่ล้าง connectSource เพื่อให้ผู้ใช้เลือกฉากปลายทางใหม่ได้ทันทีโดยไม่ต้องเริ่มโหมดเชื่อมใหม่
+        const blockReason = getConnectionBlockReason(connectSource.id, node.id);
+        if (blockReason) {
+          const message =
+            blockReason === "backward"
+              ? "ไม่สามารถเชื่อมฉากนี้ได้ เพราะเป็นการเชื่อมย้อนกลับไปยังฉากก่อนหน้า (ฉากปลายทางต้องอยู่หลังฉากต้นทางเสมอ) กรุณาเลือกฉากปลายทางอื่น"
+              : blockReason === "cycle"
+              ? "ไม่สามารถเชื่อมฉากนี้ได้ เพราะจะทำให้เกิดการวนลูปของเนื้อเรื่อง (เชื่อมได้เฉพาะไปข้างหน้าเท่านั้น) กรุณาเลือกฉากปลายทางอื่น"
+              : "ไม่สามารถเชื่อมฉากนี้ได้";
+          showToast(message, "warn");
           return;
         }
         
@@ -1608,8 +1764,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
     // โหมดเลือกปกติ (Select Mode)
     setSelectedSceneId(String(node.id));
-    setSelection({ nodes: [node], edges: [] });
-  }, [connectSource, normalizedEdges, screenToFlowPosition, setRfNodes, setRfEdges, showToast, setSceneToDelete, setShowDeleteModal]);
+  }, [connectSource, getConnectionBlockReason, screenToFlowPosition, setRfNodes, setRfEdges, showToast, setSceneToDelete, setShowDeleteModal]);
 
   const handleConfirmConnect = async () => {
     if (!choiceText.trim() || !connectSource || !connectTarget) return;
@@ -1623,6 +1778,20 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       
       if (isNaN(srcIdInt) || isNaN(dstIdInt)) {
         showToast("กรุณากดแก้ไขและบันทึกข้อมูลของฉากใหม่ก่อนสร้างเส้นทางเชื่อมโยง", "warn");
+        return;
+      }
+
+      // อนุญาตให้มีหลายทางเลือกไปยังฉากปลายทางเดียวกันได้ แต่ต้องตั้ง "ชื่อทางเลือก" ไม่ซ้ำกัน
+      // (ซ้ำทั้งต้นทาง+ปลายทาง+ชื่อทางเลือก เป๊ะๆ ถึงจะถือว่าซ้ำ)
+      const trimmedChoiceText = choiceText.trim().toLowerCase();
+      const isDuplicateChoiceLabel = normalizedEdges.some(
+        (e) =>
+          String(e.fromId) === String(srcSceneId) &&
+          String(e.toId) === String(dstSceneId) &&
+          getChoiceLabel(e).trim().toLowerCase() === trimmedChoiceText
+      );
+      if (isDuplicateChoiceLabel) {
+        showToast("มีตัวเลือกชื่อนี้ไปยังฉากเดียวกันอยู่แล้ว กรุณาตั้งชื่อตัวเลือกให้แตกต่างออกไป", "warn");
         return;
       }
       
@@ -1647,7 +1816,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       window.dispatchEvent(new Event("novel-data-updated"));
 
       setIsModalOpen(false);
-      changeMode("select");
+      changeMode(interactionMode); // คงอยู่โหมดเชื่อมต่อไป เพื่อให้เชื่อมฉากถัดไปได้เลยโดยไม่ต้องกดเลือกเครื่องมือใหม่
     } catch (err) {
       console.error("Save choice edge error:", err);
       showToast("เกิดข้อผิดพลาดในการบันทึกเส้นทางเชื่อมต่อ", "warn");
@@ -1698,7 +1867,8 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       } else {
         return (
           <span>
-            🔗 <strong>โหมดเชื่อมโยง:</strong> คลิกเลือกอีกโหนดเพื่อเชื่อมไปยัง <strong>ฉากปลายทาง</strong> (กด ESC เพื่อยกเลิก)
+            🔗 <strong>โหมดเชื่อมโยง:</strong> คลิกเลือกอีกโหนดเพื่อเชื่อมไปยัง <strong>ฉากปลายทาง</strong>{" "}
+            (เชื่อมได้เฉพาะ<strong>ไปข้างหน้า</strong>เท่านั้น ระบบจะกันไม่ให้ย้อนกลับหรือวนลูป · กด ESC เพื่อยกเลิก)
           </span>
         );
       }
@@ -1729,6 +1899,19 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
   if (isLoading) {
     return <LoadingScreen />;
+  }
+
+  if (error) {
+    return (
+      <div className="wst-page">
+        <div className="wst-loading-state">
+          <p className="wst-error-text">⚠️ {error}</p>
+          <button className="wst-error-button" type="button" onClick={fetchStoryTreeAndChapters}>
+            ลองโหลดใหม่อีกครั้ง
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1906,9 +2089,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 }}
                 incomingChoices={incomingChoices}
                 outgoingChoices={outgoingChoices}
-                onSelectSceneNode={(targetId) => {
-                  setSelectedSceneId(targetId);
-                }}
+                onSelectSceneNode={focusOnScene}
               />
             </>
           )}
@@ -2016,13 +2197,18 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                   nodes={rfNodes}
                   edges={rfEdges}
                   nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
+                  isValidConnection={isValidConnection}
                   onNodeClick={handleNodeClick}
                   onNodeDoubleClick={handleNodeDoubleClick}
                   onEdgeClick={handleEdgeClick}
                   onNodesChange={onNodesChangeWrapper}
                   onEdgesChange={onEdgesChangeWrapper}
                   onConnect={onConnect}
-                  onSelectionChange={handleSelectionChange}
+                  onEdgeUpdateStart={onEdgeUpdateStart}
+                  onEdgeUpdate={onEdgeUpdate}
+                  onEdgeUpdateEnd={onEdgeUpdateEnd}
+                  edgeUpdaterRadius={12}
                   fitView
                   fitViewOptions={{ padding: 0.2 }}
                   preventScrolling={false}
@@ -2066,17 +2252,17 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       </div>
 
       {showAddScenePopup && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.35)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
-          padding: '16px', backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{
-            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
-            width: '100%', maxWidth: '440px', boxShadow: '0 20px 50px rgba(37, 99, 235, 0.15)',
-            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #bfdbfe'
-          }}>
+        <WstModalOverlay
+          maxWidth={440}
+          borderColor="#bfdbfe"
+          shadowColor="rgba(37, 99, 235, 0.15)"
+          overlayOpacity={0.35}
+          onClose={() => {
+            setShowAddScenePopup(false);
+            setPendingScenePosition(null);
+            setNewSceneTitle("");
+          }}
+        >
             <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '20px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               📌 เลือกตอนและตั้งชื่อสำหรับฉากใหม่
             </h3>
@@ -2163,22 +2349,21 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 ตกลงสร้างฉาก
               </button>
             </div>
-          </div>
-        </div>
+        </WstModalOverlay>
       )}
 
       {showDeleteModal && sceneToDelete && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.45)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
-          padding: '16px', backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{
-            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
-            width: '100%', maxWidth: '460px', boxShadow: '0 20px 50px rgba(239, 68, 68, 0.15)',
-            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #fecaca'
-          }}>
+        <WstModalOverlay
+          maxWidth={460}
+          borderColor="#fecaca"
+          shadowColor="rgba(239, 68, 68, 0.15)"
+          overlayOpacity={0.45}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSceneToDelete(null);
+            changeMode(interactionMode);
+          }}
+        >
             <h3 style={{ marginTop: 0, color: '#dc2626', fontSize: '20px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               ⚠️ ยืนยันการลบฉาก
             </h3>
@@ -2215,7 +2400,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 onClick={() => {
                   setShowDeleteModal(false);
                   setSceneToDelete(null);
-                  changeMode("select");
+                  changeMode(interactionMode);
                 }}
                 style={{
                   padding: '10px 20px', borderRadius: '20px', border: '1px solid #d1d5db',
@@ -2238,29 +2423,27 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 ยืนยันการลบ
               </button>
             </div>
-          </div>
-        </div>
+        </WstModalOverlay>
       )}
 
       {/* Edge management Modals */}
       {showEdgeModal && selectedEdge && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.35)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
-          padding: '16px', backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{
-            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
-            width: '100%', maxWidth: '460px', boxShadow: '0 20px 50px rgba(37, 99, 235, 0.15)',
-            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #bfdbfe'
-          }}>
-            <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '20px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🔧 จัดการทางเลือก
-            </h3>
-            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px' }}>
-              แก้ไขรายละเอียด ปลายทาง หรือลบทางเลือกเชื่อมโยงเส้นนี้
-            </p>
+        <WstModalOverlay
+          maxWidth={460}
+          borderColor="#bfdbfe"
+          shadowColor="rgba(37, 99, 235, 0.15)"
+          overlayOpacity={0.35}
+          onClose={() => {
+            setShowEdgeModal(false);
+            setSelectedEdge(null);
+          }}
+        >
+          <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '20px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            🔧 จัดการทางเลือก
+          </h3>
+          <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px' }}>
+            แก้ไขรายละเอียด ปลายทาง หรือลบทางเลือกเชื่อมโยงเส้นนี้
+          </p>
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 700, color: '#4b5563' }}>
@@ -2370,24 +2553,22 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+        </WstModalOverlay>
       )}
 
       {showDeleteChoiceConfirm && selectedEdge && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.45)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
-          padding: '16px', backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{
-            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
-            width: '100%', maxWidth: '440px', boxShadow: '0 20px 50px rgba(239, 68, 68, 0.18)',
-            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #fecaca',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '44px', marginBottom: '12px' }}>🗑️</div>
+        <WstModalOverlay
+          maxWidth={440}
+          borderColor="#fecaca"
+          shadowColor="rgba(239, 68, 68, 0.18)"
+          overlayOpacity={0.45}
+          textAlign="center"
+          onClose={() => {
+            setShowDeleteChoiceConfirm(false);
+            setSelectedEdge(null);
+          }}
+        >
+          <div style={{ fontSize: '44px', marginBottom: '12px' }}>🗑️</div>
             <h3 style={{ marginTop: 0, color: '#dc2626', fontSize: '19px', fontWeight: '800', marginBottom: '12px' }}>
               ยืนยันการลบทางเลือก
             </h3>
@@ -2402,9 +2583,6 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 onClick={() => {
                   setShowDeleteChoiceConfirm(false);
                   setSelectedEdge(null);
-                  if (interactionMode === "delete") {
-                    changeMode("select");
-                  }
                 }}
                 style={{
                   padding: '10px 22px', borderRadius: '20px', border: '1px solid #d1d5db',
@@ -2427,28 +2605,27 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 ยืนยันการลบ
               </button>
             </div>
-          </div>
-        </div>
+        </WstModalOverlay>
       )}
 
       {showEdgeUpdateConfirm && pendingEdgeUpdate && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.45)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 100000,
-          padding: '16px', backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{
-            backgroundColor: '#fff', padding: '28px', borderRadius: '24px',
-            width: '100%', maxWidth: '440px', boxShadow: '0 20px 50px rgba(37, 99, 235, 0.15)',
-            fontFamily: '"Outfit", "Sarabun", sans-serif', border: '1px solid #bfdbfe'
-          }}>
-            <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '18px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ยืนยันการย้ายจุดเชื่อมต่อ
-            </h3>
-            <p style={{ color: '#4b5563', fontSize: '14.5px', marginBottom: '24px', lineHeight: '1.6' }}>
-              ต้องการย้ายมาเชื่อมโหนดนี้ใช่ไหม?
-            </p>
+        <WstModalOverlay
+          maxWidth={440}
+          borderColor="#bfdbfe"
+          shadowColor="rgba(37, 99, 235, 0.15)"
+          overlayOpacity={0.45}
+          onClose={() => {
+            setShowEdgeUpdateConfirm(false);
+            setPendingEdgeUpdate(null);
+            fetchStoryTreeAndChapters();
+          }}
+        >
+          <h3 style={{ marginTop: 0, color: '#1e3a8a', fontSize: '18px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            ยืนยันการย้ายจุดเชื่อมต่อ
+          </h3>
+          <p style={{ color: '#4b5563', fontSize: '14.5px', marginBottom: '24px', lineHeight: '1.6' }}>
+            ต้องการย้ายมาเชื่อมโหนดนี้ใช่ไหม?
+          </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button 
                 onClick={() => {
@@ -2477,8 +2654,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 ยืนยันการย้าย
               </button>
             </div>
-          </div>
-        </div>
+        </WstModalOverlay>
       )}
     </div>
   );

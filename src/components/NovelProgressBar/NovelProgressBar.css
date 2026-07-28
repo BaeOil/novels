@@ -248,6 +248,45 @@
   color: #9d174d;
 }
 
+.timeline-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 4px 0 20px;
+}
+
+.timeline-page-btn {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.timeline-page-btn:hover:not(:disabled) {
+  border-color: #e91e8c;
+  color: #e91e8c;
+  background: #fff0f6;
+}
+
+.timeline-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.timeline-page-indicator {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
 /* ── Actions Row (2 Buttons) ── */
 .timeline-actions-row {
   display: flex;

@@ -79,6 +79,19 @@ const BAN_NOTICE_DEFAULTS = {
   solution: "โปรดตรวจสอบและแก้ไขเนื้อหาให้ถูกต้องตามกฎระเบียบชุมชน จากนั้นกดปุ่มส่งเรื่องขอปลดแบนเพื่อแจ้งแอดมิน",
 };
 
+// 🔒 ข้อความแจ้งเตือนเดียว ใช้ร่วมกันทุกจุดที่บล็อกการกระทำเมื่อนิยายถูกแบน (กันเขียนซ้ำหลายที่)
+const BAN_ACTION_BLOCKED_MSG = "นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน";
+
+// เรียกก่อนทำ action ใดๆที่มีผลต่อการเผยแพร่ (สร้าง/ลบ/เผยแพร่ตอน-ฉาก ฯลฯ) — คืนค่า true ถ้าโดนบล็อก (และ alert แจ้งให้แล้ว)
+const blockIfBanned = (novelOrStatusInfo) => {
+  const isBanned = novelOrStatusInfo?.isBanned ?? getNovelStatusInfo(novelOrStatusInfo)?.isBanned;
+  if (isBanned) {
+    alert(BAN_ACTION_BLOCKED_MSG);
+    return true;
+  }
+  return false;
+};
+
 const BanWarningBanner = ({
   reason = BAN_NOTICE_DEFAULTS.reason,
   solution = BAN_NOTICE_DEFAULTS.solution,
@@ -232,7 +245,7 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
             onClick={(e) => {
               if (statusInfo.isBanned) {
                 e.preventDefault();
-                alert("นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน");
+                alert(BAN_ACTION_BLOCKED_MSG);
                 return;
               }
               onEdit();
@@ -250,7 +263,7 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
             onClick={(e) => {
               if (statusInfo.isBanned) {
                 e.preventDefault();
-                alert("นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน");
+                alert(BAN_ACTION_BLOCKED_MSG);
                 return;
               }
               onToggleStatus();
@@ -520,7 +533,8 @@ const SceneCard = ({
   onWrite,
   fetchScenes,
   allChapters,
-  openConfirmDialog
+  openConfirmDialog,
+  isNovelBanned = false
 }) => {
   const sceneId = scene?.scene_id ?? scene?.id ?? scene?.ID ?? scene?.SceneID;
   const sceneTitle = scene?.title ?? scene?.Title ?? `ฉากย่อยที่ ${sceneIndex}`;
@@ -663,6 +677,7 @@ const SceneCard = ({
 
   const handleToggleSceneStatus = async () => {
     if (!sceneId) return;
+    if (isNovelBanned) { alert(BAN_ACTION_BLOCKED_MSG); return; } // ⛔ ห้ามเผยแพร่ฉาก ถ้านิยายถูกแบน
     const nextStatus = isPublishedScene ? "draft" : "published";
     setIsUpdatingSceneStatus(true);
 
@@ -717,10 +732,11 @@ const SceneCard = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        flexWrap: 'wrap',
         padding: '20px 24px',
         borderBottom: isBodyOpen ? '1px solid #f1f5f9' : 'none',
         boxSizing: 'border-box',
-        gap: '20px'
+        gap: '16px 20px'
       }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
@@ -799,7 +815,7 @@ const SceneCard = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0, position: 'relative' }}>
           <button
             className="cm-btn"
             style={{
@@ -820,7 +836,8 @@ const SceneCard = ({
 
           <button
             onClick={handleToggleSceneStatus}
-            disabled={isUpdatingSceneStatus}
+            disabled={isUpdatingSceneStatus || isNovelBanned}
+            title={isNovelBanned ? BAN_ACTION_BLOCKED_MSG : undefined}
             style={{
               fontSize: '13.5px',
               backgroundColor: isPublishedScene ? '#f8fafc' : '#ecfdf5',
@@ -829,76 +846,28 @@ const SceneCard = ({
               borderRadius: '20px',
               fontWeight: '700',
               padding: '7px 14px',
-              cursor: 'pointer'
+              cursor: isNovelBanned ? 'not-allowed' : 'pointer',
+              opacity: isNovelBanned ? 0.55 : 1
             }}
           >
-            {isUpdatingSceneStatus ? 'กำลังอัปเดต...' : isPublishedScene ? '🔴 เปลี่ยนเป็นฉบับร่าง' : '🟢 เผยแพร่ฉากนี้'}
+            {isUpdatingSceneStatus ? 'กำลังอัปเดต...' : isNovelBanned ? '🔒 ถูกระงับ' : isPublishedScene ? '🔴 เปลี่ยนเป็นฉบับร่าง' : '🟢 เผยแพร่ฉากนี้'}
           </button>
 
-          <button
+          <span
             style={{
-              fontSize: '13.5px',
+              fontSize: '12.5px',
               backgroundColor: choiceCount > 0 ? '#fdf2f8' : '#f8fafc',
               color: choiceCount > 0 ? '#db2777' : '#94a3b8',
               border: `1px solid ${choiceCount > 0 ? '#fbcfe8' : '#e2e8f0'}`,
               borderRadius: '20px',
               fontWeight: 'bold',
-              padding: '7px 16px',
-              minWidth: '95px',
+              padding: '6px 14px',
               textAlign: 'center',
-              pointerEvents: 'none'
+              whiteSpace: 'nowrap'
             }}
           >
             {choiceCount} ทางเลือก
-          </button>
-
-          {isChapterOneScene && !isStartScene && (
-            <button
-              style={{
-                fontSize: '13.5px',
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                border: '1px solid #bfdbfe',
-                borderRadius: '20px',
-                fontWeight: '700',
-                padding: '7px 14px',
-                cursor: 'pointer'
-              }}
-              onClick={async () => {
-                try {
-                  const authToken = getToken();
-                  const res = await fetch(`${API_BASE}/scenes/${sceneId}`, {
-                    method: 'PUT',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                      title: sceneTitle,
-                      content: sceneContent,
-                      type: 'start',
-                      status: sceneStatus,
-                      is_ending: false,
-                      ending_title: endingTitle,
-                      ending_type: endingType,
-                      ending_description: scene?.ending_description ?? scene?.endingDescription ?? ''
-                    })
-                  });
-                  if (!res.ok) {
-                    const errorText = await res.text().catch(() => 'ไม่สามารถตั้งฉากเริ่มต้นได้');
-                    alert(errorText || 'ไม่สามารถตั้งฉากเริ่มต้นได้');
-                    return;
-                  }
-                  await fetchScenes();
-                } catch (err) {
-                  console.error(err);
-                  alert('ไม่สามารถตั้งฉากเริ่มต้นได้ กรุณาลองใหม่');
-                }
-              }}
-            >
-              ⭐ ตั้งเป็นฉากเริ่มต้น
-            </button>
-          )}
+          </span>
 
           <button
             style={{
@@ -948,6 +917,52 @@ const SceneCard = ({
                 >
                   🩷 เพิ่มทางเลือก
                 </button>
+
+                {isChapterOneScene && !isStartScene && (
+                  <>
+                    <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
+                    <button
+                      style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#2563eb', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#eff6ff'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                      onClick={async () => {
+                        setIsMenuOpen(false);
+                        try {
+                          const authToken = getToken();
+                          const res = await fetch(`${API_BASE}/scenes/${sceneId}`, {
+                            method: 'PUT',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${authToken}`
+                            },
+                            body: JSON.stringify({
+                              title: sceneTitle,
+                              content: sceneContent,
+                              type: 'start',
+                              status: sceneStatus,
+                              is_ending: false,
+                              ending_title: endingTitle,
+                              ending_type: endingType,
+                              ending_description: scene?.ending_description ?? scene?.endingDescription ?? ''
+                            })
+                          });
+                          if (!res.ok) {
+                            const errorText = await res.text().catch(() => 'ไม่สามารถตั้งฉากเริ่มต้นได้');
+                            alert(errorText || 'ไม่สามารถตั้งฉากเริ่มต้นได้');
+                            return;
+                          }
+                          await fetchScenes();
+                        } catch (err) {
+                          console.error(err);
+                          alert('ไม่สามารถตั้งฉากเริ่มต้นได้ กรุณาลองใหม่');
+                        }
+                      }}
+                    >
+                      ⭐ ตั้งเป็นฉากเริ่มต้น
+                    </button>
+                  </>
+                )}
+
                 <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
                 <button
                   style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 18px', fontSize: '14px', color: '#ef4444', cursor: 'pointer', fontWeight: '600', transition: 'background 0.2s' }}
@@ -1035,6 +1050,7 @@ const SceneCard = ({
 
 const ChapterPanel = ({
   chapter,
+  novel,
   onWrite,
   fetchScenes,
   allChapters,
@@ -1042,6 +1058,8 @@ const ChapterPanel = ({
   onDeleteChapter,
   openConfirmDialog
 }) => {
+  // 🔒 ล็อคเครื่องมือเผยแพร่ทั้งหมดของตอนนี้ ถ้านิยายเรื่องนี้โดนแบนอยู่
+  const isNovelBanned = getNovelStatusInfo(novel).isBanned;
   const [isOpen, setIsOpen] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [inputTitle, setInputTitle] = useState(chapter?.title ?? "");
@@ -1133,6 +1151,7 @@ const ChapterPanel = ({
   };
 
   const handleToggleStatus = async () => {
+    if (blockIfBanned(novel)) return; // ⛔ ห้ามเปลี่ยนสถานะเผยแพร่ของตอน ถ้านิยายถูกแบน
     const currentStatus = (chapter?.status || chapter?.Status || "draft").toString().toLowerCase();
     const isPublishedChapter = currentStatus === "published" || currentStatus === "active";
     const nextStatus = isPublishedChapter ? "draft" : "published";
@@ -1250,14 +1269,16 @@ const ChapterPanel = ({
           </div>
           <button
             onClick={handleToggleStatus}
-            disabled={isUpdatingStatus}
+            disabled={isUpdatingStatus || isNovelBanned}
+            title={isNovelBanned ? BAN_ACTION_BLOCKED_MSG : undefined}
             style={{
               backgroundColor: '#ef4444', color: '#ffffff', border: 'none', padding: '8px 16px',
-              borderRadius: '20px', fontSize: '13px', fontWeight: '800', cursor: 'pointer',
-              boxShadow: '0 4px 10px rgba(239, 68, 68, 0.25)', transition: 'all 0.2s'
+              borderRadius: '20px', fontSize: '13px', fontWeight: '800', cursor: isNovelBanned ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 10px rgba(239, 68, 68, 0.25)', transition: 'all 0.2s',
+              opacity: isNovelBanned ? 0.55 : 1
             }}
           >
-            {isUpdatingStatus ? "⏳ กำลังเปลี่ยน..." : "🚀 เผยแพร่ตอนนี้เลย"}
+            {isUpdatingStatus ? "⏳ กำลังเปลี่ยน..." : isNovelBanned ? "🔒 ถูกระงับการเผยแพร่" : "🚀 เผยแพร่ตอนนี้เลย"}
           </button>
         </div>
       )}
@@ -1342,10 +1363,14 @@ const ChapterPanel = ({
 
           <button
             onClick={() => onAddScene && onAddScene(chapterId)}
+            disabled={isNovelBanned}
+            title={isNovelBanned ? BAN_ACTION_BLOCKED_MSG : undefined}
             style={{
               background: 'linear-gradient(135deg, #ff9dc9 0%, #f85096 100%)', color: '#ffffff', border: 'none',
-              padding: '8px 18px', borderRadius: '20px', fontSize: '13.5px', fontWeight: '600', cursor: 'pointer',
-              boxShadow: '0 4px 10px rgba(247, 82, 156, 0.25)', marginTop: '4px'
+              padding: '8px 18px', borderRadius: '20px', fontSize: '13.5px', fontWeight: '600',
+              cursor: isNovelBanned ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 10px rgba(247, 82, 156, 0.25)', marginTop: '4px',
+              opacity: isNovelBanned ? 0.55 : 1
             }}
           >
             ➕ เพิ่มฉาก
@@ -1360,18 +1385,21 @@ const ChapterPanel = ({
           การแสดงผลบนหน้านิยาย: {chapter?.status === 'published' ? '🟢 ผู้อ่านมองเห็นเนื้อหาแล้ว' : '🔴 ซ่อนอยู่ (ฉบับร่าง)'}
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '10px' }}>
           <button
             onClick={handleToggleStatus}
-            disabled={isUpdatingStatus}
+            disabled={isUpdatingStatus || isNovelBanned}
+            title={isNovelBanned ? BAN_ACTION_BLOCKED_MSG : undefined}
             style={{
               backgroundColor: chapter?.status === 'published' ? '#f1f5f9' : '#ffffff',
               border: chapter?.status === 'published' ? '1px solid #cbd5e1' : '1.5px solid #16a34a',
               color: chapter?.status === 'published' ? '#334155' : '#16a34a', padding: '6px 16px',
-              borderRadius: '8px', fontSize: '13.5px', fontWeight: '700', cursor: 'pointer'
+              borderRadius: '8px', fontSize: '13.5px', fontWeight: '700',
+              cursor: isNovelBanned ? 'not-allowed' : 'pointer',
+              opacity: isNovelBanned ? 0.55 : 1
             }}
           >
-            {isUpdatingStatus ? "⏳ กำลังเปลี่ยน..." : chapter?.status === 'published' ? "เปลี่ยนเป็นฉบับร่าง" : "🚀 เผยแพร่ตอนนี้"}
+            {isUpdatingStatus ? "⏳ กำลังเปลี่ยน..." : isNovelBanned ? "🔒 ถูกระงับการเผยแพร่" : chapter?.status === 'published' ? "เปลี่ยนเป็นฉบับร่าง" : "🚀 เผยแพร่ตอนนี้"}
           </button>
 
           <button
@@ -1406,6 +1434,7 @@ const ChapterPanel = ({
                 fetchScenes={fetchScenes}
                 allChapters={allChapters}
                 openConfirmDialog={openConfirmDialog}
+                isNovelBanned={isNovelBanned}
               />
             ))
           )}
@@ -1704,7 +1733,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     if (!currentNovelId || !novel) return;
     const currentStatusInfo = getNovelStatusInfo(novel);
     if (currentStatusInfo.isBanned) {
-      alert("นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน");
+      alert(BAN_ACTION_BLOCKED_MSG);
       return;
     }
     const nextStatus = currentStatusInfo.isPublished ? "draft" : "published";
@@ -1951,6 +1980,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         ) : activeChapter ? (
           <ChapterPanel
             chapter={activeChapter}
+            novel={novel}
             allChapters={chapters}
             fetchScenes={() => fetchNovelAndChapters(true)}
             onAddScene={handleAddScene}

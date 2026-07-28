@@ -554,6 +554,9 @@ const NovelDetailPage = () => {
     }
   };
 
+  const currentUserId = getCurrentUserId();
+  const isLoggedIn = currentUserId > 0;
+
   if (loading) {
     return (
       <div className="novel-detail">
@@ -719,7 +722,7 @@ const NovelDetailPage = () => {
                 showBookmark={!isPreview}
                 showLike={!isPreview}
               />
-              {!isPreview && (
+              {!isPreview && isLoggedIn && (
                 <button
                   className="novel-detail__restart-button"
                   type="button"
@@ -731,16 +734,18 @@ const NovelDetailPage = () => {
               )}
             </div>
 
-            <div className="novel-detail__progress">
-              <NovelProgressBar
-                novelId={novel.id}
-                autoFetch={true}
-                isPreview={isPreview}
-                onStoryMapClick={handleStoryMap}
-                onEndingCollectionClick={handleEndingCollection}
-                onContinueRead={handleRead}
-              />
-            </div>
+            {isLoggedIn && (
+              <div className="novel-detail__progress">
+                <NovelProgressBar
+                  novelId={novel.id}
+                  autoFetch={true}
+                  isPreview={isPreview}
+                  onStoryMapClick={handleStoryMap}
+                  onEndingCollectionClick={handleEndingCollection}
+                  onContinueRead={handleRead}
+                />
+              </div>
+            )}
           </main>
         </div>
 
@@ -791,7 +796,7 @@ const NovelDetailPage = () => {
         )}
 
         <EndingCollection
-          isOpen={showEndingModal}
+          isOpen={showEndingModal && isLoggedIn}
           endings={endings}
           onClose={() => setShowEndingModal(false)}
           onViewStoryMap={(sceneId) => handleStoryMap(sceneId)}
@@ -814,7 +819,7 @@ const NovelDetailPage = () => {
           </SimpleModal>
         )}
 
-        {showRestartConfirm && (
+        {showRestartConfirm && isLoggedIn && (
           <SimpleModal onClose={handleRestartConfirmClose} maxWidth={420}>
             <h3 className="novel-detail__modal-title novel-detail__modal-title--left">เริ่มอ่านใหม่</h3>
             <p className="novel-detail__modal-text novel-detail__modal-text--left">
@@ -845,11 +850,11 @@ const NovelDetailPage = () => {
 
       </div>
 
-      {!isPreview && (
+      {!isPreview && isLoggedIn && (
         <ReaderReportButton
           novelId={novel.id}
           novelTitle={novel.title}
-          userId={getCurrentUserId()}
+          userId={currentUserId}
         />
       )}
     </div>

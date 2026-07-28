@@ -1070,3 +1070,23 @@
   stroke-width: 1px !important;
   pointer-events: none !important; /* ยอมให้เมาส์คลิกทะลุพื้นหลังข้อความ */
 }
+/* ==========================================
+   DAG Guard: ฟีดแบ็กภาพเวลาเชื่อม/ย้ายเส้นแล้วปลายทางไม่ถูกต้อง (Backward/Cycle)
+   React Flow จะเติมคลาส .valid ให้ handle ที่เชื่อมได้ระหว่างลาก (ผ่าน isValidConnection)
+   ส่วน handle ที่ลากได้ต้นทางจะมีคลาส .connectable/.source อยู่แล้วตามปกติของไลบรารี
+   ========================================== */
+.react-flow__handle.valid {
+  background: #16a34a !important;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+}
+
+.react-flow__handle.connectingfrom {
+  background: #2563eb !important;
+}
+
+/* เส้น preview ระหว่างลากเชื่อม (ยังไม่ปล่อยเมาส์) */
+.react-flow__connection-path {
+  stroke: #2563eb;
+  stroke-width: 2px;
+  stroke-dasharray: 5, 5;
+}

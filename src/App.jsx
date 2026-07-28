@@ -711,6 +711,51 @@ const RedirectAdminIfNeeded = ({ children }) => {
 };
 
 // ======================================================
+// RequireWriterRoute - ต้องล็อกอิน + สมัครเป็นนักเขียนแล้วเท่านั้น
+// (ป้องกันผู้เยี่ยมชม/นักอ่านที่ยังไม่สมัครนักเขียนหลุดเข้าแดชบอร์ด
+// ทั้งจากปุ่มในหน้าเว็บและจากการพิมพ์ URL ตรงๆ)
+// ======================================================
+const RequireWriterRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+
+  if (!token || isTokenExpired(token)) {
+    return <Navigate to="/login-register" replace />;
+  }
+
+  const role = getRoleFromToken();
+
+  if (role === 'admin') {
+    return <Navigate to="/admin/manage-users" replace />;
+  }
+
+  if (role !== 'writer') {
+    return <Navigate to="/registerwriter" replace />;
+  }
+
+  return children;
+};
+
+// ======================================================
+// RequireAuthRoute - ต้องล็อกอินก่อนเท่านั้น (ไม่จำเป็นต้องเป็นนักเขียน)
+// ใช้กับหน้าส่วนตัวของนักอ่าน เช่น กระดานหนังสือ, ประวัติการอ่าน,
+// นักเขียนที่ติดตาม, การแจ้งเตือน
+// ======================================================
+const RequireAuthRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+
+  if (!token || isTokenExpired(token)) {
+    return <Navigate to="/login-register" replace />;
+  }
+
+  const role = getRoleFromToken();
+  if (role === 'admin') {
+    return <Navigate to="/admin/manage-users" replace />;
+  }
+
+  return children;
+};
+
+// ======================================================
 // Auth Route Wrappers
 // ======================================================
 const AuthPageRoute = () => {
@@ -776,15 +821,15 @@ function App() {
       <NavbarWrapper />
       <Routes>
         {/* Reader & Public Routes (Allowed for all users & Admin) */}
-        <Route path="/" element={<HomePageRoute />} />
+        <Route path="/" element={<RedirectAdminIfNeeded><HomePageRoute /></RedirectAdminIfNeeded>} />
         <Route path="/novel/:id" element={<NovelDetailPage />} />
         <Route path="/category" element={<Navigate to="/categories" replace />} />
         <Route path="/categories" element={<CategoriesRoute />} />
         <Route path="/search" element={<SearchPageRoute />} />
-        <Route path="/bookshelf" element={<RedirectAdminIfNeeded><BookshelfRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/history" element={<RedirectAdminIfNeeded><HistoryRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/following-writers" element={<RedirectAdminIfNeeded><FollowingWritersRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/notifications" element={<RedirectAdminIfNeeded><NotificationRoute /></RedirectAdminIfNeeded>} />
+        <Route path="/bookshelf" element={<RequireAuthRoute><BookshelfRoute /></RequireAuthRoute>} />
+        <Route path="/history" element={<RequireAuthRoute><HistoryRoute /></RequireAuthRoute>} />
+        <Route path="/following-writers" element={<RequireAuthRoute><FollowingWritersRoute /></RequireAuthRoute>} />
+        <Route path="/notifications" element={<RequireAuthRoute><NotificationRoute /></RequireAuthRoute>} />
         <Route path="/storytree/:novelId" element={<StoryTreeRoute />} />
         <Route path="/reading/:novelId" element={<ReadingRoute />} />
         <Route path="/reading/:novelId/:sceneId" element={<ReadingRoute />} />
@@ -793,15 +838,15 @@ function App() {
         <Route path="/writer/profile/:id" element={<WriterProfileRoute />} />
         <Route path="/writer/:id/profile" element={<WriterProfileRoute />} />
 
-        {/* Writer Private Workspace Routes (Restricted for Admin) */}
-        <Route path="/writer/profile" element={<RedirectAdminIfNeeded><WriterProfileRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/dashboard" element={<RedirectAdminIfNeeded><WriterDashboardRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/create" element={<RedirectAdminIfNeeded><CreateNovelRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/:novelId/chapters" element={<RedirectAdminIfNeeded><ChapterManagerRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/:novelId/scene/:sceneId" element={<RedirectAdminIfNeeded><SceneEditorRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/:novelId/storytree" element={<RedirectAdminIfNeeded><WriterStoryTreeRoute /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/storytree/:novelId" element={<RedirectAdminIfNeeded><LegacyWriterStoryTreeRedirect /></RedirectAdminIfNeeded>} />
-        <Route path="/writer/:novelId/edit" element={<RedirectAdminIfNeeded><EditNovelRoute /></RedirectAdminIfNeeded>} />
+        {/* Writer Private Workspace Routes (ต้องล็อกอิน + เป็นนักเขียนเท่านั้น) */}
+        <Route path="/writer/profile" element={<RequireWriterRoute><WriterProfileRoute /></RequireWriterRoute>} />
+        <Route path="/writer/dashboard" element={<RequireWriterRoute><WriterDashboardRoute /></RequireWriterRoute>} />
+        <Route path="/writer/create" element={<RequireWriterRoute><CreateNovelRoute /></RequireWriterRoute>} />
+        <Route path="/writer/:novelId/chapters" element={<RequireWriterRoute><ChapterManagerRoute /></RequireWriterRoute>} />
+        <Route path="/writer/:novelId/scene/:sceneId" element={<RequireWriterRoute><SceneEditorRoute /></RequireWriterRoute>} />
+        <Route path="/writer/:novelId/storytree" element={<RequireWriterRoute><WriterStoryTreeRoute /></RequireWriterRoute>} />
+        <Route path="/writer/storytree/:novelId" element={<RequireWriterRoute><LegacyWriterStoryTreeRedirect /></RequireWriterRoute>} />
+        <Route path="/writer/:novelId/edit" element={<RequireWriterRoute><EditNovelRoute /></RequireWriterRoute>} />
           
         {/* Admin Routes */}
         <Route path="/admin/users" element={<RequireAdminRoute><Manageusers /></RequireAdminRoute>} />

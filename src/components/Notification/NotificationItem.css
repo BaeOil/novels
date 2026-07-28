@@ -35,7 +35,8 @@
   outline-offset: 2px;
 }
 
-/* แจ้งเตือนที่ยังไม่อ่าน: ใช้สัญญาณเดียวที่ชัดคือแถบสีซ้ายตามประเภท + พื้นหลังอ่อนๆ ตามสีประเภทนั้น */
+/* แจ้งเตือนที่ยังไม่อ่าน: ใช้ 3 สัญญาณร่วมกัน คือ แถบสีซ้าย + พื้นหลังอ่อนๆ ตามสีประเภทนั้น (ทั้งคู่ในไฟล์นี้)
+   และจุดกลม .notification-dot (ใน notification-meta) ที่ประกาศแยกไว้ */
 .notification-item.unread {
   border-left-color: var(--type-accent, #ec4899);
   background: var(--type-accent-soft, #fdf2f8);
