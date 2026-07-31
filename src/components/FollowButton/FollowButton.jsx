@@ -65,6 +65,12 @@ export default function FollowButton({
         return;
       }
 
+      if (userId && String(userId) === String(numericWriterId)) {
+        showToast("คุณไม่สามารถติดตามตัวเองได้", { type: "warning" });
+        setLoading(false);
+        return;
+      }
+
       // เรียก API ติดตามนักเขียน
       const endpoint = isFollowed
         ? `${API_BASE_URL}/api/writers/${numericWriterId}/unfollow`

@@ -5,6 +5,7 @@ import GenreTag from "../../../components/GenreTag/GenreTag";
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import "./BookshelfPage.css";
 import {
+    ArrowLeft,
     Eye,
     Heart,
     BookmarkPlus,
@@ -397,34 +398,38 @@ const BookshelfPage = () => {
 
     return (
         <div className="bookshelf-page">
-            <div className="bookshelf-page__container">
-                <header className="bookshelf-page__header">
-                    <div>
-                        <p className="bookshelf-page__eyebrow">ชั้นหนังสือของฉัน</p>
-                        <h1 className="bookshelf-page__title">นิยายที่บันทึกไว้</h1>
-                    </div>
-
-                    <div className="bookshelf-page__filter">
-                        <span className="bookshelf-page__filter-label">กรองสถานะ</span>
-                        <div className="bookshelf-page__filter-chips" role="tablist" aria-label="กรองสถานะการอ่าน">
-                            {FILTER_OPTIONS.map((option) => (
-                                <button
-                                    key={option.value}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={filter === option.value}
-                                    className={`bookshelf-page__filter-chip${filter === option.value ? " bookshelf-page__filter-chip--active" : ""}`}
-                                    onClick={() => setFilter(option.value)}
-                                >
-                                    {option.label}
-                                    <span className="bookshelf-page__filter-count">
-                                        {statusCounts[option.value] ?? 0}
-                                    </span>
-                                </button>
-                            ))}
+            <div className="bookshelf-page__sticky-header">
+                <div className="bookshelf-page__top">
+                    <div className="bookshelf-page__heading">
+                        <button className="bookshelf-page__back-btn" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
+                            <ArrowLeft size={18} />
+                        </button>
+                        <div className="bookshelf-page__labels">
+                            <p className="bookshelf-page__eyebrow">ชั้นหนังสือของฉัน</p>
+                            <h1 className="bookshelf-page__title">นิยายที่บันทึกไว้</h1>
                         </div>
                     </div>
-                </header>
+
+                    <div className="bookshelf-page__count">ทั้งหมด {books.length} เรื่อง</div>
+                </div>
+            </div>
+
+            <div className="bookshelf-page__container">
+                <div className="bookshelf-page__filters" role="tablist" aria-label="กรองสถานะการอ่าน">
+                    {FILTER_OPTIONS.map((option) => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            role="tab"
+                            aria-selected={filter === option.value}
+                            className={`bookshelf-page__filter-button${filter === option.value ? " active" : ""}`}
+                            onClick={() => setFilter(option.value)}
+                        >
+                            {option.label}
+                            {option.value !== "all" && ` · ${statusCounts[option.value] ?? 0}`}
+                        </button>
+                    ))}
+                </div>
 
                 {loading ? (
                     <div className="bookshelf-page__grid" aria-hidden="true">
@@ -441,15 +446,6 @@ const BookshelfPage = () => {
                     </div>
                 ) : (
                     <>
-                        <div className="bookshelf-page__summary">
-                            <span>{filteredBooks.length} เรื่อง</span>
-                            {filter !== "all" && (
-                                <span className="bookshelf-page__summary-tag">
-                                    {statusLabels[filter]}
-                                </span>
-                            )}
-                        </div>
-
                         {filteredBooks.length === 0 ? (
                             <div className="bookshelf-page__empty">
                                 <BookOpen size={28} strokeWidth={1.5} />
@@ -520,21 +516,13 @@ const BookshelfPage = () => {
                                                 </button>
                                             </div>
                                             <div className="bookshelf-card__body">
-                                                <div className="bookshelf-card__tags--small">
-                                                    {book.categories.slice(0, 2).map((category) => (
-                                                        <GenreTag
-                                                            key={`${book.id}-${category}`}
-                                                            label={category}
-                                                            variant="primary"
-                                                        />
-                                                    ))}
-                                                </div>
-
                                                 <h2 className="bookshelf-card__title">{book.title}</h2>
-                                                <p className="bookshelf-card__author">{book.author}</p>
+
                                                 {book.description && (
                                                     <p className="bookshelf-card__description">{book.description}</p>
                                                 )}
+
+                                                <p className="bookshelf-card__author">✍️ {book.author}</p>
 
                                                 {!isWantToRead && (
                                                     <div className="bookshelf-card__latest-read">
@@ -542,6 +530,21 @@ const BookshelfPage = () => {
                                                         <span>{book.lastReadAt ? formatRelative(book.lastReadAt) : "ยังไม่มีประวัติการอ่าน"}</span>
                                                     </div>
                                                 )}
+
+                                                <div className="bookshelf-card__categories">
+                                                    {book.categories.slice(0, 2).map((category) => (
+                                                        <GenreTag
+                                                            key={`${book.id}-${category}`}
+                                                            label={category}
+                                                            variant="primary"
+                                                        />
+                                                    ))}
+                                                    {book.categories.length > 2 && (
+                                                        <span className="bookshelf-card__extra-categories">
+                                                            +{book.categories.length - 2}
+                                                        </span>
+                                                    )}
+                                                </div>
 
                                                 <div className="bookshelf-card__stats">
                                                     <div className="bookshelf-card__stat">
@@ -580,7 +583,7 @@ const BookshelfPage = () => {
                     </>
                 )}
             </div>
-        </div >
+        </div>
     );
 };
 

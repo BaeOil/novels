@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, X, ArrowUpDown, ArrowLeft, AlertTriangle, Feather } from "lucide-react";
 import WriterCard from "../../../components/WriterCard/WriterCard"; // เรียกใช้ Component ย่อยที่แยกออกมา
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./FollowingWriters.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -9,6 +10,60 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 function stripHTML(value) {
   if (!value || typeof value !== "string") return null;
   return value.replace(/<[^>]*>/g, "").trim();
+}
+
+function formatThaiDate(value) {
+  if (!value) return null;
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const datePart = new Intl.DateTimeFormat("th-TH", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+
+  const timePart = new Intl.DateTimeFormat("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+
+  return `${datePart.replace(/,/, "")} เวลา ${timePart} น.`;
+}
+
+function normalizeLatestUpdate(rawUpdate) {
+  if (!rawUpdate) return null;
+
+  if (typeof rawUpdate === "string" || rawUpdate instanceof Date || typeof rawUpdate === "number") {
+    const formattedTime = formatThaiDate(rawUpdate);
+    return {
+      title: "อัปเดตล่าสุด",
+      detail: null,
+      time: formattedTime,
+      timestamp: new Date(rawUpdate).getTime(),
+    };
+  }
+
+  if (typeof rawUpdate === "object") {
+    const timestampValue = rawUpdate.timestamp ?? rawUpdate.updated_at ?? rawUpdate.updatedAt ?? rawUpdate.created_at ?? rawUpdate.createdAt ?? rawUpdate.date ?? rawUpdate.datetime ?? rawUpdate.time ?? null;
+    const parsedTimestamp = timestampValue ? new Date(timestampValue) : null;
+    const formattedTime = parsedTimestamp && !Number.isNaN(parsedTimestamp.getTime())
+      ? formatThaiDate(parsedTimestamp)
+      : formatThaiDate(rawUpdate.time || rawUpdate.formattedTime || rawUpdate.formatted_time || null);
+
+    return {
+      title: rawUpdate.title || rawUpdate.name || "อัปเดตล่าสุด",
+      detail: rawUpdate.detail || rawUpdate.description || rawUpdate.message || rawUpdate.summary || null,
+      time: formattedTime || rawUpdate.time || rawUpdate.formattedTime || rawUpdate.formatted_time || null,
+      timestamp: parsedTimestamp && !Number.isNaN(parsedTimestamp.getTime()) ? parsedTimestamp.getTime() : null,
+    };
+  }
+
+  return null;
 }
 
 function normalizeNovel(novel) {
@@ -28,6 +83,7 @@ function mapWriter(writer) {
   const novels = Array.isArray(writer.novels)
     ? writer.novels.map(normalizeNovel).filter(Boolean)
     : [];
+  const latestUpdate = normalizeLatestUpdate(writer.latest_update || writer.latestUpdate || null);
 
   return {
     id: writer.writer_id ?? writer.id,
@@ -37,9 +93,10 @@ function mapWriter(writer) {
     color: writer.color || ["#6D28D9", "#E91E8C", "#0F766E", "#0EA5E9"][Math.abs((writer.writer_id ?? writer.id ?? 0) % 4)],
     followers: writer.follower_count ?? writer.total_like_count ?? writer.followers ?? 0,
     novelCount: writer.novel_count ?? novels.length,
-    hasUnreadUpdate: Boolean(writer.has_unread_update || writer.hasUnreadUpdate || writer.latest_update || writer.latestUpdate),
+    hasUnreadUpdate: Boolean(writer.has_unread_update || writer.hasUnreadUpdate),
     novels,
-    latestUpdate: writer.latest_update || writer.latestUpdate || null,
+    latestUpdate,
+    latestUpdateTimestamp: latestUpdate?.timestamp ?? null,
   };
 }
 
@@ -120,9 +177,12 @@ export default function FollowingWriters() {
   }, []);
 
   const handleUnfollow = async (id) => {
+    const confirmed = window.confirm("คุณต้องการเลิกติดตามนักเขียนคนนี้ใช่หรือไม่?");
+    if (!confirmed) return;
+
     // 1. อัปเดต UI ทันที
     setWriters(p => p.filter(w => w.id !== id));
-    
+
     // 2. อัปเดตและซิงค์ลบออกจาก LocalStorage
     try {
       const saved = localStorage.getItem("local_following_writers");
@@ -158,25 +218,32 @@ export default function FollowingWriters() {
     );
   });
   if (sort === "followers") visible = [...visible].sort((a,b) => b.followers - a.followers);
-  if (sort === "name")      visible = [...visible].sort((a,b) => a.name.localeCompare(b.name));
+  if (sort === "name") visible = [...visible].sort((a,b) => a.name.localeCompare(b.name));
+  if (sort === "recent") visible = [...visible].sort((a,b) => (b.latestUpdateTimestamp ?? 0) - (a.latestUpdateTimestamp ?? 0));
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   return (
-    <div className="container">
-      {/* Header (ลบจำนวนตอนจบรวมออกไปแล้ว เหลือแค่จำนวนคนตามบรีฟ) */}
-      <div className="header">
-        <div className="headerContent">
-          <button className="backBtn" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <div className="headerTitle">นักเขียนที่ติดตาม</div>
-            <div className="headerSubtitle">{loading ? "กำลังโหลด..." : `${writers.length} คน`}</div>
+    <div className="following-page">
+      <div className="following-page__sticky-header">
+        <div className="following-page__top">
+          <div className="following-page__heading">
+            <button className="backBtn" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="following-page__labels">
+              <div className="following-page__eyebrow">นักเขียนของฉัน</div>
+              <div className="following-page__title">นักเขียนที่ติดตาม</div>
+            </div>
           </div>
+
+          <div className="following-page__count">ทั้งหมด {writers.length} คน</div>
         </div>
       </div>
 
-      <div className="wrapper">
-        {/* search + sort */}
+      <div className="following-page__container">
         <div className="filterRow">
           <div className="searchBar">
             <span className="searchIcon"><Search size={16} /></span>

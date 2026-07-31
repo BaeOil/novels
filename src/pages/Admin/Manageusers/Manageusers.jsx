@@ -1,22 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserCheck, Hourglass, Ban, Search, Filter, Edit, Trash2, Eye, Award } from 'lucide-react';
+import { UserCheck, FileClock, Ban, Search, Filter, Edit, Trash2, Eye, Award, Loader2, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import './Manageusers.css';
-
-// รายการ Mock Users สำหรับเป็น Fallback ในกรณีที่ API Backend คืนค่า 404 หรือยังไม่เปิดใช้ท่อดึงข้อมูลผู้ใช้ทั้งหมด
-const INITIAL_USERS = [
-  { id: 1, username: "jing_handsomeandcool", email: "jing_cool@gmail.com", role: "Reader", status: "ปกติ", created_at: "2026-04-20" },
-  { id: 2, username: "furby_wonderful", email: "furby2014@gmail.com", role: "Reader", status: "ปกติ", created_at: "2026-05-15" },
-  { id: 3, username: "eieilnwza007", email: "lnwza007@gmail.com", role: "Writer", status: "ปกติ", created_at: "2026-04-10", writer_details: { name_lastname: "ศิริชัย เลิศล้ำ", pen_name: "นายหัวใจทอง", bio: "ผมรักการเขียนนิยายแฟนตาซีมากครับ ค้นคว้าเรื่องโลกเวทมนตร์มานาน หวังว่าทุกคนจะสนุกกับทางเลือกหลากหลายแบบนะครับ!", genres: ["แฟนตาซี", "ผจญภัย", "ไซไฟ"], primary_contact: "FB: Sirichai GoldenHeart" } },
-  { id: 4, username: "67Gen_Z", email: "Gen_Zboy@gmail.com", role: "Reader", status: "รอยืนยัน", created_at: "2026-07-22" },
-  { id: 5, username: "panda18kg", email: "bubududu@gmail.com", role: "Writer", status: "ระงับ", created_at: "2026-03-01", writer_details: { name_lastname: "นิชา สมบัติเจริญ", pen_name: "PandaWriter", bio: "หมีแพนด้าปั่นนิยายตลกและเรื่องราวดราม่าชีวิต มีความสุขทุกครั้งที่คนอ่านประหลาดใจกับฉากจบแบบพิเศษ", genres: ["ตลก", "ดราม่า", "โรแมนติก"], primary_contact: "Line: nichapanda" } },
-  { id: 6, username: "micky_mouse", email: "micky_disney@gmail.com", role: "Reader", status: "ปกติ", created_at: "2026-06-18" },
-  { id: 7, username: "storyverse_admin", email: "admin@storyverse.com", role: "Admin", status: "ปกติ", created_at: "2026-01-01" },
-  { id: 8, username: "naruto_hokage", email: "naruto@konoha.com", role: "Writer", status: "ปกติ", created_at: "2026-02-12", writer_details: { name_lastname: "อุซึมากิ นารูโตะ", pen_name: "โฮคาเงะรุ่นเจ็ด", bio: "เขียนเรื่องราวการผจญภัยของเหล่านินจาผู้ไม่เคยย่อท้อต่ออุปสรรคใดๆ!", genres: ["ผจญภัย", "แอคชั่น"], primary_contact: "IG: naruto_orange" } },
-  { id: 9, username: "sora_kingdom", email: "sora_heart@gmail.com", role: "Reader", status: "รอยืนยัน", created_at: "2026-07-20" },
-  { id: 10, username: "charlie_brown", email: "charlie@peanuts.com", role: "Reader", status: "ระงับ", created_at: "2026-05-30" },
-  { id: 11, username: "ironman_tony", email: "tony@stark.com", role: "Writer", status: "ปกติ", created_at: "2026-03-10", writer_details: { name_lastname: "โทนี่ สตาร์ค", pen_name: "IronWriter", bio: "นิยายไซไฟล้ำยุค ผสมผสานทฤษฎีควอนตัมฟิสิกส์ การเดินทางข้ามเวลาที่ไม่ซ้ำแบบใคร", genres: ["ไซไฟ", "แอคชั่น"], primary_contact: "starkindustries.com" } }
-];
 
 const Manageusers = () => {
   const [users, setUsers] = useState([]);
@@ -25,8 +10,8 @@ const Manageusers = () => {
 
   // ค้นหาและคัดกรอง
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all"); 
-  const [statusFilter, setStatusFilter] = useState("all"); 
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,79 +20,47 @@ const Manageusers = () => {
   // Modals state
   const [viewUserModal, setViewUserModal] = useState({ isOpen: false, user: null });
   const [viewApplicationModal, setViewApplicationModal] = useState({ isOpen: false, user: null });
-  const [editUserModal, setEditUserModal] = useState({ isOpen: false, user: null, role: "Reader", status: "ปกติ" });
+  const [editUserModal, setEditUserModal] = useState({ isOpen: false, user: null, role: "reader", status: "active", reason: "" });
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ isOpen: false, user: null });
 
   const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
-  // 🎯 ดึงข้อมูลรายชื่อผู้ใช้งานจาก API ระบบและนำมาแมปกับคำขอเขียนนิยายที่มีอยู่จริง
+  // 🔑 ดึง token + header มาตรฐานสำหรับทุก request
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+  };
+
+  // 🙋 อ่าน user_id ของแอดมินที่ล็อกอินอยู่ตอนนี้ จาก JWT payload
+  // ใช้กันไม่ให้แอดมินกดจัดการ/ลบ/ระงับบัญชีตัวเอง (ฝั่ง backend ก็เช็คซ้ำอีกชั้นอยู่แล้ว)
+  const getCurrentUserId = () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return null;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.user_id ?? payload.id ?? payload.sub ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const currentUserId = getCurrentUserId();
+
+  // 🎯 ดึงข้อมูลรายชื่อผู้ใช้งานจาก API จริง (/api/admin/users)
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      // 1. ดึงบัญชีผู้ใช้ทั้งหมดจาก API (ของ Go backend)
-      let usersList = [];
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/admin/users`, { headers });
-        if (res.data) {
-          const list = res.data.users || res.data.data || res.data;
-          usersList = Array.isArray(list) ? list : [];
-        }
-      } catch (e) {
-        console.warn("⚠️ API GET /api/admin/users not available, using fallback mock list:", e.message);
-        usersList = INITIAL_USERS;
-      }
-
-      // 2. ดึงใบสมัครนักเขียนที่มีอยู่จริงในระบบมาแมปรายละเอียดประวัติ
-      let applications = [];
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/admin/writers/requests`, { headers });
-        if (res.data) {
-          applications = Array.isArray(res.data) ? res.data : [];
-        }
-      } catch (e) {
-        console.warn("⚠️ Failed to load applications from API:", e.message);
-      }
-
-      // 3. แมปใบสมัครเข้ากับรายละเอียดนักเขียน
-      const mappedUsers = usersList.map(u => {
-        const app = applications.find(a => String(a.username) === String(u.username) || Number(a.user_id) === Number(u.id));
-        if (app) {
-          let genresList = ["ทั่วไป"];
-          let primaryContact = "-";
-          try {
-            const parsedContact = typeof app.contact_info === 'string' ? JSON.parse(app.contact_info) : app.contact_info || {};
-            genresList = parsedContact.genres || ["ทั่วไป"];
-            primaryContact = parsedContact.primary_contact || "-";
-          } catch {
-            genresList = ["ทั่วไป"];
-            primaryContact = "-";
-          }
-
-          return {
-            ...u,
-            writer_details: {
-              name_lastname: app.name_lastname || "ไม่ระบุชื่อจริง",
-              pen_name: app.pen_name || u.username,
-              bio: app.bio || "ไม่มีการกรอกข้อมูลแนะนำตัว",
-              genres: genresList,
-              primary_contact: primaryContact
-            }
-          };
-        }
-        return u;
-      });
-
-      setUsers(mappedUsers);
+      const headers = getAuthHeaders();
+      const res = await axios.get(`${API_BASE_URL}/api/admin/users`, { headers });
+      const list = res.data?.users || res.data?.data || res.data;
+      setUsers(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error(err);
-      setError("เกิดข้อผิดพลาดในการโหลดข้อมูลผู้ใช้งาน");
+      setError("เกิดข้อผิดพลาดในการโหลดข้อมูลผู้ใช้งาน กรุณาลองใหม่อีกครั้ง");
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -118,11 +71,13 @@ const Manageusers = () => {
   }, []);
 
   // 1. คำนวณยอดสถิติ
+  // หมายเหตุ: users.status มีแค่ active / suspended เท่านั้น (ไม่มี pending อีกต่อไป)
+  // ส่วน "คำขอนักเขียนรอตรวจสอบ" มาจาก writer_application_status ของแต่ละ user แทน
   const stats = useMemo(() => {
-    const active = users.filter(u => u.status === "ปกติ").length;
-    const pending = users.filter(u => u.status === "รอยืนยัน").length;
-    const suspended = users.filter(u => u.status === "ระงับ").length;
-    return { active, pending, suspended, total: users.length };
+    const active = users.filter(u => u.status === "active").length;
+    const suspended = users.filter(u => u.status === "suspended").length;
+    const pendingWriterApps = users.filter(u => u.writer_application_status === "pending").length;
+    return { active, suspended, pendingWriterApps, total: users.length };
   }, [users]);
 
   // 2. กรองและค้นหารายชื่อผู้ใช้
@@ -150,53 +105,100 @@ const Manageusers = () => {
     setCurrentPage(1);
   }, [searchQuery, roleFilter, statusFilter]);
 
-  // 4. จัดการอัปเดตผู้ใช้ (Edit)
-  const handleUpdateUser = () => {
-    const { user, role, status } = editUserModal;
-    if (!user) return;
-    
-    setUsers(prev => prev.map(u => {
-      if (u.id === user.id) {
-        const isWriter = role === "Writer";
-        const hasDetails = !!u.writer_details;
-        const newDetails = isWriter && !hasDetails ? {
-          name_lastname: "ไม่ระบุชื่อจริง",
-          pen_name: u.username,
-          bio: "ไม่มีประวัติข้อมูลแนะนำตัว",
-          genres: ["ทั่วไป"],
-          primary_contact: "-"
-        } : u.writer_details;
-
-        return {
-          ...u,
-          role,
-          status,
-          writer_details: role === "Writer" ? newDetails : undefined
-        };
+  // 3.1 ตัดเลขหน้าให้พอดี (แสดงหน้าแรก/หน้าสุดท้าย/หน้าใกล้ปัจจุบัน + จุดไข่ปลา)
+  //     ป้องกันแถวปุ่มยาวเกินหน้าจอเมื่อมีผู้ใช้เยอะ
+  const pageItems = useMemo(() => {
+    const items = [];
+    const addNeighborsOf = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+    let lastAdded = 0;
+    for (let p = 1; p <= totalPages; p++) {
+      if (addNeighborsOf.has(p)) {
+        if (p - lastAdded > 1) items.push({ type: "ellipsis", key: `e${p}` });
+        items.push({ type: "page", value: p });
+        lastAdded = p;
       }
-      return u;
-    }));
+    }
+    return items;
+  }, [totalPages, currentPage]);
 
-    setEditUserModal({ isOpen: false, user: null, role: "Reader", status: "ปกติ" });
+  // 4. จัดการอัปเดตผู้ใช้ (Edit) — เรียก backend จริง 2 endpoint แยกกัน
+  //    - demote: ใช้เฉพาะกรณี writer -> reader เท่านั้น (ทิศทางเดียว ห้ามตั้งเป็น writer/admin จากหน้านี้)
+  //    - status: ใช้เปลี่ยน active <-> suspended เท่านั้น
+  const handleUpdateUser = async () => {
+    const { user, role, status, reason } = editUserModal;
+    if (!user) return;
+
+    try {
+      const headers = getAuthHeaders();
+
+      if (user.role === "writer" && role === "reader") {
+        await axios.patch(`${API_BASE_URL}/api/admin/users/${user.id}/demote`, {}, { headers });
+      }
+
+      if (status !== user.status) {
+        await axios.patch(
+          `${API_BASE_URL}/api/admin/users/${user.id}/status`,
+          { status, reason: status === "suspended" ? reason : undefined },
+          { headers }
+        );
+      }
+
+      await loadData();
+      setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" });
+    } catch (err) {
+      console.error(err);
+      if (err.response?.status === 403) {
+        alert("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้");
+      } else {
+        alert("เกิดข้อผิดพลาดในการบันทึกการเปลี่ยนแปลง กรุณาลองใหม่อีกครั้ง");
+      }
+    }
   };
 
-  // 5. จัดการลบผู้ใช้ (Delete)
-  const handleDeleteUser = () => {
+  // 5. จัดการลบผู้ใช้ (Delete) — เรียก backend จริง และ handle กรณี 409
+  //    (writer ที่มีนิยายอยู่ในระบบ ห้ามลบถาวร ต้องระงับบัญชีแทน)
+  const handleDeleteUser = async () => {
     const { user } = deleteConfirmModal;
     if (!user) return;
 
-    setUsers(prev => prev.filter(u => u.id !== user.id));
-    setDeleteConfirmModal({ isOpen: false, user: null });
+    try {
+      const headers = getAuthHeaders();
+      await axios.delete(`${API_BASE_URL}/api/admin/users/${user.id}`, { headers });
+      setDeleteConfirmModal({ isOpen: false, user: null });
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      if (err.response?.status === 409) {
+        alert("ไม่สามารถลบบัญชีนี้ได้ เนื่องจากมีนิยายอยู่ในระบบ\nกรุณาระงับบัญชีแทนการลบ");
+      } else if (err.response?.status === 403) {
+        alert("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้");
+      } else {
+        alert("เกิดข้อผิดพลาดในการลบบัญชีผู้ใช้งาน กรุณาลองใหม่อีกครั้ง");
+      }
+      setDeleteConfirmModal({ isOpen: false, user: null });
+    }
+  };
+
+  const statusLabel = (status) => (status === "active" ? "ปกติ" : status === "suspended" ? "ระงับแล้ว" : "-");
+  const statusClass = (status) => (status === "active" ? "active" : status === "suspended" ? "suspended" : "pending");
+  const roleLabel = (role) => {
+    if (role === "reader") return "นักอ่าน";
+    if (role === "writer") return "นักเขียน";
+    if (role === "admin") return "ผู้ดูแลระบบ";
+    return role || "นักอ่าน";
   };
 
   return (
     <div className="admin-manage-users-panel">
       <div className="admin-container">
-        
+
         {/* ส่วนหัวหน้าจัดการ */}
         <header className="admin-header-sec">
           <h1 className="admin-title">จัดการผู้ใช้งาน</h1>
           <p className="admin-subtitle">ผู้ใช้ทั้งหมด {stats.total.toLocaleString()} บัญชีในระบบ</p>
+          <svg className="header-branch-accent" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 8 H70 M70 8 C 78 8, 78 2, 86 2 H130 M70 8 C 78 8, 78 14, 86 14 H130 M130 2 H200 M130 14 H160" />
+          </svg>
         </header>
 
         {/* 📊 การ์ดสถิติ */}
@@ -213,11 +215,11 @@ const Manageusers = () => {
 
           <div className="admin-stat-card card-pending">
             <div className="stat-card-left">
-              <span className="stat-card-title">รอยืนยัน</span>
-              <span className="stat-card-number">{stats.pending.toLocaleString()}</span>
+              <span className="stat-card-title">คำขอนักเขียนรอตรวจสอบ</span>
+              <span className="stat-card-number">{stats.pendingWriterApps.toLocaleString()}</span>
             </div>
             <div className="stat-card-icon bg-yellow-light">
-              <Hourglass size={28} color="#eab308" />
+              <FileClock size={28} color="#eab308" />
             </div>
           </div>
 
@@ -254,9 +256,9 @@ const Manageusers = () => {
                 onChange={(e) => setRoleFilter(e.target.value)}
               >
                 <option value="all">บทบาททั้งหมด</option>
-                <option value="Reader">Reader (นักอ่าน)</option>
-                <option value="Writer">Writer (นักเขียน)</option>
-                <option value="Admin">Admin (ผู้ดูแลระบบ)</option>
+                <option value="reader">นักอ่าน</option>
+                <option value="writer">นักเขียน</option>
+                <option value="admin">ผู้ดูแลระบบ</option>
               </select>
             </div>
 
@@ -268,9 +270,8 @@ const Manageusers = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="all">สถานะทั้งหมด</option>
-                <option value="ปกติ">ปกติ</option>
-                <option value="รอยืนยัน">รอยืนยัน</option>
-                <option value="ระงับ">ระงับแล้ว</option>
+                <option value="active">ปกติ</option>
+                <option value="suspended">ระงับแล้ว</option>
               </select>
             </div>
           </div>
@@ -278,9 +279,19 @@ const Manageusers = () => {
 
         {/* 📋 ตารางรายชื่อบัญชีผู้ใช้ */}
         {isLoading ? (
-          <div className="admin-loading">กำลังดึงข้อมูลรายชื่อบัญชีผู้ใช้งานจากฐานระบบ...</div>
+          <div className="admin-loading">
+            <Loader2 className="loading-spin" size={22} />
+            <span>กำลังดึงข้อมูลรายชื่อบัญชีผู้ใช้งานจากฐานระบบ...</span>
+          </div>
         ) : error ? (
-          <div className="admin-error">{error}</div>
+          <div className="admin-error">
+            <AlertTriangle size={22} />
+            <div>
+              <strong>โหลดข้อมูลไม่สำเร็จ</strong>
+              <p>{error}</p>
+              <button type="button" className="retry-btn" onClick={loadData}>ลองใหม่อีกครั้ง</button>
+            </div>
+          </div>
         ) : filteredUsers.length === 0 ? (
           <div className="admin-empty-state-panel">
             <div className="empty-panel-icon">🔍</div>
@@ -296,7 +307,8 @@ const Manageusers = () => {
                   <th>ชื่อผู้ใช้</th>
                   <th>อีเมล</th>
                   <th>บทบาท</th>
-                  <th>สถานะ</th>
+                  <th>สถานะบัญชี</th>
+                  <th>คำขอนักเขียน</th>
                   <th>สมัครเมื่อ</th>
                   <th className="text-center">จัดการ</th>
                 </tr>
@@ -304,52 +316,71 @@ const Manageusers = () => {
               <tbody>
                 {paginatedUsers.map((user, idx) => {
                   const itemIndex = (currentPage - 1) * itemsPerPage + idx + 1;
+                  const isSelf = currentUserId != null && String(user.id) === String(currentUserId);
                   return (
                     <tr key={user.id || idx}>
                       <td className="row-num-col">{itemIndex}</td>
                       <td className="row-username-col">
-                        <div className="user-initial-avatar">
+                        {user.pic_profile ? (
+                          <img
+                            src={user.pic_profile}
+                            alt={user.username}
+                            className="user-avatar-img"
+                            onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+                          />
+                        ) : null}
+                        <div className="user-initial-avatar" style={user.pic_profile ? { display: "none" } : undefined}>
                           {user.username ? user.username.charAt(0).toUpperCase() : "U"}
                         </div>
                         <span className="username-strong">{user.username}</span>
+                        {isSelf && <span className="self-tag">คุณ</span>}
                       </td>
                       <td>{user.email}</td>
                       <td>
-                        <span className={`role-badge role-${(user.role || 'Reader').toLowerCase()}`}>
-                          {user.role || 'Reader'}
+                        <span className={`role-badge role-${(user.role || 'reader').toLowerCase()}`}>
+                          {roleLabel(user.role)}
                         </span>
                       </td>
                       <td>
-                        <span className={`status-badge status-${user.status === "ปกติ" ? "active" : user.status === "รอยืนยัน" ? "pending" : "suspended"}`}>
-                          {user.status || "ปกติ"}
+                        <span className={`status-badge status-${statusClass(user.status)}`}>
+                          {statusLabel(user.status)}
                         </span>
+                      </td>
+                      <td>
+                        {user.writer_application_status === "pending" ? (
+                          <span className="status-badge status-pending">รอตรวจสอบ</span>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>-</span>
+                        )}
                       </td>
                       <td className="date-col">
                         {user.created_at ? new Date(user.created_at).toLocaleDateString("th-TH") : "-"}
                       </td>
                       <td className="actions-cell">
                         <button
-                          className="btn-admin-action btn-detail"
+                          className="btn-icon-action btn-detail"
                           onClick={() => setViewUserModal({ isOpen: true, user })}
                           title="ดูข้อมูลรายละเอียด"
                         >
-                          <Eye size={14} /> รายละเอียด
-                        </button>
-                        
-                        <button
-                          className="btn-admin-action btn-edit-user"
-                          onClick={() => setEditUserModal({ isOpen: true, user, role: user.role || "Reader", status: user.status || "ปกติ" })}
-                          title="แก้ไขบัญชี"
-                        >
-                          <Edit size={14} /> แก้ไข
+                          <Eye size={16} />
                         </button>
 
                         <button
-                          className="btn-admin-action btn-delete-user"
-                          onClick={() => setDeleteConfirmModal({ isOpen: true, user })}
-                          title="ลบบัญชีผู้ใช้"
+                          className="btn-icon-action btn-edit-user"
+                          onClick={() => setEditUserModal({ isOpen: true, user, role: user.role || "reader", status: user.status || "active", reason: "" })}
+                          title={isSelf ? "ไม่สามารถแก้ไขบัญชีของตัวเองได้" : "แก้ไขบัญชี"}
+                          disabled={isSelf}
                         >
-                          <Trash2 size={14} />
+                          <Edit size={16} />
+                        </button>
+
+                        <button
+                          className="btn-icon-action btn-delete-user"
+                          onClick={() => setDeleteConfirmModal({ isOpen: true, user })}
+                          title={isSelf ? "ไม่สามารถลบบัญชีของตัวเองได้" : "ลบบัญชีผู้ใช้"}
+                          disabled={isSelf}
+                        >
+                          <Trash2 size={16} />
                         </button>
                       </td>
                     </tr>
@@ -367,23 +398,24 @@ const Manageusers = () => {
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
                 >
-                  &larr; Prev
+                  &larr; ก่อนหน้า
                 </button>
 
                 <div className="page-nums-list">
-                  {Array.from({ length: totalPages }).map((_, i) => {
-                    const pageNum = i + 1;
-                    return (
+                  {pageItems.map((item) =>
+                    item.type === "ellipsis" ? (
+                      <span key={item.key} className="page-ellipsis">…</span>
+                    ) : (
                       <button
-                        key={pageNum}
+                        key={item.value}
                         type="button"
-                        className={`page-num-btn ${currentPage === pageNum ? "active" : ""}`}
-                        onClick={() => setCurrentPage(pageNum)}
+                        className={`page-num-btn ${currentPage === item.value ? "active" : ""}`}
+                        onClick={() => setCurrentPage(item.value)}
                       >
-                        {pageNum}
+                        {item.value}
                       </button>
-                    );
-                  })}
+                    )
+                  )}
                 </div>
 
                 <button
@@ -392,7 +424,7 @@ const Manageusers = () => {
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
                 >
-                  Next &rarr;
+                  ถัดไป &rarr;
                 </button>
               </div>
             )}
@@ -410,13 +442,21 @@ const Manageusers = () => {
 
               <div className="modal-body-content">
                 <div className="modal-profile-header">
-                  <div className="profile-large-avatar">
+                  {viewUserModal.user.pic_profile ? (
+                    <img
+                      src={viewUserModal.user.pic_profile}
+                      alt={viewUserModal.user.username}
+                      className="profile-large-avatar-img"
+                      onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+                    />
+                  ) : null}
+                  <div className="profile-large-avatar" style={viewUserModal.user.pic_profile ? { display: "none" } : undefined}>
                     {viewUserModal.user.username ? viewUserModal.user.username.charAt(0).toUpperCase() : "U"}
                   </div>
                   <div className="profile-head-info">
                     <h3>{viewUserModal.user.username}</h3>
-                    <span className={`role-badge role-${(viewUserModal.user.role || 'Reader').toLowerCase()}`}>
-                      {viewUserModal.user.role || 'Reader'}
+                    <span className={`role-badge role-${(viewUserModal.user.role || 'reader').toLowerCase()}`}>
+                      {roleLabel(viewUserModal.user.role)}
                     </span>
                   </div>
                 </div>
@@ -434,18 +474,28 @@ const Manageusers = () => {
                   </div>
                   <div className="info-row">
                     <span className="info-lbl">สถานะบัญชี:</span>
-                    <span className={`info-val status-${viewUserModal.user.status === "ปกติ" ? "active" : viewUserModal.user.status === "รอยืนยัน" ? "pending" : "suspended"}`}>
-                      {viewUserModal.user.status || "ปกติ"}
+                    <span className={`info-val status-${statusClass(viewUserModal.user.status)}`}>
+                      {statusLabel(viewUserModal.user.status)}
                     </span>
                   </div>
+                  {viewUserModal.user.status === "suspended" && viewUserModal.user.suspended_reason && (
+                    <div className="info-row">
+                      <span className="info-lbl">เหตุผลการระงับ:</span>
+                      <span className="info-val">{viewUserModal.user.suspended_reason}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* หากมีบทบาทเป็น Writer และมีรายละเอียดประวัตินักเขียน */}
-                {viewUserModal.user.role === "Writer" && viewUserModal.user.writer_details && (
+                {viewUserModal.user.role === "writer" && viewUserModal.user.writer_details && (
                   <div className="writer-application-section-trigger">
                     <div className="trigger-left">
                       <Award size={18} color="#db2777" />
-                      <span>มีประวัติใบสมัครนักเขียนในระบบ</span>
+                      <span>
+                        {viewUserModal.user.writer_application_status === "pending"
+                          ? "มีใบสมัครนักเขียนรอการตรวจสอบ"
+                          : "มีประวัติใบสมัครนักเขียนในระบบ"}
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -476,8 +526,8 @@ const Manageusers = () => {
             <div className="admin-modal-content modal-content-lg" onClick={e => e.stopPropagation()}>
               <div className="modal-header-sec">
                 <h2>ข้อมูลใบสมัครนักเขียน: {viewApplicationModal.user.username}</h2>
-                <button 
-                  className="close-modal-x" 
+                <button
+                  className="close-modal-x"
                   onClick={() => {
                     setViewUserModal({ isOpen: true, user: viewApplicationModal.user });
                     setViewApplicationModal({ isOpen: false, user: null });
@@ -536,6 +586,18 @@ const Manageusers = () => {
                       </span>
                     </div>
                   </div>
+
+                  {viewApplicationModal.user.writer_application_status === "pending" && (
+                    <div className="writer-application-section-trigger">
+                      <div className="trigger-left">
+                        <Award size={18} color="#db2777" />
+                        <span>คำขอนี้ยังรอการอนุมัติ</span>
+                      </div>
+                      <a className="view-app-btn-trigger" href="/admin/writers" style={{ textDecoration: "none", display: "inline-block" }}>
+                        ไปตรวจสอบที่หน้า Writers
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -557,46 +619,67 @@ const Manageusers = () => {
 
         {/* ── 3. Modal แก้ไขบทบาทและสถานะ ── */}
         {editUserModal.isOpen && editUserModal.user && (
-          <div className="admin-modal-overlay" onClick={() => setEditUserModal({ isOpen: false, user: null, role: "Reader", status: "ปกติ" })}>
+          <div className="admin-modal-overlay" onClick={() => setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" })}>
             <div className="admin-modal-content" onClick={e => e.stopPropagation()}>
               <div className="modal-header-sec">
                 <h2>แก้ไขบัญชีผู้ใช้งาน: {editUserModal.user.username}</h2>
-                <button className="close-modal-x" onClick={() => setEditUserModal({ isOpen: false, user: null, role: "Reader", status: "ปกติ" })}>×</button>
+                <button className="close-modal-x" onClick={() => setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" })}>×</button>
               </div>
 
               <div className="modal-body-content">
                 <div className="edit-form-group">
-                  <label className="form-lbl">บทบาท (Role)</label>
-                  <select
-                    className="admin-form-select"
-                    value={editUserModal.role}
-                    onChange={(e) => setEditUserModal(prev => ({ ...prev, role: e.target.value }))}
-                  >
-                    <option value="Reader">Reader (นักอ่าน)</option>
-                    <option value="Writer">Writer (นักเขียน)</option>
-                    <option value="Admin">Admin (ผู้ดูแลระบบ)</option>
-                  </select>
+                  <label className="form-lbl">บทบาท</label>
+
+                  {/* กฎสำคัญ: หน้านี้ "ถอด" สิทธิ์นักเขียนได้อย่างเดียว (writer -> reader)
+                      ห้ามตั้ง role เป็น writer หรือ admin จากหน้านี้เด็ดขาด
+                      การมอบสิทธิ์ writer ต้องผ่านหน้าอนุมัติใบสมัคร (/admin/writers) เท่านั้น */}
+                  {editUserModal.user.role === "writer" ? (
+                    <select
+                      className="admin-form-select"
+                      value={editUserModal.role}
+                      onChange={(e) => setEditUserModal(prev => ({ ...prev, role: e.target.value }))}
+                    >
+                      <option value="writer">นักเขียน (ไม่เปลี่ยนแปลง)</option>
+                      <option value="reader">เลื่อนลง → นักอ่าน (ถอดสิทธิ์นักเขียน)</option>
+                    </select>
+                  ) : (
+                    <div className="admin-form-select" style={{ cursor: "default", color: "#64748b" }}>
+                      {roleLabel(editUserModal.user.role)} (ไม่สามารถเปลี่ยนบทบาทจากหน้านี้ได้)
+                    </div>
+                  )}
                 </div>
 
                 <div className="edit-form-group" style={{ marginTop: "16px" }}>
-                  <label className="form-lbl">สถานะบัญชี (Status)</label>
+                  <label className="form-lbl">สถานะบัญชี</label>
                   <select
                     className="admin-form-select"
                     value={editUserModal.status}
                     onChange={(e) => setEditUserModal(prev => ({ ...prev, status: e.target.value }))}
                   >
-                    <option value="ปกติ">ปกติ</option>
-                    <option value="รอยืนยัน">รอยืนยัน</option>
-                    <option value="ระงับ">ระงับแล้ว</option>
+                    <option value="active">ปกติ</option>
+                    <option value="suspended">ระงับแล้ว</option>
                   </select>
                 </div>
+
+                {editUserModal.status === "suspended" && (
+                  <div className="edit-form-group" style={{ marginTop: "16px" }}>
+                    <label className="form-lbl">เหตุผลการระงับ (ไม่บังคับ)</label>
+                    <textarea
+                      className="admin-form-select"
+                      style={{ minHeight: "80px", resize: "vertical", cursor: "text" }}
+                      placeholder="เช่น สแปม, โพสต์เนื้อหาไม่เหมาะสม, ถูกรายงานหลายครั้ง..."
+                      value={editUserModal.reason}
+                      onChange={(e) => setEditUserModal(prev => ({ ...prev, reason: e.target.value }))}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer-sec">
                 <button
                   type="button"
                   className="admin-modal-btn cancel-btn"
-                  onClick={() => setEditUserModal({ isOpen: false, user: null, role: "Reader", status: "ปกติ" })}
+                  onClick={() => setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" })}
                 >
                   ยกเลิก
                 </button>
@@ -626,6 +709,10 @@ const Manageusers = () => {
                   คุณต้องการที่จะทำการลบบัญชีผู้ใช้งาน <strong style={{ color: "#db2777" }}>"{deleteConfirmModal.user.username}"</strong> ออกจากระบบอย่างถาวรหรือไม่?
                   <br />
                   <span style={{ color: "#ef4444", fontSize: "0.82rem", fontWeight: 700 }}>⚠️ การดำเนินการนี้ไม่สามารถยกเลิกได้ในภายหลัง</span>
+                  <br />
+                  <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>
+                    หมายเหตุ: ถ้าบัญชีนี้เป็นนักเขียนที่มีนิยายอยู่ในระบบ ระบบจะไม่อนุญาตให้ลบ กรุณาระงับบัญชีแทน
+                  </span>
                 </p>
               </div>
 

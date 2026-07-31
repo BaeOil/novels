@@ -2,12 +2,31 @@
    Admin Manage Users Panel CSS (Manageusers.css)
    ══════════════════════════════════════════════════ */
 
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;700&family=Prompt:wght@400;500;600;700;800&display=swap');
+
 .admin-manage-users-panel {
   padding: 30px 24px;
-  background-color: #fffafe;
+  background-color: #fdf9f8;
+  background-image: radial-gradient(circle at 100% 0%, rgba(219, 39, 119, 0.04), transparent 45%);
   min-height: 100vh;
   font-family: 'Prompt', 'Sarabun', sans-serif;
   color: #1e293b;
+}
+
+/* โฟกัสที่มองเห็นได้ชัดเจนสำหรับทุก element ที่กดได้ (a11y) */
+.admin-manage-users-panel button:focus-visible,
+.admin-manage-users-panel input:focus-visible,
+.admin-manage-users-panel select:focus-visible,
+.admin-manage-users-panel a:focus-visible {
+  outline: 2px solid var(--pink-500, #ec4899);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-manage-users-panel * {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .admin-container {
@@ -23,13 +42,16 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  position: relative;
 }
 
 .admin-title {
-  font-size: 1.8rem;
-  font-weight: 800;
+  font-family: 'Noto Serif Thai', serif;
+  font-size: 2rem;
+  font-weight: 700;
   color: #0f172a;
   margin: 0;
+  letter-spacing: 0.2px;
 }
 
 .admin-subtitle {
@@ -37,6 +59,17 @@
   color: #64748b;
   margin: 0;
   font-weight: 600;
+}
+
+.header-branch-accent {
+  width: 200px;
+  max-width: 40vw;
+  height: 14px;
+  margin-top: 10px;
+  stroke: var(--pink-300, #f9a8d4);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
 }
 
 /* ── 📊 การ์ดสถิติ ── */
@@ -48,12 +81,13 @@
 
 .admin-stat-card {
   background: white;
-  border-radius: 20px;
-  padding: 24px;
+  border-radius: 18px;
+  padding: 22px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border: 1px solid #e2e8f0;
+  border-top: 3px solid transparent;
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.02);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -66,26 +100,29 @@
 .stat-card-left {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .stat-card-title {
-  font-size: 1.15rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  color: #64748b;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
 }
 
 .stat-card-number {
-  font-size: 2rem;
+  font-size: 2.1rem;
   font-weight: 800;
   color: #0f172a;
   font-family: 'Open Sans', sans-serif;
+  line-height: 1;
 }
 
 .stat-card-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,9 +133,9 @@
 .bg-yellow-light { background-color: #fef9c3; }
 .bg-red-light { background-color: #fef2f2; }
 
-.card-active { border-left: 5px solid #22c55e; }
-.card-pending { border-left: 5px solid #eab308; }
-.card-suspended { border-left: 5px solid #ef4444; }
+.card-active { border-top-color: #22c55e; }
+.card-pending { border-top-color: #eab308; }
+.card-suspended { border-top-color: #ef4444; }
 
 /* ── 🔍 ค้นหาและตัวกรอง ── */
 .search-filter-section {
@@ -241,6 +278,16 @@
   align-items: center;
   justify-content: center;
   font-size: 14px;
+  box-shadow: 0 0 0 2px #fbcfe8;
+}
+
+.user-avatar-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px #fbcfe8;
 }
 
 .username-strong {
@@ -248,13 +295,34 @@
   color: #0f172a;
 }
 
+.self-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #db2777;
+  background: #fce7f3;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
 /* บทบาท Badge */
 .role-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.role-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 
 .role-reader {
@@ -274,11 +342,22 @@
 
 /* สถานะ Badge */
 .status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.status-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 
 .status-active {
@@ -304,18 +383,22 @@
   align-items: center;
 }
 
-.btn-admin-action {
+.btn-icon-action {
   background: white;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.btn-icon-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .btn-detail {
@@ -323,7 +406,7 @@
   border-color: #bae6fd;
 }
 
-.btn-detail:hover {
+.btn-detail:hover:not(:disabled) {
   background: #f0f9ff;
   border-color: #0284c7;
 }
@@ -333,7 +416,7 @@
   border-color: #fef08a;
 }
 
-.btn-edit-user:hover {
+.btn-edit-user:hover:not(:disabled) {
   background: #fef9c3;
   border-color: #eab308;
 }
@@ -341,15 +424,74 @@
 .btn-delete-user {
   color: #ef4444;
   border-color: #fecaca;
-  padding: 6px 10px;
 }
 
-.btn-delete-user:hover {
+.btn-delete-user:hover:not(:disabled) {
   background: #fef2f2;
   border-color: #ef4444;
 }
 
 .text-center { text-align: center !important; }
+
+/* ── สถานะกำลังโหลด / ผิดพลาด ── */
+.admin-loading,
+.admin-error {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: white;
+  border-radius: 24px;
+  border: 1px dashed #cbd5e1;
+  padding: 32px;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.admin-error {
+  border-color: #fecaca;
+  color: #be123c;
+}
+
+.admin-error strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.admin-error p {
+  margin: 0 0 10px 0;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.retry-btn {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+}
+
+.retry-btn:hover {
+  background: var(--pink-50, #fdf2f8);
+  color: var(--pink-600, #db2777);
+  border-color: var(--pink-100, #fce7f3);
+}
+
+.loading-spin {
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+  color: var(--pink-500, #ec4899);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ── 6. Pagination ── */
 .admin-pagination {
@@ -359,6 +501,14 @@
   gap: 8px;
   padding: 20px;
   border-top: 1px solid #f1f5f9;
+}
+
+.page-nums-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .page-nav-arrow,
@@ -390,6 +540,12 @@
 .page-nav-arrow:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.page-ellipsis {
+  color: #94a3b8;
+  font-weight: 700;
+  padding: 0 4px;
 }
 
 /* ── Modals Overlay ── */
@@ -433,8 +589,9 @@
 
 .modal-header-sec h2 {
   margin: 0;
-  font-size: 1.15rem;
-  font-weight: 800;
+  font-family: 'Noto Serif Thai', serif;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: #0f172a;
 }
 
@@ -482,6 +639,14 @@
   align-items: center;
   justify-content: center;
   font-size: 22px;
+}
+
+.profile-large-avatar-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .profile-head-info h3 {

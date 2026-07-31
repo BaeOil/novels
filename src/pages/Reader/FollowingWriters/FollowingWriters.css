@@ -1,65 +1,86 @@
 /* Theme / layout align with site (pink - white) */
 :root {
-  /* local overrides (falls back to global vars in App.css) */
-  --fw-bg-0: #fffafe;
-  --fw-header-bg: rgba(255, 255, 255, 0.98);
-  --fw-border: var(--pink-100);
-  --fw-accent: var(--pink-500);
-  --fw-accent-dark: var(--pink-700);
-  --fw-muted: #9CA3AF;
-
-  /* เดิมมีสีเทาฝังตรงๆ ซ้ำกันหลายจุด (#F3F4F6, #E5E7EB, #6B7280, #374151)
-     รวมเป็น token ชุดเดียวตรงนี้ ค่าสีเดิมทุกอย่าง แค่ไม่ต้องพิมพ์ hex ซ้ำทั่วไฟล์ */
-  --fw-neutral-border: #E5E7EB;
-  --fw-neutral-border-soft: #F3F4F6;
-  --fw-text-soft: #6B7280;
-  --fw-text-strong: #374151;
+  --fw-bg-0: #fffbfd;
+  --fw-header-bg: rgba(255, 255, 255, 0.96);
+  --fw-accent: #f526a2;
+  --fw-accent-dark: #c81e86;
+  --fw-muted: #8a7683;
+  --fw-neutral-border: #f6dcec;
+  --fw-neutral-border-soft: #fdeaf5;
+  --fw-text-soft: #8a7683;
+  --fw-text-strong: #2b1c27;
 }
 
-/* Page container */
-.container {
+.following-page {
   min-height: 100vh;
   background: var(--fw-bg-0);
-  font-family: 'Sarabun', sans-serif;
-  color: var(--ink);
+  font-family: "Sarabun", sans-serif;
+  color: var(--fw-text-strong);
   padding-bottom: 48px;
 }
 
-/* Wider centered wrapper to match other pages */
-.wrapper {
-  max-width: 1140px;
+.following-page__sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0;
+  background: var(--fw-header-bg);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--fw-neutral-border);
+}
+
+.following-page__top {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 18px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.following-page__heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.following-page__labels {
+  min-width: 0;
+}
+
+.following-page__eyebrow {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fw-accent);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.following-page__title {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--fw-text-strong);
+}
+
+.following-page__count {
+  font-size: 13px;
+  color: var(--fw-muted);
+  white-space: nowrap;
+}
+
+.following-page__container {
+  max-width: 960px;
   margin: 0 auto;
   padding: 18px 20px 64px;
 }
 
-/* Header Area - full width sticky that spans the viewport top */
-.header {
-  background: var(--fw-header-bg);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(237, 224, 233, 0.8);
-  padding: 14px 0;
-  position: sticky;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 60;
-  box-shadow: 0 6px 18px rgba(210, 38, 118, 0.04);
-}
-
-/* center header content with same max width as wrapper */
-.headerContent {
-  max-width: 1140px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 20px;
-}
-
-/* Back button */
 .backBtn {
   background: #fff;
-  border: 1px solid var(--fw-neutral-border-soft);
+  border: 1px solid var(--fw-neutral-border);
   border-radius: 10px;
   width: 40px;
   height: 40px;
@@ -67,25 +88,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ink);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.backBtn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
+  color: var(--fw-text-strong);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Titles */
-.headerTitle {
-  font-weight: 800;
-  font-size: 18px;
-  color: var(--ink);
-  line-height: 1;
-}
-.headerSubtitle {
-  font-size: 13px;
-  color: var(--fw-muted);
-  margin-top: 2px;
+.backBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(245, 38, 162, 0.12);
 }
 
 /* Filters row */
@@ -209,7 +218,7 @@
   background: #fff;
   border-radius: 16px;
   border: 1px solid var(--fw-neutral-border-soft);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 12px 26px rgba(245, 38, 162, 0.06);
 }
 .emptyIcon {
   display: flex;
@@ -229,8 +238,19 @@
   margin-top: 6px;
 }
 
-/* compact mobile layout */
 @media (max-width: 880px) {
   .listGrid { grid-template-columns: 1fr; }
-  .headerContent, .wrapper { padding-left: 16px; padding-right: 16px; }
+  .following-page__top,
+  .following-page__container { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (max-width: 560px) {
+  .following-page__top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .following-page__count {
+    margin-top: 6px;
+  }
 }

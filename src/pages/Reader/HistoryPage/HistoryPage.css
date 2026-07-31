@@ -38,6 +38,32 @@
   gap: 14px;
 }
 
+.history-page__heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.history-page__back-btn {
+  background: #ffffff;
+  border: 1px solid var(--pink-line);
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.history-page__back-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(245, 38, 162, 0.12);
+}
+
 .history-page__labels {
   min-width: 0;
 }

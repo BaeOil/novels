@@ -250,38 +250,41 @@ export default function NotificationPage() {
   return (
     <div className="notification-page">
       {/* ================= HEADER ================= */}
-      <header className="notification-header">
-        <div className="notification-header-left">
-          <button type="button" className="back-button" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
-            ←
-          </button>
-          <div>
-            <h1>🔔 การแจ้งเตือน</h1>
-            <p>
-              {unreadCount > 0
-                ? `${unreadCount} รายการที่ยังไม่ได้อ่าน`
-                : "อ่านครบทุกรายการแล้ว"}
-            </p>
+      <div className="notification-page__sticky-header">
+        <div className="notification-page__top">
+          <div className="notification-page__heading">
+            <button type="button" className="notification-page__back-btn" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
+              ←
+            </button>
+            <div className="notification-page__labels">
+              <div className="notification-page__eyebrow">การแจ้งเตือน</div>
+              <div className="notification-page__title">🔔 ศูนย์การแจ้งเตือน</div>
+              <p>
+                {unreadCount > 0
+                  ? `${unreadCount} รายการที่ยังไม่ได้อ่าน`
+                  : "อ่านครบทุกรายการแล้ว"}
+              </p>
+            </div>
+          </div>
+
+          <div className="notification-page__actions">
+            {unreadCount > 0 && (
+              <button type="button" className="read-all-button" onClick={markAllRead}>
+                อ่านทั้งหมด
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="clear-button"
+              onClick={() => setShowClearConfirm(true)}
+              disabled={!hasItems}
+            >
+              ล้างทั้งหมด
+            </button>
           </div>
         </div>
-
-        <div className="notification-header-right">
-          {unreadCount > 0 && (
-            <button type="button" className="read-all-button" onClick={markAllRead}>
-              อ่านทั้งหมด
-            </button>
-          )}
-
-          <button
-            type="button"
-            className="clear-button"
-            onClick={() => setShowClearConfirm(true)}
-            disabled={!hasItems}
-          >
-            ล้างทั้งหมด
-          </button>
-        </div>
-      </header>
+      </div>
 
       {/* ================= CLEAR ALL CONFIRM MODAL ================= */}
       {showClearConfirm && (

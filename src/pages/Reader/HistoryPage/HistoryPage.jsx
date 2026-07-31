@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import "./HistoryPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -353,9 +353,14 @@ const HistoryPage = () => {
     <div className="history-page">
       <div className="history-page__sticky-header">
         <div className="history-page__top">
-          <div className="history-page__labels">
-            <div className="history-page__eyebrow">ประวัติการอ่านของฉัน</div>
-            <div className="history-page__title">นิยายที่คุณเคยอ่าน</div>
+          <div className="history-page__heading">
+            <button className="history-page__back-btn" onClick={() => navigate(-1)} aria-label="ย้อนกลับ">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="history-page__labels">
+              <div className="history-page__eyebrow">ประวัติการอ่านของฉัน</div>
+              <div className="history-page__title">นิยายที่คุณเคยอ่าน</div>
+            </div>
           </div>
           <div className="history-page__count">ทั้งหมด {books.length} เรื่อง</div>
         </div>

@@ -1,46 +1,168 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;700&family=Prompt:wght@400;500;600;700;800&display=swap');
+
 .admin-reports-container {
   padding: 32px;
-  background-color: #fffafc;
+  background-color: #fdf9f8;
+  background-image: radial-gradient(circle at 100% 0%, rgba(219, 39, 119, 0.04), transparent 45%);
   min-height: 100vh;
-  font-family: inherit;
+  font-family: 'Prompt', 'Sarabun', sans-serif;
+  color: #1e293b;
 }
 
-/* Header & Stat Cards */
+.admin-reports-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin-reports-container button:focus-visible,
+.admin-reports-container a:focus-visible {
+  outline: 2px solid var(--pink-500, #ec4899);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-reports-container * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Header */
 .admin-reports-header {
   margin-bottom: 24px;
 }
 
 .admin-title {
-  font-size: 24px;
+  font-family: 'Noto Serif Thai', serif;
+  font-size: 2rem;
   font-weight: 700;
-  color: #333333;
+  color: #0f172a;
+  margin: 0;
 }
 
+.admin-subtitle {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 4px 0 0 0;
+  font-weight: 600;
+}
+
+.header-branch-accent {
+  width: 200px;
+  max-width: 40vw;
+  height: 14px;
+  margin-top: 10px;
+  stroke: var(--pink-300, #f9a8d4);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* แจ้งเตือนผิดพลาดระดับหน้า (โหลดรายการล้มเหลว) */
+.admin-page-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fdecec;
+  color: #c53030;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+/* Stat Cards */
 .admin-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
   background: #ffffff;
   border-radius: 16px;
-  padding: 20px;
+  padding: 18px 20px;
   border: 1px solid #ffe3ec;
+  border-top: 3px solid transparent;
   box-shadow: 0 4px 12px rgba(255, 105, 180, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(255, 105, 180, 0.08);
+}
+
+.stat-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-card--pending { border-top-color: #ff4d6d; }
+.stat-card--pending .stat-card-icon { background: #fff0f6; color: #ff4d6d; }
+
+.stat-card--resolved { border-top-color: #0ca678; }
+.stat-card--resolved .stat-card-icon { background: #e6fcf5; color: #0ca678; }
+
+.stat-card--rejected { border-top-color: #adb5bd; }
+.stat-card--rejected .stat-card-icon { background: #f1f3f5; color: #868e96; }
+
 .stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #ff69b4;
-  margin-top: 4px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
 }
 
 .stat-label {
-  font-size: 13px;
-  color: #888888;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Filter Tabs */
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-tab-btn {
+  padding: 8px 18px;
+  border-radius: 999px;
+  background-color: #ffffff;
+  color: #64748b;
+  border: 1px solid #ffe3ec;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.filter-tab-btn:hover {
+  border-color: #ff9ac2;
+  color: #ff4081;
+}
+
+.filter-tab-btn.active {
+  background-color: #ff4081;
+  color: #ffffff;
+  border-color: #ff4081;
 }
 
 /* Table Container */
@@ -61,29 +183,96 @@
 .admin-table th {
   background-color: #fff0f6;
   padding: 14px 16px;
-  font-size: 14px;
+  font-size: 0.82rem;
   color: #ff4081;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .admin-table td {
   padding: 16px;
   border-bottom: 1px solid #fff0f6;
-  font-size: 14px;
+  font-size: 0.85rem;
   color: #444444;
+  vertical-align: middle;
 }
 
 .admin-table tr:hover {
   background-color: #fffdfd;
 }
 
-/* Status Badges */
+.reason-col {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* สถานะกำลังโหลด / ว่างเปล่า ในตาราง */
+.admin-table-loading,
+.admin-table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 24px;
+  color: #94a3b8;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.admin-table-loading .spin {
+  color: #ff4081;
+}
+
+/* ป้ายประเภทรายการ: รายงาน vs ขอปลดแบน */
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.type-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.type-report {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.type-appeal {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+/* Status Badges (สถานะการตรวจสอบ) */
 .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 12px;
   border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.status-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 
 .badge-pending {
@@ -111,7 +300,7 @@
 }
 
 .btn-action-approve {
-  background-color: #ff69b4;
+  background-color: #0ca678;
   color: white;
   border: none;
   padding: 6px 12px;
@@ -121,8 +310,8 @@
   transition: background 0.2s;
 }
 
-.btn-action-approve:hover {
-  background-color: #ff4081;
+.btn-action-approve:hover:not(:disabled) {
+  background-color: #099268;
 }
 
 .btn-action-reject {
@@ -135,7 +324,7 @@
   font-size: 13px;
 }
 
-.btn-action-reject:hover {
+.btn-action-reject:hover:not(:disabled) {
   background-color: #e9ecef;
 }
 
@@ -203,7 +392,8 @@
 }
 
 .admin-modal__heading {
-  font-size: 17px;
+  font-family: 'Noto Serif Thai', serif;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #333333;
   margin-top: 2px;
@@ -294,13 +484,6 @@
   text-decoration: none;
 }
 
-.admin-modal__novel-hint {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #aaaaaa;
-  line-height: 1.5;
-}
-
 .admin-modal__error {
   display: flex;
   align-items: center;
@@ -317,6 +500,17 @@
   gap: 10px;
   border-top: 1px solid #ffe3ec;
   padding-top: 18px;
+}
+
+.admin-modal__decided-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #ffe3ec;
+  padding-top: 18px;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 600;
 }
 
 .admin-modal__action-btn {
@@ -344,6 +538,7 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
 /* Layout สำหรับการ์ดนิยาย ซ้าย-ขวา */
 .admin-modal__novel-card {
   display: flex;
@@ -385,7 +580,6 @@
   flex: 1;
 }
 
-/* เอา margin ของเก่าออกเพื่อจัดระยะใหม่ */
 .admin-modal__novel-details .admin-modal__novel-title {
   margin-bottom: 2px;
   font-size: 16px;
@@ -402,7 +596,7 @@
   color: #888888;
   line-height: 1.5;
   margin-bottom: 12px;
-  
+
   /* เทคนิคตัดคำโปรยให้แสดงแค่ 2 บรรทัด ถ้าเกินให้เป็น ... */
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -411,13 +605,6 @@
 }
 
 .admin-modal__novel-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  color: #ff4081;
-  font-weight: 700;
-  text-decoration: none;
   margin-top: auto; /* ดันลิงก์ลงไปชิดด้านล่างสุดเสมอ */
   width: fit-content;
   transition: opacity 0.2s;

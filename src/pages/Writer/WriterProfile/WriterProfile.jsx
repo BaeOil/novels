@@ -102,18 +102,23 @@ export default function WriterProfile() {
 
       try {
         let targetWriterId = id;
+        // เก็บ writer_id ของ "ตัวเอง" ไว้ใช้เทียบความเป็นเจ้าของโปรไฟล์แบบแม่นยำ
+        // (แม่นกว่าการเทียบ user_id ที่ /writer/{id} อาจไม่ส่งมาด้วยเสมอไป)
+        let myWriterId = null;
 
-        // ถ้าไม่มี id ใน URL (เจ้าของโปรไฟล์เปิดหน้า /profile เอง) ให้พยายามดึง writer_id จาก /api/writers/me ก่อน
-        if (!targetWriterId && token) {
+        if (token) {
           try {
             const meRes = await fetch(`${API_BASE_URL}/api/writers/me`, { headers });
             if (meRes.ok) {
               const meData = await meRes.json();
-              if (meData.writer_id) {
-                targetWriterId = meData.writer_id;
-              }
+              myWriterId = meData.writer_id || meData.data?.writer_id || null;
             }
           } catch (_) {}
+        }
+
+        // ถ้าไม่มี id ใน URL (เจ้าของโปรไฟล์เปิดหน้า /profile เอง) ให้ใช้ writer_id ของตัวเอง
+        if (!targetWriterId) {
+          targetWriterId = myWriterId;
         }
 
         // Fallback สุดท้ายถ้ายังไม่มี
@@ -139,16 +144,18 @@ export default function WriterProfile() {
           throw new Error("ไม่พบข้อมูลนักเขียน");
         }
 
-        // ตรวจสอบ Ownership
-        if (currentUser && writerData) {
+        // ตรวจสอบ Ownership: เทียบ writer_id ของตัวเองก่อน (แม่นยำสุด) แล้วค่อย fallback ไปเทียบ user_id
+        let computedIsOwner = Boolean(
+          myWriterId && String(myWriterId) === String(targetWriterId)
+        );
+        if (!computedIsOwner && currentUser && writerData) {
           const currentUserIdStr = String(currentUser.id || currentUser.user_id || "");
           const writerUserIdStr = String(writerData.user_id || writerData.userId || "");
-          setIsOwner(Boolean(currentUserIdStr && writerUserIdStr && currentUserIdStr === writerUserIdStr));
-        } else if (currentUser && !id) {
-          setIsOwner(true);
-        } else {
-          setIsOwner(false);
+          computedIsOwner = Boolean(
+            currentUserIdStr && writerUserIdStr && currentUserIdStr === writerUserIdStr
+          );
         }
+        setIsOwner(computedIsOwner);
 
         // 2. ดึงรายการนิยายของนักเขียน
         let novelsArr = [];
@@ -165,9 +172,9 @@ export default function WriterProfile() {
           console.warn("ดึงรายการนิยายล้มเหลว:", e);
         }
 
-        // 3. ดึงสถานะการติดตาม (ถ้ามี Token)
+        // 3. ดึงสถานะการติดตาม (ถ้ามี Token และไม่ใช่เจ้าของโปรไฟล์เอง)
         let followingState = false;
-        if (token && !isOwner) {
+        if (token && !computedIsOwner) {
           try {
             const followRes = await fetch(`${API_BASE_URL}/api/me/following-writers`, { headers });
             if (followRes.ok) {

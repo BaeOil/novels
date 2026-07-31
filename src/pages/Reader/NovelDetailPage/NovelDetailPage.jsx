@@ -20,6 +20,7 @@ const initialNovelState = {
   coverImage: null,
   coverEmoji: "📘",
   status: "draft",
+  isCompleted: false,
   author: {
     displayName: "ไม่ทราบผู้แต่ง",
     avatarUrl: null,
@@ -93,16 +94,27 @@ const NovelDetailPage = () => {
   const [likeProcessing, setLikeProcessing] = useState(false);
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
 
-  const getCurrentUserId = () => {
+  const getCurrentUser = () => {
     const userJson = localStorage.getItem("user");
-    if (!userJson) return 0;
+    if (!userJson) return null;
     try {
-      const user = JSON.parse(userJson);
-      return user?.id || user?.user_id || 0;
+      return JSON.parse(userJson);
     } catch (err) {
       console.warn("Failed to parse user from localStorage:", err);
-      return 0;
+      return null;
     }
+  };
+
+  const getCurrentUserId = () => {
+    const user = getCurrentUser();
+    return user?.id || user?.user_id || 0;
+  };
+
+  // แอดมินไม่ได้ "อ่าน" นิยาย เข้ามาเพื่อตรวจสอบ/จัดการ จึงต้องแยก UI ออกจากผู้อ่านทั่วไป
+  const isCurrentUserAdmin = () => {
+    const user = getCurrentUser();
+    const role = String(user?.role || "").toLowerCase();
+    return role === "admin" || role === "superadmin";
   };
 
   const fetchBookmarkedStatus = async (currentNovelId, userId, headers) => {
@@ -266,6 +278,8 @@ const NovelDetailPage = () => {
           id: nData.novel_id || nData.id || id,
           title: nData.title || "ไม่พบชื่อเรื่อง",
           status: nData.status || "draft",
+          // เรื่องจบแล้วหรือยัง — ใช้เกณฑ์เดียวกับหน้าโปรไฟล์นักเขียน (status "completed" หรือ is_completed)
+          isCompleted: nData.status === "completed" || nData.is_completed === true,
           categories: Array.isArray(nData.categories)
             ? Array.from(new Set(
               nData.categories
@@ -556,12 +570,16 @@ const NovelDetailPage = () => {
 
   const currentUserId = getCurrentUserId();
   const isLoggedIn = currentUserId > 0;
+  const isAdmin = isLoggedIn && isCurrentUserAdmin();
 
   if (loading) {
     return (
       <div className="novel-detail">
         <div className="novel-detail__container">
-          <p>กำลังโหลดข้อมูลนิยาย...</p>
+          <div className="novel-detail__state-card">
+            <div className="novel-detail__state-spinner" aria-hidden="true" />
+            <p className="novel-detail__state-text">กำลังโหลดข้อมูลนิยาย...</p>
+          </div>
         </div>
       </div>
     );
@@ -571,36 +589,32 @@ const NovelDetailPage = () => {
     return (
       <div className="novel-detail">
         <div className="novel-detail__container">
-          <p className="text-red-600">เกิดข้อผิดพลาด: {error}</p>
+          <div className="novel-detail__state-card novel-detail__state-card--error">
+            <div className="novel-detail__state-icon" aria-hidden="true">⚠️</div>
+            <p className="novel-detail__state-text">เกิดข้อผิดพลาด: {error}</p>
+            <button className="novel-detail__banned-btn" onClick={() => navigate("/")}>
+              กลับหน้าหลัก
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   // 🟢 หากนิยายถูกระงับ (banned) ให้แสดงหน้าแจ้งเตือนและซ่อนเนื้อหา
-  if (novel.status === "banned") {
+  // ยกเว้นแอดมิน ซึ่งต้องเห็นเนื้อหาเต็มเพื่อตรวจสอบ/จัดการรายงานที่เกี่ยวข้อง
+  if (novel.status === "banned" && !isAdmin) {
     return (
       <div className="novel-detail">
-        <div className="novel-detail__container" style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontSize: "64px", marginBottom: "16px" }}>⚠️</div>
-          <h2 style={{ fontSize: "24px", color: "#e53e3e", marginBottom: "12px" }}>
+        <div className="novel-detail__container novel-detail__banned-screen">
+          <div className="novel-detail__banned-icon" aria-hidden="true">⚠️</div>
+          <h2 className="novel-detail__banned-title">
             นิยายเรื่องนี้ถูกระงับการเผยแพร่ชั่วคราว
           </h2>
-          <p style={{ color: "#718096", marginBottom: "24px", fontSize: "16px" }}>
+          <p className="novel-detail__banned-text">
             เนื้อหานี้อยู่ระหว่างการตรวจสอบโดยผู้ดูแลระบบ เนื่องจากได้รับการรายงานว่าอาจขัดต่อเงื่อนไขการใช้งาน
           </p>
-          <button
-            onClick={() => navigate("/")}
-            style={{
-              padding: "10px 24px",
-              backgroundColor: "#E91E8C",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontWeight: "bold"
-            }}
-          >
+          <button className="novel-detail__banned-btn" onClick={() => navigate("/")}>
             กลับหน้าหลัก
           </button>
         </div>
@@ -611,33 +625,25 @@ const NovelDetailPage = () => {
   return (
     <div className="novel-detail">
       {isPreview && (
-        <div style={{
-          width: "100%",
-          background: "#eff6ff",
-          borderBottom: "1px solid #bfdbfe",
-          padding: "12px 18px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          color: "#1e40af"
-        }}>
-          <span style={{ fontWeight: 700 }}>คุณกำลังอยู่ในโหมดทดลองอ่าน</span>
+        <div className="novel-detail__preview-banner">
+          <span className="novel-detail__preview-banner-label">
+            👁️ คุณกำลังอยู่ในโหมดทดลองอ่าน
+          </span>
           <button
             type="button"
+            className="novel-detail__preview-banner-btn"
             onClick={() => window.close()}
-            style={{
-              background: "#1d4ed8",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "999px",
-              padding: "8px 14px",
-              cursor: "pointer",
-              fontWeight: 700
-            }}
           >
-            Exit Preview
+            ออกจากโหมดทดลองอ่าน
           </button>
+        </div>
+      )}
+
+      {isAdmin && novel.status === "banned" && (
+        <div className="novel-detail__admin-banned-banner">
+          <span>
+            ⚠️ นิยายเรื่องนี้ถูกระงับการเผยแพร่อยู่ ผู้อ่านทั่วไปจะมองไม่เห็นหน้านี้ — คุณเห็นเพราะเข้าสู่ระบบในฐานะแอดมิน
+          </span>
         </div>
       )}
       <div className="novel-detail__container">
@@ -708,6 +714,12 @@ const NovelDetailPage = () => {
               ) : null}
             </div>
 
+            {novel.isCompleted && (
+              <div className="novel-detail__completed-badge">
+                <span aria-hidden="true">🏁</span> จบแล้ว
+              </div>
+            )}
+
             <p className="novel-detail__synopsis">{novel.synopsis}</p>
 
             <div className="novel-detail__action-group">
@@ -717,12 +729,12 @@ const NovelDetailPage = () => {
                 readLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
                 readAriaLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
                 onRead={handleRead}
-                onBookmark={isPreview ? undefined : handleBookmark}
-                onLike={isPreview ? undefined : handleLike}
-                showBookmark={!isPreview}
-                showLike={!isPreview}
+                onBookmark={isPreview || isAdmin ? undefined : handleBookmark}
+                onLike={isPreview || isAdmin ? undefined : handleLike}
+                showBookmark={!isPreview && !isAdmin}
+                showLike={!isPreview && !isAdmin}
               />
-              {!isPreview && isLoggedIn && (
+              {!isPreview && isLoggedIn && !isAdmin && (
                 <button
                   className="novel-detail__restart-button"
                   type="button"
@@ -734,7 +746,36 @@ const NovelDetailPage = () => {
               )}
             </div>
 
-            {isLoggedIn && (
+            {/* 🟢 แอดมินไม่มี "ความคืบหน้าการอ่าน" ส่วนตัว จึงสลับไปแสดงแผงจัดการแทน
+                ผู้อ่านที่ล็อกอินแล้วเห็นแถบความคืบหน้าตามเดิม
+                ผู้เยี่ยมชมที่ยังไม่ล็อกอินเห็นการ์ดชวนเข้าสู่ระบบ แทนที่จะเป็นพื้นที่ว่างเปล่า */}
+            {isAdmin && !isPreview ? (
+              <div className="novel-detail__admin-panel">
+                <div className="novel-detail__admin-panel-header">
+                  <span className="novel-detail__admin-badge">🛡️ โหมดแอดมิน</span>
+                </div>
+                <p className="novel-detail__admin-panel-text">
+                  คุณกำลังดูนิยายเรื่องนี้ในฐานะผู้ดูแลระบบ หน้านี้จึงไม่นับความคืบหน้าการอ่าน ถูกใจ
+                  หรือบุ๊กมาร์กส่วนตัว — ใช้ปุ่มด้านล่างเพื่อตรวจสอบรายงานหรือจัดการเนื้อหา
+                </p>
+                <div className="novel-detail__admin-panel-actions">
+                  <button
+                    type="button"
+                    className="novel-detail__admin-btn novel-detail__admin-btn--primary"
+                    onClick={() => navigate(`/admin/reports?novel_id=${novel.id}`)}
+                  >
+                    🚩 ดูรายงานที่เกี่ยวข้องกับนิยายนี้
+                  </button>
+                  <button
+                    type="button"
+                    className="novel-detail__admin-btn"
+                    onClick={handleStoryMap}
+                  >
+                    🗺️ ดูผังเรื่องทั้งหมด
+                  </button>
+                </div>
+              </div>
+            ) : isLoggedIn ? (
               <div className="novel-detail__progress">
                 <NovelProgressBar
                   novelId={novel.id}
@@ -745,6 +786,25 @@ const NovelDetailPage = () => {
                   onContinueRead={handleRead}
                 />
               </div>
+            ) : (
+              !isPreview && (
+                <div className="novel-detail__guest-cta">
+                  <div className="novel-detail__guest-cta-icon" aria-hidden="true">🔖</div>
+                  <div className="novel-detail__guest-cta-body">
+                    <p className="novel-detail__guest-cta-title">เข้าสู่ระบบเพื่อไม่พลาดทุกความคืบหน้า</p>
+                    <p className="novel-detail__guest-cta-text">
+                      บันทึกจุดที่อ่านถึง กดถูกใจ และบุ๊กมาร์กนิยายเรื่องนี้ไว้อ่านต่อภายหลัง
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="novel-detail__guest-cta-btn"
+                    onClick={() => navigate("/login-register")}
+                  >
+                    เข้าสู่ระบบ
+                  </button>
+                </div>
+              )
             )}
           </main>
         </div>
@@ -850,7 +910,7 @@ const NovelDetailPage = () => {
 
       </div>
 
-      {!isPreview && isLoggedIn && (
+      {!isPreview && isLoggedIn && !isAdmin && (
         <ReaderReportButton
           novelId={novel.id}
           novelTitle={novel.title}

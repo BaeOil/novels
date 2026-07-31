@@ -397,6 +397,18 @@
   display: block;
 }
 
+.novel-grid-synopsis {
+  margin: 6px 0 0;
+  color: var(--slate-500);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .novel-grid-tags {
   display: flex;
   gap: 4px;

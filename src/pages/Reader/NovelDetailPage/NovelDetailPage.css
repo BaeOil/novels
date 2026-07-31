@@ -110,6 +110,22 @@
   color: var(--gray-600);
 }
 
+/* ── Completed badge (shown only when the novel is finished) ── */
+.novel-detail__completed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
 /* Synopsis */
 .novel-detail__synopsis {
   font-family: 'Sarabun', sans-serif;
@@ -164,6 +180,134 @@
 
 .novel-detail__restart-button:active {
   transform: translateY(0);
+}
+
+/* ── Admin panel (replaces personal progress bar for admins) ── */
+.novel-detail__admin-panel {
+  margin-top: 0;
+  background: linear-gradient(135deg, #fdf4ff 0%, #fff0f6 100%);
+  border: 1.5px solid #f3d9ea;
+  border-radius: 16px;
+  padding: 18px 22px;
+}
+
+.novel-detail__admin-panel-header {
+  margin-bottom: 8px;
+}
+
+.novel-detail__admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #7c3aed;
+  color: white;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.novel-detail__admin-panel-text {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13.5px;
+  color: var(--gray-600);
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.novel-detail__admin-panel-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.novel-detail__admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1.5px solid #ddd6fe;
+  background: var(--white);
+  color: #6d28d9;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.novel-detail__admin-btn:hover {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+}
+
+.novel-detail__admin-btn--primary {
+  background: #7c3aed;
+  color: white;
+  border-color: #7c3aed;
+}
+
+.novel-detail__admin-btn--primary:hover {
+  background: #6d28d9;
+  border-color: #6d28d9;
+}
+
+/* ── Guest CTA (fills the gap where progress bar would be, for visitors) ── */
+.novel-detail__guest-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #fff0f6 0%, #ffe9f2 100%);
+  border: 1.5px dashed var(--pink-200, #fbcfe8);
+  border-radius: 16px;
+  padding: 18px 22px;
+  flex-wrap: wrap;
+}
+
+.novel-detail__guest-cta-icon {
+  font-size: 30px;
+  flex-shrink: 0;
+}
+
+.novel-detail__guest-cta-body {
+  flex: 1;
+  min-width: 200px;
+}
+
+.novel-detail__guest-cta-title {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
+
+.novel-detail__guest-cta-text {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  color: var(--gray-600);
+  line-height: 1.6;
+}
+
+.novel-detail__guest-cta-btn {
+  flex-shrink: 0;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, var(--pink-400), var(--pink-500));
+  color: white;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.novel-detail__guest-cta-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
 }
 
 /* ── Synopsis section ── */
@@ -254,6 +398,16 @@
 
   .novel-detail__title {
     font-size: 26px;
+  }
+
+  .novel-detail__guest-cta,
+  .novel-detail__admin-panel-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .novel-detail__guest-cta-btn {
+    width: 100%;
   }
 }
 
@@ -553,4 +707,152 @@
 .novel-detail__modal-secondary-btn:hover {
   border-color: var(--pink-300);
   background: var(--pink-50);
+}
+
+/* ─────────────────────────────
+   Banners: preview mode / admin viewing a banned novel
+───────────────────────────── */
+
+.novel-detail__preview-banner {
+  width: 100%;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.novel-detail__preview-banner-label {
+  font-family: 'Sarabun', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #1e40af;
+}
+
+.novel-detail__preview-banner-btn {
+  background: #1d4ed8;
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  transition: background 0.18s ease;
+}
+
+.novel-detail__preview-banner-btn:hover {
+  background: #1e40af;
+}
+
+.novel-detail__admin-banned-banner {
+  width: 100%;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+  padding: 12px 20px;
+  font-family: 'Sarabun', sans-serif;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #b91c1c;
+  text-align: center;
+}
+
+/* ─────────────────────────────
+   Banned screen (non-admin visitors)
+───────────────────────────── */
+
+.novel-detail__banned-screen {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.novel-detail__banned-icon {
+  font-size: 60px;
+  margin-bottom: 16px;
+}
+
+.novel-detail__banned-title {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #b91c1c;
+  margin-bottom: 12px;
+}
+
+.novel-detail__banned-text {
+  font-family: 'Sarabun', sans-serif;
+  color: var(--gray-600);
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 480px;
+  margin: 0 auto 26px;
+}
+
+.novel-detail__banned-btn {
+  padding: 11px 26px;
+  background: var(--pink-500);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(219, 39, 119, 0.25);
+  transition: all 0.18s ease;
+}
+
+.novel-detail__banned-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+
+/* ─────────────────────────────
+   Loading / error state cards
+───────────────────────────── */
+
+.novel-detail__state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--white);
+  border: 1.5px solid var(--gray-100);
+  border-radius: 20px;
+  padding: 70px 24px;
+  margin-top: 24px;
+  text-align: center;
+}
+
+.novel-detail__state-card--error {
+  border-color: #fecaca;
+  background: #fffbfb;
+}
+
+.novel-detail__state-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--pink-100);
+  border-top-color: var(--pink-500);
+  animation: novel-detail-spin 0.8s linear infinite;
+}
+
+@keyframes novel-detail-spin {
+  to { transform: rotate(360deg); }
+}
+
+.novel-detail__state-icon {
+  font-size: 40px;
+}
+
+.novel-detail__state-text {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14.5px;
+  color: var(--gray-600);
 }

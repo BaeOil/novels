@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, BookOpen, Bell, ChevronDown, ChevronRight, BookImage } from "lucide-react";
 import FollowButton from "../FollowButton/FollowButton";
@@ -33,6 +33,15 @@ export default function WriterCard({ writer, onUnfollow, isFollowing = false }) 
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [isFollowed, setIsFollowed] = useState(isFollowing);
+
+  const latestUpdate = useMemo(() => {
+    if (!writer.latestUpdate) return null;
+    return {
+      ...writer.latestUpdate,
+      title: writer.latestUpdate.title || "อัปเดตล่าสุด",
+      time: writer.latestUpdate.time || null,
+    };
+  }, [writer.latestUpdate]);
 
   const handleOpenNovel = (novelId) => {
     if (!novelId) return;
@@ -79,14 +88,14 @@ export default function WriterCard({ writer, onUnfollow, isFollowing = false }) 
         </div>
 
         {/* ส่วนอัปเดตล่าสุด: ปรับเป็น 2 บรรทัดย่อยอ่านง่ายขึ้น */}
-        {writer.latestUpdate && (
+        {latestUpdate && (
           <div className="updatePill">
             <div className="updateMain">
               <div className="updateTag"><Bell size={11} /> อัปเดตล่าสุด</div>
-              <div className="updateTitle">{writer.latestUpdate.title}</div>
+              <div className="updateTitle">{latestUpdate.title}</div>
               <div className="updateDetailBlock">
-                <div>{writer.latestUpdate.detail}</div>
-                <div className="updateTimeLine">{writer.latestUpdate.time}</div>
+                <div>{latestUpdate.detail}</div>
+                <div className="updateTimeLine">{latestUpdate.time}</div>
               </div>
             </div>
           </div>
