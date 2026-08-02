@@ -28,6 +28,7 @@ func RegisterRoutes(
 	// ประกาศตัวด่านหน้าสำหรับ Authen และ ระบบคำขอนักเขียน
 	authHandler := handlers.NewAuthHandler(&auth, media)
 	writerHandler := handlers.NewWriterHandler(writer, media, notificationService)
+	adminUserHandler := handlers.NewAdminUserHandler(auth)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	reportHandler := handlers.NewReportHandler(reportService)
 
@@ -88,13 +89,28 @@ func RegisterRoutes(
 	mux.Handle("/api/admin/writers/approve", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(writerHandler.Approve))))
 	mux.Handle("/api/admin/writers/reject", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(writerHandler.Reject))))
 
+	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการผู้ใช้
+	mux.Handle("/api/admin/users", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(adminUserHandler.ListUsers))))
+	mux.Handle("/api/admin/users/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/status"):
+			adminUserHandler.UpdateUserStatus(w, r)
+		case strings.HasSuffix(r.URL.Path, "/demote"):
+			adminUserHandler.DemoteUser(w, r)
+		case r.Method == http.MethodDelete:
+			adminUserHandler.DeleteUser(w, r)
+		default:
+			adminUserHandler.GetUserDetail(w, r)
+		}
+	}))))
+
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการรายงานนิยาย
 	// GET /api/admin/reports -> ดึงรายการรีพอร์ตทั้งหมด
 	mux.Handle("/api/admin/reports", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.GetPendingReports))))
 
 	// PATCH /api/admin/reports/:id/status -> อัปเดตสถานะรีพอร์ต
 	mux.Handle("/api/admin/reports/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.UpdateReportStatus))))
-	
+
 	// 🟢 กลุ่มแยกย่อยตาม Resource
 	// ------------------------------------------
 	mux.Handle("/categories", middleware.RequestLogger(handlers.GetAllCategoriesHandler(category)))
@@ -146,22 +162,33 @@ func RegisterRoutes(
 	// ------------------------------------------
 	// 🟢 Reading Flow & Social (คุมพฤติกรรม)
 	// ------------------------------------------
-	mux.Handle("/progress", middleware.RequestLogger(middleware.RequireAuth(handlers.ProgressHandler(reading))))
+	mux.Handle("/progress", middleware.RequestLogger(middleware.RequireAdminReadOnly(handlers.ProgressHandler(reading))))
 	mux.Handle("/history", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			handlers.GetReadingHistoryHandler(reading)(w, r)
 			return
 		}
-		http.NotFound(w, r)
-	}))))
-	mux.Handle("/choice-history", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordChoiceHistoryHandler(reading))))
-	mux.Handle("/user-endings", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordUserEndingHandler(reading))))
-	mux.Handle("/likes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
-			middleware.RequireAuth(handlers.RemoveLikeHandler(social, notificationService)).ServeHTTP(w, r)
+			handlers.DeleteReadingHistoryBulkHandler(reading)(w, r)
 			return
 		}
-		middleware.RequireAuth(handlers.AddLikeHandler(social, notificationService)).ServeHTTP(w, r)
+		http.NotFound(w, r)
+	}))))
+	mux.Handle("/history/", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			handlers.DeleteReadingHistoryByNovelHandler(reading)(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	}))))
+	mux.Handle("/choice-history", middleware.RequestLogger(middleware.RequireAdminReadOnly(handlers.RecordChoiceHistoryHandler(reading))))
+	mux.Handle("/user-endings", middleware.RequestLogger(middleware.RequireNotAdmin(handlers.RecordUserEndingHandler(reading))))
+	mux.Handle("/likes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			middleware.RequireAdminReadOnly(handlers.RemoveLikeHandler(social, notificationService)).ServeHTTP(w, r)
+			return
+		}
+		middleware.RequireAdminReadOnly(handlers.AddLikeHandler(social, notificationService)).ServeHTTP(w, r)
 	})))
 	mux.Handle("/bookshelves", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
@@ -173,36 +200,36 @@ func RegisterRoutes(
 			return
 		}
 		if r.Method == http.MethodDelete {
-			middleware.RequireAuth(handlers.RemoveFromBookshelfHandler(social)).ServeHTTP(w, r)
+			middleware.RequireNotAdmin(handlers.RemoveFromBookshelfHandler(social)).ServeHTTP(w, r)
 			return
 		}
 		if r.Method == http.MethodPost {
-			middleware.RequireAuth(handlers.AddToBookshelfHandler(social)).ServeHTTP(w, r)
+			middleware.RequireNotAdmin(handlers.AddToBookshelfHandler(social)).ServeHTTP(w, r)
 			return
 		}
 		http.NotFound(w, r)
 	})))
 	mux.Handle("/comments", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
-			middleware.RequireAuth(handlers.RemoveCommentHandler(social)).ServeHTTP(w, r)
+			middleware.RequireNotAdmin(handlers.RemoveCommentHandler(social)).ServeHTTP(w, r)
 			return
 		}
 		if r.Method == http.MethodPost {
-			middleware.RequireAuth(handlers.AddCommentHandler(social, notificationService)).ServeHTTP(w, r)
+			middleware.RequireNotAdmin(handlers.AddCommentHandler(social, notificationService)).ServeHTTP(w, r)
 			return
 		}
 		http.NotFound(w, r)
 	})))
-	mux.Handle("/follows", middleware.RequestLogger(middleware.RequireAuth(handlers.AddFollowHandler(social, notificationService))))
+	mux.Handle("/follows", middleware.RequestLogger(middleware.RequireAdminReadOnly(handlers.AddFollowHandler(social, notificationService))))
 	mux.Handle("/api/users/following-writers", middleware.RequestLogger(middleware.RequireAuth(handlers.GetFollowingWritersHandler(social))))
 	mux.Handle("/api/me/following-writers", middleware.RequestLogger(middleware.RequireAuth(handlers.GetFollowingWritersHandler(social))))
 	mux.Handle("/api/writers/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/follow") {
-			middleware.RequireAuth(handlers.FollowWriterHandler(social, notificationService)).ServeHTTP(w, r)
+			middleware.RequireNotAdmin(handlers.FollowWriterHandler(social, notificationService)).ServeHTTP(w, r)
 			return
 		}
 		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/unfollow") {
-			middleware.RequireAuth(handlers.UnfollowWriterHandler(social)).ServeHTTP(w, r)
+			middleware.RequireNotAdmin(handlers.UnfollowWriterHandler(social)).ServeHTTP(w, r)
 			return
 		}
 		http.NotFound(w, r)

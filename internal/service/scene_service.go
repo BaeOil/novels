@@ -80,9 +80,9 @@ func (s *sceneService) GetScene(sceneID int) (models.SceneResponse, error) {
 		EndingTitle:       scene.EndingTitle,
 		EndingType:        scene.EndingType,
 		EndingDescription: scene.EndingDescription,
-		NovelTitle:        scene.NovelTitle,   // 🟢 🎯 ยัดชื่อเรื่องหลักส่งไปหน้าบ้าน
-		ChapterTitle:      scene.ChapterTitle, // 🟢 🎯 ยัดชื่อตอนย่อยส่งไปหน้าบ้าน
-		ChapterEpisode:    scene.ChapterEpisode,//eww
+		NovelTitle:        scene.NovelTitle,     // 🟢 🎯 ยัดชื่อเรื่องหลักส่งไปหน้าบ้าน
+		ChapterTitle:      scene.ChapterTitle,   // 🟢 🎯 ยัดชื่อตอนย่อยส่งไปหน้าบ้าน
+		ChapterEpisode:    scene.ChapterEpisode, //eww
 		Choices:           choices,
 	}, nil
 }
@@ -531,7 +531,7 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 	if userID > 0 {
 		_ = s.db.QueryRow(
 			`SELECT COALESCE(current_scene_id, 1) FROM reading_progress 
-			 WHERE user_id = $1 AND novel_id = $2`,
+			 WHERE user_id = $1 AND novel_id = $2 AND updated_at IS NOT NULL`,
 			userID, novelID,
 		).Scan(&currentSceneID)
 	}

@@ -17,16 +17,22 @@ type WriterApplyRequest struct {
 
 // WriterRequestResponse สำหรับส่งกลับไปให้หน้าแอดมินดูคำขอ
 type WriterRequestResponse struct {
-	WriterID     uint      `json:"writer_id"`
-	UserID       uint      `json:"user_id"`
-	Username     string    `json:"username"` // ดึงมาจากตาราง users เอาไว้ให้แอดมินรู้ว่าเป็นใคร
-	NameLastname string    `json:"name_lastname"`
-	PenName      string    `json:"pen_name"`
-	Bio          string    `json:"bio"`
-	EmailWriter  string    `json:"email_writer"`
-	ContactInfo  string    `json:"contact_info"` // พ่นเป็น string JSON ออกไปหน้าบ้าน
-	Status       string    `json:"status"`
-	AppliedAt    time.Time `json:"applied_at"`
+	WriterID             uint       `json:"writer_id"`
+	UserID               uint       `json:"user_id"`
+	Username             string     `json:"username"` // ดึงมาจากตาราง users เอาไว้ให้แอดมินรู้ว่าเป็นใคร
+	NameLastname         string     `json:"name_lastname"`
+	PenName              string     `json:"pen_name"`
+	Bio                  string     `json:"bio"`
+	EmailWriter          string     `json:"email_writer"`
+	ContactInfo          string     `json:"contact_info"` // พ่นเป็น string JSON ออกไปหน้าบ้าน
+	Genres               []string   `json:"genres"`
+	Status               string     `json:"status"`
+	AppliedAt            time.Time  `json:"applied_at"`
+	ApprovedAt           *time.Time `json:"approved_at,omitempty"`
+	RejectedAt           *time.Time `json:"rejected_at,omitempty"`
+	ActedByAdminID       *uint      `json:"acted_by_admin_id,omitempty"`
+	ActedByAdminUsername *string    `json:"acted_by_admin_username,omitempty"`
+	RejectionReason      *string    `json:"rejection_reason,omitempty"`
 }
 
 // UpdateWriterProfileRequest สำหรับรับข้อมูลอัปเดตโปรไฟล์นักเขียน

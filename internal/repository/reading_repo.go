@@ -3,8 +3,14 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
+
 	"novel-be/internal/models"
+
+	"github.com/lib/pq"
 )
+
+var ErrReadingHistoryForbidden = errors.New("reading history is not owned by the authenticated user")
 
 // ======= Reading Repository Methods =======
 
@@ -12,17 +18,18 @@ func (r *postgresReadingRepository) GetReadingProgress(userID, novelID int) (*mo
 	row := r.db.QueryRow(`
 		SELECT progress_id, user_id, novel_id, current_scene_id, updated_at
 		FROM reading_progress
-		WHERE user_id = $1 AND novel_id = $2
+		WHERE user_id = $1 AND novel_id = $2 AND updated_at IS NOT NULL
 	`, userID, novelID)
 
 	var progress models.ReadingProgress
+	var updatedAt sql.NullTime
 
 	err := row.Scan(
 		&progress.ProgressID,
 		&progress.UserID,
 		&progress.NovelID,
 		&progress.CurrentSceneID,
-		&progress.UpdatedAt,
+		&updatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -31,6 +38,11 @@ func (r *postgresReadingRepository) GetReadingProgress(userID, novelID int) (*mo
 
 	if err != nil {
 		return nil, err
+	}
+
+	if updatedAt.Valid {
+		updatedAtValue := updatedAt.Time
+		progress.UpdatedAt = &updatedAtValue
 	}
 
 	return &progress, nil
@@ -205,7 +217,7 @@ func (r *postgresReadingRepository) GetReadingHistory(userID int) ([]models.Nove
 			WHERE ue.user_id = $1
 			GROUP BY ue.user_id, s.novel_id
 		) ue ON ue.user_id = rp.user_id AND ue.novel_id = n.novel_id
-		WHERE rp.user_id = $1
+		WHERE rp.user_id = $1 AND rp.updated_at IS NOT NULL
 		GROUP BY n.novel_id, w.writer_id, rp.current_scene_id, rp.updated_at, visited_stats.visited_count, ue.ending_count, last_read.visited_at, last_read.scene_id, last_read.scene_title, last_read.chapter_number, last_read.chapter_title, last_read.scene_number, last_read.scene_name, last_choice.choice_text
 		ORDER BY rp.updated_at DESC
 	`, userID)
@@ -304,4 +316,80 @@ func (r *postgresReadingRepository) ResetReadingProgress(userID, novelID int) er
 	}
 
 	return tx.Commit()
+}
+
+func (r *postgresReadingRepository) DeleteReadingHistoryByNovel(userID, novelID int) (bool, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
+		UPDATE reading_progress
+		SET updated_at = NULL
+		WHERE user_id = $1 AND novel_id = $2
+	`, userID, novelID)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *postgresReadingRepository) DeleteReadingHistoryByUser(userID int, novelIDs []int) (int, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	if len(novelIDs) == 0 {
+		res, err := tx.Exec(`
+			UPDATE reading_progress
+			SET updated_at = NULL
+			WHERE user_id = $1 AND updated_at IS NOT NULL
+		`, userID)
+		if err != nil {
+			return 0, err
+		}
+		count, err := res.RowsAffected()
+		if err != nil {
+			return 0, err
+		}
+		if err := tx.Commit(); err != nil {
+			return 0, err
+		}
+		return int(count), nil
+	}
+
+	res, err := tx.Exec(`
+		UPDATE reading_progress
+		SET updated_at = NULL
+		WHERE user_id = $1
+		AND novel_id = ANY($2::int[])
+		AND updated_at IS NOT NULL
+	`, userID, pq.Array(novelIDs))
+	if err != nil {
+		return 0, err
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }

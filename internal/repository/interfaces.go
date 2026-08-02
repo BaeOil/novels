@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"novel-be/internal/dto"
 	"novel-be/internal/models"
 )
@@ -77,6 +79,8 @@ type ReadingRepository interface {
 	InsertSceneHistory(userID, sceneID int) error
 	InsertChoiceHistory(history models.ChoiceHistory) error
 	InsertUserEnding(userID, novelID, sceneID int) error
+	DeleteReadingHistoryByNovel(userID, novelID int) (bool, error)
+	DeleteReadingHistoryByUser(userID int, novelIDs []int) (int, error)
 }
 
 type WriterRepository interface {
@@ -85,9 +89,9 @@ type WriterRepository interface {
 	GetLatestWriterApplicationByUserID(userID int) (*models.Writer, error)
 	GetUserRoleByUserID(userID int) (string, error)
 	Apply(ctx context.Context, userID uint, req dto.WriterApplyRequest, contactJSON string) error
-	GetPendingRequests(ctx context.Context) ([]dto.WriterRequestResponse, error)
-	ApproveWriter(ctx context.Context, writerID uint) error
-	RejectWriter(ctx context.Context, writerID uint) error
+	GetPendingRequests(ctx context.Context, status string, page, limit int) ([]dto.WriterRequestResponse, error)
+	ApproveWriter(ctx context.Context, writerID uint, adminID uint) error
+	RejectWriter(ctx context.Context, writerID uint, adminID uint, rejectionReason string) error
 	UpdateWriterProfile(ctx context.Context, writerID int, req dto.UpdateWriterProfileRequest, contactJSON string) error
 }
 
@@ -96,4 +100,10 @@ type AuthRepository interface {
 	GetByUsername(ctx context.Context, username string) (*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
 	GetByID(ctx context.Context, userID uint) (*models.User, error)
+	ListUsers(ctx context.Context, role, status, search string, page, limit int) ([]dto.AdminUserListItemDTO, error)
+	GetUserForAdmin(ctx context.Context, userID uint) (*dto.AdminUserDetailDTO, error)
+	UpdateUserStatus(ctx context.Context, userID uint, status, reason string, suspendedAt *time.Time, adminID uint) error
+	DemoteUserToReader(ctx context.Context, userID uint, adminID uint) error
+	DeleteUser(ctx context.Context, userID uint) error
+	HasWriterNovels(ctx context.Context, userID uint) (bool, error)
 }

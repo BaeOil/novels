@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"novel-be/internal/dto"
@@ -101,7 +102,11 @@ func (h *WriterHandler) GetPendingRequests(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	requests, err := h.service.GetPendingRequests(r.Context())
+	status := strings.TrimSpace(r.URL.Query().Get("status"))
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	requests, err := h.service.GetPendingRequests(r.Context(), status, page, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -118,6 +123,12 @@ func (h *WriterHandler) Approve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	adminID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || adminID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	writerIDStr := r.URL.Query().Get("writer_id")
 	if writerIDStr == "" {
 		http.Error(w, "ขาดข้อมูลรหัสคำขอนักเขียน (writer_id)", http.StatusBadRequest)
@@ -125,7 +136,7 @@ func (h *WriterHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	}
 	writerID, _ := strconv.Atoi(writerIDStr)
 
-	if err := h.service.ApproveWriter(r.Context(), uint(writerID)); err != nil {
+	if err := h.service.ApproveWriter(r.Context(), uint(writerID), adminID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -177,14 +188,18 @@ func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ดึง writer_id จาก Query Parameter (?writer_id=1)
+	adminID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || adminID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	writerIDStr := r.URL.Query().Get("writer_id")
 	if writerIDStr == "" {
 		http.Error(w, "Missing writer_id", http.StatusBadRequest)
 		return
 	}
 
-	// แปลงข้อความเป็นตัวเลข
 	var writerID uint
 	_, err := fmt.Sscanf(writerIDStr, "%d", &writerID)
 	if err != nil {
@@ -192,14 +207,20 @@ func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// เรียกใช้งานฝั่ง Service
-	err = h.service.RejectWriter(r.Context(), writerID)
+	var req struct {
+		RejectionReason string `json:"rejection_reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	err = h.service.RejectWriter(r.Context(), writerID, adminID, req.RejectionReason)
 	if err != nil {
 		http.Error(w, "Failed to reject writer: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// ส่งข้อความตอบกลับหน้าบ้าน
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "ปฏิเสธคำขอสมัครนักเขียนเรียบร้อยแล้วค่ะ",

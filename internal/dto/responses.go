@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 // Common response wrappers
 type SuccessResponse struct {
 	Status  int         `json:"status"`
@@ -87,4 +89,49 @@ type UploadResponseDTO struct {
 type RestartStoryResponseDTO struct {
 	NovelID      int `json:"novel_id"`
 	StartSceneID int `json:"start_scene_id"`
+}
+
+type AdminWriterDetailsDTO struct {
+	ID               uint     `json:"id"`
+	WriterID         uint     `json:"writer_id"`
+	NameLastname     string   `json:"name_lastname"`
+	PenName          string   `json:"pen_name"`
+	Bio              string   `json:"bio"`
+	Genres           []string `json:"genres"`
+	PrimaryContact   string   `json:"primary_contact"`
+	SecondaryContact string   `json:"secondary_contact"`
+}
+
+type AdminUserListItemDTO struct {
+	ID                      uint                   `json:"id"`
+	Username                string                 `json:"username"`
+	Email                   string                 `json:"email"`
+	PicProfile              *string                `json:"pic_profile,omitempty"`
+	Role                    string                 `json:"role"`
+	Status                  string                 `json:"status"`
+	CreatedAt               string                 `json:"created_at"`
+	SuspendedReason         *string                `json:"suspended_reason,omitempty"`
+	SuspendedAt             *time.Time             `json:"suspended_at,omitempty"`
+	WriterApplicationStatus *string                `json:"writer_application_status,omitempty"`
+	WriterID                *uint                  `json:"writer_id,omitempty"`
+	WriterDetails           *AdminWriterDetailsDTO `json:"writer_details,omitempty"`
+}
+
+type AdminUserDetailDTO struct {
+	ID                      uint                   `json:"id"`
+	Username                string                 `json:"username"`
+	Email                   string                 `json:"email"`
+	PicProfile              *string                `json:"pic_profile,omitempty"`
+	Role                    string                 `json:"role"`
+	Status                  string                 `json:"status"`
+	CreatedAt               string                 `json:"created_at"`
+	SuspendedReason         *string                `json:"suspended_reason,omitempty"`
+	SuspendedAt             *time.Time             `json:"suspended_at,omitempty"`
+	WriterApplicationStatus *string                `json:"writer_application_status,omitempty"`
+	WriterID                *uint                  `json:"writer_id,omitempty"`
+	WriterDetails           *AdminWriterDetailsDTO `json:"writer_details,omitempty"`
+}
+
+type AdminUserListResponseDTO struct {
+	Users []AdminUserListItemDTO `json:"users"`
 }

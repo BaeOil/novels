@@ -71,6 +71,8 @@ type ReadingService interface {
 	GetReadingHistory(userID int) ([]models.Novel, error)
 	RecordChoiceHistory(history models.ChoiceHistory) error
 	RecordEnding(userID, novelID, sceneID int) error
+	DeleteReadingHistoryByNovel(userID, novelID int) (bool, error)
+	DeleteReadingHistoryByUser(userID int, novelIDs []int) (int, error)
 }
 
 type FlowService interface {
@@ -83,9 +85,9 @@ type WriterService interface {
 	GetWriterByUserID(userID int) (*models.Writer, error)
 	GetLatestWriterApplicationByUserID(userID int) (*models.Writer, error)
 	ApplyForWriter(ctx context.Context, userID uint, req dto.WriterApplyRequest) error
-	GetPendingRequests(ctx context.Context) ([]dto.WriterRequestResponse, error)
-	ApproveWriter(ctx context.Context, writerID uint) error
-	RejectWriter(ctx context.Context, writerID uint) error
+	GetPendingRequests(ctx context.Context, status string, page, limit int) ([]dto.WriterRequestResponse, error)
+	ApproveWriter(ctx context.Context, writerID uint, adminID uint) error
+	RejectWriter(ctx context.Context, writerID uint, adminID uint, rejectionReason string) error
 	UpdateWriterProfile(ctx context.Context, writerID int, req dto.UpdateWriterProfileRequest) error
 }
 

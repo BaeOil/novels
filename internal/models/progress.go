@@ -3,11 +3,11 @@ package models
 import "time"
 
 type ReadingProgress struct {
-	ProgressID     int       `json:"progress_id"`
-	UserID         int       `json:"user_id"`
-	NovelID        int       `json:"novel_id"`
-	CurrentSceneID int       `json:"current_scene_id"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ProgressID     int        `json:"progress_id"`
+	UserID         int        `json:"user_id"`
+	NovelID        int        `json:"novel_id"`
+	CurrentSceneID int        `json:"current_scene_id"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
 }
 
 type ChoiceHistory struct {

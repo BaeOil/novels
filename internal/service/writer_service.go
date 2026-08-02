@@ -75,25 +75,37 @@ func (s *writerService) ApplyForWriter(ctx context.Context, userID uint, req dto
 	return s.repo.Apply(ctx, userID, req, string(contactBytes))
 }
 
-// 🔍 4. Logic ดึงรายการคำขอที่รอการตรวจสอบ (pending)
-func (s *writerService) GetPendingRequests(ctx context.Context) ([]dto.WriterRequestResponse, error) {
-	return s.repo.GetPendingRequests(ctx)
+// 🔍 4. Logic ดึงรายการคำขอที่รอการตรวจสอบ (pending) หรือดูประวัติตั้งแต่ทุกสถานะ
+func (s *writerService) GetPendingRequests(ctx context.Context, status string, page, limit int) ([]dto.WriterRequestResponse, error) {
+	if page < 0 {
+		page = 0
+	}
+	if limit < 0 {
+		limit = 0
+	}
+	return s.repo.GetPendingRequests(ctx, status, page, limit)
 }
 
 // ✅ 5. Logic การกดอนุมัติอัปเกรดฐานะผู้ใช้งาน
-func (s *writerService) ApproveWriter(ctx context.Context, writerID uint) error {
+func (s *writerService) ApproveWriter(ctx context.Context, writerID uint, adminID uint) error {
 	if writerID == 0 {
 		return errors.New("รหัสคำขอนักเขียนไม่ถูกต้อง")
 	}
-	return s.repo.ApproveWriter(ctx, writerID)
+	if adminID == 0 {
+		return errors.New("ผู้ดูแลระบบไม่ถูกต้อง")
+	}
+	return s.repo.ApproveWriter(ctx, writerID, adminID)
 }
 
 // ❌ Logic การกดปฏิเสธคำขอสมัครนักเขียน
-func (s *writerService) RejectWriter(ctx context.Context, writerID uint) error {
+func (s *writerService) RejectWriter(ctx context.Context, writerID uint, adminID uint, rejectionReason string) error {
 	if writerID == 0 {
 		return errors.New("รหัสคำขอนักเขียนไม่ถูกต้อง")
 	}
-	return s.repo.RejectWriter(ctx, writerID)
+	if adminID == 0 {
+		return errors.New("ผู้ดูแลระบบไม่ถูกต้อง")
+	}
+	return s.repo.RejectWriter(ctx, writerID, adminID, rejectionReason)
 }
 
 // ✏️ Logic อัปเดตโปรไฟล์นักเขียน

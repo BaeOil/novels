@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
 	"novel-be/internal/dto"
 	"novel-be/internal/middleware"
 	"novel-be/internal/models"
+	"novel-be/internal/repository"
 	"novel-be/internal/service"
 )
 
@@ -80,6 +83,79 @@ func GetReadingHistoryHandler(readingService service.ReadingService) http.Handle
 		}
 
 		WriteJSON(w, http.StatusOK, map[string]any{"history": novels})
+	}
+}
+
+func DeleteReadingHistoryByNovelHandler(readingService service.ReadingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		userID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || userID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		novelID, err := extractIDFromPath(r.URL.Path, "/history/")
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid novel id")
+			return
+		}
+
+		deleted, err := readingService.DeleteReadingHistoryByNovel(int(userID), novelID)
+		if err != nil {
+			if errors.Is(err, repository.ErrReadingHistoryForbidden) {
+				WriteError(w, http.StatusForbidden, "forbidden: this history does not belong to the current user")
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !deleted {
+			WriteError(w, http.StatusNotFound, "reading history not found")
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, map[string]any{"message": "reading history deleted"})
+	}
+}
+
+func DeleteReadingHistoryBulkHandler(readingService service.ReadingService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		userID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || userID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		var payload struct {
+			NovelIDs []int `json:"novelIds"`
+		}
+		if r.Body != nil {
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil && !errors.Is(err, io.EOF) {
+				WriteError(w, http.StatusBadRequest, "invalid request body")
+				return
+			}
+		}
+
+		count, err := readingService.DeleteReadingHistoryByUser(int(userID), payload.NovelIDs)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"message":       "reading history deleted",
+			"deleted_count": count,
+		})
 	}
 }
 

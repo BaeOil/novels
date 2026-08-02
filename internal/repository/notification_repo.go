@@ -368,6 +368,8 @@ func GetFollowersByNovelAuthor(db *sql.DB, authorID int) ([]int, error) {
 	return ids, nil
 }
 
+// จงใจไม่ filter soft-deleted rows เพราะ query นี้ใช้ข้อเท็จจริงการอ่านจริง
+// ไม่ใช่การแสดงผล UI
 func GetReadersReachedChapterScene(db *sql.DB, novelID int, chapterID int) ([]int, error) {
 	rows, err := db.Query(`
 		SELECT rp.user_id
@@ -422,6 +424,8 @@ func GetChapterLatestSceneID(db *sql.DB, chapterID int) (int, error) {
 	return sceneID, nil
 }
 
+// จงใจไม่ filter soft-deleted rows เพราะ query นี้ใช้ข้อเท็จจริงการอ่านจริง
+// ไม่ใช่การแสดงผล UI
 func GetReaderLastSceneInChapter(db *sql.DB, userID, novelID, chapterID int) (int, error) {
 	var sceneID int
 	err := db.QueryRow(`

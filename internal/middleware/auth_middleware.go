@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"novel-be/internal/dto"
 )
 
 // สร้างประเภทข้อมูลพิเศษสำหรับใช้เป็น Key ใน Context เพื่อความปลอดภัยไม่ให้ชนกับอันอื่น
@@ -62,6 +64,35 @@ func RequireRole(requiredRole string, next http.Handler) http.Handler {
 		if !ok || role != requiredRole {
 			http.Error(w, "Forbidden: คุณไม่มีสิทธิ์เข้าถึงเส้นทางนี้", http.StatusForbidden)
 			return
+		}
+		next.ServeHTTP(w, r)
+	}))
+}
+
+func RequireNotAdmin(next http.Handler) http.Handler {
+	return RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role, ok := GetRoleFromContext(r.Context())
+		if ok && role == "admin" {
+			http.Error(w, "Forbidden: Admin ไม่สามารถทำการดำเนินการนี้ได้", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}))
+}
+
+// RequireAdminReadOnly allows only safe HTTP methods (GET, HEAD, OPTIONS) for admin users.
+// For other methods, it returns 403 Forbidden. Non-admin users are unaffected.
+func RequireAdminReadOnly(next http.Handler) http.Handler {
+	return RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role, ok := GetRoleFromContext(r.Context())
+		if ok && role == "admin" {
+			method := r.Method
+			if method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(dto.ErrorResponse{Status: http.StatusForbidden, Error: "", Message: "Forbidden: Admin has read‑only access for this endpoint"})
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	}))

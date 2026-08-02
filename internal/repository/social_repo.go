@@ -87,7 +87,7 @@ func GetBookshelfByUserID(db *sql.DB, userID int) ([]models.Novel, error) {
 		FROM bookshelves bs
 		JOIN novels n ON n.novel_id = bs.novel_id
 		LEFT JOIN writers w ON n.author_id = w.writer_id
-		LEFT JOIN reading_progress rp ON rp.user_id = bs.user_id AND rp.novel_id = n.novel_id
+		LEFT JOIN reading_progress rp ON rp.user_id = bs.user_id AND rp.novel_id = n.novel_id AND rp.updated_at IS NOT NULL
 		WHERE bs.user_id = $1
 		ORDER BY n.novel_id, bs.created_at DESC
 	`, userID)

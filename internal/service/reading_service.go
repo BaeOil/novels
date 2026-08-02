@@ -36,3 +36,11 @@ func (s *readingService) RecordChoiceHistory(history models.ChoiceHistory) error
 func (s *readingService) RecordEnding(userID, novelID, sceneID int) error {
 	return s.repo.InsertUserEnding(userID, novelID, sceneID)
 }
+
+func (s *readingService) DeleteReadingHistoryByNovel(userID, novelID int) (bool, error) {
+	return s.repo.DeleteReadingHistoryByNovel(userID, novelID)
+}
+
+func (s *readingService) DeleteReadingHistoryByUser(userID int, novelIDs []int) (int, error) {
+	return s.repo.DeleteReadingHistoryByUser(userID, novelIDs)
+}

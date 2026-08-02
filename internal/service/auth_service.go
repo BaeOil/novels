@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -99,6 +100,10 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest) (*dto.Aut
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
 		return nil, errors.New("รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง")
+	}
+
+	if err := validateUserStatusForLogin(user); err != nil {
+		return nil, err
 	}
 
 	accessToken, err := s.createToken(user, accessTokenDuration, jwtSecret)
@@ -199,4 +204,53 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID uint) (*models.Use
 	}
 
 	return user, nil
+}
+
+func (s *AuthService) ListUsers(ctx context.Context, role, status, search string, page, limit int) ([]dto.AdminUserListItemDTO, error) {
+	return s.repo.ListUsers(ctx, role, status, search, page, limit)
+}
+
+func (s *AuthService) GetUserForAdmin(ctx context.Context, userID uint) (*dto.AdminUserDetailDTO, error) {
+	return s.repo.GetUserForAdmin(ctx, userID)
+}
+
+func (s *AuthService) UpdateUserStatus(ctx context.Context, userID uint, status, reason string, suspendedAt *time.Time, adminID uint) error {
+	if userID == adminID {
+		return fmt.Errorf("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
+	}
+	if status != "active" && status != "suspended" {
+		return fmt.Errorf("status ไม่ถูกต้อง")
+	}
+	return s.repo.UpdateUserStatus(ctx, userID, status, reason, suspendedAt, adminID)
+}
+
+func (s *AuthService) DemoteUserToReader(ctx context.Context, userID uint, adminID uint) error {
+	if userID == adminID {
+		return fmt.Errorf("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
+	}
+	return s.repo.DemoteUserToReader(ctx, userID, adminID)
+}
+
+func (s *AuthService) DeleteUser(ctx context.Context, userID uint, adminID uint) error {
+	if userID == adminID {
+		return fmt.Errorf("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
+	}
+	return s.repo.DeleteUser(ctx, userID)
+}
+
+func (s *AuthService) HasWriterNovels(ctx context.Context, userID uint) (bool, error) {
+	return s.repo.HasWriterNovels(ctx, userID)
+}
+
+func validateUserStatusForLogin(user *models.User) error {
+	if user == nil {
+		return nil
+	}
+	if strings.EqualFold(user.Status, "suspended") {
+		if strings.TrimSpace(user.SuspendedReason) != "" {
+			return fmt.Errorf("บัญชีถูกระงับ: %s", user.SuspendedReason)
+		}
+		return errors.New("บัญชีถูกระงับไว้ชั่วคราว")
+	}
+	return nil
 }

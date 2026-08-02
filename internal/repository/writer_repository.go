@@ -4,6 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
 	"novel-be/internal/dto"
 	"novel-be/internal/models" // 👈 มั่นใจว่ามีอิมพอร์ตโมเดลตัวจริงเข้ามาใช้งานแล้ว
 )
@@ -196,17 +200,49 @@ func (r *sqlWriterRepository) Apply(ctx context.Context, userID uint, req dto.Wr
 	return tx.Commit()
 }
 
-// 🔍 2. แอดมินดึงรายการคำขอทั้งหมดที่ยังไม่อนุมัติ (status = 'pending')
-func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context) ([]dto.WriterRequestResponse, error) {
+// 🔍 2. แอดมินดึงรายการคำขอทั้งหมด (default คืนทุกสถานะ) และเพิ่ม support status/page/limit
+func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status string, page, limit int) ([]dto.WriterRequestResponse, error) {
+	status = strings.TrimSpace(status)
+	page = max(page, 0)
+	limit = max(limit, 0)
+
 	query := `
-		SELECT w.writer_id, w.user_id, u.username, w.name_lastname, w.pen_name, w.bio, w.email_writer, w.contact_info::text, w.status, w.applied_at
+		SELECT w.writer_id, w.user_id, u.username, w.name_lastname, w.pen_name, w.bio, w.email_writer, w.contact_info::text,
+			COALESCE(
+				(SELECT json_agg(c.name)
+				 FROM writer_categories wc
+				 JOIN categories c ON c.category_id = wc.category_id
+				 WHERE wc.writer_id = w.writer_id),
+				'[]'::json
+			) AS genres_json,
+			w.status, w.applied_at, w.approved_at, w.rejected_at, w.acted_by_admin_id,
+			admin_u.username AS acted_by_admin_username, w.rejection_reason
 		FROM writers w
 		LEFT JOIN users u ON u.user_id = w.user_id
-		WHERE w.status = 'pending'
-		ORDER BY w.applied_at DESC
-	`
+		LEFT JOIN users admin_u ON admin_u.user_id = w.acted_by_admin_id
+		WHERE 1=1`
+	args := []interface{}{}
 
-	rows, err := r.db.QueryContext(ctx, query)
+	if status != "" {
+		query += " AND w.status = $1"
+		args = append(args, status)
+	}
+
+	query += " ORDER BY COALESCE(w.approved_at, w.rejected_at, w.applied_at) DESC"
+	if page > 0 || limit > 0 {
+		if page < 1 {
+			page = 1
+		}
+		if limit < 1 {
+			limit = 20
+		}
+		offset := (page - 1) * limit
+		query += " LIMIT $%d OFFSET $%d"
+		query = fmt.Sprintf(query, len(args)+1, len(args)+2)
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -215,6 +251,11 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context) ([]dto.Wri
 	var requests []dto.WriterRequestResponse
 	for rows.Next() {
 		var resp dto.WriterRequestResponse
+		var genresJSON []byte
+		var approvedAt, rejectedAt sql.NullTime
+		var actedByAdminID sql.NullInt64
+		var actedByAdminUsername sql.NullString
+		var rejectionReason sql.NullString
 		err := rows.Scan(
 			&resp.WriterID,
 			&resp.UserID,
@@ -224,11 +265,42 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context) ([]dto.Wri
 			&resp.Bio,
 			&resp.EmailWriter,
 			&resp.ContactInfo,
+			&genresJSON,
 			&resp.Status,
 			&resp.AppliedAt,
+			&approvedAt,
+			&rejectedAt,
+			&actedByAdminID,
+			&actedByAdminUsername,
+			&rejectionReason,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if approvedAt.Valid {
+			t := approvedAt.Time
+			resp.ApprovedAt = &t
+		}
+		if rejectedAt.Valid {
+			t := rejectedAt.Time
+			resp.RejectedAt = &t
+		}
+		if actedByAdminID.Valid {
+			aid := uint(actedByAdminID.Int64)
+			resp.ActedByAdminID = &aid
+		}
+		if actedByAdminUsername.Valid {
+			username := actedByAdminUsername.String
+			resp.ActedByAdminUsername = &username
+		}
+		if rejectionReason.Valid {
+			rr := rejectionReason.String
+			resp.RejectionReason = &rr
+		}
+		if len(genresJSON) > 0 && string(genresJSON) != "null" {
+			if err := json.Unmarshal(genresJSON, &resp.Genres); err != nil {
+				return nil, err
+			}
 		}
 		requests = append(requests, resp)
 	}
@@ -241,7 +313,7 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context) ([]dto.Wri
 }
 
 // 🎯 3. แอดมินกดอนุมัติ (อัปเดตตาราง writers และปรับ role ตาราง users เป็น 'writer' พร้อมกัน)
-func (r *sqlWriterRepository) ApproveWriter(ctx context.Context, writerID uint) error {
+func (r *sqlWriterRepository) ApproveWriter(ctx context.Context, writerID uint, adminID uint) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -251,11 +323,11 @@ func (r *sqlWriterRepository) ApproveWriter(ctx context.Context, writerID uint) 
 	var userID uint
 	queryUpdateWriter := `
 		UPDATE writers 
-		SET status = 'approved', approved_at = NOW() 
+		SET status = 'approved', approved_at = NOW(), acted_by_admin_id = $2, rejected_at = NULL, rejection_reason = NULL
 		WHERE writer_id = $1 
 		RETURNING user_id
 	`
-	err = tx.QueryRowContext(ctx, queryUpdateWriter, writerID).Scan(&userID)
+	err = tx.QueryRowContext(ctx, queryUpdateWriter, writerID, adminID).Scan(&userID)
 	if err != nil {
 		return err
 	}
@@ -270,14 +342,24 @@ func (r *sqlWriterRepository) ApproveWriter(ctx context.Context, writerID uint) 
 }
 
 // ❌ แอดมินกดปฏิเสธคำขอ (อัปเดตสถานะในตาราง writers เป็น 'rejected')
-func (r *sqlWriterRepository) RejectWriter(ctx context.Context, writerID uint) error {
+func (r *sqlWriterRepository) RejectWriter(ctx context.Context, writerID uint, adminID uint, rejectionReason string) error {
 	query := `
 		UPDATE writers 
-		SET status = 'rejected' 
+		SET status = 'rejected', rejected_at = NOW(), acted_by_admin_id = $2, rejection_reason = NULLIF(TRIM($3), '' )
 		WHERE writer_id = $1 AND status = 'pending'
 	`
-	_, err := r.db.ExecContext(ctx, query, writerID)
-	return err
+	result, err := r.db.ExecContext(ctx, query, writerID, adminID, rejectionReason)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New("คำขอนี้ถูกดำเนินการไปแล้ว หรือไม่พบคำขอนี้ในระบบ")
+	}
+	return nil
 }
 
 // ✏️ อัปเดตข้อมูลโปรไฟล์นักเขียน (pen_name, bio, avatar_url, contact_info และ writer_categories)
