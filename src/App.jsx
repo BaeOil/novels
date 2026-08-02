@@ -10,8 +10,6 @@ import {
 } from "react-router-dom";
 
 import Navbar from "./components/Navbar/Navbar";
-import NavbarWriter from "./components/Navbarwriter/Navbarwriter";
-import WriterSidebar from "./components/WriterSidebar/WriterSidebar";
 import AdminNavbar from "./components/NavbarAdmin/AdminNavbar";
 
 import HomePage from "./pages/Reader/HomePage/HomePage";
@@ -680,6 +678,8 @@ const refreshAuthToken = async () => {
 
 // ======================================================
 // NavbarWrapper - เลือก Navbar ตามสิทธิ์ผู้ใช้
+// (Navbar.jsx รวม Navbar เดิม + Navbarwriter เดิมเป็นไฟล์เดียวแล้ว
+//  ไม่ต้องเลือกระหว่าง 2 component อีกต่อไป — ข้างในคำนวณ isWriterMode เอง)
 // ======================================================
 const NavbarWrapper = () => {
   const showNavbar = useNavbar();
@@ -687,7 +687,6 @@ const NavbarWrapper = () => {
 
   const role = getRoleFromToken();
   if (role === "admin") return <AdminNavbar />;
-  if (role === "writer") return <NavbarWriter />;
   return <Navbar />;
 };
 

@@ -10,6 +10,8 @@ import NovelProgressBar from "../../../components/NovelProgressBar/NovelProgress
 import EndingCollection from "../../../components/EndingCollection/EndingCollection";
 import Comments from "../../../components/Comments/Comments";
 import ReaderReportButton from "../../../components/ReaderReportButton/ReaderReportButton";
+import AdminModeBanner from "../../../components/AdminModeBanner/AdminModeBanner";
+// Removed authUtils import per user request
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -105,17 +107,39 @@ const NovelDetailPage = () => {
     }
   };
 
+  const isCurrentUserAdmin = () => {
+    try {
+      const user = getCurrentUser();
+      const r = (user?.role || user?.user_role || user?.role_name || "").toString().toLowerCase();
+      if (r === "admin" || user?.is_admin === true || user?.isAdmin === true) return true;
+    } catch (e) {}
+
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        const parts = token.split(".");
+        if (parts.length === 3) {
+          let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          while (payload.length % 4) payload += "=";
+          const decoded = atob(payload);
+          const json = decodeURIComponent(decoded.split("").map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`).join(""));
+          const parsed = JSON.parse(json);
+          const r = (parsed?.role || parsed?.user_role || "").toString().toLowerCase();
+          if (r === "admin" || parsed?.is_admin === true || parsed?.isAdmin === true) return true;
+        }
+      }
+    } catch (e) {}
+
+    return false;
+  };
+
+
   const getCurrentUserId = () => {
     const user = getCurrentUser();
     return user?.id || user?.user_id || 0;
   };
 
-  // แอดมินไม่ได้ "อ่าน" นิยาย เข้ามาเพื่อตรวจสอบ/จัดการ จึงต้องแยก UI ออกจากผู้อ่านทั่วไป
-  const isCurrentUserAdmin = () => {
-    const user = getCurrentUser();
-    const role = String(user?.role || "").toLowerCase();
-    return role === "admin" || role === "superadmin";
-  };
+
 
   const fetchBookmarkedStatus = async (currentNovelId, userId, headers) => {
     if (!currentNovelId || !userId) return false;
@@ -339,22 +363,9 @@ const NovelDetailPage = () => {
     fetchNovel();
   }, [id]);
 
-  const handleRead = async () => {
-    const hasNoContent = novel.userProgress?.totalChapters === 0;
-
-    if (hasNoContent) {
-      setShowNoContentDialog(true);
-      return;
-    }
-
-    if (!novel.id) return;
-    const previewSuffix = isPreview ? "?preview=true" : "";
-
-    if (nextSceneId) {
-      navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
-      return;
-    }
-
+  // ใช้ร่วมกันระหว่างเคส admin กับเคส non-admin ที่ไม่มี nextSceneId บันทึกไว้
+  // (เดิมสองเคสนี้ fetch story-tree แล้วดึง first_scene_id ด้วยโค้ดชุดเดียวกันซ้ำสองรอบ)
+  const fetchFirstSceneAndNavigate = async (previewSuffix) => {
     try {
       const userId = getCurrentUserId();
       const headers = { "Content-Type": "application/json" };
@@ -378,6 +389,32 @@ const NovelDetailPage = () => {
       console.warn("Failed to fetch initial scene", err);
       navigate(`/reading/${novel.id}${previewSuffix}`);
     }
+  };
+
+  const handleRead = async () => {
+    const hasNoContent = novel.userProgress?.totalChapters === 0;
+
+    if (hasNoContent) {
+      setShowNoContentDialog(true);
+      return;
+    }
+
+    if (!novel.id) return;
+    const previewSuffix = isPreview ? "?preview=true" : "";
+
+    // For admins, always start from the first scene and ignore any saved progress
+    if (isAdmin) {
+      await fetchFirstSceneAndNavigate(previewSuffix);
+      return;
+    }
+
+    // Non-admin behavior: use saved nextSceneId if available
+    if (nextSceneId) {
+      navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
+      return;
+    }
+
+    await fetchFirstSceneAndNavigate(previewSuffix);
   };
 
   const handleBookmark = async (isBookmarked) => {
@@ -572,6 +609,14 @@ const NovelDetailPage = () => {
   const isLoggedIn = currentUserId > 0;
   const isAdmin = isLoggedIn && isCurrentUserAdmin();
 
+  // นักเขียนเจ้าของนิยายไม่ควรเห็นปุ่ม "ติดตาม" สำหรับตัวเอง
+  // เทียบกับทุก id ที่เป็นไปได้ของผู้แต่ง เผื่อ backend ส่งมาคนละ field กัน
+  const isOwnNovel =
+    isLoggedIn &&
+    [novel.author?.user_id, novel.author?.writer_id, novel.author?.id]
+      .filter(Boolean)
+      .some((authorId) => String(authorId) === String(currentUserId));
+
   if (loading) {
     return (
       <div className="novel-detail">
@@ -646,6 +691,9 @@ const NovelDetailPage = () => {
           </span>
         </div>
       )}
+
+      {isAdmin && <AdminModeBanner page="หน้ารายละเอียดนิยาย" />}
+
       <div className="novel-detail__container">
         <button
           className="novel-detail__back"
@@ -703,7 +751,7 @@ const NovelDetailPage = () => {
                 {novel.author.displayName}
               </span>
 
-              {!isPreview && (novel.author?.writer_id || novel.author?.id) ? (
+              {!isPreview && !isAdmin && !isOwnNovel && (novel.author?.writer_id || novel.author?.id) ? (
                 <FollowButton
                   writerId={novel.author.writer_id || novel.author.id || novel.author.user_id}
                   writerName={novel.author.displayName}
@@ -749,33 +797,20 @@ const NovelDetailPage = () => {
             {/* 🟢 แอดมินไม่มี "ความคืบหน้าการอ่าน" ส่วนตัว จึงสลับไปแสดงแผงจัดการแทน
                 ผู้อ่านที่ล็อกอินแล้วเห็นแถบความคืบหน้าตามเดิม
                 ผู้เยี่ยมชมที่ยังไม่ล็อกอินเห็นการ์ดชวนเข้าสู่ระบบ แทนที่จะเป็นพื้นที่ว่างเปล่า */}
-            {isAdmin && !isPreview ? (
-              <div className="novel-detail__admin-panel">
-                <div className="novel-detail__admin-panel-header">
-                  <span className="novel-detail__admin-badge">🛡️ โหมดแอดมิน</span>
-                </div>
-                <p className="novel-detail__admin-panel-text">
-                  คุณกำลังดูนิยายเรื่องนี้ในฐานะผู้ดูแลระบบ หน้านี้จึงไม่นับความคืบหน้าการอ่าน ถูกใจ
-                  หรือบุ๊กมาร์กส่วนตัว — ใช้ปุ่มด้านล่างเพื่อตรวจสอบรายงานหรือจัดการเนื้อหา
-                </p>
-                <div className="novel-detail__admin-panel-actions">
-                  <button
-                    type="button"
-                    className="novel-detail__admin-btn novel-detail__admin-btn--primary"
-                    onClick={() => navigate(`/admin/reports?novel_id=${novel.id}`)}
-                  >
-                    🚩 ดูรายงานที่เกี่ยวข้องกับนิยายนี้
-                  </button>
-                  <button
-                    type="button"
-                    className="novel-detail__admin-btn"
-                    onClick={handleStoryMap}
-                  >
-                    🗺️ ดูผังเรื่องทั้งหมด
-                  </button>
-                </div>
+            {isAdmin ? (
+              <div className="novel-detail__progress">
+                <NovelProgressBar
+                  novelId={novel.id}
+                  autoFetch={true}
+                  isPreview={false}
+                  isAdmin={true}
+                  onStoryMapClick={handleStoryMap}
+                  onEndingCollectionClick={handleEndingCollection}
+                  onContinueRead={handleRead}
+                  onSceneClick={(sceneId) => navigate(`/reading/${novel.id}/${sceneId}`)}
+                />
               </div>
-            ) : isLoggedIn ? (
+            ) : !isPreview && isLoggedIn ? (
               <div className="novel-detail__progress">
                 <NovelProgressBar
                   novelId={novel.id}
@@ -784,6 +819,7 @@ const NovelDetailPage = () => {
                   onStoryMapClick={handleStoryMap}
                   onEndingCollectionClick={handleEndingCollection}
                   onContinueRead={handleRead}
+                  onSceneClick={(sceneId) => navigate(`/reading/${novel.id}/${sceneId}`)}
                 />
               </div>
             ) : (
@@ -806,6 +842,7 @@ const NovelDetailPage = () => {
                 </div>
               )
             )}
+
           </main>
         </div>
 
@@ -826,6 +863,7 @@ const NovelDetailPage = () => {
             commentText={commentText}
             onCommentTextChange={(e) => setCommentText(e.target.value)}
             onSubmit={(text) => handleSendComment(text)}
+            readOnly={isAdmin}
             onDeleteComment={async (commentId) => {
               const token = localStorage.getItem("token");
               if (!token) {

@@ -92,12 +92,29 @@
   align-items: center;
   gap: 14px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .stat-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 22px rgba(255, 105, 180, 0.08);
 }
+
+.stat-card:focus-visible {
+  outline: 2px solid var(--pink-500, #ec4899);
+  outline-offset: 2px;
+}
+
+.stat-card--active {
+  box-shadow: 0 0 0 2px currentColor, 0 10px 22px rgba(255, 105, 180, 0.1);
+}
+
+.stat-card--pending.stat-card--active { color: #ff4d6d; }
+.stat-card--resolved.stat-card--active { color: #0ca678; }
+.stat-card--rejected.stat-card--active { color: #868e96; }
 
 .stat-card-icon {
   width: 40px;

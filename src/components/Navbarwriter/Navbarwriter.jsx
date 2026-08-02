@@ -31,6 +31,10 @@ const Navbarwriter = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+    // ── กันไม่ให้คนที่ไม่ใช่นักเขียนเห็น Writer Navbar ──────────────
+    // false จนกว่าจะรู้ผลชัวร์ว่า login อยู่ไหม + role คืออะไร
+    const [authChecked, setAuthChecked] = useState(false);
+
     // ── Search States ─────────────────────────────────────────────
     const [searchValue, setSearchValue] = useState("");
     const [searchFocused, setSearchFocused] = useState(false);
@@ -132,11 +136,12 @@ const Navbarwriter = () => {
         const token = localStorage.getItem("token");
         if (token) {
             setIsLoggedIn(true);
-            fetchUserData(token);
+            fetchUserData(token); // จะ setAuthChecked(true) เองตอนโหลด role เสร็จ (ดู fetchUserData ด้านล่าง)
             fetchNovels(token);
             fetchUnreadCount(token);
         } else {
             setUnreadCount(0);
+            setAuthChecked(true); // ไม่มี token = รู้ผลแน่นอนแล้วว่าไม่ได้ล็อกอิน ไม่ต้องรอ
         }
 
         // Custom Event Listener สำหรับอัปเดตแจ้งเตือน
@@ -230,6 +235,18 @@ const Navbarwriter = () => {
         };
     }, []);
 
+    // ── Guard: ไม่ใช่นักเขียน ห้ามอยู่ต่อในโหมดนักเขียน ─────────────
+    useEffect(() => {
+        if (!authChecked) return;           // ยังไม่รู้ผล role ชัวร์ ๆ อย่าเพิ่งตัดสิน
+        if (!isWriterMode) return;          // guard เฉพาะตอนอยู่ใน path /writer
+
+        const isWriter = isLoggedIn && userData.role === "writer";
+        if (!isWriter) {
+            // ผู้เยี่ยมชม / นักอ่านที่ยังไม่สมัครนักเขียน -> เด้งออกทันที
+            navigate(isLoggedIn ? "/" : "/login-register", { replace: true });
+        }
+    }, [authChecked, isWriterMode, isLoggedIn, userData.role, navigate]);
+
     // ── Fetch Helpers ─────────────────────────────────────────────
     const fetchUserData = async (token) => {
         setIsLoadingUser(true);
@@ -253,6 +270,7 @@ const Navbarwriter = () => {
             console.error("Error fetching user data:", err);
         } finally {
             setIsLoadingUser(false);
+            setAuthChecked(true); // ตอนนี้รู้ role ชัวร์แล้ว ค่อยอนุญาตให้เช็คสิทธิ์ต่อ
         }
     };
 
@@ -490,6 +508,12 @@ const Navbarwriter = () => {
             window.location.replace("/");
         }
     };
+
+    // ยังไม่รู้ผล role ชัวร์ๆ หรือรู้แล้วว่าไม่ใช่นักเขียน -> อย่าเพิ่ง render เครื่องมือนักเขียนออกไป
+    // (กันแฟลชโชว์ navbar นักเขียนก่อน redirect จะทำงาน)
+    if (isWriterMode && (!authChecked || !(isLoggedIn && userData.role === "writer"))) {
+        return null;
+    }
 
     return (
         <>

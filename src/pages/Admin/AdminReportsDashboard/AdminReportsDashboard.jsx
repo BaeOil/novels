@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
     Search,
     X,
+    Check,
     User,
     Calendar,
     ExternalLink,
@@ -157,29 +158,44 @@ export default function AdminReportsDashboard() {
                 </div>
             )}
 
-            {/* การ์ดสรุปสถิติ */}
+            {/* การ์ดสรุปสถิติ — กดเพื่อกรองตารางตามสถานะนั้นได้เลย */}
             <div className="admin-stats-grid">
-                <div className="stat-card stat-card--pending">
+                <button
+                    type="button"
+                    className={`stat-card stat-card--pending ${filterTab === "pending" ? "stat-card--active" : ""}`}
+                    onClick={() => setFilterTab("pending")}
+                    aria-pressed={filterTab === "pending"}
+                >
                     <div className="stat-card-icon"><AlertTriangle size={20} /></div>
                     <div>
                         <div className="stat-label">รอตรวจสอบ</div>
                         <div className="stat-value">{pendingCount.toLocaleString()}</div>
                     </div>
-                </div>
-                <div className="stat-card stat-card--resolved">
-                    <div className="stat-card-icon"><User size={20} /></div>
+                </button>
+                <button
+                    type="button"
+                    className={`stat-card stat-card--resolved ${filterTab === "resolved" ? "stat-card--active" : ""}`}
+                    onClick={() => setFilterTab("resolved")}
+                    aria-pressed={filterTab === "resolved"}
+                >
+                    <div className="stat-card-icon"><Check size={20} /></div>
                     <div>
                         <div className="stat-label">อนุมัติ/แก้ไขแล้ว</div>
                         <div className="stat-value">{resolvedCount.toLocaleString()}</div>
                     </div>
-                </div>
-                <div className="stat-card stat-card--rejected">
+                </button>
+                <button
+                    type="button"
+                    className={`stat-card stat-card--rejected ${filterTab === "rejected" ? "stat-card--active" : ""}`}
+                    onClick={() => setFilterTab("rejected")}
+                    aria-pressed={filterTab === "rejected"}
+                >
                     <div className="stat-card-icon"><X size={20} /></div>
                     <div>
                         <div className="stat-label">ปฏิเสธแล้ว</div>
                         <div className="stat-value">{rejectedCount.toLocaleString()}</div>
                     </div>
-                </div>
+                </button>
             </div>
 
             {/* แท็บกรองรายการ */}
@@ -327,7 +343,7 @@ export default function AdminReportsDashboard() {
                                             </div>
 
                                             <div className="admin-modal__novel-synopsis">
-                                                {selectedReport.novel_synopsis || "ไม่มีคำโปรย..."}
+                                                {stripHtml(selectedReport.novel_synopsis) || "ไม่มีคำโปรย..."}
                                             </div>
 
                                             <a
@@ -363,7 +379,7 @@ export default function AdminReportsDashboard() {
                                             onClick={() => handleUpdateStatus(selectedReport, "resolved")}
                                             disabled={actionBusy}
                                         >
-                                            {actionBusy ? <Loader2 size={14} className="spin" /> : <User size={14} />}{" "}
+                                            {actionBusy ? <Loader2 size={14} className="spin" /> : <Check size={14} />}{" "}
                                             {isAppeal ? "อนุมัติ (ปลดแบนนิยาย)" : "อนุมัติ (สั่งระงับนิยาย)"}
                                         </button>
                                     </div>
@@ -383,4 +399,4 @@ export default function AdminReportsDashboard() {
           </div>
         </div>
     );
-}
+}   

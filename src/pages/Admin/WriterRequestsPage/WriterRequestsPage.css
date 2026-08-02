@@ -72,6 +72,25 @@
   margin-bottom: 20px;
 }
 
+.wr-page-error-retry {
+  margin-left: auto;
+  background: #ffffff;
+  border: 1px solid #fca5a5;
+  color: #c53030;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.wr-page-error-retry:hover {
+  background: #fee2e2;
+}
+
 /* Stat Cards */
 .wr-stats-grid {
   display: grid;
@@ -91,12 +110,29 @@
   align-items: center;
   gap: 14px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .wr-stat-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 22px rgba(255, 105, 180, 0.08);
 }
+
+.wr-stat-card:focus-visible {
+  outline: 2px solid #ec4899;
+  outline-offset: 2px;
+}
+
+.wr-stat-card--active {
+  box-shadow: 0 0 0 2px currentColor, 0 10px 22px rgba(255, 105, 180, 0.1);
+}
+
+.wr-stat-card--pending.wr-stat-card--active { color: #ff4d6d; }
+.wr-stat-card--approved.wr-stat-card--active { color: #0ca678; }
+.wr-stat-card--rejected.wr-stat-card--active { color: #868e96; }
 
 .wr-stat-card-icon {
   width: 40px;
@@ -275,6 +311,11 @@
   color: #0f172a;
 }
 
+.wr-row-num {
+  font-weight: 800;
+  color: #ff4081;
+}
+
 .wr-subtext {
   font-size: 0.78rem;
   color: #94a3b8;
@@ -401,6 +442,56 @@
 @keyframes wr-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Pagination */
+.wr-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 18px;
+  border-top: 1px solid #fff0f6;
+}
+
+.wr-page-nums {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.wr-page-nav,
+.wr-page-num {
+  background: white;
+  border: 1px solid #ffe3ec;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.wr-page-nav:hover:not(:disabled),
+.wr-page-num:hover {
+  background: #fff0f6;
+  color: #ff4081;
+  border-color: #ff9ac2;
+}
+
+.wr-page-num.active {
+  background: #ff4081;
+  color: white;
+  border-color: #ff4081;
+}
+
+.wr-page-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ---------- Modals ---------- */

@@ -16,6 +16,17 @@ import EndingCollection from "../../../components/EndingCollection/EndingCollect
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
+// Shared pink accent — keep in sync with --pink in BookshelfPage.css / HistoryPage.css
+const PINK = "#F526A2";
+
+// Tree layout constants (used both for laying out nodes and for centering the viewport on one)
+const LEVEL_GAP_X = 480;
+const LEVEL_GAP_Y = 320;
+const NODE_START_X = 60;
+const NODE_START_Y = 220;
+// Offset from a node's top-left position to its visual center, used when calling setCenter()
+const NODE_CENTER_OFFSET = { x: 140, y: 60 };
+
 const NODE_STATUS = {
   VISITED: "visited",
   CURRENT: "current",
@@ -48,7 +59,7 @@ const StoryNode = ({ data }) => {
   const currentStatus = data.computedStatus || NODE_STATUS.LOCKED;
   const sceneType = data.type || "normal";
   
-  const isLocked = currentStatus === NODE_STATUS.LOCKED || currentStatus === NODE_STATUS.ENDING_LOCKED;
+  const isLocked = !data.isAdmin && (currentStatus === NODE_STATUS.LOCKED || currentStatus === NODE_STATUS.ENDING_LOCKED);
 
   const getPrefix = () => {
     if (sceneType === "start") return "▶ ";
@@ -57,8 +68,17 @@ const StoryNode = ({ data }) => {
     return "📖 ";
   };
 
-  const sceneTitle = stripHtml(data.title || data.scene_name || data.name || data.label || data.chapter_name || "เนื้อเรื่อง");
-  const sceneDescription = stripHtml(data.summary || data.description || data.short_content || data.content_summary || data.content || "อ่านต่อเพื่อค้นหาความลับในฉากนี้...");
+  let rawTitle = stripHtml(data.title || data.scene_name || data.name || data.label || data.chapter_name || "เนื้อเรื่อง");
+  if (rawTitle === "เนื้อเรื่องยังไม่เปิดเผย" && data.isAdmin) {
+    rawTitle = stripHtml(data.chapter_title || data.chapterName || `ฉากที่ ${data.id}`);
+  }
+  const sceneTitle = rawTitle;
+
+  let rawDesc = stripHtml(data.summary || data.description || data.short_content || data.content_summary || data.content || "อ่านต่อเพื่อค้นหาความลับในฉากนี้...");
+  if (rawDesc.includes("ผ่านเงื่อนไขในฉากก่อนหน้า") && data.isAdmin) {
+    rawDesc = "รายละเอียดฉากเนื้อเรื่อง";
+  }
+  const sceneDescription = rawDesc;
 
   const chapterLabel = data.chapter_title || data.ChapterTitle || data.chapterName || data.chapter_name;
   const chapterEpisode = data.chapter_episode || data.chapterEpisode || data.episode || data.chapter_order || data.chapterOrder;
@@ -72,11 +92,28 @@ const StoryNode = ({ data }) => {
   const nodeStatusClass = `story-node--${currentStatus}`;
   const highlightedClass = data.isHighlightedPath ? "story-node--highlighted" : "";
 
+  // React Flow only wires up click/hover on the node wrapper it renders around this component,
+  // so keyboard activation has to bubble up to that wrapper's own click handler.
+  const handleKeyDown = (event) => {
+    if (isLocked) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.currentTarget.closest(".react-flow__node")?.click();
+    }
+  };
+
   return (
     <>
       <Handle type="target" position={Position.Left} isConnectable={false} className="stp-handle" />
 
-      <div className={`story-node ${nodeStatusClass} ${highlightedClass}`}>
+      <div
+        className={`story-node ${nodeStatusClass} ${highlightedClass}`}
+        tabIndex={isLocked ? -1 : 0}
+        role="button"
+        aria-label={isLocked ? "ฉากที่ยังไม่ปลดล็อก" : sceneTitle}
+        aria-disabled={isLocked}
+        onKeyDown={handleKeyDown}
+      >
         <div>
           <div className="story-node__label">
             {getPrefix()}
@@ -111,10 +148,47 @@ const nodeTypes = {
   storyNode: StoryNode,
 };
 
+// Shared page shell so guest/loading/error/main states don't each redeclare the same wrapper —
+// this also means loading/error now consistently get the page background instead of sitting bare.
+const StoryTreeShell = ({ children }) => (
+  <div className="stp">
+    <div className="stp__container">{children}</div>
+  </div>
+);
+
 const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   const reactFlowInstance = useReactFlow();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const checkIsAdmin = () => {
+    try {
+      const userJson = localStorage.getItem("user");
+      if (userJson) {
+        const u = JSON.parse(userJson);
+        const r = (u?.role || u?.user_role || u?.role_name || "").toString().toLowerCase();
+        if (r === "admin" || u?.is_admin === true || u?.isAdmin === true) return true;
+      }
+    } catch {}
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        const parts = token.split(".");
+        if (parts.length === 3) {
+          let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          while (payload.length % 4) payload += "=";
+          const decoded = atob(payload);
+          const json = decodeURIComponent(decoded.split("").map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`).join(""));
+          const parsed = JSON.parse(json);
+          const r = (parsed?.role || parsed?.user_role || "").toString().toLowerCase();
+          if (r === "admin" || parsed?.is_admin === true || parsed?.isAdmin === true) return true;
+        }
+      }
+    } catch {}
+    return false;
+  };
+
+  const isAdmin = checkIsAdmin();
 
   const highlightSceneId = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -134,6 +208,10 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const hoverTimerRef = useRef(null);
+  const isTouchDeviceRef = useRef(
+    typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0)
+  );
 
   const loadAllData = async () => {
     if (!activeNovelId || activeNovelId === "undefined") {
@@ -150,7 +228,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const query = effectiveUserId > 0 ? `?user_id=${effectiveUserId}` : "";
+      const query = (effectiveUserId > 0 && !isAdmin) ? `?user_id=${effectiveUserId}` : "";
 
       try {
         const novelRes = await fetch(`${BASE_URL}/novels/${activeNovelId}${query}`, { headers });
@@ -300,9 +378,9 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
 
       const branchIndex = levelCurrentTracker[lv];
       levelCurrentTracker[lv]++;
-      const xPosition = lv * 480;
+      const xPosition = lv * LEVEL_GAP_X;
       const totalInLevel = levelCounts[lv] || 1;
-      const yPosition = (branchIndex - (totalInLevel - 1) / 2) * 320;
+      const yPosition = (branchIndex - (totalInLevel - 1) / 2) * LEVEL_GAP_Y;
 
       const isCurrentNode = node.is_current || (currentSceneIdStr ? nodeIdStr === currentSceneIdStr : (!hasBackendCurrent && nodeIdStr === startNodeIdStr));
       const isHighlight = highlightPathNodes.has(nodeIdStr);
@@ -319,7 +397,15 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
 
       let computedStatus = NODE_STATUS.LOCKED;
 
-      if (node.type === "start") {
+      if (isAdmin) {
+        if (node.type === "start") {
+          computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.VISITED;
+        } else if (node.type === "ending") {
+          computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.ENDING_UNLOCKED;
+        } else {
+          computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.VISITED;
+        }
+      } else if (node.type === "start") {
         computedStatus = isCurrentNode ? NODE_STATUS.CURRENT : NODE_STATUS.VISITED;
       } else if (node.type === "ending") {
         if (isCurrentNode) {
@@ -340,8 +426,8 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
       return {
         id: nodeIdStr,
         type: "storyNode",
-        position: { x: xPosition + 60, y: yPosition + 220 },
-        data: { ...node, computedStatus, isHighlightedPath: isHighlight, finalVisitedDate },
+        position: { x: xPosition + NODE_START_X, y: yPosition + NODE_START_Y },
+        data: { ...node, computedStatus, isHighlightedPath: isHighlight, finalVisitedDate, isAdmin },
       };
     });
 
@@ -370,7 +456,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
         labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95, stroke: "#cbd5e1", strokeWidth: 1 },
         labelBgBorderRadius: 4,
         style: {
-          stroke: isHighlightedEdge || isWalkedPath ? "#E91E8C" : "#CBD5E1",
+          stroke: isHighlightedEdge || isWalkedPath ? PINK : "#CBD5E1",
           strokeWidth: isHighlightedEdge || isWalkedPath ? 3 : 2,
           pointerEvents: "none",
         },
@@ -409,7 +495,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
         unlockedEndings: unlockedEndingsCount,
       },
     };
-  }, [treeData, highlightSceneId]);
+  }, [treeData, highlightSceneId, isAdmin]);
 
   const endingsForModal = useMemo(() => {
     if (endings && endings.length > 0) {
@@ -432,8 +518,8 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     const currentNode = computedNodes.find(n => n.data?.computedStatus === NODE_STATUS.CURRENT);
     if (currentNode && reactFlowInstance) {
       reactFlowInstance.setCenter(
-        currentNode.position.x + 140,
-        currentNode.position.y + 60,
+        currentNode.position.x + NODE_CENTER_OFFSET.x,
+        currentNode.position.y + NODE_CENTER_OFFSET.y,
         { zoom: 1.1, duration: 800 }
       );
     }
@@ -499,14 +585,27 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     }
   };
 
-  const handleNodeClick = async (_, node) => {
+  const handleNodeClick = async (event, node) => {
     const targetNode = node.data ? node : { data: node };
     const currentStatus = targetNode.data?.computedStatus;
-    const clickable = currentStatus === NODE_STATUS.CURRENT ||
+    const clickable = isAdmin || currentStatus === NODE_STATUS.CURRENT ||
       currentStatus === NODE_STATUS.VISITED ||
       currentStatus === NODE_STATUS.ENDING_UNLOCKED;
 
     if (!clickable) return;
+
+    // Touch devices have no hover, so onNodeMouseEnter never fires there. The first tap on a
+    // node reveals the tooltip instead (title/episode/discovered date); tapping the node again,
+    // or the "อ่านอีกครั้ง" button inside the tooltip, proceeds to reading.
+    if (isTouchDeviceRef.current && hoveredNode?.id !== targetNode.id) {
+      if (event?.currentTarget) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 12 });
+      }
+      setHoveredNode(targetNode);
+      return;
+    }
+
     const targetSceneId = targetNode.data?.id || targetNode.id;
 
     try {
@@ -531,15 +630,16 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     if (onNavigate) {
       onNavigate("reading", { novelId: activeNovelId, initialSceneId: targetSceneId });
     } else {
-      navigate(`/read/${activeNovelId}?sceneId=${targetSceneId}`);
+      navigate(`/reading/${activeNovelId}/${targetSceneId}`);
     }
   };
 
   const handleNodeMouseEnter = (event, node) => {
+    if (isTouchDeviceRef.current) return; // handled by tap-to-show in handleNodeClick instead
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     const status = node.data?.computedStatus;
     
-    if (status === NODE_STATUS.LOCKED || status === NODE_STATUS.ENDING_LOCKED) return;
+    if (!isAdmin && (status === NODE_STATUS.LOCKED || status === NODE_STATUS.ENDING_LOCKED)) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
     setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 12 });
@@ -557,46 +657,53 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
 
   if (!effectiveUserId) {
     return (
-      <div className="stp">
-        <div className="stp__container">
-          <div className="stp__actions">
-            <button className="stp__back" onClick={handleGoToDetail}>← กลับรายละเอียด</button>
+      <StoryTreeShell>
+        <div className="stp__actions">
+          <button className="stp__back" onClick={handleGoToDetail}>← กลับรายละเอียด</button>
+          {!isAdmin && (
             <button className="stp__restart-btn" type="button" onClick={handleRestartConfirmOpen}>↻ เริ่มอ่านใหม่</button>
-          </div>
-          <div className="stp__header">
-            <h1 className="stp__title">แผนผังการอ่าน<span className="stp__title-sep"> — </span><span className="stp__title-novel">{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span></h1>
-            <p className="stp__subtitle">สำรวจทางเลือกที่คุณเคยเดินผ่านมา</p>
-          </div>
-          <div className="stp__main">
-            <div className="stp__flow-wrapper stp__placeholder-wrapper">
-              <div className="stp__placeholder-card">
-                <span className="stp__placeholder-tag">ล็อกอินก่อน</span>
-                <h2 className="stp__placeholder-title">ล็อกอินเพื่อดูสตอรี่แมพทั้งหมด</h2>
-                <p className="stp__placeholder-text">ระบบจะแสดงผังโครงสร้างหน้าให้เห็นชัดเจน แต่การเปิดโหนดและสถานะต่าง ๆ จะต้องเข้าสู่ระบบก่อน</p>
-                <button className="stp__placeholder-button" onClick={() => onNavigate ? onNavigate("login") : navigate("/login")}>ไปที่หน้าเข้าสู่ระบบ</button>
-              </div>
+          )}
+        </div>
+        <div className="stp__header">
+          <h1 className="stp__title">แผนผังการอ่าน<span className="stp__title-sep"> — </span><span className="stp__title-novel">{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span></h1>
+          <p className="stp__subtitle">สำรวจทางเลือกที่คุณเคยเดินผ่านมา</p>
+        </div>
+        <div className="stp__main">
+          <div className="stp__flow-wrapper stp__placeholder-wrapper">
+            <div className="stp__placeholder-card">
+              <span className="stp__placeholder-tag">ล็อกอินก่อน</span>
+              <h2 className="stp__placeholder-title">ล็อกอินเพื่อดูสตอรี่แมพทั้งหมด</h2>
+              <p className="stp__placeholder-text">ระบบจะแสดงผังโครงสร้างหน้าให้เห็นชัดเจน แต่การเปิดโหนดและสถานะต่าง ๆ จะต้องเข้าสู่ระบบก่อน</p>
+              <button className="stp__placeholder-button" onClick={() => onNavigate ? onNavigate("login") : navigate("/login")}>ไปที่หน้าเข้าสู่ระบบ</button>
             </div>
           </div>
         </div>
-      </div>
+      </StoryTreeShell>
     );
   }
 
   if (loading) {
     return (
-      <div className="stp__loading-state">
-        <div className="stp__spinner" />
-        <p>กำลังเตรียมข้อมูลแผนผังการอ่าน...</p>
-      </div>
+      <StoryTreeShell>
+        <div className="stp__loading-state">
+          <div className="stp__spinner" />
+          <p>กำลังเตรียมข้อมูลแผนผังการอ่าน...</p>
+        </div>
+      </StoryTreeShell>
     );
   }
 
   if (error) {
     return (
-      <div className="stp__error-state">
-        <h3>💥 โหลดผังโครงสร้างไม่สำเร็จ</h3>
-        <p>{error}</p>
-      </div>
+      <StoryTreeShell>
+        <div className="stp__error-state">
+          <h3>💥 โหลดผังโครงสร้างไม่สำเร็จ</h3>
+          <p>{error}</p>
+          <button type="button" className="stp__retry-btn" onClick={loadAllData}>
+            ↻ ลองใหม่อีกครั้ง
+          </button>
+        </div>
+      </StoryTreeShell>
     );
   }
 
@@ -605,8 +712,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   const formattedVisitedDate = formatDate(hoveredNode?.data?.finalVisitedDate);
 
   return (
-    <div className="stp">
-      <div className="stp__container">
+    <StoryTreeShell>
         <div className="stp__actions">
           <div className="stp__actions-group">
             <button className="stp__back" onClick={handleGoToDetail}>← กลับรายละเอียด</button>
@@ -616,7 +722,9 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
             {stats.unlockedEndings > 0 && (
               <button className="stp__ending-btn" type="button" onClick={handleOpenEndingModal}>🏆 ดูคลังฉากจบ</button>
             )}
-            <button className="stp__restart-btn" type="button" onClick={handleRestartConfirmOpen}>↻ เริ่มอ่านใหม่</button>
+            {!isAdmin && (
+              <button className="stp__restart-btn" type="button" onClick={handleRestartConfirmOpen}>↻ เริ่มอ่านใหม่</button>
+            )}
           </div>
         </div>
 
@@ -644,7 +752,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
           <div className="stp__flow-wrapper">
             <div className="stp__legend-floating">
               {[
-                { color: "#E91E8C", label: "จุดปัจจุบัน" },
+                { color: PINK, label: "จุดปัจจุบัน" },
                 { color: "#4CAF82", label: "ค้นพบแล้ว" },
                 { color: "#C8C3D4", label: "ยังไม่ค้นพบ" },
                 { color: "#F7C940", label: "ฉากจบ" },
@@ -678,7 +786,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
                 <MiniMap
                   nodeColor={(node) => {
                     const status = node.data?.computedStatus;
-                    if (status === NODE_STATUS.CURRENT) return "#E91E8C";
+                    if (status === NODE_STATUS.CURRENT) return PINK;
                     if (status === NODE_STATUS.VISITED) return "#4CAF82";
                     if (status === NODE_STATUS.ENDING_UNLOCKED) return "#F7C940";
                     return "#cbd5e1";
@@ -732,8 +840,8 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
               const targetNode = computedNodes.find(n => String(n.id) === String(sceneId));
               if (targetNode) {
                 reactFlowInstance.setCenter(
-                  targetNode.position.x + 140,
-                  targetNode.position.y + 60,
+                  targetNode.position.x + NODE_CENTER_OFFSET.x,
+                  targetNode.position.y + NODE_CENTER_OFFSET.y,
                   { zoom: 1.1, duration: 800 }
                 );
               }
@@ -756,8 +864,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </StoryTreeShell>
   );
 };
 

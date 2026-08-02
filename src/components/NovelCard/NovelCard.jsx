@@ -23,7 +23,7 @@ import { getNovelStatusInfo } from "../../utils/novelStatus";
  *   novel  — object (required)
  *   onClick — function (optional)
  */
-const NovelCard = ({ novel, onClick }) => {
+const NovelCard = ({ novel, onClick, showLike = true }) => {
   const navigate = useNavigate();
   const [liked, setLiked] = useState(novel?.isLiked || false);
   const authorId = novel?.author?.id || novel?.author_id || novel?.author?.writer_id || novel?.author?.user_id;
@@ -153,21 +153,23 @@ const NovelCard = ({ novel, onClick }) => {
             </span>
           </div>
 
-          <button
-            className={`novel-card__like-btn ${liked ? "novel-card__like-btn--on" : ""}`}
-            onClick={handleLike}
-            aria-label={liked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
-            aria-pressed={liked}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path
-                d="M7 12S2 8.5 2 5.5A2.5 2.5 0 017 4a2.5 2.5 0 015 1.5C12 8.5 7 12 7 12z"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                fill={liked ? "currentColor" : "none"}
-              />
-            </svg>
-          </button>
+          {showLike && (
+            <button
+              className={`novel-card__like-btn ${liked ? "novel-card__like-btn--on" : ""}`}
+              onClick={handleLike}
+              aria-label={liked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
+              aria-pressed={liked}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path
+                  d="M7 12S2 8.5 2 5.5A2.5 2.5 0 017 4a2.5 2.5 0 015 1.5C12 8.5 7 12 7 12z"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  fill={liked ? "currentColor" : "none"}
+                />
+              </svg>
+            </button>
+          )}
         </div>
 
       </div>

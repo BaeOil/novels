@@ -82,20 +82,32 @@
 .admin-stat-card {
   background: white;
   border-radius: 18px;
-  padding: 22px 24px;
+  padding: 18px 20px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 14px;
   border: 1px solid #e2e8f0;
   border-top: 3px solid transparent;
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.02);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .admin-stat-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
 }
+
+.admin-stat-card--selected {
+  box-shadow: 0 0 0 2px currentColor, 0 10px 25px rgba(15, 23, 42, 0.04);
+}
+
+.card-active.admin-stat-card--selected { color: #22c55e; }
+.card-suspended.admin-stat-card--selected { color: #ef4444; }
 
 .stat-card-left {
   display: flex;
@@ -112,7 +124,7 @@
 }
 
 .stat-card-number {
-  font-size: 2.1rem;
+  font-size: 1.8rem;
   font-weight: 800;
   color: #0f172a;
   font-family: 'Open Sans', sans-serif;
@@ -120,18 +132,19 @@
 }
 
 .stat-card-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-/* สีเฉพาะของการ์ดสถิติ */
-.bg-green-light { background-color: #f0fdf4; }
-.bg-yellow-light { background-color: #fef9c3; }
-.bg-red-light { background-color: #fef2f2; }
+/* สีของการ์ดสถิติ: กำหนดสีไอคอนที่ CSS จุดเดียว แทนการยัด hex สีตรงๆ ใน JSX */
+.bg-green-light { background-color: #f0fdf4; color: #22c55e; }
+.bg-yellow-light { background-color: #fef9c3; color: #eab308; }
+.bg-red-light { background-color: #fef2f2; color: #ef4444; }
 
 .card-active { border-top-color: #22c55e; }
 .card-pending { border-top-color: #eab308; }
@@ -823,6 +836,52 @@
   border-color: var(--pink-500);
 }
 
+.admin-form-select--readonly {
+  cursor: default;
+  color: #64748b;
+}
+
+.admin-form-textarea {
+  min-height: 80px;
+  resize: vertical;
+  cursor: text;
+}
+
+.edit-form-group + .edit-form-group {
+  margin-top: 16px;
+}
+
+.cell-muted {
+  color: #94a3b8;
+}
+
+.view-app-btn-trigger--link {
+  text-decoration: none;
+  display: inline-block;
+}
+
+.delete-warning-text {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.delete-warning-username {
+  color: #db2777;
+}
+
+.delete-warning-critical {
+  color: #ef4444;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.delete-warning-note {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
 /* ปุ่ม Modal */
 .modal-footer-sec {
   display: flex;
@@ -849,6 +908,22 @@
 
 .cancel-btn:hover {
   background-color: #f8fafc;
+}
+
+.view-writer-profile-btn {
+  background: #fdf2f8;
+  color: #db2777;
+  border-color: #fbcfe8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.view-writer-profile-btn:hover {
+  background: #fce7f3;
+  color: #be185d;
+  border-color: #f472b6;
 }
 
 .save-btn {

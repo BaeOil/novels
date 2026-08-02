@@ -5,6 +5,7 @@ import "react-quill-new/dist/quill.snow.css";
 import DOMPurify from "dompurify";
 import FollowButton from "../../../components/FollowButton/FollowButton";
 import NovelCard from "../../../components/NovelCard/NovelCard";
+import AdminModeBanner from "../../../components/AdminModeBanner/AdminModeBanner";
 import "./WriterProfile.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -78,6 +79,34 @@ export default function WriterProfile() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
   const [showEditModal, setShowEditModal] = useState(false);
+
+  const checkIsAdmin = () => {
+    try {
+      const userJson = localStorage.getItem("user");
+      if (userJson) {
+        const u = JSON.parse(userJson);
+        const r = (u?.role || u?.user_role || u?.role_name || "").toString().toLowerCase();
+        if (r === "admin" || u?.is_admin === true || u?.isAdmin === true) return true;
+      }
+    } catch {}
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        const parts = token.split(".");
+        if (parts.length === 3) {
+          let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          while (payload.length % 4) payload += "=";
+          const decoded = atob(payload);
+          const json = decodeURIComponent(decoded.split("").map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`).join(""));
+          const parsed = JSON.parse(json);
+          const r = (parsed?.role || parsed?.user_role || "").toString().toLowerCase();
+          if (r === "admin" || parsed?.is_admin === true || parsed?.isAdmin === true) return true;
+        }
+      }
+    } catch {}
+    return false;
+  };
+  const isAdmin = checkIsAdmin();
 
   // ดึง ID ผู้ใช้ปัจจุบันจาก LocalStorage
   const getLoggedInUser = () => {
@@ -291,7 +320,8 @@ export default function WriterProfile() {
   const hasContactInfo = Boolean(writerInfo.emailWriter || contactReq || contactOpt);
 
   return (
-    <div className="profile-wrapper">
+    <div className="profile-wrapper" style={{ paddingTop: isAdmin ? 0 : undefined }}>
+      {isAdmin && <AdminModeBanner page="โปรไฟล์นักเขียน" />}
       <div className="profile-container">
         
         {/* ============================================================== */}
@@ -356,7 +386,7 @@ export default function WriterProfile() {
                   >
                     ✏️ แก้ไขโปรไฟล์
                   </button>
-                ) : (
+                ) : !isAdmin ? (
                   <FollowButton
                     writerId={writerInfo.id}
                     writerName={writerInfo.name}
@@ -364,7 +394,7 @@ export default function WriterProfile() {
                     onFollowChange={handleFollowChange}
                     size="medium"
                   />
-                )}
+                ) : null}
 
                 <button
                   className="btn-share-profile"
@@ -497,6 +527,7 @@ export default function WriterProfile() {
                   <NovelCard
                     key={normalizedNovel.id}
                     novel={normalizedNovel}
+                    showLike={false}
                     onClick={() => navigate(`/novel/${normalizedNovel.id}`)}
                   />
                 );
@@ -510,7 +541,6 @@ export default function WriterProfile() {
             </div>
           )}
         </div>
-
       </div>
 
       {/* Modal แก้ไขโปรไฟล์นักเขียน */}

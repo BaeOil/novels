@@ -10,6 +10,7 @@ const Comments = ({
   onDeleteComment = () => {},
   title = "แสดงความคิดเห็น",
   subtitle = "แบ่งปันความรู้สึกของคุณได้ที่นี่",
+  readOnly = false,
 }) => {
   return (
     <section className="novel-detail__comments-section">
@@ -21,26 +22,28 @@ const Comments = ({
         <span className="novel-detail__comments-count">{comments.length} คอมเมนต์</span>
       </div>
 
-      <form
-        className="novel-detail__comment-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSubmit(commentText);
-        }}
-      >
-        <textarea
-          className="novel-detail__comment-input"
-          value={commentText}
-          onChange={onCommentTextChange}
-          rows={3}
-          placeholder="เขียนความรู้สึกของคุณที่นี่..."
-        />
-        <div className="novel-detail__comment-actions">
-          <button type="submit" className="novel-detail__comment-button">
-            <span>💬</span> ส่งความคิดเห็น
-          </button>
-        </div>
-      </form>
+      {!readOnly && (
+        <form
+          className="novel-detail__comment-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit(commentText);
+          }}
+        >
+          <textarea
+            className="novel-detail__comment-input"
+            value={commentText}
+            onChange={onCommentTextChange}
+            rows={3}
+            placeholder="เขียนความรู้สึกของคุณที่นี่..."
+          />
+          <div className="novel-detail__comment-actions">
+            <button type="submit" className="novel-detail__comment-button">
+              <span>💬</span> ส่งความคิดเห็น
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="novel-detail__comments-list">
         {comments.length === 0 ? (

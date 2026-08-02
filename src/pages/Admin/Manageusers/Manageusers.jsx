@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserCheck, FileClock, Ban, Search, Filter, Edit, Trash2, Eye, Award, Loader2, AlertTriangle } from 'lucide-react';
+import { UserCheck, FileClock, Ban, Search, Filter, Edit, Trash2, Eye, Award, Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 import './Manageusers.css';
 
@@ -201,37 +201,48 @@ const Manageusers = () => {
           </svg>
         </header>
 
-        {/* 📊 การ์ดสถิติ */}
+        {/* 📊 การ์ดสถิติ — กดเพื่อกรองตารางด้านล่างได้เลย (เหมือนหน้า Reports / คำขอนักเขียน) */}
         <section className="admin-stats-grid">
-          <div className="admin-stat-card card-active">
+          <button
+            type="button"
+            className={`admin-stat-card card-active ${statusFilter === "active" ? "admin-stat-card--selected" : ""}`}
+            onClick={() => setStatusFilter(statusFilter === "active" ? "all" : "active")}
+            aria-pressed={statusFilter === "active"}
+          >
+            <div className="stat-card-icon bg-green-light">
+              <UserCheck size={20} />
+            </div>
             <div className="stat-card-left">
               <span className="stat-card-title">ปกติ</span>
               <span className="stat-card-number">{stats.active.toLocaleString()}</span>
             </div>
-            <div className="stat-card-icon bg-green-light">
-              <UserCheck size={28} color="#22c55e" />
-            </div>
-          </div>
+          </button>
 
-          <div className="admin-stat-card card-pending">
+          {/* คำขอนักเขียนอนุมัติที่หน้า Writers เท่านั้น (ไม่ใช่กรองในหน้านี้) จึงเป็นลิงก์นำทาง ไม่ใช่ตัวกรอง */}
+          <a href="/admin/manage-users" className="admin-stat-card card-pending">
+            <div className="stat-card-icon bg-yellow-light">
+              <FileClock size={20} />
+            </div>
             <div className="stat-card-left">
               <span className="stat-card-title">คำขอนักเขียนรอตรวจสอบ</span>
               <span className="stat-card-number">{stats.pendingWriterApps.toLocaleString()}</span>
             </div>
-            <div className="stat-card-icon bg-yellow-light">
-              <FileClock size={28} color="#eab308" />
-            </div>
-          </div>
+          </a>
 
-          <div className="admin-stat-card card-suspended">
+          <button
+            type="button"
+            className={`admin-stat-card card-suspended ${statusFilter === "suspended" ? "admin-stat-card--selected" : ""}`}
+            onClick={() => setStatusFilter(statusFilter === "suspended" ? "all" : "suspended")}
+            aria-pressed={statusFilter === "suspended"}
+          >
+            <div className="stat-card-icon bg-red-light">
+              <Ban size={20} />
+            </div>
             <div className="stat-card-left">
               <span className="stat-card-title">ระงับแล้ว</span>
               <span className="stat-card-number">{stats.suspended.toLocaleString()}</span>
             </div>
-            <div className="stat-card-icon bg-red-light">
-              <Ban size={28} color="#ef4444" />
-            </div>
-          </div>
+          </button>
         </section>
 
         {/* 🔍 ค้นหา & ฟิลเตอร์กรอง */}
@@ -350,7 +361,7 @@ const Manageusers = () => {
                         {user.writer_application_status === "pending" ? (
                           <span className="status-badge status-pending">รอตรวจสอบ</span>
                         ) : (
-                          <span style={{ color: "#94a3b8" }}>-</span>
+                          <span className="cell-muted">-</span>
                         )}
                       </td>
                       <td className="date-col">
@@ -512,6 +523,20 @@ const Manageusers = () => {
               </div>
 
               <div className="modal-footer-sec">
+                {viewUserModal.user.role === "writer" && (() => {
+                  const writerId = viewUserModal.user.writer_details?.writer_id || viewUserModal.user.writer_id || viewUserModal.user.writer_details?.id || viewUserModal.user.id;
+                  return (
+                    <a
+                      href={`/writer/profile/${writerId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="admin-modal-btn view-writer-profile-btn"
+                    >
+                      <ExternalLink size={15} />
+                      <span>ดูโปรไฟล์นักเขียน</span>
+                    </a>
+                  );
+                })()}
                 <button type="button" className="admin-modal-btn cancel-btn" onClick={() => setViewUserModal({ isOpen: false, user: null })}>
                   ปิดหน้าต่าง
                 </button>
@@ -558,7 +583,11 @@ const Manageusers = () => {
                   <div className="details-group-box">
                     <h4>แนะนำตัว & แฟ้มผลงาน</h4>
                     <div className="details-bio-content">
-                      {viewApplicationModal.user.writer_details?.bio || "ไม่มีการระบุประวัติหรือแนะนำตัว"}
+                      {(() => {
+                        const rawBio = viewApplicationModal.user.writer_details?.bio || viewApplicationModal.user.bio || "";
+                        const cleanBio = rawBio.replace(/<[^>]*>/g, "").trim();
+                        return cleanBio || "ไม่มีการระบุประวัติหรือแนะนำตัว";
+                      })()}
                     </div>
                   </div>
 
@@ -572,19 +601,30 @@ const Manageusers = () => {
                   </div>
 
                   <div className="details-group-box">
-                    <h4>ช่องทางการติดต่อหลัก</h4>
-                    <div className="detail-field">
-                      <span className="field-lbl">ลิงก์ติดต่อ:</span>
-                      <span className="field-val highlight-link">
-                        {viewApplicationModal.user.writer_details?.primary_contact && viewApplicationModal.user.writer_details.primary_contact.startsWith("http") ? (
-                          <a href={viewApplicationModal.user.writer_details.primary_contact} target="_blank" rel="noopener noreferrer">
-                            {viewApplicationModal.user.writer_details.primary_contact}
-                          </a>
+                    <h4>ช่องทางการติดต่อ</h4>
+                    {(() => {
+                      const wd = viewApplicationModal.user.writer_details || {};
+                      const renderContact = (value) => {
+                        if (!value) return "-";
+                        return value.startsWith("http") ? (
+                          <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
                         ) : (
-                          viewApplicationModal.user.writer_details?.primary_contact || "-"
-                        )}
-                      </span>
-                    </div>
+                          value
+                        );
+                      };
+                      return (
+                        <>
+                          <div className="detail-field">
+                            <span className="field-lbl">ช่องทางหลัก:</span>
+                            <span className="field-val highlight-link">{renderContact(wd.primary_contact)}</span>
+                          </div>
+                          <div className="detail-field">
+                            <span className="field-lbl">ช่องทางรอง:</span>
+                            <span className="field-val highlight-link">{renderContact(wd.secondary_contact)}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {viewApplicationModal.user.writer_application_status === "pending" && (
@@ -593,7 +633,7 @@ const Manageusers = () => {
                         <Award size={18} color="#db2777" />
                         <span>คำขอนี้ยังรอการอนุมัติ</span>
                       </div>
-                      <a className="view-app-btn-trigger" href="/admin/writers" style={{ textDecoration: "none", display: "inline-block" }}>
+                      <a className="view-app-btn-trigger view-app-btn-trigger--link" href="/admin/writers">
                         ไปตรวจสอบที่หน้า Writers
                       </a>
                     </div>
@@ -643,13 +683,13 @@ const Manageusers = () => {
                       <option value="reader">เลื่อนลง → นักอ่าน (ถอดสิทธิ์นักเขียน)</option>
                     </select>
                   ) : (
-                    <div className="admin-form-select" style={{ cursor: "default", color: "#64748b" }}>
+                    <div className="admin-form-select admin-form-select--readonly">
                       {roleLabel(editUserModal.user.role)} (ไม่สามารถเปลี่ยนบทบาทจากหน้านี้ได้)
                     </div>
                   )}
                 </div>
 
-                <div className="edit-form-group" style={{ marginTop: "16px" }}>
+                <div className="edit-form-group">
                   <label className="form-lbl">สถานะบัญชี</label>
                   <select
                     className="admin-form-select"
@@ -662,11 +702,10 @@ const Manageusers = () => {
                 </div>
 
                 {editUserModal.status === "suspended" && (
-                  <div className="edit-form-group" style={{ marginTop: "16px" }}>
+                  <div className="edit-form-group">
                     <label className="form-lbl">เหตุผลการระงับ (ไม่บังคับ)</label>
                     <textarea
-                      className="admin-form-select"
-                      style={{ minHeight: "80px", resize: "vertical", cursor: "text" }}
+                      className="admin-form-select admin-form-textarea"
                       placeholder="เช่น สแปม, โพสต์เนื้อหาไม่เหมาะสม, ถูกรายงานหลายครั้ง..."
                       value={editUserModal.reason}
                       onChange={(e) => setEditUserModal(prev => ({ ...prev, reason: e.target.value }))}
@@ -705,12 +744,12 @@ const Manageusers = () => {
               </div>
 
               <div className="modal-body-content">
-                <p style={{ margin: 0, fontSize: "0.95rem", color: "#334155", lineHeight: 1.5 }}>
-                  คุณต้องการที่จะทำการลบบัญชีผู้ใช้งาน <strong style={{ color: "#db2777" }}>"{deleteConfirmModal.user.username}"</strong> ออกจากระบบอย่างถาวรหรือไม่?
+                <p className="delete-warning-text">
+                  คุณต้องการที่จะทำการลบบัญชีผู้ใช้งาน <strong className="delete-warning-username">"{deleteConfirmModal.user.username}"</strong> ออกจากระบบอย่างถาวรหรือไม่?
                   <br />
-                  <span style={{ color: "#ef4444", fontSize: "0.82rem", fontWeight: 700 }}>⚠️ การดำเนินการนี้ไม่สามารถยกเลิกได้ในภายหลัง</span>
+                  <span className="delete-warning-critical">⚠️ การดำเนินการนี้ไม่สามารถยกเลิกได้ในภายหลัง</span>
                   <br />
-                  <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>
+                  <span className="delete-warning-note">
                     หมายเหตุ: ถ้าบัญชีนี้เป็นนักเขียนที่มีนิยายอยู่ในระบบ ระบบจะไม่อนุญาตให้ลบ กรุณาระงับบัญชีแทน
                   </span>
                 </p>

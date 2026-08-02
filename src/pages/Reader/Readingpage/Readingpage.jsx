@@ -11,6 +11,7 @@ import ReadingSettings from "../../../components/ReadingSettings/ReadingSettings
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import Comments from "../../../components/Comments/Comments";
 import EndingUnlockedModal from "../../../components/EndingUnlockedModal/EndingUnlockedModal";
+import AdminModeBanner from "../../../components/AdminModeBanner/AdminModeBanner";
 
 // 🟢 เดิม hardcode "http://localhost:8080" ตรงๆ ทำให้ build ขึ้น production แล้วยังยิงไป localhost
 // เปลี่ยนให้อ่านจาก env ก่อน ถ้าไม่มีค่อย fallback เป็น localhost ตอน dev เหมือนเดิม
@@ -42,6 +43,36 @@ const ReadingPage = ({
     }
   };
 
+  const checkIsAdmin = () => {
+    try {
+      const userJson = localStorage.getItem("user");
+      if (userJson) {
+        const u = JSON.parse(userJson);
+        const r = (u?.role || u?.user_role || u?.role_name || "").toString().toLowerCase();
+        if (r === "admin" || u?.is_admin === true || u?.isAdmin === true) return true;
+      }
+    } catch {}
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        const parts = token.split(".");
+        if (parts.length === 3) {
+          let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          while (payload.length % 4) payload += "=";
+          const decoded = atob(payload);
+          const json = decodeURIComponent(
+            decoded.split("").map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`).join("")
+          );
+          const parsed = JSON.parse(json);
+          const r = (parsed?.role || parsed?.user_role || "").toString().toLowerCase();
+          if (r === "admin" || parsed?.is_admin === true || parsed?.isAdmin === true) return true;
+        }
+      }
+    } catch {}
+    return false;
+  };
+
+  const isAdmin = checkIsAdmin();
   const effectiveUserId = getCurrentUserId() || userId;
 
   const [currentView, setCurrentView] = useState("reading");
@@ -689,6 +720,8 @@ useEffect(() => {
     <div className={`rp rp--theme-${theme}`}>
       <div className="rp__progress-bar" style={{ width: `${readProgress}%` }} role="progressbar" />
 
+      {isAdmin && <AdminModeBanner page="หน้าอ่านนิยาย" />}
+
       {isPreviewMode && (
         <div style={{
           width: "100%",
@@ -808,14 +841,16 @@ useEffect(() => {
               </p>
 
               <div className="rp__ending-actions">
-                <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => setShowEndingModal(true)}>
-                  ✨ คลังฉากจบของคุณ
-                </button>
-                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree") }>
+                {!isAdmin && (
+                  <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => setShowEndingModal(true)}>
+                    ✨ คลังฉากจบของคุณ
+                  </button>
+                )}
+                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree")}>
                   ดูแผนผังการอ่าน
                 </button>
-                <RestartReadingButton onRestart={handleRestartReading} />
-                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail") }>
+                {!isAdmin && <RestartReadingButton onRestart={handleRestartReading} />}
+                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail")}>
                   ⭠ กลับหน้ารายละเอียด
                 </button>
               </div>
@@ -837,11 +872,11 @@ useEffect(() => {
               </p>
 
               <div className="rp__ending-actions">
-                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree") }>
+                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree")}>
                   ดูแผนผังการอ่าน
                 </button>
-                <RestartReadingButton onRestart={handleRestartReading} />
-                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail") }>
+                {!isAdmin && <RestartReadingButton onRestart={handleRestartReading} />}
+                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail")}>
                   ⭠ กลับหน้ารายละเอียด
                 </button>
               </div>
@@ -856,26 +891,30 @@ useEffect(() => {
               onCommentTextChange={(e) => setCommentText(e.target.value)}
               onSubmit={handleCommentSubmit}
               onDeleteComment={handleDeleteComment}
+              readOnly={isAdmin}
             />
           </div>
         </article>
       </div>
 
-      {/* Pop-up ยินดีด้วย ค้นพบฉากจบใหม่ */}
-      <EndingUnlockedModal
-        isOpen={showEndingModal}
-        currentScene={sceneData}
-        allNovelEndings={allNovelEndings}
-        novelId={novelId}
-        onClose={() => setShowEndingModal(false)}
-        onViewStoryTree={() => handleLocalNavigate("story-tree")}
-        onRestartReading={handleRestartReading}
-      />
+      {/* Pop-up ยินดีด้วย ค้นพบฉากจบใหม่ — ไม่แสดงสำหรับแอดมิน */}
+      {!isAdmin && (
+        <EndingUnlockedModal
+          isOpen={showEndingModal}
+          currentScene={sceneData}
+          allNovelEndings={allNovelEndings}
+          novelId={novelId}
+          onClose={() => setShowEndingModal(false)}
+          onViewStoryTree={() => handleLocalNavigate("story-tree")}
+          onRestartReading={handleRestartReading}
+        />
+      )}
 
       {/* 🎯 Pop-up ชวนเพิ่มเข้าชั้นหนังสือ ลอยกลางจอ แสดงเฉพาะตอนอ่านถึงตอนล่าสุด (ยังไม่ใช่ฉากจบ) และยังไม่เคยเพิ่ม
           หมายเหตุ: ต้องวางนอก .rp__article เพราะ .rp__article มี transform ติดอยู่ (ใช้ทำ animation เปลี่ยนฉาก)
           ซึ่งจะทำให้ position:fixed ของลูกข้างในอ้างอิงกรอบของ .rp__article แทน viewport จริง ทำให้ popup เพี้ยนไม่กึ่งกลางจอ */}
-      {isUnfinishedDeadEnd && !isBookmarked && !bookmarkNudgeDismissed && (
+      {/* Pop-up ชวนเพิ่มเข้าชั้นหนังสือ — ไม่แสดงสำหรับแอดมิน */}
+      {!isAdmin && isUnfinishedDeadEnd && !isBookmarked && !bookmarkNudgeDismissed && (
         <div
           className="rp__modal-overlay"
           onClick={() => setBookmarkNudgeDismissed(true)}

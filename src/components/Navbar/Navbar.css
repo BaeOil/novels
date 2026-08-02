@@ -1,215 +1,290 @@
-/* 🛠️ กำหนดสีมาตรฐานป้องกันกรณีตัวแปรระบบหลุด */
+/* ─────────────────────────────────────────────
+   Navbar.css — รวมจาก Navbar.css + Navbarwriter.css เดิม
+   ใช้ token/สไตล์ของ Navbarwriter.css เป็นฐาน (ดูสมบูรณ์กว่า)
+   แล้วเติม class ที่มีแต่ใน Navbar.css เข้ามาให้ครบ
+   ───────────────────────────────────────────── */
 :root {
-  --pink-500: #e91e63;
-  --pink-300: #f48fb1;
-  --ink: #212121;
-  --gray-50: #f8f9fa;
-  --gray-100: #e9ecef;
-  --gray-300: #adb5bd;
+  --pink-500: #ec4899;
+  --pink-100: #ffe4f1;
+  --pink-50: #fff5fa;
+
+  --gray-50: #f8fafc;
+  --gray-100: #e5e7eb;
+  --gray-300: #cbd5e1;
+  --gray-500: #64748b;
+
+  --ink: #111827;
   --white: #ffffff;
 }
 
 .nav-header {
   position: sticky;
   top: 0;
-  left: 0;
+  z-index: 999;
   width: 100%;
-  z-index: 1000;
-  background-color: rgba(255, 255, 255, 0.98);
-  transition: all 0.3s ease;
-  border-bottom: 1px solid #f0f0f0;
+  background: rgba(255, 255, 255, .95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #f3f4f6;
+  transition: box-shadow 0.2s ease;
 }
 
 .nav-sticky {
-  padding: 5px 0;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .06);
 }
 
 .nav-container {
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
+  height: 82px;
+  padding: 0 28px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
+  gap: 28px;
 }
 
-/* ส่วนโลโก้ */
-.nav-logo { 
-  display: flex; 
-  align-items: center; 
-  gap: 12px; 
+/* LOGO */
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   cursor: pointer;
+  flex-shrink: 0;
 }
-.logo-img { width: 42px; height: 42px; object-fit: contain; }
+
+.logo-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
 
 .navbar__logo-text {
   display: flex;
   flex-direction: column;
-  line-height: 1.1;
+  line-height: 1;
 }
 
 .navbar__logo-story {
-  font-family: 'Open Sans', serif;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--pink-500);
 }
 
 .navbar__logo-verse {
-  font-family: 'Open Sans', serif;
   font-size: 18px;
-  font-weight: 500;
-  color: var(--ink);
+  font-weight: 700;
+  color: #374151;
 }
 
 .navbar__logo-mode {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 10px;
-  color: var(--gray-300);
-  letter-spacing: 0.5px;
-  margin-top: 1px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #94a3b8;
 }
 
-/* รายการเมนูศูนย์กลาง */
+/* MODE TOGGLE (นักอ่าน / นักเขียน) */
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.mode-toggle__btn {
+  border: none;
+  background: transparent;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: .2s;
+  color: #4b5563;
+}
+
+.mode-toggle__btn--active {
+  background: white;
+  color: var(--pink-500);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .06);
+}
+
+/* ปุ่มเมนูมือถือ — ซ่อนบนจอใหญ่ โผล่เฉพาะจอเล็ก (ดู media query ด้านล่าง) */
+.nav-hamburger {
+  display: none;
+  border: none;
+  background: transparent;
+  color: #1f2937;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.nav-hamburger:hover {
+  background: #f3f4f6;
+}
+
+/* CENTER MENU */
 .nav-menu {
   display: flex;
+  align-items: center;
+  gap: 24px;
   list-style: none;
-  gap: 30px;
   margin: 0;
   padding: 0;
+  flex: 1;
 }
 
-.nav-item a {
+.nav-item a,
+.nav-menu-btn {
+  border: none;
+  background: transparent;
   text-decoration: none;
-  color: #555;
-  font-weight: 500;
-  font-size: 15px;
-  position: relative;
-  padding-bottom: 4px;
-  transition: color 0.2s ease;
-}
-
-/* ── underline pill ── */
-.nav-item a::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 2.5px;
-  border-radius: 99px;
-  background-color: var(--pink-500);
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* hover: ขยาย underline ออก */
-.nav-item a:hover {
-  color: var(--pink-500);
-}
-.nav-item a:hover::after {
-  width: 100%;
-}
-
-/* active: สีเข้มขึ้น + underline เต็ม + dot บอก position */
-.nav-item.active > a {
-  color: var(--pink-500);
+  color: #1f2937;
+  cursor: pointer;
+  font-size: 14px;
   font-weight: 700;
-}
-.nav-item.active > a::after {
-  width: 100%;
+  transition: .18s;
 }
 
-/* 🎯 จัดการ Layout ฝั่งขวา (ค้นหา + กระดิ่ง + mode-switch + avatar) */
-.navbar__right {
+.nav-item a:hover,
+.nav-menu-btn:hover {
+  color: var(--pink-500);
+}
+
+.nav-item.active-menu a {
+  color: #db2777 !important;
+  font-weight: 700;
+  text-decoration: underline !important;
+  text-decoration-color: #db2777 !important;
+  text-decoration-thickness: 3px !important;
+  text-underline-offset: 6px !important;
+}
+
+.nav-item.active-menu a:hover {
+  text-decoration: underline !important;
+  text-decoration-color: #db2777 !important;
+}
+
+/* Divider + ปุ่มชมพูตอนเลือกนิยายแล้ว */
+.nav-item-divider-container {
+  display: flex;
+  align-items: center;
+  margin: 0 -4px;
+}
+
+.nav-menu-divider {
+  display: inline-block;
+  width: 2.5px;
+  height: 16px;
+  background-color: var(--pink-500);
+  border-radius: 99px;
+  animation: fadeInDivider 0.25s ease-out forwards;
+}
+
+@keyframes fadeInDivider {
+  from { opacity: 0; transform: scaleY(0.3); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+.nav-menu-btn--pink {
+  border: none;
+  background: transparent;
+  text-decoration: none;
+  color: var(--pink-500) !important;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.18s ease;
+  white-space: nowrap;
+  animation: slideExpandRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.nav-menu-btn--pink:hover {
+  color: #be185d !important;
+}
+
+@keyframes slideExpandRight {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* SELECTED NOVEL — ชิปโชว์ชื่อเรื่องที่กำลังแก้ไขอยู่ (หายไปตอน merge รอบแรก) */
+.selected-novel-btn {
+  height: 42px;
+  border: 1.5px solid #fbcfe8;
+  background: #fff5fa;
+  border-radius: 999px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-shrink: 0;   /* ป้องกัน right zone หดจนปุ่มทับกัน */
-  position: relative;
-  z-index: 5;
+  cursor: pointer;
+  transition: .2s;
 }
 
+.selected-novel-btn:hover {
+  background: #ffe4f1;
+}
+
+.selected-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--pink-500);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.selected-title {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pink-500);
+}
+
+/* RIGHT ZONE */
+.navbar__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* SEARCH */
 .navbar__search-zone {
   position: relative;
   display: flex;
   align-items: center;
-  flex-shrink: 0;
   z-index: 20;
 }
 
-/* กระดิ่งและปุ่มกลมๆ ห้ามหด */
-.navbar__notification-btn,
-.nav-profile-trigger {
-  flex-shrink: 0;
-}
-
-.navbar__notification-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1.5px solid #f4d8e4;
-  border-radius: 50%;
-  background: #ffffff;
-  color: #4b5563;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(233, 30, 140, 0.08);
-}
-
-.navbar__notification-btn:hover {
-  color: var(--pink-500);
-  border-color: #f8c8dc;
-  background: #fff5fb;
-  transform: translateY(-1px);
-}
-
-.navbar__notification-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 999px;
-  border: 2px solid #ffffff;
-  background: var(--pink-500);
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ช่องค้นหา */
 .navbar__search {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--gray-50);
-  border: 1.5px solid var(--gray-100);
-  border-radius: 24px;
-  padding: 6px 14px;
+  background: #f8fafc;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 8px 16px;
+  width: 210px;
   transition: all 0.2s ease;
-  width: 180px;
-  flex-shrink: 1;
-  min-width: 120px;
 }
 
 .navbar__search--focused {
-  border-color: var(--pink-300);
-  background: var(--white);
-  box-shadow: 0 0 0 3px rgba(233, 30, 140, 0.06);
-  width: 210px;
+  border-color: var(--pink-500);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(236, 72, 153, .08);
+  width: 240px;
 }
 
 .navbar__search-icon {
-  color: var(--gray-300);
+  color: #94a3b8;
   flex-shrink: 0;
   transition: color 0.18s;
 }
@@ -224,13 +299,11 @@
   outline: none;
   font-family: 'Sarabun', sans-serif;
   font-size: 14px;
-  color: var(--ink);
+  color: #1e293b;
   width: 100%;
 }
 
-/* ───────────────────────── */
-/* Search Overlay Dropdown */
-/* ───────────────────────── */
+/* SEARCH OVERLAY DROPDOWN */
 .search-overlay-dropdown {
   position: absolute;
   top: calc(100% + 12px);
@@ -254,250 +327,146 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.search-overlay-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.search-overlay-section { display: flex; flex-direction: column; gap: 8px; }
+.search-overlay-title { font-size: 0.85rem; font-weight: 700; color: #64748b; margin: 0; }
 
-.search-overlay-title {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #64748b;
-  margin: 0;
-}
-
-/* ค้นหาล่าสุด */
-.search-overlay-recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
+.search-overlay-recent-list { display: flex; flex-direction: column; gap: 6px; }
 .search-overlay-recent-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  background: #f8fafc;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.15s ease;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; background: #f8fafc; border-radius: 10px;
+  cursor: pointer; transition: background 0.15s ease;
 }
-
-.search-overlay-recent-item:hover {
-  background: #f1f5f9;
-}
-
-.recent-text {
-  font-size: 0.88rem;
-  color: #334155;
-  font-weight: 500;
-  flex: 1;
-}
-
+.search-overlay-recent-item:hover { background: #f1f5f9; }
+.recent-text { font-size: 0.88rem; color: #334155; font-weight: 500; flex: 1; cursor: pointer; }
 .recent-delete-btn {
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
+  background: none; border: none; color: #94a3b8; font-size: 0.75rem;
+  cursor: pointer; padding: 2px 6px; border-radius: 4px;
 }
+.recent-delete-btn:hover { color: #ef4444; background: #fee2e2; }
 
-.recent-delete-btn:hover {
-  color: #ef4444;
-  background: #fee2e2;
-}
-
-/* กำลังเป็นที่นิยม */
-.search-overlay-popular-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
+.search-overlay-popular-list { display: flex; flex-direction: column; gap: 8px; }
 .search-overlay-popular-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s ease;
+  display: flex; align-items: center; gap: 10px; padding: 4px 6px;
+  border-radius: 8px; cursor: pointer; transition: background 0.15s ease;
 }
+.search-overlay-popular-item:hover { background: #faf5f8; }
+.popular-badge { font-size: 0.88rem; font-weight: 800; color: var(--pink-500); width: 20px; text-align: center; }
+.popular-info { display: flex; flex-direction: column; min-width: 0; }
+.popular-title { font-size: 0.88rem; font-weight: 700; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.popular-meta { font-size: 0.72rem; color: #64748b; }
 
-.search-overlay-popular-item:hover {
-  background: #faf5f8;
-}
-
-.popular-badge {
-  font-size: 0.88rem;
-  font-weight: 800;
-  color: var(--pink-500, #e91e63);
-  width: 20px;
-  text-align: center;
-}
-
-.popular-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.popular-title {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #1e293b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.popular-meta {
-  font-size: 0.72rem;
-  color: #64748b;
-}
-
-/* สำรวจหมวดหมู่ */
-.search-overlay-category-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
+.search-overlay-category-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .search-overlay-cat-chip {
-  background: #fdf2f8;
-  color: #db2777;
-  border: 1px solid #fbcfe8;
-  border-radius: 12px;
-  padding: 4px 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  background: #fdf2f8; color: #db2777; border: 1px solid #fbcfe8;
+  border-radius: 12px; padding: 4px 10px; font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease;
 }
+.search-overlay-cat-chip:hover { background: #fbcfe8; color: #be185d; }
 
-.search-overlay-cat-chip:hover {
-  background: #fbcfe8;
-  color: #be185d;
-}
-
-/* ลิสต์นิยายที่เกี่ยวข้อง */
-.search-overlay-matching-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
+.search-overlay-matching-list { display: flex; flex-direction: column; gap: 10px; }
 .search-overlay-match-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
+  display: flex; align-items: center; gap: 12px; padding: 8px;
+  border-radius: 14px; cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent;
 }
-
-.search-overlay-match-card:hover {
-  background: #fff5f8;
-  border-color: rgba(244, 143, 177, 0.15);
-}
-
-.match-card-cover {
-  width: 44px;
-  height: 56px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #f1f5f9;
-  flex-shrink: 0;
-}
-
-.match-card-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.match-card-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-}
-
-.match-card-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.match-card-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.match-card-meta {
-  font-size: 0.75rem;
-  color: #64748b;
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.match-card-arrow {
-  font-size: 0.85rem;
-  color: #db2777;
-  font-weight: bold;
-}
+.search-overlay-match-card:hover { background: #fff5f8; border-color: rgba(244, 143, 177, 0.15); }
+.match-card-cover { width: 44px; height: 56px; border-radius: 8px; overflow: hidden; background: #f1f5f9; flex-shrink: 0; }
+.match-card-cover img { width: 100%; height: 100%; object-fit: cover; }
+.match-card-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.match-card-info { flex: 1; min-width: 0; }
+.match-card-title { font-size: 0.9rem; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.match-card-meta { font-size: 0.75rem; color: #64748b; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.match-card-arrow { font-size: 0.85rem; color: #db2777; font-weight: bold; }
 
 .search-overlay-footer-btn {
-  width: 100%;
-  text-align: center;
-  padding: 10px;
-  background: #fff1f2;
-  color: #db2777;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 700;
+  width: 100%; text-align: center; padding: 10px; background: #fff1f2; color: #db2777;
+  border-radius: 12px; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  transition: all 0.2s ease; border: 1.5px solid transparent;
+}
+.search-overlay-footer-btn:hover { background: #ffe4e6; border-color: #fbcfe8; }
+
+/* NOTIFICATION BELL */
+.navbar__notification-btn {
+  background: transparent;
+  border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1.5px solid transparent;
-}
-
-.search-overlay-footer-btn:hover {
-  background: #ffe4e6;
-  border-color: #fbcfe8;
-}
-
-/* โซนล็อกอิน & โปรไฟล์ */
-.navbar__auth-zone {
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #64748b;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
+.navbar__notification-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.navbar__notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 9999px;
+  padding: 1px 6px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
+  border: 2px solid #ffffff;
+  pointer-events: none;
+}
+
+/* ปุ่ม "สตูดิโอนักเขียน" (โผล่ตอนบัญชีนักเขียนอยู่โหมดนักอ่าน) — มาจาก Navbar.css เดิม */
+.nav-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.nav-switch-btn--writer {
+  background-color: var(--pink-50);
+  color: #e11d48;
+  border-color: var(--pink-100);
+}
+
+.nav-switch-btn--writer:hover {
+  background-color: var(--pink-100);
+}
+
+/* LOGIN BUTTON (ยังไม่ล็อกอิน) — มาจาก Navbar.css เดิม */
 .nav-login-btn {
   display: inline-flex;
   align-items: center;
   background: linear-gradient(135deg, var(--pink-500) 0%, #ff758c 100%);
   color: white !important;
-  padding: 0.5rem 1.25rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
   text-decoration: none;
   transition: all 0.2s ease;
   box-shadow: 0 4px 10px rgba(255, 75, 110, 0.15);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-login-btn:hover {
@@ -505,30 +474,31 @@
   box-shadow: 0 6px 14px rgba(255, 75, 110, 0.3);
 }
 
-.nav-profile-container {
+/* PROFILE / DROPDOWN */
+.navbar__auth-zone {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
-/* สไตล์ปุ่มกลมสีชมพูรอบวงแบบในรูปหน้าจอ */
+.nav-profile-container { position: relative; }
+
 .nav-profile-trigger {
-  background: #ffffff;
-  border: 2px solid var(--pink-500);
-  padding: 0;
-  cursor: pointer;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  width: 38px;
-  height: 38px;
   overflow: hidden;
+  border: 2px solid var(--pink-500);
+  background: white;
+  cursor: pointer;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease;
-  box-shadow: 0 2px 8px rgba(233, 30, 140, 0.15);
 }
 
-.nav-profile-trigger:hover {
-  transform: scale(1.05);
-}
+.nav-profile-trigger:hover { transform: scale(1.05); }
 
 .nav-avatar-img {
   width: 100%;
@@ -537,18 +507,16 @@
   background-color: #ffe6eb;
 }
 
-/* หน้าต่าง Dropdown */
 .nav-dropdown {
   position: absolute;
   top: calc(100% + 12px);
   right: 0;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
   width: 220px;
-  padding: 0.8rem;
-  z-index: 1001;
+  background: white;
+  border-radius: 18px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .12);
+  padding: 14px;
+  z-index: 9999;
   animation: navDropdownFade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -557,57 +525,153 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.nav-dropdown__user-info {
-  padding: 0.25rem 0.5rem;
-}
-
+.nav-dropdown__user-info { padding: 0.25rem 0.5rem; }
 .nav-dropdown__status {
-  font-size: 0.7rem;
-  color: #888888;
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 12px; color: #94a3b8; margin: 0;
+  text-transform: uppercase; letter-spacing: 0.5px;
 }
-
 .nav-dropdown__user-id {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #333333;
-  margin: 4px 0 0 0;
-  word-break: break-all;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis; /* ตัดคำถ้ายาวเกินกรอบ */
+  margin-top: 4px; font-size: 14px; font-weight: 700; color: #333;
+  word-break: break-all; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nav-dropdown__divider { margin: 12px 0; border: none; border-top: 1px solid #f1f5f9; }
+
+/* ปุ่มลิงก์ในดรอปดาวน์ (โปรไฟล์/ตั้งค่า) — มาจาก Navbar.css เดิม */
+.nav-dropdown__link-btn {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  font-size: 0.9rem;
+  color: #374151;
+  cursor: pointer;
+  border-radius: 8px;
 }
 
-.nav-dropdown__divider {
-  border: 0;
-  border-top: 1px solid #f1f3f5;
-  margin: 0.6rem 0;
-}
+.nav-dropdown__link-btn:hover { background-color: #f3f4f6; }
 
 .nav-dropdown__logout-btn {
   width: 100%;
-  background: none;
   border: none;
-  padding: 0.6rem 0.5rem;
-  text-align: left;
-  font-size: 0.85rem;
-  color: #ff4d4d;
-  font-weight: 500;
+  background: #fff1f2;
+  color: #ef4444;
+  padding: 12px;
+  border-radius: 12px;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background 0.2s ease;
+  font-weight: 700;
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-top: 4px;
 }
 
-.nav-dropdown__logout-btn:hover {
-  background: #fff5f5;
+.nav-dropdown__logout-btn:hover { background: #ffe1e1; }
+
+/* NOVEL SELECTION POPUP */
+.novel-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
 }
 
-/* Responsive Mobile ดึงแถวลงมา */
+.novel-popup {
+  width: 540px;
+  max-width: calc(100vw - 32px);
+  max-height: 78vh;
+  overflow: hidden;
+  background: white;
+  border-radius: 28px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .2);
+  display: flex;
+  flex-direction: column;
+  animation: popupFade .2s ease;
+}
+
+@keyframes popupFade {
+  from { opacity: 0; transform: translateY(18px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.novel-popup__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.novel-popup__header h3 { margin: 0; font-size: 22px; font-weight: 800; }
+.novel-popup__header p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+.novel-popup__close {
+  width: 36px; height: 36px; border: none; border-radius: 50%;
+  background: #f8fafc; cursor: pointer; font-size: 16px;
+}
+
+.novel-popup__search-wrap { position: relative; margin: 18px 24px 0; }
+.novel-popup__search {
+  width: 100%;
+  height: 48px;
+  border: 1.5px solid #f3d1e6;
+  border-radius: 16px;
+  padding-left: 48px;
+  padding-right: 18px;
+  font-size: 15px;
+  font-weight: 500;
+  background: linear-gradient(180deg, #fff8fc 0%, #fff 100%);
+  color: #4a284b;
+  outline: none;
+  transition: all 0.22s ease;
+  box-shadow: 0 2px 10px rgba(255, 105, 180, 0.06);
+}
+.novel-popup__search:focus {
+  border-color: #ff7bc3;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 123, 195, 0.15), 0 10px 25px rgba(255, 105, 180, 0.12);
+}
+.novel-popup__search::placeholder { color: #c38ab1; font-weight: 400; }
+.novel-popup__search-icon {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  font-size: 18px; opacity: 0.7; pointer-events: none;
+}
+
+.novel-popup__list { max-height: 60vh; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.novel-popup__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: none;
+  background: white;
+  padding: 12px;
+  border-radius: 18px;
+  cursor: pointer;
+  transition: .18s;
+  text-align: left;
+}
+.novel-popup__item:hover { background: #fff5fa; }
+.novel-popup__cover {
+  width: 60px; height: 80px; border-radius: 14px; overflow: hidden;
+  background: #f1f5f9; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.novel-popup__cover img { width: 100%; height: 100%; object-fit: cover; }
+.novel-popup__info { flex: 1; min-width: 0; }
+.novel-popup__title { font-weight: 700; font-size: 14.5px; color: #111827; }
+.novel-popup__meta { font-size: 12px; color: #64748b; margin-top: 4px; }
+.novel-popup__empty { padding: 50px; text-align: center; color: #94a3b8; }
+.novel-popup__empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+/* RESPONSIVE */
+@media (max-width: 1200px) {
+  .nav-menu { gap: 16px; }
+  .navbar__search { width: 180px; }
+}
+
 @media (max-width: 991px) {
   .nav-menu {
     position: fixed;
@@ -619,53 +683,10 @@
     flex-direction: column;
     padding-top: 80px;
     transition: 0.5s;
-    box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
   }
   .nav-menu.active { right: 0; }
-}
-
-/* ปุ่มสลับโหมดหลัก */
-.nav-switch-btn {
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid transparent;
-}
-
-/* ตอนเป็นโหมดนักเขียน: ปรับธีมหวาน ๆ สไตล์นักอ่าน */
-.nav-switch-btn--reader {
-    background-color: #f3f4f6;
-    color: #4b5563;
-}
-.nav-switch-btn--reader:hover {
-    background-color: #e5e7eb;
-}
-
-/* ตอนเป็นโหมดนักอ่าน: ยั่วเย้าให้คลิกไปเขียนนิยายด้วยโทนสีชมพูแสนรัก */
-.nav-switch-btn--writer {
-    background-color: var(--pink-50, #fff1f2);
-    color: var(--pink-600, #e11d48);
-    border-color: var(--pink-200, #fecdd3);
-}
-.nav-switch-btn--writer:hover {
-    background-color: var(--pink-100, #ffe4e6);
-}
-
-/* เพิ่มเติม: ปุ่มทางลัดภายใน Dropdown */
-.nav-dropdown__link-btn {
-    width: 100%;
-    padding: 8px 12px;
-    text-align: left;
-    background: none;
-    border: none;
-    font-size: 0.9rem;
-    color: #374151;
-    cursor: pointer;
-    border-radius: 4px;
-}
-.nav-dropdown__link-btn:hover {
-    background-color: #f3f4f6;
+  .navbar__search { display: none; }
+  .nav-hamburger { display: flex; align-items: center; justify-content: center; }
 }

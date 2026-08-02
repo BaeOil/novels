@@ -47,14 +47,32 @@ const stripHtml = (text) => {
 };
 
 const parseContactInfo = (raw) => {
-  try {
-    return typeof raw === 'string' ? JSON.parse(raw) : raw || {};
-  } catch {
-    return {};
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string') return {};
+  const s = raw.trim();
+  if (!s) return {};
+  if (s.startsWith('{') || s.startsWith('[')) {
+    try { return JSON.parse(s); } catch (_) {}
   }
+  return { contact_required: s, primary_contact: s };
 };
 
-// กัน crash เวลา username เป็น null/undefined/ว่างเปล่า จาก backend
+// ป้ายกำกับภาษาไทยสำหรับ key ที่พบบ่อย ถ้าไม่รู้จัก key ไหนก็ใช้ชื่อ key เดิมแทน
+const CONTACT_KEY_LABELS = {
+  primary_contact: 'ช่องทางหลัก',
+  secondary_contact: 'ช่องทางรอง',
+  contact_required: 'ช่องทางหลัก',
+  contact_optional: 'ช่องทางรอง',
+  twitter: 'Twitter / X',
+  facebook: 'Facebook',
+  website: 'เว็บไซต์',
+  line: 'Line',
+  discord: 'Discord',
+  instagram: 'Instagram',
+};
+
+const contactKeyLabel = (key) => CONTACT_KEY_LABELS[key] || key;
 const getInitial = (name) => {
   const trimmed = (name || '').trim();
   return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
@@ -65,7 +83,7 @@ const displayName = (name) => name || 'ไม่ทราบชื่อผู�
 // ─────────────────────────────────────────────
 //  โมดัลยืนยันการอนุมัติ / ปฏิเสธ
 // ─────────────────────────────────────────────
-const ActionConfirmModal = ({ isOpen, action, userName, busy, error, onConfirm, onCancel }) => {
+const ActionConfirmModal = ({ isOpen, action, userName, reason, onReasonChange, busy, error, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
   const isApprove = action === 'approve';
@@ -92,6 +110,23 @@ const ActionConfirmModal = ({ isOpen, action, userName, busy, error, onConfirm, 
             <>คุณแน่ใจหรือไม่ว่าต้องการปฏิเสธคำขอสมัครของ <strong>"{userName}"</strong> การดำเนินการนี้ไม่สามารถย้อนกลับได้</>
           )}
         </div>
+
+        {!isApprove && (
+          <div className="wr-confirm-body" style={{ paddingTop: 0 }}>
+            <label className="wr-modal__info-label" htmlFor="rejection-reason" style={{ display: 'block', marginBottom: 6 }}>
+              เหตุผลที่ปฏิเสธ (ไม่บังคับ แต่แนะนำให้ระบุ เพื่อให้ผู้สมัครรู้ว่าต้องแก้อะไร)
+            </label>
+            <textarea
+              id="rejection-reason"
+              className="wr-search-input"
+              style={{ width: '100%', borderRadius: 10, minHeight: 72, resize: 'vertical', padding: 10 }}
+              placeholder="เช่น ข้อมูลไม่ครบถ้วน, แนะนำตัวไม่ชัดเจน, ..."
+              value={reason}
+              onChange={(e) => onReasonChange(e.target.value)}
+              disabled={busy}
+            />
+          </div>
+        )}
 
         <div className="wr-modal__body">
           {error && (
@@ -131,13 +166,17 @@ const RequestDetailModal = ({ isOpen, user, onCancel, onApprove, onReject }) => 
   if (!isOpen || !user) return null;
 
   const contactInfo = parseContactInfo(user.contact_info);
+  // แสดงทุก key ที่มีค่าจริงใน contact_info แทนการเดาชื่อ key เจาะจง
+  // เพราะข้อมูลเก่าในระบบใช้ชื่อ key ไม่ตรงกันเลย (primary_contact, contact_required, twitter, ...)
+  const contactEntries = Object.entries(contactInfo || {}).filter(
+    ([key, value]) => key !== 'genres' && value !== null && value !== undefined && String(value).trim() !== ''
+  );
   const writerData = {
     fullName: user.name_lastname || 'ไม่ระบุ',
     penName: user.pen_name || displayName(user.username),
     email: user.email_writer || displayName(user.username),
     bio: stripHtml(user.bio) || 'ผู้สมัครยังไม่ได้กรอกข้อมูลแนะนำตัว',
-    genres: contactInfo.genres || [],
-    mainContact: contactInfo.primary_contact || '',
+    genres: user.genres || contactInfo.genres || [],
   };
 
   const statusInfo = STATUS_INFO[user.status] || STATUS_INFO.pending;
@@ -203,20 +242,53 @@ const RequestDetailModal = ({ isOpen, user, onCancel, onApprove, onReject }) => 
           </div>
 
           <div>
-            <div className="wr-modal__section-title">ช่องทางติดต่อหลัก</div>
-            {writerData.mainContact ? (
-              <div className="wr-modal__info-row">
-                <span className="wr-modal__info-label">ลิงก์ติดต่อ</span>
-                <span className="wr-modal__info-value">
-                  <a href={writerData.mainContact} target="_blank" rel="noopener noreferrer">
-                    {writerData.mainContact}
-                  </a>
-                </span>
-              </div>
+            <div className="wr-modal__section-title">ช่องทางติดต่อ</div>
+            {contactEntries.length > 0 ? (
+              contactEntries.map(([key, value]) => (
+                <div className="wr-modal__info-row" key={key}>
+                  <span className="wr-modal__info-label">{contactKeyLabel(key)}</span>
+                  <span className="wr-modal__info-value">
+                    {String(value).startsWith('http') ? (
+                      <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
+                    ) : (
+                      String(value)
+                    )}
+                  </span>
+                </div>
+              ))
             ) : (
               <div className="wr-modal__empty-note">ผู้สมัครยังไม่ได้ระบุช่องทางติดต่อ</div>
             )}
           </div>
+
+          {!isPending && (
+            <div>
+              <div className="wr-modal__section-title">ประวัติการตัดสินใจ</div>
+              <div className="wr-modal__info-row">
+                <span className="wr-modal__info-label">
+                  {user.status === 'approved' ? 'อนุมัติเมื่อ' : 'ปฏิเสธเมื่อ'}
+                </span>
+                <span className="wr-modal__info-value">
+                  {(() => {
+                    const at = user.status === 'approved' ? user.approved_at : user.rejected_at;
+                    return at ? new Date(at).toLocaleString('th-TH') : 'ไม่มีข้อมูล (คำขอเก่าก่อนระบบเก็บ log)';
+                  })()}
+                </span>
+              </div>
+              <div className="wr-modal__info-row">
+                <span className="wr-modal__info-label">ดำเนินการโดย</span>
+                <span className="wr-modal__info-value">
+                  {user.acted_by_admin_username || (user.acted_by_admin_id ? `แอดมิน ID: ${user.acted_by_admin_id}` : 'ไม่มีข้อมูล')}
+                </span>
+              </div>
+              {user.status === 'rejected' && (
+                <div className="wr-modal__info-row">
+                  <span className="wr-modal__info-label">เหตุผลที่ปฏิเสธ</span>
+                  <span className="wr-modal__info-value">{stripHtml(user.rejection_reason) || 'ไม่ได้ระบุเหตุผล'}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {isPending ? (
             <div className="wr-modal__actions">
@@ -253,6 +325,14 @@ const WriterRequestsPage = () => {
 
   const [filterTab, setFilterTab] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
+  // รองรับทั้ง response แบบเก่า (array ตรงๆ) และแบบใหม่ ({data, total, counts})
+  // เผื่อ backend ยังทำ pagination จริงไม่เสร็จ จะได้ไม่พังระหว่างนี้
+  const [serverPaginated, setServerPaginated] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
 
   const [detailModal, setDetailModal] = useState({ isOpen: false, user: null });
   const [confirmModal, setConfirmModal] = useState({
@@ -260,16 +340,63 @@ const WriterRequestsPage = () => {
     writerId: null,
     action: '',
     userName: '',
+    reason: '',
     busy: false,
     error: '',
   });
 
-  const fetchRequests = async () => {
+  // 🎯 ดึง "จำนวนรวมทุกสถานะ" แยกต่างหาก ไม่ผูกกับ filterTab ที่กำลังดูอยู่
+  // จาก network response จริงที่เห็น: backend คืนค่าเป็น array ตรงๆ เสมอ ไม่เคยมี field `counts`
+  // แนบมาด้วยเลย ฉะนั้นวิธีที่แม่นยำและไม่ต้องเดาโครงสร้าง backend คือ ขอข้อมูลแบบไม่กรอง status
+  // มาทั้งหมดครั้งเดียว แล้วนับเองฝั่ง client ตรงๆ จากลิสต์จริงที่ได้มา
+  const fetchCounts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      params.set('limit', '1000'); // ขอมาทั้งหมดเพื่อนับเองให้ครบทุกสถานะ ไม่พึ่ง field counts ที่ backend ไม่ได้ส่งมา
+
+      const res = await fetch(`${API_BASE_URL}/api/admin/writers/requests?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+
+      // รองรับทั้งกรณี backend คืน array ตรงๆ (ตามที่เห็นจริง) และกรณีในอนาคตที่อาจห่อเป็น {data:[...]}
+      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+
+      setCounts({
+        pending: list.filter((r) => !r.status || r.status === 'pending').length,
+        approved: list.filter((r) => r.status === 'approved').length,
+        rejected: list.filter((r) => r.status === 'rejected').length,
+      });
+    } catch (err) {
+      console.warn('Failed to load writer request counts:', err);
+    }
+  };
+
+  const fetchRequests = async (page = currentPage, attempt = 0) => {
     setIsLoading(true);
     setError(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/api/admin/writers/requests`, {
+      const term = searchTerm.trim();
+      const params = new URLSearchParams();
+
+      // ถ้ากำลังค้นหาอยู่ ยังไม่มี search param ฝั่ง backend รองรับ
+      // เลยขอมาเยอะๆ ครั้งเดียวแล้วกรอง/แบ่งหน้าเองฝั่ง client แทน (ยอมรับ trade-off นี้ไปก่อน)
+      if (term) {
+        params.set('limit', '1000');
+      } else {
+        if (filterTab !== 'all') params.set('status', filterTab);
+        params.set('page', String(page));
+        params.set('limit', String(itemsPerPage));
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/admin/writers/requests?${params.toString()}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -277,21 +404,65 @@ const WriterRequestsPage = () => {
         },
       });
       if (!res.ok) throw new Error('ไม่สามารถดึงคำขอได้');
-      const data = await res.json();
-      setRequests(data || []);
+      const data = await res.json().catch(() => null);
+
+      if (data === null || data === undefined) {
+        // 🩹 backend คืนค่า "null" ตรงๆ ตอนลิสต์ที่กรองอยู่ว่างเปล่า (เช่น ไม่มีคำขอ pending เลย)
+        // ค่านี้หมายถึง "รายการที่กำลังดูอยู่ว่าง" เท่านั้น ไม่ได้แปลว่านับรวมทุกสถานะเป็น 0
+        // จึงรีเซ็ตแค่ requests/total ของ "มุมมองปัจจุบัน" แต่ไม่แตะ counts รวม (ให้ fetchCounts ดูแลแยก)
+        //
+        // สำคัญ: serverPaginated ต้องคำนวณแบบเดียวกับ branch ปกติ (!term) ห้าม hardcode เป็น false
+        // เพราะถ้า false การ์ดสถิติ (pendingCount/approvedCount/rejectedCount) จะสลับไปคำนวณจาก
+        // requests.filter(...) ซึ่งตอนนี้เป็น [] แทนที่จะใช้ counts ที่ถูกต้อง — นี่คือสาเหตุที่พอกด
+        // tab ที่ว่างเปล่า การ์ดอื่นๆ ก็เห็นเป็น 0 ไปด้วยทั้งที่ fetchCounts ตั้งค่าไว้ถูกต้องแล้ว
+        setRequests([]);
+        setTotalCount(0);
+        setServerPaginated(!term);
+      } else if (Array.isArray(data)) {
+        // Backend เวอร์ชันเก่า (ยังไม่ทำ pagination จริง) — ใช้วิธีเดิม โหลดหมดมากรอง/แบ่งหน้าเอง
+        setRequests(data);
+        setServerPaginated(false);
+      } else {
+        setRequests(data.data || []);
+        setTotalCount(data.total || 0);
+        // หมายเหตุ: ไม่ setCounts จากตรงนี้ เพราะ response นี้ถูกกรองด้วย status filter ของ tab ปัจจุบัน
+        // ถ้า backend คำนวณ counts จาก query ที่กรองแล้ว จะได้ตัวเลขที่ไม่ใช่ยอดรวมจริงของสถานะอื่น
+        // (เช่น ดู tab "ปฏิเสธ" แล้ว counts.approved กลายเป็น 0) ตัวเลขบนการ์ดสถิติจึงใช้ fetchCounts()
+        // ซึ่งยิงแบบไม่กรอง status เป็นแหล่งความจริงเดียวแทน
+        // ตอนค้นหาอยู่ ถือว่าไม่ใช่ server-paginated แล้ว (เพราะขอข้อมูลมาเยอะๆ ครั้งเดียว)
+        setServerPaginated(!term);
+      }
+      setIsLoading(false);
     } catch (err) {
-      console.error('Failed to load writer requests:', err);
+      console.error(`Failed to load writer requests (attempt ${attempt + 1}):`, err);
+
+      // 🩹 บั๊กที่เจอ: ตอนเพิ่งเข้าหน้านี้ครั้งแรก บางทีคำขอแรกจะพลาดแบบชั่วคราว
+      // (เช่น token ใน localStorage ยังตั้งไม่เสร็จ / เครือข่ายสะดุดจังหวะแรก)
+      // แล้วหน้าก็ค้างอยู่ที่ error เดิมพร้อมตัวเลข 0 ไปตลอด จนกว่าจะมีอะไรมาสั่ง fetch ใหม่เอง
+      // (เช่นกดการ์ดสถิติ) ซึ่งพอลองใหม่มันก็ผ่านปกติ — ของจริงไม่ได้หายไปไหน แค่ไม่มีการลองซ้ำอัตโนมัติ
+      // จึงเพิ่ม retry อัตโนมัติสั้นๆ ก่อน ค่อย fallback เป็นข้อความ error ให้ผู้ใช้กดลองเองทีหลัง
+      if (attempt < 2) {
+        setTimeout(() => fetchRequests(page, attempt + 1), 700 * (attempt + 1));
+        return;
+      }
+
       setError('ไม่สามารถโหลดคำขอสมัครนักเขียนได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
-    } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRequests();
+    fetchRequests(currentPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterTab, currentPage, searchTerm]);
+
+  // ดึง counts รวมครั้งเดียวตอนเข้าเพจ ไม่ต้องรันซ้ำตอนสลับ tab (fetchRequests ที่มี counts มาด้วยจะช่วยอัปเดตให้เองอยู่แล้ว)
+  useEffect(() => {
+    fetchCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runAction = async (writerId, action) => {
+  const runAction = async (writerId, action, reason) => {
     setConfirmModal((prev) => ({ ...prev, busy: true, error: '' }));
     try {
       const token = localStorage.getItem('token');
@@ -302,14 +473,16 @@ const WriterRequestsPage = () => {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: action === 'reject' ? JSON.stringify({ rejection_reason: reason || '' }) : undefined,
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         throw new Error(errData?.message || (action === 'approve' ? 'ไม่สามารถอนุมัติคำขอได้' : 'ไม่สามารถปฏิเสธคำขอได้'));
       }
-      setConfirmModal({ isOpen: false, writerId: null, action: '', userName: '', busy: false, error: '' });
+      setConfirmModal({ isOpen: false, writerId: null, action: '', userName: '', reason: '', busy: false, error: '' });
       setDetailModal({ isOpen: false, user: null });
       await fetchRequests();
+      await fetchCounts();
     } catch (err) {
       console.error(`${action} writer failed:`, err);
       setConfirmModal((prev) => ({
@@ -327,16 +500,22 @@ const WriterRequestsPage = () => {
       writerId: user.writer_id,
       action,
       userName: user.pen_name || displayName(user.username),
+      reason: '',
       busy: false,
       error: '',
     });
   };
 
-  const pendingCount = requests.filter((r) => !r.status || r.status === 'pending').length;
-  const approvedCount = requests.filter((r) => r.status === 'approved').length;
-  const rejectedCount = requests.filter((r) => r.status === 'rejected').length;
+  // การ์ดสถิติใช้ counts ที่ fetchCounts คำนวณจากลิสต์เต็มเสมอ (ไม่ขึ้นกับ tab/หน้าที่กำลังดูอยู่)
+  // ไม่สลับไปนับจาก requests อีกต่อไป เพราะ requests คือแค่ข้อมูลของ "หน้าที่กำลังดู" เท่านั้น
+  const pendingCount = counts.pending;
+  const approvedCount = counts.approved;
+  const rejectedCount = counts.rejected;
 
   const filteredRequests = useMemo(() => {
+    // server-paginated แล้ว: requests ที่ได้มาคือหน้าปัจจุบันที่ backend กรอง/ตัดมาให้แล้ว ใช้ตรงๆ ได้เลย
+    if (serverPaginated) return requests;
+
     let list = requests;
     if (filterTab === 'pending') list = list.filter((r) => !r.status || r.status === 'pending');
     else if (filterTab === 'approved') list = list.filter((r) => r.status === 'approved');
@@ -351,7 +530,28 @@ const WriterRequestsPage = () => {
       );
     }
     return list;
-  }, [requests, filterTab, searchTerm]);
+  }, [requests, filterTab, searchTerm, serverPaginated]);
+
+  const changeFilterTab = (key) => {
+    setFilterTab(key);
+    setCurrentPage(1);
+  };
+
+  const changeSearchTerm = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const totalPages = serverPaginated
+    ? Math.max(1, Math.ceil(totalCount / itemsPerPage))
+    : Math.max(1, Math.ceil(filteredRequests.length / itemsPerPage));
+
+  const paginatedRequests = useMemo(() => {
+    // server-paginated แล้ว: ไม่ต้องตัดซ้ำฝั่ง client อีก backend ตัดมาให้แล้ว
+    if (serverPaginated) return filteredRequests;
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRequests.slice(start, start + itemsPerPage);
+  }, [filteredRequests, currentPage, serverPaginated]);
 
   return (
     <div className="wr-container">
@@ -368,32 +568,54 @@ const WriterRequestsPage = () => {
           <div className="wr-page-error">
             <AlertTriangle size={18} />
             <span>{error}</span>
+            <button
+              type="button"
+              className="wr-page-error-retry"
+              onClick={() => fetchRequests(currentPage)}
+            >
+              ลองใหม่
+            </button>
           </div>
         )}
 
-        {/* การ์ดสรุปสถิติ */}
+        {/* การ์ดสรุปสถิติ — กดเพื่อกรองตารางตามสถานะนั้นได้เลย */}
         <div className="wr-stats-grid">
-          <div className="wr-stat-card wr-stat-card--pending">
+          <button
+            type="button"
+            className={`wr-stat-card wr-stat-card--pending ${filterTab === 'pending' ? 'wr-stat-card--active' : ''}`}
+            onClick={() => changeFilterTab('pending')}
+            aria-pressed={filterTab === 'pending'}
+          >
             <div className="wr-stat-card-icon"><Clock size={20} /></div>
             <div>
               <div className="wr-stat-label">รอตรวจสอบ</div>
               <div className="wr-stat-value">{pendingCount.toLocaleString()}</div>
             </div>
-          </div>
-          <div className="wr-stat-card wr-stat-card--approved">
+          </button>
+          <button
+            type="button"
+            className={`wr-stat-card wr-stat-card--approved ${filterTab === 'approved' ? 'wr-stat-card--active' : ''}`}
+            onClick={() => changeFilterTab('approved')}
+            aria-pressed={filterTab === 'approved'}
+          >
             <div className="wr-stat-card-icon"><ShieldCheck size={20} /></div>
             <div>
               <div className="wr-stat-label">อนุมัติแล้ว</div>
               <div className="wr-stat-value">{approvedCount.toLocaleString()}</div>
             </div>
-          </div>
-          <div className="wr-stat-card wr-stat-card--rejected">
+          </button>
+          <button
+            type="button"
+            className={`wr-stat-card wr-stat-card--rejected ${filterTab === 'rejected' ? 'wr-stat-card--active' : ''}`}
+            onClick={() => changeFilterTab('rejected')}
+            aria-pressed={filterTab === 'rejected'}
+          >
             <div className="wr-stat-card-icon"><X size={20} /></div>
             <div>
               <div className="wr-stat-label">ปฏิเสธแล้ว</div>
               <div className="wr-stat-value">{rejectedCount.toLocaleString()}</div>
             </div>
-          </div>
+          </button>
         </div>
 
         {/* แท็บกรอง + ค้นหา */}
@@ -405,7 +627,7 @@ const WriterRequestsPage = () => {
                 role="tab"
                 aria-selected={filterTab === tab.key}
                 className={`wr-filter-tab-btn ${filterTab === tab.key ? 'active' : ''}`}
-                onClick={() => setFilterTab(tab.key)}
+                onClick={() => changeFilterTab(tab.key)}
               >
                 {tab.label}
               </button>
@@ -419,7 +641,7 @@ const WriterRequestsPage = () => {
               className="wr-search-input"
               placeholder="ค้นหาชื่อผู้ใช้ นามปากกา หรืออีเมล..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => changeSearchTerm(e.target.value)}
             />
           </div>
         </div>
@@ -441,6 +663,7 @@ const WriterRequestsPage = () => {
             <table className="wr-table">
               <thead>
                 <tr>
+                  <th>ลำดับ</th>
                   <th>ผู้สมัคร</th>
                   <th>นามปากกา</th>
                   <th>อีเมลที่ใช้สมัคร</th>
@@ -449,11 +672,12 @@ const WriterRequestsPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredRequests.map((req) => {
+                {paginatedRequests.map((req, index) => {
                   const statusInfo = STATUS_INFO[req.status] || STATUS_INFO.pending;
                   const isPending = !req.status || req.status === 'pending';
                   return (
                     <tr key={req.writer_id}>
+                      <td className="wr-row-num">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                       <td>
                         <div className="wr-user-info-cell">
                           <div className="wr-user-avatar-small">
@@ -514,6 +738,38 @@ const WriterRequestsPage = () => {
               </tbody>
             </table>
           )}
+          {!isLoading && totalPages > 1 && (
+            <div className="wr-pagination">
+              <button
+                type="button"
+                className="wr-page-nav"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                &larr; ก่อนหน้า
+              </button>
+              <div className="wr-page-nums">
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <button
+                    key={i + 1}
+                    type="button"
+                    className={`wr-page-num ${currentPage === i + 1 ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(i + 1)}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="wr-page-nav"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                ถัดไป &rarr;
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Modals */}
@@ -529,12 +785,14 @@ const WriterRequestsPage = () => {
           isOpen={confirmModal.isOpen}
           action={confirmModal.action}
           userName={confirmModal.userName}
+          reason={confirmModal.reason}
+          onReasonChange={(value) => setConfirmModal((prev) => ({ ...prev, reason: value }))}
           busy={confirmModal.busy}
           error={confirmModal.error}
-          onConfirm={() => runAction(confirmModal.writerId, confirmModal.action)}
+          onConfirm={() => runAction(confirmModal.writerId, confirmModal.action, confirmModal.reason)}
           onCancel={() =>
             !confirmModal.busy &&
-            setConfirmModal({ isOpen: false, writerId: null, action: '', userName: '', busy: false, error: '' })
+            setConfirmModal({ isOpen: false, writerId: null, action: '', userName: '', reason: '', busy: false, error: '' })
           }
         />
       </div>

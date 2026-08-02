@@ -22,10 +22,12 @@ const stripHtml = (text) => {
 const NovelProgressBar = ({
   novelId,
   autoFetch = false,
-  isPreview = false, // 👈 เพิ่ม prop สำหรับโหมดทดลองอ่านของนักเขียน
+  isPreview = false,
+  isAdmin = false,
   onStoryMapClick,
   onEndingCollectionClick,
   onContinueRead,
+  onSceneClick,
   className = "",
 }) => {
   const [visitedNodes, setVisitedNodes] = useState([]);
@@ -43,6 +45,36 @@ const NovelProgressBar = ({
       return 0;
     }
   };
+
+  const checkIsAdmin = () => {
+    if (isAdmin) return true;
+    try {
+      const userJson = localStorage.getItem("user");
+      if (userJson) {
+        const u = JSON.parse(userJson);
+        const r = (u?.role || u?.user_role || u?.role_name || "").toString().toLowerCase();
+        if (r === "admin" || u?.is_admin === true || u?.isAdmin === true) return true;
+      }
+    } catch {}
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        const parts = token.split(".");
+        if (parts.length === 3) {
+          let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          while (payload.length % 4) payload += "=";
+          const decoded = atob(payload);
+          const json = decodeURIComponent(decoded.split("").map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`).join(""));
+          const parsed = JSON.parse(json);
+          const r = (parsed?.role || parsed?.user_role || "").toString().toLowerCase();
+          if (r === "admin" || parsed?.is_admin === true || parsed?.isAdmin === true) return true;
+        }
+      }
+    } catch {}
+    return false;
+  };
+
+  const effectiveIsAdmin = checkIsAdmin();
 
   useEffect(() => {
     // 🎭 หากเป็นโหมด Preview ของนักเขียน ให้จำลองข้อมูลตัวอย่างขึ้นมาแสดง
@@ -65,7 +97,7 @@ const NovelProgressBar = ({
         const token = localStorage.getItem("token");
         const userId = getCurrentUserId();
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const query = userId > 0 ? `?user_id=${userId}` : "";
+        const query = (userId > 0 && !effectiveIsAdmin) ? `?user_id=${userId}` : "";
 
         const res = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree${query}`, { headers });
         const treeData = res.data?.data || res.data;
@@ -106,12 +138,22 @@ const NovelProgressBar = ({
             return { ...node, computedStatus };
           });
 
-          const discovered = computedNodes.filter(
-            (n) =>
-              n.computedStatus === NODE_STATUS.CURRENT ||
-              n.computedStatus === NODE_STATUS.VISITED ||
-              n.computedStatus === NODE_STATUS.ENDING_UNLOCKED
-          );
+          const discovered = effectiveIsAdmin
+            ? computedNodes.map((n) => ({
+                ...n,
+                computedStatus:
+                  n.computedStatus === NODE_STATUS.LOCKED
+                    ? NODE_STATUS.VISITED
+                    : n.computedStatus === NODE_STATUS.ENDING_LOCKED
+                    ? NODE_STATUS.ENDING_UNLOCKED
+                    : n.computedStatus,
+              }))
+            : computedNodes.filter(
+                (n) =>
+                  n.computedStatus === NODE_STATUS.CURRENT ||
+                  n.computedStatus === NODE_STATUS.VISITED ||
+                  n.computedStatus === NODE_STATUS.ENDING_UNLOCKED
+              );
 
           setVisitedNodes(discovered);
 
@@ -226,7 +268,13 @@ const NovelProgressBar = ({
             <strong>{visitedNodes.length}</strong> 
             <span>ฉากที่ค้นพบ</span>
           </div>
-          <button type="button" className="btn-continue-read" onClick={onContinueRead}>
+          <button type="button" className="btn-continue-read" onClick={() => {
+            if (onSceneClick && latestNode?.id) {
+              onSceneClick(latestNode.id);
+            } else if (onContinueRead) {
+              onContinueRead();
+            }
+          }}>
             อ่านต่อ →
           </button>
         </div>
@@ -246,7 +294,18 @@ const NovelProgressBar = ({
           {paginatedNodes.map((node) => {
             const isCurrent = latestNode?.id === node.id;
             return (
-              <li key={node.id} className={`timeline-item ${isCurrent ? "active" : ""}`}>
+              <li
+                key={node.id}
+                className={`timeline-item ${isCurrent ? "active" : ""}`}
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  if (onSceneClick) {
+                    onSceneClick(node.id);
+                  } else if (onContinueRead) {
+                    onContinueRead(node.id);
+                  }
+                }}
+              >
                 <div className="timeline-item-icon">
                   {isCurrent ? <span className="pulse-dot"></span> : "✓"}
                 </div>
@@ -292,9 +351,11 @@ const NovelProgressBar = ({
           <button type="button" className="btn-view-map" onClick={onStoryMapClick}>
             แผนผังการอ่าน →
           </button>
-          <button type="button" className="btn-ending-collection" onClick={onEndingCollectionClick}>
-            🏆 คลังฉากจบ
-          </button>
+          {!effectiveIsAdmin && (
+            <button type="button" className="btn-ending-collection" onClick={onEndingCollectionClick}>
+              🏆 คลังฉากจบ
+            </button>
+          )}
         </div>
       </div>
     </div>

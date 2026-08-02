@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Trash2, X } from "lucide-react";
 import "./HistoryPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -142,7 +142,7 @@ const normalizeBook = (item) => {
   };
 };
 
-const HistoryCard = ({ book, onContinue }) => {
+const HistoryCard = ({ book, onContinue, onRequestDelete }) => {
   const [expanded, setExpanded] = useState(false);
   const status = STATUS_MAP[book.reading_status] || STATUS_MAP.reading;
   const percent = book.totalRoutes ? Math.round((book.routeFound / book.totalRoutes) * 100) : 0;
@@ -168,6 +168,17 @@ const HistoryCard = ({ book, onContinue }) => {
         <span className={`history-card__status history-card__status--${book.reading_status}`}>
           {status.label}
         </span>
+        <button
+          type="button"
+          className="history-card__delete-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestDelete(book);
+          }}
+          aria-label={`ลบประวัติการอ่าน ${book.title}`}
+        >
+          <Trash2 size={15} />
+        </button>
       </div>
 
       <div className="history-card__main">
@@ -253,6 +264,9 @@ const HistoryPage = () => {
   const [filter, setFilter] = useState("all");
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { type: "single", book } | { type: "bulk" }
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -349,6 +363,56 @@ const HistoryPage = () => {
     }
   };
 
+  const handleRequestDelete = (book) => {
+    setDeleteError(null);
+    setDeleteTarget({ type: "single", book });
+  };
+
+  const handleRequestDeleteAll = () => {
+    if (books.length === 0) return;
+    setDeleteError(null);
+    setDeleteTarget({ type: "bulk" });
+  };
+
+  const handleCancelDelete = () => {
+    if (deleting) return;
+    setDeleteTarget(null);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      if (deleteTarget.type === "bulk") {
+        await axios.delete(`${API_BASE_URL}/history`, { headers });
+        setBooks([]);
+      } else {
+        const bookId = deleteTarget.book.id;
+        try {
+          await axios.delete(`${API_BASE_URL}/history/${bookId}`, { headers });
+        } catch (err) {
+          if (err?.response?.status !== 404) throw err;
+          // 404 = record หายไปแล้วจริง ๆ ถือว่าลบสำเร็จ ไม่ต้อง throw ต่อ
+        }
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Delete history error:", err);
+      setDeleteError(
+        deleteTarget.type === "bulk" ? "ลบประวัติทั้งหมดไม่สำเร็จ ลองใหม่อีกครั้ง" : "ลบประวัติไม่สำเร็จ ลองใหม่อีกครั้ง"
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="history-page">
       <div className="history-page__sticky-header">
@@ -362,7 +426,19 @@ const HistoryPage = () => {
               <div className="history-page__title">นิยายที่คุณเคยอ่าน</div>
             </div>
           </div>
-          <div className="history-page__count">ทั้งหมด {books.length} เรื่อง</div>
+          <div className="history-page__top-actions">
+            <div className="history-page__count">ทั้งหมด {books.length} เรื่อง</div>
+            {books.length > 0 && (
+              <button
+                type="button"
+                className="history-page__delete-all-btn"
+                onClick={handleRequestDeleteAll}
+              >
+                <Trash2 size={14} />
+                ลบทั้งหมด
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -392,11 +468,72 @@ const HistoryPage = () => {
         ) : (
           <div className="history-page__grid">
             {filteredBooks.map((book) => (
-              <HistoryCard key={book.id || `${book.title}-${book.author}`} book={book} onContinue={handleContinue} />
+              <HistoryCard
+                key={book.id || `${book.title}-${book.author}`}
+                book={book}
+                onContinue={handleContinue}
+                onRequestDelete={handleRequestDelete}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {deleteTarget && (
+        <div className="history-delete-modal__overlay" onClick={handleCancelDelete}>
+          <div
+            className="history-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-delete-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="history-delete-modal__close"
+              onClick={handleCancelDelete}
+              aria-label="ปิด"
+              disabled={deleting}
+            >
+              <X size={18} />
+            </button>
+
+            <div className="history-delete-modal__icon">
+              <Trash2 size={22} />
+            </div>
+
+            <div id="history-delete-modal-title" className="history-delete-modal__title">
+              {deleteTarget.type === "bulk" ? "ลบประวัติการอ่านทั้งหมด?" : "ลบประวัติการอ่าน?"}
+            </div>
+            <div className="history-delete-modal__body">
+              {deleteTarget.type === "bulk"
+                ? `ต้องการลบประวัติการอ่านทั้งหมด ${books.length} เรื่องใช่หรือไม่ การกระทำนี้ไม่สามารถย้อนกลับได้`
+                : `ต้องการลบประวัติการอ่าน "${deleteTarget.book.title}" ใช่หรือไม่ การกระทำนี้ไม่สามารถย้อนกลับได้`}
+            </div>
+
+            {deleteError && <div className="history-delete-modal__error">{deleteError}</div>}
+
+            <div className="history-delete-modal__actions">
+              <button
+                type="button"
+                className="history-delete-modal__cancel-btn"
+                onClick={handleCancelDelete}
+                disabled={deleting}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="history-delete-modal__confirm-btn"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? "กำลังลบ..." : "ลบประวัติ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
