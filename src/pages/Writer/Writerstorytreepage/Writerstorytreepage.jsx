@@ -12,6 +12,7 @@ import ReactFlow, {
   ReactFlowProvider, // หุ้ม React Flow ด้วย Provider
   useReactFlow,      // ใช้ hook เพื่อแปลงพิกัดหน้าจอกับพิกัด Canvas
   MarkerType,
+  getSmoothStepPath,
 } from "reactflow";
 import axios from "axios";
 import "reactflow/dist/style.css";  
@@ -22,7 +23,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 118;
-const NODE_HORIZONTAL_GAP = 300;
+const NODE_HORIZONTAL_GAP = 360;
 const NODE_VERTICAL_GAP = 250;
 const CANVAS_MARGIN = 36;
 
@@ -118,35 +119,45 @@ const formatNodeStatus = (node) => {
 // หรือเป็นการเชื่อมย้อนกลับ (Backward) หรือไม่ โดยอนุญาตให้เชื่อม "ไปข้างหน้า" เท่านั้น
 // วิธีตรวจ: เดินตามเส้นทางที่มีอยู่จริงจาก targetId ไปข้างหน้า ถ้าเดินย้อนไปเจอ sourceId ได้
 // แปลว่าเส้นทางเดิมมันวนกลับมาหา source อยู่แล้ว -> ห้ามเชื่อมเส้นใหม่นี้ (จะเกิด Loop)
-const wouldCreateCycle = (sourceId, targetId, edgeList) => {
+const isTargetAncestorOfSource = (sourceId, targetId, edgeList) => {
   const source = normalizeId(sourceId);
   const target = normalizeId(targetId);
   if (!source || !target) return false;
   if (source === target) return true; // ห้ามลากเส้นกลับเข้าฉากตัวเอง (self-loop)
 
-  // สร้าง adjacency list จากเส้นเชื่อมที่มีอยู่จริงบนกราฟ (ไม่นับ cursor-edge ซึ่งเป็นเส้น preview ชั่วคราว)
-  const adjacency = new Map();
+  // 1. สร้างแผนที่เชื่อมโยงแบบ "ย้อนกลับ" (Reverse Adjacency List: target -> [source]) เพื่อเดินย้อนขึ้นไปหาโหนดแม่
+  const reverseAdjacency = new Map();
   (edgeList || []).forEach((edge) => {
     if (!edge || edge.id === "cursor-edge") return;
     const from = normalizeId(edge.source ?? edge.fromId ?? edge.from_id);
     const to = normalizeId(edge.target ?? edge.toId ?? edge.to_id);
     if (!from || !to) return;
-    if (!adjacency.has(from)) adjacency.set(from, []);
-    adjacency.get(from).push(to);
+    
+    if (!reverseAdjacency.has(to)) {
+      reverseAdjacency.set(to, []);
+    }
+    reverseAdjacency.get(to).push(from);
   });
 
-  // DFS จาก target ไล่ตามทิศทางเดิมของกราฟ ถ้าไปเจอ source ได้ แสดงว่ามีทางกลับไปหา source อยู่แล้ว
+  // 2. เดินย้อนรอยขึ้นไป (Trace back) หาบรรพบุรุษของ source ทั้งหมด
   const visited = new Set();
-  const stack = [target];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (current === source) return true;
+  const queue = [source];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === target) {
+      return true; // Target เป็นหนึ่งในบรรพบุรุษของ Source (พบวงวนลูป)
+    }
     if (visited.has(current)) continue;
     visited.add(current);
-    const neighbors = adjacency.get(current) || [];
-    for (const n of neighbors) stack.push(n);
+
+    const parents = reverseAdjacency.get(current) || [];
+    for (const p of parents) {
+      queue.push(p);
+    }
   }
-  return false;
+
+  return false; // Target ไม่ใช่บรรพบุรุษของ Source สามารถเชื่อมต่อได้ปลอดภัย
 };
 
 // เทียบ "ลำดับฉาก" (เลขตอน.เลขฉาก) เพื่อกันกรณีเชื่อมย้อนกลับที่ไม่ได้เกิด Cycle ในกราฟ
@@ -178,8 +189,28 @@ const StoryNode = ({ data }) => {
   const chapterTitle = data.chapterTitle || getNodeChapter(data) || "";
   const description = getNodeContent(data);
 
+  // ตรวจจับสถานะการโฟกัสคลิกเลือกโหนดใน Select Mode
+  const isSelected = !!data.isSelectedNode;
+  const hasSelection = !!data.hasActiveSelection;
+
+  const cardClassName = `wst-node-card ${isSelected ? 'wst-node-card--selected' : ''} ${hasSelection && !isSelected ? 'wst-node-card--dimmed' : ''}`;
+
+  const nodeCustomStyle = {
+    borderColor: isSelected ? "#2563EB" : style.stroke,
+    background: style.fill,
+    color: style.text,
+    borderWidth: isSelected ? "3.5px" : "2.5px",
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    opacity: hasSelection && !isSelected ? 0.35 : 1,
+    transform: isSelected ? "scale(1.04)" : "scale(1)",
+    boxShadow: isSelected 
+      ? `0 10px 25px -5px rgba(37, 99, 235, 0.25), 0 8px 10px -6px rgba(37, 99, 235, 0.3), 0 0 0 3px rgba(37, 99, 235, 0.4)`
+      : "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
+    animation: isSelected ? "wst-pulse-border 1.8s infinite alternate" : "none",
+  };
+
   return (
-    <div className="wst-node-card" style={{ borderColor: style.stroke, background: style.fill, color: style.text }}>
+    <div className={cardClassName} style={nodeCustomStyle}>
       <Handle type="target" position={Position.Top} />
       
       {/* ตอนที่ [เลขตอน] [ชื่อตอน] */}
@@ -221,14 +252,154 @@ const StoryNode = ({ data }) => {
   );
 };
 
+const CustomMultigraphEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  label,
+  data,
+}) => {
+  const outIndex = data?.outIndex ?? 0;
+  const outCount = data?.outCount ?? 1;
+  const inIndex = data?.inIndex ?? 0;
+  const inCount = data?.inCount ?? 1;
+  const allEdges = data?.allEdges || [];
+  const source = data?.source;
+  const target = data?.target;
+
+  let adjustedSourceX = sourceX;
+  let adjustedTargetX = targetX;
+
+  // กระจายจุดปล่อยเส้นขาออก (Source Handle) ตามสัดส่วนขอบด้านล่างของการ์ดโหนดต้นทาง (ความกว้างใช้ 200px)
+  if (outCount > 1) {
+    const maxWidth = 200;
+    const step = maxWidth / (outCount - 1);
+    adjustedSourceX = (sourceX - maxWidth / 2) + outIndex * step;
+  }
+
+  // กระจายจุดปักเส้นขาเข้า (Target Handle) ตามสัดส่วนขอบด้านบนของการ์ดโหนดปลายทาง (ความกว้างใช้ 200px)
+  if (inCount > 1) {
+    const maxWidth = 200;
+    const step = maxWidth / (inCount - 1);
+    adjustedTargetX = (targetX - maxWidth / 2) + inIndex * step;
+  }
+
+  // ค้นหาเส้นขนานคู่เดียวกันทั้งหมดเพื่อหาลำดับจุดเลี้ยว (พิกัด Y ของเส้นแนวนอน)
+  const samePairEdges = allEdges.filter(
+    (e) => String(e.source) === String(source) && String(e.target) === String(target)
+  );
+  const pairIndex = samePairEdges.findIndex((e) => String(e.id) === String(id));
+  const pairCount = samePairEdges.length;
+
+  // ขยับจุดเลี้ยวพับมุมฉากแนวตั้งของเส้นนอนให้ต่างระดับกัน (ห่างกันเส้นละ 24px) ป้องกันทับกัน
+  let edgeOffset = 20;
+  if (pairCount > 1) {
+    edgeOffset = 20 + (pairIndex * 24);
+  }
+
+  // สร้างเส้นหักฉากมุมโค้งมน 90 องศา (SmoothStep Path) พร้อมขยับ offset จุดพับเลี้ยว
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX: adjustedSourceX,
+    sourceY,
+    sourcePosition,
+    targetX: adjustedTargetX,
+    targetY,
+    targetPosition,
+    borderRadius: 12,
+    offset: edgeOffset,
+  });
+
+  // ให้กล่องข้อความเกาะแนบสนิทอยู่กึ่งกลางเส้นของตัวเองพอดี 100%
+  const adjustedLabelY = labelY - 15; // กึ่งกลางแนวตั้ง (กล่องสูง 30px)
+  const adjustedLabelX = labelX - 75; // กึ่งกลางแนวนอน (กล่องกว้าง 150px)
+
+  const isHighlighted = !!data?.isHighlighted;
+  const hasSelection = !!data?.hasActiveSelection;
+
+  let labelOpacity = 1;
+  let labelZIndex = 100;
+  let borderStyleColor = "#bfdbfe";
+  let labelTextColor = "#1e3a8a";
+
+  if (hasSelection) {
+    if (isHighlighted) {
+      labelOpacity = 1;
+      labelZIndex = 2000; // วิ่งลอยขึ้นมาระนาบด้านบนสุดเหนือโหนด
+      borderStyleColor = "#2563eb";
+      labelTextColor = "#2563eb";
+    } else {
+      labelOpacity = 0.15;
+      labelZIndex = 10;
+    }
+  }
+
+  return (
+    <>
+      <path
+        id={id}
+        style={style}
+        className="react-flow__edge-path"
+        d={edgePath}
+        markerEnd={markerEnd}
+      />
+      {label && (
+        <foreignObject
+          width={150}
+          height={30}
+          x={adjustedLabelX}
+          y={adjustedLabelY}
+          className="react-flow__edge-foreignobject"
+          requiredExtensions="http://www.w3.org/1999/xhtml"
+          style={{
+            zIndex: labelZIndex,
+            opacity: labelOpacity,
+            transition: "opacity 0.3s ease, z-index 0.3s ease",
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              padding: "4px 8px",
+              border: `1.5px solid ${borderStyleColor}`,
+              borderRadius: "8px",
+              fontSize: "11px",
+              fontWeight: "700",
+              color: labelTextColor,
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              boxShadow: isHighlighted 
+                ? "0 4px 12px rgba(37, 99, 235, 0.16), 0 0 0 1.5px rgba(37, 99, 235, 0.25)" 
+                : "0 2px 6px rgba(37, 99, 235, 0.08)",
+              pointerEvents: labelOpacity < 0.5 ? "none" : "all",
+              fontFamily: '"Outfit", "Sarabun", sans-serif',
+              lineHeight: "1.2",
+              transition: "all 0.3s ease",
+            }}
+          >
+            {label}
+          </div>
+        </foreignObject>
+      )}
+    </>
+  );
+};
+
 // add stable nodeTypes/edgeTypes at module top-level to avoid React Flow warning #002
-// (การประกาศ object เหล่านี้นอก component ทำให้ reference คงที่ทุกรอบ render
-// ถ้าประกาศไว้ข้างในและไม่ใช้ useMemo จะเป็น object ใหม่ทุกครั้ง ทำให้ ReactFlow คิดว่า nodeTypes/edgeTypes เปลี่ยน แล้วรีเซ็ต internal state ใหม่ทุกครั้ง)
 const nodeTypes = {
   writerNode: StoryNode,
 };
 
-const edgeTypes = {};
+const edgeTypes = {
+  multigraphEdge: CustomMultigraphEdge,
+};
 
 const LegendBar = () => (
   <div className="wst-legend" role="list" aria-label="คำอธิบายสัญลักษณ์">
@@ -279,6 +450,12 @@ const WstModalOverlay = ({
 // Inner component เพื่อให้สามารถเรียกใช้ useReactFlow() hook ได้อย่างถูกต้อง
 const StoryTreeInner = ({ novelId, onNavigate }) => {
   const { screenToFlowPosition, setCenter } = useReactFlow();
+  const onNavigateRef = useRef(onNavigate);
+
+  useEffect(() => {
+    onNavigateRef.current = onNavigate;
+  }, [onNavigate]);
+
   const [treeData, setTreeData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -325,6 +502,12 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     modeRef.current = interactionMode;
   }, [interactionMode]);
 
+  // Sync connectSource with ref to prevent stale closures in mouse move
+  const connectSourceRef = useRef(connectSource);
+  useEffect(() => {
+    connectSourceRef.current = connectSource;
+  }, [connectSource]);
+
   // Toast handler
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
@@ -338,8 +521,8 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setError(null);
     try {
       const [treeRes, chaptersRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`),
-        axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`)
+        axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`, { withCredentials: false }),
+        axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`, { withCredentials: false })
       ]);
       setTreeData(treeRes.data?.data || treeRes.data || null);
       
@@ -403,9 +586,9 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     });
   }, [edges]);
 
-  const { positionedNodes, positionedEdges, chapters, stats } = useMemo(() => {
+  const { positionedNodes, positionedEdges, chapters, stats, detectedLoops = [] } = useMemo(() => {
     if (!uniqueNodes.length) {
-      return { positionedNodes: [], positionedEdges: [], chapters: [], stats: treeData?.Stats ?? treeData?.stats ?? null };
+      return { positionedNodes: [], positionedEdges: [], chapters: [], stats: treeData?.Stats ?? treeData?.stats ?? null, detectedLoops: [] };
     }
 
     // สร้าง Map ค้นหาข้อมูลภายใน useMemo นี้โดยตรงเพื่อป้องกันปัญหา TDZ (Temporal Dead Zone)
@@ -586,11 +769,96 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       };
     });
 
-    const positionedEdges = edgeList
-      .map((edge) => ({
+    // 💡 ค้นหาลูป/วงวนในโครงสร้างกราฟทั้งหมดโดยใช้วิธี DFS Cycle Finder (รันก่อนประมวลผลตำแหน่งและสไตล์ Edges)
+    const localDetectedLoops = [];
+    const visited = {}; // 0: unvisited, 1: visiting, 2: visited
+    const currentPath = [];
+
+    const findCyclesDfs = (u) => {
+      visited[u] = 1;
+      currentPath.push(u);
+
+      const neighbors = adjacency[u] || [];
+      for (const v of neighbors) {
+        if (visited[v] === 1) {
+          // เกิดลูปย้อนกลับ! ดึงชื่อโหนดในแนวเส้นทางออกมา
+          const idx = currentPath.indexOf(v);
+          if (idx !== -1) {
+            const loopPath = currentPath.slice(idx);
+            const key = [...loopPath, v].join("->");
+            if (!localDetectedLoops.some((l) => l.key === key)) {
+              localDetectedLoops.push({
+                nodes: [...loopPath, v],
+                key,
+              });
+            }
+          }
+        } else if (!visited[v]) {
+          findCyclesDfs(v);
+        }
+      }
+
+      currentPath.pop();
+      visited[u] = 2;
+    };
+
+    nodeIds.forEach((id) => {
+      if (!visited[id]) {
+        findCyclesDfs(id);
+      }
+    });
+
+    // 1. นับจำนวนทางเลือกขาออก (Outgoing) และทางเลือกขาเข้า (Incoming) ของแต่ละโหนด
+    const outgoingCount = {};
+    const incomingCount = {};
+    edgeList.forEach((edge) => {
+      const src = normalizeId(edge.source);
+      const tgt = normalizeId(edge.target);
+      outgoingCount[src] = (outgoingCount[src] || 0) + 1;
+      incomingCount[tgt] = (incomingCount[tgt] || 0) + 1;
+    });
+
+    // 2. เก็บดัชนีระบุลำดับของแต่ละเส้น
+    const outgoingIndex = {};
+    const incomingIndex = {};
+
+    const positionedEdges = edgeList.map((edge) => {
+      const src = normalizeId(edge.source);
+      const tgt = normalizeId(edge.target);
+
+      const outIdx = outgoingIndex[src] || 0;
+      outgoingIndex[src] = outIdx + 1;
+
+      const inIdx = incomingIndex[tgt] || 0;
+      incomingIndex[tgt] = inIdx + 1;
+
+      const inLoop = localDetectedLoops.some((loop) => {
+        const path = loop.nodes;
+        for (let i = 0; i < path.length - 1; i++) {
+          if (normalizeId(path[i]) === src && normalizeId(path[i+1]) === tgt) return true;
+        }
+        return false;
+      });
+
+      return {
         ...edge,
+        type: "multigraphEdge", // บังคับเปิดใช้งาน Custom Multigraph Edge
+        data: {
+          allEdges: edgeList,
+          source: edge.source,
+          target: edge.target,
+          outIndex: outIdx,
+          outCount: outgoingCount[src] || 1,
+          inIndex: inIdx,
+          inCount: incomingCount[tgt] || 1,
+        },
         active: true,
-      }));
+        animated: inLoop || edge.animated,
+        style: inLoop 
+          ? { stroke: "#ef4444", strokeWidth: 3.5, strokeDasharray: "6,4" }
+          : edge.style,
+      };
+    });
 
     const chapterGroups = new Map();
     const chapterOrder = [];
@@ -610,6 +878,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       positionedEdges,
       chapters,
       stats: treeData?.Stats ?? treeData?.stats ?? null,
+      detectedLoops: localDetectedLoops,
     };
   }, [nodes, edges, treeData]);
 
@@ -632,69 +901,89 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
   // Convert positionedNodes/positionedEdges into React Flow node/edge shapes
   const flowNodes = useMemo(() => {
+    const hasSelection = !!selectedSceneId;
     return positionedNodes.map((n) => {
       const sceneId = getNodeId(n.scene);
       const pos = scenePositionMap.get(sceneId);
+      const isSelectedNode = selectedSceneId && String(n.id) === String(selectedSceneId);
+
       return {
         id: String(n.id),
         type: "writerNode",
         position: { x: n.x, y: n.y },
+        zIndex: isSelectedNode ? 10 : 1, // โหนดที่ถูกเลือกจะมีความสำคัญระนาบลอยตัวเหนือโหนดอื่น
         data: {
           ...n.scene,
           status: n.status,
+          isSelectedNode,
+          hasActiveSelection: hasSelection,
           chapterNumber: pos ? pos.chapterNumber : "?",
           sceneNumber: pos ? pos.sceneNumber : "?",
           chapterTitle: pos ? pos.chapterTitle : (getNodeChapter(n.scene) || ""),
           onEdit: (sceneId, chapterId) => {
-            onNavigate?.("scene-editor", { novelId, chapterId, sceneId });
+            onNavigateRef.current?.("scene-editor", { novelId, chapterId, sceneId });
           },
         },
       };
     });
-  }, [positionedNodes, novelId, onNavigate, scenePositionMap]);
+  }, [positionedNodes, novelId, scenePositionMap, selectedSceneId]);
 
   const flowEdges = useMemo(() => {
+    const hasSelection = !!selectedSceneId;
     return positionedEdges.map((e) => {
       const isSelected = selectedEdge && String(selectedEdge.id) === String(e.id);
+      const isConnectedToSelected = selectedSceneId && (String(e.source) === String(selectedSceneId) || String(e.target) === String(selectedSceneId));
+
+      // กำหนด zIndex สูงขึ้นมากสำหรับเส้นเชื่อมที่เกี่ยวข้องเพื่อให้ทับอยู่บนสุด (เหนือโหนด)
+      const edgeZIndex = isConnectedToSelected ? 20 : isSelected ? 15 : 5;
+
+      let strokeColor = "#94a3b8";
+      let strokeWidth = 2;
+      let strokeOpacity = 1;
+
+      if (hasSelection) {
+        if (isConnectedToSelected) {
+          strokeColor = "#2563eb"; // สีฟ้าเข้มโดดเด่นสะดุดตา
+          strokeWidth = 3.5;
+          strokeOpacity = 1;
+        } else {
+          strokeColor = "#cbd5e1"; // หรี่เส้นอื่นๆ
+          strokeWidth = 1;
+          strokeOpacity = 0.15;
+        }
+      } else if (isSelected) {
+        strokeColor = "#ef4444"; // โหมดลบ
+        strokeWidth = 3;
+      }
+
       return {
         id: String(e.id || `e-${e.source}-${e.target}`),
         source: String(e.source),
         target: String(e.target),
         label: e.label || "",
         type: e.type || "smoothstep",
-        data: e.data || {},
-        animated: !isSelected && !!e.animated,
-        interactionWidth: 30, // ขยายพื้นที่รับการคลิกเมาส์รอบเส้นให้กว้างขึ้นเป็น 30px สะดวกต่อการกด
+        zIndex: edgeZIndex,
+        data: {
+          ...e.data,
+          isHighlighted: isConnectedToSelected,
+          hasActiveSelection: hasSelection,
+        },
+        animated: isConnectedToSelected ? true : !isSelected && !!e.animated,
+        interactionWidth: 30, // พื้นที่รับคลิกเมาส์
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: isSelected ? "#ef4444" : "#94a3b8", // สีแดงเฉพาะเส้นที่เลือกเพื่อลบ/แก้ไข
+          color: strokeColor,
         },
         style: {
-          stroke: isSelected ? "#ef4444" : "#94a3b8", // สีแดงเฉพาะเส้นที่เลือก
-          strokeWidth: isSelected ? 3 : 2,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          strokeOpacity: strokeOpacity,
           cursor: "pointer",
+          transition: "stroke-opacity 0.3s ease, stroke 0.3s ease, stroke-width 0.3s ease",
         },
-        labelStyle: {
-          fill: isSelected ? "#dc2626" : "#1e293b",
-          fontWeight: 700,
-          fontSize: 12,
-          cursor: "pointer",
-        },
-        labelBgStyle: {
-          fill: isSelected ? "#fef2f2" : "#ffffff",
-          color: isSelected ? "#dc2626" : "#1e293b",
-          stroke: isSelected ? "#fca5a5" : "#e2e8f0",
-          strokeWidth: isSelected ? 1.5 : 1,
-          fillOpacity: 0.95,
-          rx: 8,
-          ry: 8,
-          cursor: "pointer",
-        },
-        labelBgPadding: [8, 4],
-        labelBgBorderRadius: 8,
       };
     });
-  }, [positionedEdges, selectedEdge]);
+  }, [positionedEdges, selectedEdge, selectedSceneId]);
 
   // create editable react-flow state initialized from computed flowNodes/flowEdges
   const [rfNodes, setRfNodes, onNodesChangeRF] = useNodesState([]);
@@ -763,7 +1052,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     }
   }, [orphanNodes, orphanIndex, setCenter, showToast]);
 
-  // sync when backend positions change (ซิงค์เฉพาะเมื่อ treeData หรือ novelId มีการโหลด/เปลี่ยนแปลงจากหลังบ้านจริง ป้องกัน Update Loop)
+  // sync when backend positions change or selection styling updates
   useEffect(() => {
     if (!treeData) return;
 
@@ -793,11 +1082,16 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       if (cursorE) nextEds.push(cursorE);
       return nextEds;
     });
-  }, [treeData, novelId]);
+  }, [treeData, novelId, selectedSceneId, selectedEdge, interactionMode, connectSource]);
 
   // ดักจับและยกเลิก Connect Mode เมื่อออกจากโหมด
   const changeMode = useCallback((newMode) => {
     setInteractionMode(newMode);
+    
+    // เคลียร์ระบบโฟกัสและไฮไลท์กลับสู่กราฟโหมดปกติเมื่อเปลี่ยนเครื่องมือ
+    setSelectedSceneId(null);
+    setSelectedScene(null);
+    setSelectedEdge(null);
     
     // รีเซ็ตโหมดการเชื่อม
     setConnectSource(null);
@@ -825,6 +1119,12 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
           setConnectTarget(null);
           setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
           setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+        } else if (interactionMode === "connect" && connectSource) {
+          // หากผู้ใช้ลากเส้นประอยู่ และกดยกเลิกด้วย ESC -> ให้สลายเส้นประและเคลียร์ต้นทางทันที แต่ยังคงอยู่ในโหมดเชื่อมต่อ
+          setConnectSource(null);
+          setConnectTarget(null);
+          setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
+          setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
         } else if (interactionMode !== "select") {
           changeMode("select");
         }
@@ -837,7 +1137,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [interactionMode, isModalOpen, changeMode]);
+  }, [interactionMode, isModalOpen, connectSource, changeMode]);
 
   // ดึงแผนแมพแบบผสม (โหนดจริงจากหลังบ้าน + โหนดว่างชั่วคราว) เพื่อสนับสนุนการกดและรายละเอียด Sidebar
   const sceneMap = useMemo(() => {
@@ -883,10 +1183,26 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     const target = normalizeId(targetId);
     if (!source || !target) return "invalid";
     if (source === target) return "self";
-    if (isBackwardByScenePosition(source, target, scenePositionMap)) return "backward";
-    if (wouldCreateCycle(source, target, rfEdges)) return "cycle";
+
+    // 1. ตรวจสอบว่าโหนดต้นทางเป็นฉากจบหรือไม่
+    const srcScene = sceneMap?.get(source);
+    const srcType = srcScene?.type || srcScene?.Type || "";
+    const isSrcEnding = srcType === "ending" || srcScene?.is_ending === true || srcScene?.IsEnding === true || srcScene?.status === "ending" || srcScene?.status === WRITER_NODE_STATUS.ENDING;
+    if (isSrcEnding) {
+      return "source_ending";
+    }
+
+    // 2. ตรวจสอบว่าโหนดปลายทางเป็นจุดเริ่มต้นหรือไม่ (ห้ามมีเส้นทางชี้เข้าจุดเริ่ม)
+    const tgtScene = sceneMap?.get(target);
+    const tgtType = tgtScene?.type || tgtScene?.Type || "";
+    const isTgtStart = tgtType === "start" || tgtType === "starting" || tgtScene?.status === "start" || tgtScene?.status === WRITER_NODE_STATUS.START;
+    if (isTgtStart) {
+      return "target_start";
+    }
+
+    if (isTargetAncestorOfSource(source, target, rfEdges)) return "cycle";
     return null;
-  }, [scenePositionMap, rfEdges]);
+  }, [rfEdges, sceneMap]);
 
   // หมายเหตุ: ฟังก์ชันนี้ถูกเรียกบ่อยระหว่างลาก (drag) จึงจงใจไม่แสดง toast ที่นี่ (React Flow จะแสดงเส้น
   // เป็นสีแดง/สถานะ invalid ให้เองตาม CSS ของ .react-flow__connection ในไฟล์ css) ส่วนโหมดคลิกเชื่อมแบบ custom
@@ -943,7 +1259,21 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
   // ฟังก์ชันดักคลิกบน Canvas พื้นหลัง (แสดงโมดอลเลือกตอนสังกัด)
   const handlePaneClick = useCallback((e) => {
-    if (interactionMode !== "add-node") return;
+    if (interactionMode !== "add-node") {
+      // หากอยู่ในโหมดเชื่อมโยง และมีฉากต้นทางที่กำลังลากเส้นเชื่อมคาอยู่ -> ให้ยกเลิกและทำลายเส้นประทิ้งทันที
+      if (interactionMode === "connect" && connectSource) {
+        setConnectSource(null);
+        setConnectTarget(null);
+        setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
+        setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+        return;
+      }
+
+      // หากคลิกที่ว่างในโหมดปกติ/เลือก -> ให้ถอนโฟกัสออกจากไฮไลท์เส้นทางกลับสู่กราฟปกติ
+      setSelectedSceneId(null);
+      setSelectedScene(null);
+      return;
+    }
     
     const flowPos = screenToFlowPosition({
       x: e.clientX,
@@ -958,7 +1288,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       setSelectedMoveChapterId("");
     }
     setShowAddScenePopup(true);
-  }, [interactionMode, screenToFlowPosition, novelChapters]);
+  }, [interactionMode, screenToFlowPosition, novelChapters, connectSource, setRfNodes, setRfEdges]);
 
   const edgeUpdateSuccessful = useRef(true);
 
@@ -1003,6 +1333,11 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
   const handleEdgeClick = useCallback((event, edge) => {
     event.stopPropagation();
     
+    // หากอยู่ในโหมดเชื่อมโยง (Connect) หรือโหมดเลื่อน (Pan) ให้ข้ามการจัดการเส้นเชื่อม (ให้โหมดเลือก select สามารถกดได้ปกติ)
+    if (modeRef.current === "connect" || modeRef.current === "pan") {
+      return;
+    }
+
     // โหมดลบ
     if (modeRef.current === "delete") {
       setSelectedEdge(edge);
@@ -1461,15 +1796,6 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
   const handleDeleteConnection = async () => {
     if (!selectedEdge) return;
     
-    // ดึง Choice ID จากทั้ง selectedEdge.data และ selectedEdge
-    const rawChoiceId = selectedEdge.data?.ID ?? 
-                        selectedEdge.data?.id ?? 
-                        selectedEdge.data?.choice_id ?? 
-                        selectedEdge.data?.ChoiceID ?? 
-                        selectedEdge.data?.choiceId ?? 
-                        selectedEdge.id;
-                        
-    const choiceIdStr = normalizeId(rawChoiceId);
     const selectedEdgeId = selectedEdge.id;
     const sourceId = selectedEdge.source;
     const targetId = selectedEdge.target;
@@ -1484,12 +1810,27 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     try {
       showToast("กำลังลบทางเลือก...", "info");
       
+      // 1. ดึงรายละเอียดฉากต้นทางเพื่อเสาะหา choice_id ที่เป็นตัวเลขจริงๆ จากฐานข้อมูล
+      const sourceRes = await axios.get(`${API_BASE_URL}/scenes/${sourceId}`, { headers });
+      const sourceData = sourceRes.data?.data || sourceRes.data;
+      const choicesList = Array.isArray(sourceData.choices) ? sourceData.choices : [];
+      
+      // ค้นหา Choice ที่มีฉากปลายทางตรงกับ targetId และมีข้อความปุ่มตรงกัน
+      const matchedChoice = choicesList.find((c) => {
+        const cToSceneId = normalizeId(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene);
+        const cText = (c.label ?? c.text ?? "").trim().toLowerCase();
+        const expectedTargetId = normalizeId(targetId);
+        const expectedLabel = edgeLabelText.toLowerCase();
+        return cToSceneId === expectedTargetId && (cText === expectedLabel || expectedLabel === "" || cText === "");
+      });
+
+      const actualChoiceId = matchedChoice?.choice_id ?? matchedChoice?.id ?? matchedChoice?.ChoiceID ?? matchedChoice?.ID;
       let isSuccess = false;
 
-      // 1. ลองยิง DELETE /choices/:id โดยตรงก่อน (เหมือนใน ChapterManagerPage.jsx)
-      if (rawChoiceId && !String(rawChoiceId).startsWith("edge-") && !isNaN(Number(rawChoiceId))) {
+      // 2. ลองยิง DELETE /choices/:id ของหลังบ้านโดยตรง (มีประสิทธิภาพสูงสุด ลบออกจาก DB จริง)
+      if (actualChoiceId && !isNaN(Number(actualChoiceId))) {
         try {
-          const res = await axios.delete(`${API_BASE_URL}/choices/${rawChoiceId}`, { headers });
+          const res = await axios.delete(`${API_BASE_URL}/choices/${actualChoiceId}`, { headers });
           if (res.status === 200 || res.status === 204 || res.data?.status === "success") {
             isSuccess = true;
           }
@@ -1498,20 +1839,16 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         }
       }
 
-      // 2. ถ้ายิง DELETE /choices/:id ไม่ผ่าน ให้ไปสกัดลบออกจากฉากต้นทาง (PUT /scenes/:sourceId)
+      // 3. หากไม่พบ choice_id หรือลบทางตรงไม่สำเร็จ ค่อย fallback ไปกรองและยิง PUT /scenes/:id
       if (!isSuccess) {
-        const sourceRes = await axios.get(`${API_BASE_URL}/scenes/${sourceId}`, { headers });
-        const sourceData = sourceRes.data?.data || sourceRes.data;
-        
-        let choicesList = Array.isArray(sourceData.choices) ? sourceData.choices : [];
         const updatedChoices = choicesList.filter((c) => {
           const cId = normalizeId(c.choice_id ?? c.id ?? c.ChoiceID ?? c.ID);
           const cToSceneId = normalizeId(c.to_scene_id ?? c.toSceneId ?? c.targetSubScene);
           const cText = (c.label ?? c.text ?? "").trim();
 
-          if (choiceIdStr && cId && choiceIdStr === cId) return false;
+          if (actualChoiceId && cId && String(actualChoiceId) === cId) return false;
           if (targetId && cToSceneId && targetId === cToSceneId) {
-            if (!choiceIdStr || choiceIdStr.startsWith("edge-") || cId === choiceIdStr || !edgeLabelText || cText === edgeLabelText) {
+            if (!actualChoiceId || cId === String(actualChoiceId) || !edgeLabelText || cText === edgeLabelText) {
               return false;
             }
           }
@@ -1552,12 +1889,10 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         await axios.put(`${API_BASE_URL}/scenes/${sourceId}`, payload, { headers });
       }
 
-      // 3. ลบเส้นทางเลือกออกจาก React Flow State ทันทีในฝั่ง Client
-      setRfEdges((eds) => eds.filter((e) => e.id !== selectedEdgeId && e.id !== choiceIdStr));
+      // 4. อัปเดตผัง React Flow State ทันทีใน Client
+      setRfEdges((eds) => eds.filter((e) => e.id !== selectedEdgeId && e.id !== String(actualChoiceId)));
 
       showToast("ลบทางเลือกสำเร็จเรียบร้อยแล้ว", "success");
-
-      // 4. โหลดผังเรื่องใหม่และกระจาย Event สั่งให้อัปเดตทุกหน้า (รวมถึง SceneEditor และ ChapterManager)
       await fetchStoryTreeAndChapters();
       window.dispatchEvent(new Event("novel-data-updated"));
 
@@ -1568,9 +1903,10 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       setShowDeleteChoiceConfirm(false);
       setShowEdgeModal(false);
       setSelectedEdge(null);
-      changeMode(interactionMode); // คงเครื่องมือปัจจุบันไว้ (เช่นถ้ากำลังอยู่โหมดลบ ให้ลบต่อได้เรื่อยๆ โดยไม่ต้องกดเลือกเครื่องมือใหม่)
+      changeMode(interactionMode);
     }
   };
+
 
   const handleConfirmDelete = useCallback(async () => {
     if (!sceneToDelete) return;
@@ -1620,7 +1956,8 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
   // ดักจับการเคลื่อนที่ของเมาส์บนบอร์ดเพื่ออัปเดตเส้นประวิ่งตามเมาส์
   const handlePaneMouseMove = useCallback((e) => {
-    if (interactionMode !== "connect" || !connectSource) return;
+    // อ้างอิงจาก Ref เพื่อรับค่าล่าสุดใน Event loop ทันที ป้องกันเส้นค้างเมื่อออกจากโหมดหรือกดยกเลิก
+    if (modeRef.current !== "connect" || !connectSourceRef.current) return;
     
     const flowPos = screenToFlowPosition({
       x: e.clientX,
@@ -1647,7 +1984,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       if (!hasCursorEdge) {
         const cursorEdge = {
           id: "cursor-edge",
-          source: String(connectSource.id),
+          source: String(connectSourceRef.current.id),
           target: "cursor-node",
           type: "smoothstep",
           animated: true,
@@ -1657,7 +1994,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       }
       return eds;
     });
-  }, [interactionMode, connectSource, screenToFlowPosition, setRfNodes, setRfEdges]);
+  }, [screenToFlowPosition, setRfNodes, setRfEdges]);
 
   // ดับเบิลคลิกเพื่อเปิด Scene Editor หน้าเขียนเนื้อหา
   const handleNodeDoubleClick = useCallback((evt, node) => {
@@ -1710,6 +2047,15 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     // โหมดเชื่อมฉาก (Connect Mode)
     if (currentMode === "connect") {
       if (!connectSource) {
+        // ตรวจสอบตั้งแต่ก้าวแรก: ห้ามไม่ให้เลือกโหนดที่เป็น "ฉากจบ" มาทำหน้าที่เป็นโหนดต้นทาง
+        const srcType = node.data?.Type || node.data?.type || "";
+        const isSrcEnding = srcType === "ending" || node.data?.is_ending === true || node.data?.IsEnding === true || node.data?.status === "ending" || node.data?.status === WRITER_NODE_STATUS.ENDING;
+        
+        if (isSrcEnding) {
+          showToast("ไม่สามารถเพิ่มทางเลือกได้ เนื่องจาก 'ฉากต้นทางคือฉากจบ' (ฉากจบไม่สามารถเพิ่มทางเลือกเชื่อมไปยังฉากอื่นได้อีก)", "warn");
+          return;
+        }
+
         setConnectSource(node);
         const flowPos = screenToFlowPosition({
           x: evt.clientX,
@@ -1739,18 +2085,19 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       if (connectSource) {
         if (node.id === connectSource.id) return;
 
-        // ป้องกันเชื่อมย้อนกลับ (Backward ตามลำดับฉาก) หรือทำให้เกิดวงวน (Cycle) รักษาโครงสร้างให้เป็น DAG
-        // หมายเหตุ: ไม่บล็อกกรณี "ปลายทางซ้ำ" ที่ตรงนี้ เพราะอนุญาตให้มีหลายทางเลือกไปยังฉากเดียวกันได้
-        // ถ้าตั้งชื่อทางเลือกต่างกัน (จะตรวจชื่อซ้ำอีกทีตอนกดยืนยันใน handleConfirmConnect)
-        // จงใจไม่ล้าง connectSource เพื่อให้ผู้ใช้เลือกฉากปลายทางใหม่ได้ทันทีโดยไม่ต้องเริ่มโหมดเชื่อมใหม่
+        // ป้องกันเชื่อมต่อผิดกฎโครงสร้างนิยายทางเลือก (เช่น เกิด Loop, ปลายทางเป็นจุดเริ่ม, ต้นทางเป็นฉากจบ)
         const blockReason = getConnectionBlockReason(connectSource.id, node.id);
         if (blockReason) {
           const message =
-            blockReason === "backward"
-              ? "ไม่สามารถเชื่อมฉากนี้ได้ เพราะเป็นการเชื่อมย้อนกลับไปยังฉากก่อนหน้า (ฉากปลายทางต้องอยู่หลังฉากต้นทางเสมอ) กรุณาเลือกฉากปลายทางอื่น"
+            blockReason === "source_ending"
+              ? "ไม่สามารถเพิ่มทางเลือกได้ เนื่องจาก 'ฉากต้นทางคือฉากจบ' (ฉากจบไม่สามารถเพิ่มทางเลือกเชื่อมไปยังฉากอื่นได้อีก)"
+              : blockReason === "target_start"
+              ? "ไม่สามารถเชื่อมต่อไปยังฉากปลายทางที่เป็น 'จุดเริ่มต้นเรื่อง' ได้ (จุดเริ่มต้นทำหน้าที่เริ่มเดินเรื่องเท่านั้น ห้ามมีเส้นทางอื่นชี้กลับมาปัก)"
+              : blockReason === "self"
+              ? "ไม่สามารถเชื่อมต่อฉากเข้าหาตัวเองได้ กรุณาเลือกฉากปลายทางอื่นที่เป็นคนละฉากกัน"
               : blockReason === "cycle"
-              ? "ไม่สามารถเชื่อมฉากนี้ได้ เพราะจะทำให้เกิดการวนลูปของเนื้อเรื่อง (เชื่อมได้เฉพาะไปข้างหน้าเท่านั้น) กรุณาเลือกฉากปลายทางอื่น"
-              : "ไม่สามารถเชื่อมฉากนี้ได้";
+              ? "ไม่สามารถเชื่อมต่อได้เนื่องจากจะทำให้เกิด ' ลูป ' ในเนื้อเรื่อง กรุณาเลือกฉากปลายทางอื่นเพื่อดำเนินเรื่องไปข้างหน้า"
+              : "ไม่สามารถเชื่อมโยงฉากเข้าหากันได้เนื่องจากผิดเงื่อนไขของกราฟ";
           showToast(message, "warn");
           return;
         }
@@ -1807,19 +2154,78 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      await axios.post(`${API_BASE_URL}/choices`, payload, { headers });
+      // 1. ยิงบันทึกทางเลือกไปยังหลังบ้าน (ฐานข้อมูล) โดยปิด withCredentials เพื่อหลีกเลี่ยง CORS block
+      await axios.post(`${API_BASE_URL}/choices`, payload, { 
+        headers, 
+        withCredentials: false 
+      });
 
-      const response = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`);
-      setTreeData(response.data?.data || response.data || null);
-
+      // 2. เมื่อมาถึงจุดนี้ได้ แสดงว่า POST บันทึกเรียบร้อยแล้ว
       showToast("เชื่อมทางเลือกสำเร็จแล้ว", "success");
-      window.dispatchEvent(new Event("novel-data-updated"));
 
       setIsModalOpen(false);
-      changeMode(interactionMode); // คงอยู่โหมดเชื่อมต่อไป เพื่อให้เชื่อมฉากถัดไปได้เลยโดยไม่ต้องกดเลือกเครื่องมือใหม่
+      
+      // ล้างข้อมูลทางเลือกชั่วคราวออกไปเพื่อให้พร้อมรับการเชื่อมรอบถัดไป
+      setConnectSource(null);
+      setConnectTarget(null);
+      setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
+      setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+
+      // แจ้งเตือนบอร์ดผ่าน Event Listener ที่มีระบบครอบนิรภัยความเสถียรเพื่อโหลดข้อมูลใหม่
+      window.dispatchEvent(new Event("novel-data-updated"));
+      changeMode(interactionMode); // คงอยู่โหมดเชื่อมต่อไป เพื่อความต่อเนื่อง
     } catch (err) {
-      console.error("Save choice edge error:", err);
-      showToast("เกิดข้อผิดพลาดในการบันทึกเส้นทางเชื่อมต่อ", "warn");
+      console.error("Save choice edge error, starting database fallback verification...", err);
+      
+      try {
+        const srcIdInt = parseInt(connectSource.id, 10);
+        const dstIdInt = parseInt(connectTarget.id, 10);
+        
+        // กู้ภัย (Fallback): ดึงข้อมูลแผนผังเรื่องล่าสุดจาก DB ขึ้นมาเช็คอย่างเงียบๆ
+        const checkRes = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`, { withCredentials: false });
+        const freshTree = checkRes.data?.data || checkRes.data || null;
+        const freshEdges = freshTree?.Edges || freshTree?.edges || [];
+
+        // ค้นหาว่าใน DB มีเส้นที่เชื่อมโยงระหว่างคู่นี้เกิดขึ้นสำเร็จแล้วจริงหรือไม่
+        const isActuallySavedInDb = freshEdges.some(
+          (edge) =>
+            parseInt(edge.FromID ?? edge.from_id ?? edge.from, 10) === srcIdInt &&
+            parseInt(edge.ToID ?? edge.to_id ?? edge.to, 10) === dstIdInt
+        );
+
+        if (isActuallySavedInDb) {
+          // หากข้อมูลบันทึกสำเร็จจริงในฐานข้อมูล ➔ ถือเป็นความสำเร็จและปิด Modal สะอาดเรียบร้อย!
+          setTreeData(freshTree);
+          showToast("เชื่อมทางเลือกสำเร็จแล้ว", "success");
+          
+          setIsModalOpen(false);
+          setConnectSource(null);
+          setConnectTarget(null);
+          setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
+          setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+          
+          window.dispatchEvent(new Event("novel-data-updated"));
+          changeMode(interactionMode);
+          return;
+        }
+      } catch (fallbackErr) {
+        console.error("Fallback verification failed:", fallbackErr);
+      }
+
+      // // หากตรวจสอบแล้วไม่มีข้อมูลบันทึกจริง ค่อยพ่นข้อความเตือนผิดพลาดสีแดง
+      // const backendError = err.response?.data?.message || err.response?.data?.error || "เกิดข้อผิดพลาดในการบันทึกเส้นทางเชื่อมต่อ";
+      // showToast(backendError, "warn");
+      
+      // setIsModalOpen(false);
+
+      // ล้างเส้นเชื่อมที่ลากค้างและลบล้างเส้นทางเลือกทดลองวาดที่ผิดพลาดออกไป
+      setConnectSource(null);
+      setConnectTarget(null);
+      setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
+      setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+      
+      // ดึงข้อมูลความจริงจากฐานข้อมูลหลังบ้านกลับมาป้องกันเส้นค้างบนจอ
+      fetchStoryTreeAndChapters();
     }
   };
 
@@ -2066,6 +2472,47 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
             </div>
           </div>
 
+          {/* Story Health / Loop Warnings
+          <div style={{ marginTop: '16px', padding: '14px', borderRadius: '16px', border: detectedLoops.length > 0 ? '1.5px solid #fca5a5' : '1.5px solid #bbf7d0', background: detectedLoops.length > 0 ? '#fef2f2' : '#f0fdf4', transition: 'all 0.3s ease' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '13.5px', color: detectedLoops.length > 0 ? '#b91c1c' : '#15803d' }}>
+              <i className={`ti ti-${detectedLoops.length > 0 ? 'alert-triangle' : 'circle-check'}`} style={{ fontSize: '16px' }}></i>
+              <span>{detectedLoops.length > 0 ? `พบจุดวนลูปเนื้อเรื่อง ${detectedLoops.length} แห่ง` : 'โครงข่ายเรื่องปกติ (ไม่มีจุดวนลูป)'}</span>
+            </div>
+            {detectedLoops.length > 0 && (
+              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                {detectedLoops.map((loop, idx) => {
+                  const labelPath = loop.nodes.map(id => {
+                    const pos = scenePositionMap.get(id);
+                    return pos ? `${pos.chapterNumber}.${pos.sceneNumber}` : '?';
+                  }).join(' ➔ ');
+
+                  return (
+                    <button
+                      key={`loop-warning-${idx}`}
+                      onClick={() => focusOnScene(loop.nodes[0])}
+                      title="คลิกเพื่อแพนกล้องซูมพาไปยังจุดที่เกิดลูป"
+                      style={{
+                        textAlign: 'left', background: '#fff', border: '1px solid #fecaca',
+                        borderRadius: '10px', padding: '8px 10px', fontSize: '12px',
+                        color: '#ef4444', cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        boxShadow: '0 2px 4px rgba(239, 68, 68, 0.04)',
+                        transition: 'all 0.2s ease', width: '100%'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.borderColor = '#fca5a5'}
+                      onMouseOut={(e) => e.currentTarget.style.borderColor = '#fecaca'}
+                    >
+                      <span style={{ fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85%' }}>
+                        🔄 ลูป: {labelPath}
+                      </span>
+                      <span style={{ fontSize: '10px', background: '#fee2e2', color: '#b91c1c', padding: '1px 6px', borderRadius: '8px', fontWeight: 'bold' }}>🔍 ซูม</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div> */}
+
           {selectedScene && (
             <>
               <div className="wst-sidebar__divider" />
@@ -2125,7 +2572,6 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                     handlePaneMouseMove(e);
                   }
                 }}
-                onClick={handlePaneClick} // ดักคลิกบน Canvas พื้นหลัง
               >
                 {/* Floating toolbar */}
                 <div className="wst-canvas-toolbar" onClick={(e) => e.stopPropagation()}>
@@ -2202,6 +2648,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                   onNodeClick={handleNodeClick}
                   onNodeDoubleClick={handleNodeDoubleClick}
                   onEdgeClick={handleEdgeClick}
+                  onPaneClick={handlePaneClick}
                   onNodesChange={onNodesChangeWrapper}
                   onEdgesChange={onEdgesChangeWrapper}
                   onConnect={onConnect}

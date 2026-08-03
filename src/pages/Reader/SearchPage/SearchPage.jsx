@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
-import { Eye, Heart, GitBranch, SlidersHorizontal, Check } from "lucide-react";
+import { Eye, Heart, GitBranch, BookmarkPlus, SlidersHorizontal, Check } from "lucide-react";
 import "./SearchPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -37,6 +37,7 @@ const normalizeNovel = (data) => {
       views: data.views || data.view_count || 0,
       likes: data.like_count || data.likes || 0,
       chaptersCount: data.chapters_count ?? data.chaptersCount ?? (data.chapters ? data.chapters.length : 0),
+      bookshelfCount: data.bookshelf_count || data.bookshelfCount || data.saved_count || data.added_count || 0,
     },
     status: data.status || "draft",
     isPublished: isActuallyPublished,
@@ -338,19 +339,19 @@ const SearchPage = () => {
                             ))}
                           </div>
 
-                          {/* สถิติใช้งาน Lucide-react */}
+                          {/* สถิติใช้งาน Lucide-react เหมือนหน้าหมวดหมู่ */}
                           <div className="novel-meta-info-full">
-                            <div className="novel-horiz-stat-item-full" title="ตอนย่อย">
-                              <GitBranch size={15} color="#db2777" />
-                              <span>{novel.stats.chaptersCount} ตอน</span>
+                            <div className="novel-horiz-stat-item-full" title="เพิ่มเข้าชั้นหนังสือ">
+                              <BookmarkPlus size={15} color="#db2777" />
+                              <span>{novel.stats.bookshelfCount.toLocaleString()}</span>
                             </div>
                             <div className="novel-horiz-stat-item-full" title="ยอดเข้าชม">
                               <Eye size={15} color="#db2777" />
-                              <span>{novel.stats.views.toLocaleString()} อ่าน</span>
+                              <span>{novel.stats.views.toLocaleString()}</span>
                             </div>
                             <div className="novel-horiz-stat-item-full" title="ยอดถูกใจ">
                               <Heart size={15} color="#db2777" />
-                              <span>{novel.stats.likes.toLocaleString()} ถูกใจ</span>
+                              <span>{novel.stats.likes.toLocaleString()}</span>
                             </div>
                             <span className={`status-badge-full ${isFinished ? "finished" : "writing"}`}>
                               {isFinished ? "จบแล้ว" : "กำลังเขียน"}
