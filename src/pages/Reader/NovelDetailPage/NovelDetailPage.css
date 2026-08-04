@@ -44,9 +44,14 @@
   margin-bottom: 40px;
 }
 
-/* Aside: cover card */
+/* Aside: cover card — sticky so it travels with the scroll instead of
+   leaving a dead gap of empty space once the right column (progress
+   card, synopsis, comments) runs past the aside's own shorter height */
 .novel-detail__aside {
   flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  align-self: flex-start;
 }
 
 /* Info: right side */
@@ -55,12 +60,37 @@
   min-width: 0;
 }
 
+/* Header card — wraps tags/title/author/badge/synopsis so the top of
+   the right column reads as one contained panel, matching the boxed
+   cover+stats sidebar and progress card instead of floating loosely
+   on the page background (previous fix here was a barely-visible
+   radial glow — replaced with this, which is much more effective). */
+.novel-detail__header-card {
+  background: var(--white);
+  border: 1.5px solid var(--gray-100);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 20px;
+}
+
+.novel-detail__header-card > *:last-child {
+  margin-bottom: 0;
+}
+
 /* Genre tags */
 .novel-detail__tags {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+/* .genre-tag has its own margin-right/margin-bottom for pages that don't
+   use a flex gap; here the parent already applies gap:8px, so cancel the
+   tag's own margins to avoid double spacing (was rendering ~14px gaps
+   with a dangling margin on the last tag in each row). */
+.novel-detail__tags .genre-tag {
+  margin: 0;
 }
 
 /* Title */
@@ -108,22 +138,6 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--gray-600);
-}
-
-/* ── Completed badge (shown only when the novel is finished) ── */
-.novel-detail__completed-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: fit-content;
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: #15803d;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 14px;
 }
 
 /* Synopsis */
@@ -180,78 +194,6 @@
 
 .novel-detail__restart-button:active {
   transform: translateY(0);
-}
-
-/* ── Admin panel (replaces personal progress bar for admins) ── */
-.novel-detail__admin-panel {
-  margin-top: 0;
-  background: linear-gradient(135deg, #fdf4ff 0%, #fff0f6 100%);
-  border: 1.5px solid #f3d9ea;
-  border-radius: 16px;
-  padding: 18px 22px;
-}
-
-.novel-detail__admin-panel-header {
-  margin-bottom: 8px;
-}
-
-.novel-detail__admin-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: #7c3aed;
-  color: white;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.novel-detail__admin-panel-text {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13.5px;
-  color: var(--gray-600);
-  line-height: 1.7;
-  margin-bottom: 16px;
-}
-
-.novel-detail__admin-panel-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.novel-detail__admin-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 10px 18px;
-  border-radius: 999px;
-  border: 1.5px solid #ddd6fe;
-  background: var(--white);
-  color: #6d28d9;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.novel-detail__admin-btn:hover {
-  background: #f5f3ff;
-  border-color: #c4b5fd;
-}
-
-.novel-detail__admin-btn--primary {
-  background: #7c3aed;
-  color: white;
-  border-color: #7c3aed;
-}
-
-.novel-detail__admin-btn--primary:hover {
-  background: #6d28d9;
-  border-color: #6d28d9;
 }
 
 /* ── Guest CTA (fills the gap where progress bar would be, for visitors) ── */
@@ -328,44 +270,20 @@
   border-bottom: 1px solid var(--gray-100);
 }
 
+.novel-detail__section-sub {
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--gray-500, #6b7280);
+  margin: -12px 0 16px 0;
+}
+
 .novel-detail__synopsis-detail {
   font-family: 'Sarabun', sans-serif;
   font-size: 14px;
   color: var(--gray-600);
   line-height: 1.85;
   margin-bottom: 20px;
-}
-
-/* Characters */
-.novel-detail__characters {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-top: 1px dashed var(--gray-100);
-  padding-top: 16px;
-}
-
-.novel-detail__character-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-}
-
-.novel-detail__character-role {
-  color: var(--gray-600);
-  min-width: 80px;
-  font-weight: 500;
-}
-
-.novel-detail__character-sep {
-  color: var(--gray-300);
-}
-
-.novel-detail__character-name {
-  color: var(--ink);
-  font-weight: 400;
 }
 
 /* ── Responsive ── */
@@ -376,6 +294,7 @@
   }
 
   .novel-detail__aside {
+    position: static; /* ปิด sticky ตอน layout เรียงเป็นคอลัมน์เดียว */
     width: 100%;
     display: flex;
     justify-content: center; /* จัดภาพปกให้อยู่กึ่งกลาง */
@@ -386,6 +305,7 @@
     max-width: 220px; /* จำกัดขนาดปกไม่ให้ยืดเต็มจอ iPad */
   }
 
+  .novel-detail__header-card,
   .novel-detail__synopsis-section {
     padding: 20px;
   }
@@ -400,196 +320,13 @@
     font-size: 26px;
   }
 
-  .novel-detail__guest-cta,
-  .novel-detail__admin-panel-actions {
+  .novel-detail__guest-cta {
     flex-direction: column;
     align-items: stretch;
   }
 
   .novel-detail__guest-cta-btn {
     width: 100%;
-  }
-}
-
-/* ─────────────────────────────
-   Comments Section
-───────────────────────────── */
-
-.novel-detail__comments-section {
-  margin-top: 32px;
-  background: var(--white);
-  border: 1.5px solid var(--gray-100);
-  border-radius: 20px;
-  padding: 28px 32px;
-}
-
-.novel-detail__comments-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.novel-detail__comments-count {
-  font-size: 14px;
-  color: var(--gray-500);
-  font-family: 'Sarabun', sans-serif;
-}
-
-/* ── Form ── */
-
-.novel-detail__comment-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 28px;
-}
-
-.novel-detail__comment-input {
-  width: 100%;
-  border: 1.5px solid var(--gray-100);
-  border-radius: 16px;
-  padding: 16px;
-  resize: vertical;
-  min-height: 110px;
-
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  line-height: 1.7;
-
-  background: var(--gray-50);
-  transition: all 0.18s ease;
-}
-
-.novel-detail__comment-input:focus {
-  outline: none;
-  border-color: var(--pink-300);
-  background: var(--white);
-  box-shadow: 0 0 0 4px rgba(255, 182, 193, 0.15);
-}
-
-.novel-detail__comment-button {
-  align-self: flex-end;
-
-  border: none;
-  border-radius: 999px;
-  padding: 11px 22px;
-
-  background: linear-gradient(135deg,
-      var(--pink-400),
-      var(--pink-500));
-
-  color: white;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.novel-detail__comment-button:hover {
-  transform: translateY(-1px);
-  opacity: 0.92;
-}
-
-/* ── Comment List ── */
-
-.novel-detail__comments-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.novel-detail__comment-card {
-  display: flex;
-  gap: 14px;
-
-  padding: 18px;
-  border-radius: 18px;
-
-  background: var(--gray-50);
-  border: 1px solid transparent;
-
-  transition: all 0.18s ease;
-}
-
-.novel-detail__comment-card:hover {
-  border-color: var(--pink-100);
-  background: white;
-}
-
-.novel-detail__comment-avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-
-  background: linear-gradient(135deg,
-      #ffd6e7,
-      #ffc2d1);
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.novel-detail__comment-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.novel-detail__comment-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  margin-bottom: 8px;
-}
-
-.novel-detail__comment-user {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.novel-detail__comment-date {
-  font-size: 12px;
-  color: var(--gray-400);
-}
-
-.novel-detail__comment-content {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  line-height: 1.8;
-  color: var(--gray-700);
-
-  white-space: pre-wrap;
-}
-
-/* Empty State */
-
-.novel-detail__comments-empty {
-  text-align: center;
-  padding: 32px 16px;
-  color: var(--gray-400);
-  font-size: 14px;
-}
-
-/* Mobile */
-
-@media (max-width: 768px) {
-  .novel-detail__comments-section {
-    padding: 20px;
-  }
-
-  .novel-detail__comment-top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
   }
 }
 

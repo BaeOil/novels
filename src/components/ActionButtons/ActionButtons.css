@@ -82,7 +82,7 @@
   background: white;
   color: var(--gray-600);
   border: 1.5px solid var(--gray-100);
-  padding: 11px 16px;
+  padding: 12px 16px;
 }
 
 .action-buttons__like:hover {
@@ -102,11 +102,11 @@
   transform: scale(1.1);
 }
 
-:root {
-  --pink-50: #fdf2f8;
-  --pink-300: #f472b6;
-  --pink-500: #e91e8c;  /* สีหลักของปุ่มอ่านเลย */
-  --pink-700: #be185d;  /* สีตอน Hover */
-  --gray-100: #f3f4f6;
-  --gray-600: #4b5563;
-}
+/* NOTE: --pink-500 / --gray-600 / etc. come from the app's global theme
+   stylesheet, not from this file. A previous version of this file
+   redefined them here under :root, which silently overrides the real
+   theme tokens site-wide depending on CSS load order — that's why the
+   .action-buttons__read rule below needed !important flags to win the
+   fight. Removed the redefinition; if colors look wrong here it means
+   the global theme is missing one of these tokens and that should be
+   fixed there, not re-patched locally in this file. */

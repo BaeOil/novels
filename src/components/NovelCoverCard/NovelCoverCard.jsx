@@ -8,7 +8,7 @@ import StatBadge from "../StatBadge/StatBadge";
  * @param {object} novel - ข้อมูลนิยาย
  */
 const NovelCoverCard = ({ novel }) => {
-  const { title, coverImage, coverEmoji, stats, chapter_count, chapterCount, userProgress } = novel;
+  const { title, coverImage, coverEmoji, stats, chapter_count, chapterCount, userProgress, isCompleted } = novel;
   
   const totalComments = stats?.comments ?? 0;
 
@@ -16,6 +16,11 @@ const NovelCoverCard = ({ novel }) => {
     <div className="novel-cover-card">
       {/* Cover image */}
       <div className="novel-cover-card__cover" aria-label={`ภาพปก: ${title}`}>
+        {isCompleted && (
+          <span className="novel-cover-card__ribbon" aria-label="นิยายจบแล้ว">
+            🏁 จบแล้ว
+          </span>
+        )}
         {coverImage ? (
           <img
             src={coverImage}

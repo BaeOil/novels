@@ -617,6 +617,13 @@ const NovelDetailPage = () => {
       .filter(Boolean)
       .some((authorId) => String(authorId) === String(currentUserId));
 
+  // id ของผู้แต่งไว้ใช้ลิงก์ไปหน้าโปรไฟล์นักเขียน + ส่งให้ FollowButton
+  // (เดิมคำนวณ fallback chain เดียวกันนี้ซ้ำ 4 รอบในหลายจุด)
+  const authorId = novel.author?.writer_id || novel.author?.id || novel.author?.user_id || null;
+  const handleAuthorClick = () => {
+    if (authorId) navigate(`/writer/profile/${authorId}`);
+  };
+
   if (loading) {
     return (
       <div className="novel-detail">
@@ -712,11 +719,12 @@ const NovelDetailPage = () => {
           </aside>
 
           <main className="novel-detail__info" aria-label="ข้อมูลนิยาย">
+            <div className="novel-detail__header-card">
             {novel.categories.length > 0 && (
               <div className="novel-detail__tags" role="list" aria-label="หมวดหมู่">
                 {novel.categories.map((cat) => (
                   <div role="listitem" key={cat}>
-                    <GenreTag label={cat} variant="primary" />
+                    <GenreTag label={cat} colorByCategory />
                   </div>
                 ))}
               </div>
@@ -728,11 +736,8 @@ const NovelDetailPage = () => {
               <div
                 className="novel-detail__author-avatar"
                 aria-hidden="true"
-                style={{ cursor: (novel.author?.writer_id || novel.author?.id || novel.author?.user_id) ? "pointer" : "default" }}
-                onClick={() => {
-                  const authorId = novel.author?.writer_id || novel.author?.id || novel.author?.user_id;
-                  if (authorId) navigate(`/writer/profile/${authorId}`);
-                }}
+                style={{ cursor: authorId ? "pointer" : "default" }}
+                onClick={handleAuthorClick}
               >
                 {novel.author.avatarUrl ? (
                   <img src={novel.author.avatarUrl} alt={novel.author.displayName} />
@@ -742,18 +747,15 @@ const NovelDetailPage = () => {
               </div>
               <span
                 className="novel-detail__author-name"
-                style={{ cursor: (novel.author?.writer_id || novel.author?.id || novel.author?.user_id) ? "pointer" : "default" }}
-                onClick={() => {
-                  const authorId = novel.author?.writer_id || novel.author?.id || novel.author?.user_id;
-                  if (authorId) navigate(`/writer/profile/${authorId}`);
-                }}
+                style={{ cursor: authorId ? "pointer" : "default" }}
+                onClick={handleAuthorClick}
               >
                 {novel.author.displayName}
               </span>
 
-              {!isPreview && !isAdmin && !isOwnNovel && (novel.author?.writer_id || novel.author?.id) ? (
+              {!isPreview && !isAdmin && !isOwnNovel && authorId ? (
                 <FollowButton
-                  writerId={novel.author.writer_id || novel.author.id || novel.author.user_id}
+                  writerId={authorId}
                   writerName={novel.author.displayName}
                   isFollowing={isFollowingAuthor}
                   onFollowChange={setIsFollowingAuthor}
@@ -762,13 +764,8 @@ const NovelDetailPage = () => {
               ) : null}
             </div>
 
-            {novel.isCompleted && (
-              <div className="novel-detail__completed-badge">
-                <span aria-hidden="true">🏁</span> จบแล้ว
-              </div>
-            )}
-
             <p className="novel-detail__synopsis">{novel.synopsis}</p>
+            </div>
 
             <div className="novel-detail__action-group">
               <ActionButtons

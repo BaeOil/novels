@@ -20,7 +20,7 @@ const Manageusers = () => {
   // Modals state
   const [viewUserModal, setViewUserModal] = useState({ isOpen: false, user: null });
   const [viewApplicationModal, setViewApplicationModal] = useState({ isOpen: false, user: null });
-  const [editUserModal, setEditUserModal] = useState({ isOpen: false, user: null, role: "reader", status: "active", reason: "" });
+  const [editUserModal, setEditUserModal] = useState({ isOpen: false, user: null, username: "", role: "reader", status: "active", reason: "" });
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ isOpen: false, user: null });
 
   const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -121,15 +121,33 @@ const Manageusers = () => {
     return items;
   }, [totalPages, currentPage]);
 
+  const [isUpdating, setIsUpdating] = useState(false);
+
   // 4. จัดการอัปเดตผู้ใช้ (Edit) — เรียก backend จริง 2 endpoint แยกกัน
+  //    - username: PATCH /api/admin/users/{id}/username
   //    - demote: ใช้เฉพาะกรณี writer -> reader เท่านั้น (ทิศทางเดียว ห้ามตั้งเป็น writer/admin จากหน้านี้)
   //    - status: ใช้เปลี่ยน active <-> suspended เท่านั้น
   const handleUpdateUser = async () => {
-    const { user, role, status, reason } = editUserModal;
-    if (!user) return;
+    const { user, username, role, status, reason } = editUserModal;
+    if (!user || isUpdating) return;
 
+    const trimmedUsername = (username || "").trim();
+    if (!trimmedUsername) {
+      alert("กรุณากรอกชื่อผู้ใช้");
+      return;
+    }
+
+    setIsUpdating(true);
     try {
       const headers = getAuthHeaders();
+
+      if (trimmedUsername !== user.username) {
+        await axios.patch(
+          `${API_BASE_URL}/api/admin/users/${user.id}/username`,
+          { username: trimmedUsername },
+          { headers }
+        );
+      }
 
       if (user.role === "writer" && role === "reader") {
         await axios.patch(`${API_BASE_URL}/api/admin/users/${user.id}/demote`, {}, { headers });
@@ -144,14 +162,23 @@ const Manageusers = () => {
       }
 
       await loadData();
-      setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" });
+      setEditUserModal({ isOpen: false, user: null, username: "", role: "reader", status: "active", reason: "" });
     } catch (err) {
       console.error(err);
-      if (err.response?.status === 403) {
-        alert("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้");
+      const status = err.response?.status;
+      if (status === 400) {
+        alert(err.response?.data?.error || err.response?.data?.message || "username ไม่ถูกต้อง");
+      } else if (status === 409) {
+        alert(err.response?.data?.error || err.response?.data?.message || "username ซ้ำ");
+      } else if (status === 401) {
+        alert(err.response?.data?.error || err.response?.data?.message || "token หมดอายุ");
+      } else if (status === 403) {
+        alert(err.response?.data?.error || err.response?.data?.message || "ไม่มีสิทธิ์ admin");
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึกการเปลี่ยนแปลง กรุณาลองใหม่อีกครั้ง");
       }
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -378,7 +405,7 @@ const Manageusers = () => {
 
                         <button
                           className="btn-icon-action btn-edit-user"
-                          onClick={() => setEditUserModal({ isOpen: true, user, role: user.role || "reader", status: user.status || "active", reason: "" })}
+                          onClick={() => setEditUserModal({ isOpen: true, user, username: user.username || "", role: user.role || "reader", status: user.status || "active", reason: "" })}
                           title={isSelf ? "ไม่สามารถแก้ไขบัญชีของตัวเองได้" : "แก้ไขบัญชี"}
                           disabled={isSelf}
                         >
@@ -659,14 +686,27 @@ const Manageusers = () => {
 
         {/* ── 3. Modal แก้ไขบทบาทและสถานะ ── */}
         {editUserModal.isOpen && editUserModal.user && (
-          <div className="admin-modal-overlay" onClick={() => setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" })}>
+          <div className="admin-modal-overlay" onClick={() => setEditUserModal({ isOpen: false, user: null, username: "", role: "reader", status: "active", reason: "" })}>
             <div className="admin-modal-content" onClick={e => e.stopPropagation()}>
               <div className="modal-header-sec">
                 <h2>แก้ไขบัญชีผู้ใช้งาน: {editUserModal.user.username}</h2>
-                <button className="close-modal-x" onClick={() => setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" })}>×</button>
+                {/* หมายเหตุ: หัวข้อ modal ยึดชื่อเดิมของบัญชีไว้ ไม่เปลี่ยนตามที่พิมพ์ใน input ด้านล่าง เพื่อไม่ให้สับสนว่ากำลังแก้ไขบัญชีไหน */}
+                <button className="close-modal-x" onClick={() => setEditUserModal({ isOpen: false, user: null, username: "", role: "reader", status: "active", reason: "" })}>×</button>
               </div>
 
               <div className="modal-body-content">
+                <div className="edit-form-group">
+                  <label className="form-lbl">ชื่อผู้ใช้ (Username)</label>
+                  <input
+                    type="text"
+                    className="admin-form-select"
+                    value={editUserModal.username}
+                    onChange={(e) => setEditUserModal(prev => ({ ...prev, username: e.target.value }))}
+                    placeholder="กรอกชื่อผู้ใช้ใหม่"
+                    maxLength={50}
+                  />
+                </div>
+
                 <div className="edit-form-group">
                   <label className="form-lbl">บทบาท</label>
 
@@ -718,7 +758,8 @@ const Manageusers = () => {
                 <button
                   type="button"
                   className="admin-modal-btn cancel-btn"
-                  onClick={() => setEditUserModal({ isOpen: false, user: null, role: "reader", status: "active", reason: "" })}
+                  onClick={() => setEditUserModal({ isOpen: false, user: null, username: "", role: "reader", status: "active", reason: "" })}
+                  disabled={isUpdating}
                 >
                   ยกเลิก
                 </button>
@@ -726,8 +767,9 @@ const Manageusers = () => {
                   type="button"
                   className="admin-modal-btn save-btn"
                   onClick={handleUpdateUser}
+                  disabled={isUpdating}
                 >
-                  บันทึกการเปลี่ยนแปลง
+                  {isUpdating ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
                 </button>
               </div>
             </div>

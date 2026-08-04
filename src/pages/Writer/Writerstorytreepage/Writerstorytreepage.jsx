@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactFlow, {
   Handle,
   Position,
@@ -193,7 +193,18 @@ const StoryNode = ({ data }) => {
   const isSelected = !!data.isSelectedNode;
   const hasSelection = !!data.hasActiveSelection;
 
-  const cardClassName = `wst-node-card ${isSelected ? 'wst-node-card--selected' : ''} ${hasSelection && !isSelected ? 'wst-node-card--dimmed' : ''}`;
+  // สถานะระหว่าง Connect Mode: "valid" = เชื่อมได้ (เขียวจาง), "invalid" = เชื่อมไม่ได้ (แดงจาง), null = ยังไม่ได้เลือก source
+  const connectTargetStatus = data.connectTargetStatus || null;
+  const isConnectSourceNode = !!data.isConnectSourceNode;
+
+  const cardClassName = [
+    "wst-node-card",
+    isSelected ? "wst-node-card--selected" : "",
+    hasSelection && !isSelected ? "wst-node-card--dimmed" : "",
+    isConnectSourceNode ? "wst-node-card--connect-source" : "",
+    connectTargetStatus === "valid" ? "wst-node-card--valid-target" : "",
+    connectTargetStatus === "invalid" ? "wst-node-card--invalid-target" : "",
+  ].filter(Boolean).join(" ");
 
   const nodeCustomStyle = {
     borderColor: isSelected ? "#2563EB" : style.stroke,
@@ -207,6 +218,7 @@ const StoryNode = ({ data }) => {
       ? `0 10px 25px -5px rgba(37, 99, 235, 0.25), 0 8px 10px -6px rgba(37, 99, 235, 0.3), 0 0 0 3px rgba(37, 99, 235, 0.4)`
       : "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
     animation: isSelected ? "wst-pulse-border 1.8s infinite alternate" : "none",
+    cursor: connectTargetStatus === "invalid" ? "not-allowed" : undefined,
   };
 
   return (
@@ -760,11 +772,18 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     const positionedNodes = nodeIds.map((sceneId) => {
       const scene = localMap.get(sceneId);
       const position = positions[sceneId] || { x: CANVAS_MARGIN, y: CANVAS_MARGIN };
+
+      // ใช้ตำแหน่งที่ Writer เคยลากบันทึกไว้ (node_x / node_y จาก Backend) ถ้ามีค่าครบ
+      // ถ้าไม่มี (เป็น null/undefined) ให้ใช้ตำแหน่งจาก layout อัตโนมัติเดิมแทน (behavior เดิม)
+      const apiX = scene.node_x ?? scene.NodeX;
+      const apiY = scene.node_y ?? scene.NodeY;
+      const hasSavedPosition = apiX !== null && apiX !== undefined && apiY !== null && apiY !== undefined;
+
       return {
         id: sceneId,
         scene,
-        x: scene.x ?? position.x, 
-        y: scene.y ?? position.y,
+        x: hasSavedPosition ? apiX : (scene.x ?? position.x),
+        y: hasSavedPosition ? apiY : (scene.y ?? position.y),
         status: nodeStatuses[sceneId],
       };
     });
@@ -1021,6 +1040,196 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setSelectedSceneId(String(sceneId));
   }, [rfNodes, setCenter]);
 
+  // คำนวณตำแหน่งโหนดจาก layout อัตโนมัติ (ไม่รวมตำแหน่งลากเองจาก backend)
+  const computeAutoLayoutPositions = useCallback(() => {
+    if (!uniqueNodes.length) return {};
+
+    const nodeIds = uniqueNodes.map(getNodeId);
+    const adjacency = {};
+    const inDegree = {};
+    const nodeLevels = {};
+
+    nodeIds.forEach((id) => {
+      adjacency[id] = [];
+      inDegree[id] = 0;
+    });
+
+    const findMatchingNodeId = (raw) => {
+      const candidate = normalizeId(raw);
+      if (!candidate) return "";
+      if (adjacency[candidate] !== undefined) return candidate;
+      for (const id of nodeIds) {
+        const sid = normalizeId(id);
+        if (sid === candidate) return sid;
+        if (sid.endsWith(candidate)) return sid;
+        if (sid.includes(candidate) && candidate.length > 1) return sid;
+      }
+      return "";
+    };
+
+    normalizedEdges.forEach((edge) => {
+      const source = findMatchingNodeId(edge.fromId);
+      const target = findMatchingNodeId(edge.toId);
+      if (source && adjacency[source] && inDegree[target] !== undefined) {
+        adjacency[source].push(target);
+        inDegree[target] += 1;
+      }
+    });
+
+    const queue = [];
+    nodeIds.forEach((id) => {
+      const scene = uniqueNodes.find((n) => getNodeId(n) === id);
+      const type = getNodeType(scene);
+      if (type === "start" || type === "starting" || inDegree[id] === 0) {
+        nodeLevels[id] = 0;
+        queue.push(id);
+      }
+    });
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      const level = nodeLevels[current] ?? 0;
+      adjacency[current].forEach((childId) => {
+        const offset = (inDegree[childId] >= 3) ? 2 : 1;
+        const nextLevel = level + offset;
+        if (nodeLevels[childId] === undefined || nodeLevels[childId] > nextLevel) {
+          nodeLevels[childId] = nextLevel;
+          queue.push(childId);
+        }
+      });
+    }
+
+    const levelsMap = {};
+    nodeIds.forEach((id) => {
+      const level = nodeLevels[id] ?? 0;
+      if (!levelsMap[level]) levelsMap[level] = [];
+      levelsMap[level].push(id);
+    });
+
+    const positions = {};
+    const sortedLevels = Object.keys(levelsMap).map(Number).sort((a, b) => a - b);
+    const HORIZONTAL_STEP = NODE_WIDTH + NODE_HORIZONTAL_GAP;
+    const VERTICAL_STEP = NODE_HEIGHT + NODE_VERTICAL_GAP;
+
+    if (sortedLevels.length > 0) {
+      const level0Ids = levelsMap[0] || [];
+      level0Ids.sort();
+      const total0 = level0Ids.length;
+      const offset0 = ((total0 - 1) * HORIZONTAL_STEP) / 2;
+      level0Ids.forEach((id, colIndex) => {
+        positions[id] = {
+          x: CANVAS_MARGIN + colIndex * HORIZONTAL_STEP - offset0,
+          y: CANVAS_MARGIN + 0 * VERTICAL_STEP,
+        };
+      });
+    }
+
+    const parentMap = {};
+    nodeIds.forEach((id) => {
+      parentMap[id] = [];
+    });
+    normalizedEdges.forEach((edge) => {
+      const src = findMatchingNodeId(edge.fromId);
+      const tgt = findMatchingNodeId(edge.toId);
+      if (src && tgt && parentMap[tgt]) {
+        parentMap[tgt].push(src);
+      }
+    });
+
+    for (let i = 1; i < sortedLevels.length; i++) {
+      const level = sortedLevels[i];
+      const ids = levelsMap[level] || [];
+
+      const idealXValues = {};
+      ids.forEach((id) => {
+        const parents = parentMap[id] || [];
+        const activeParents = parents.filter((pId) => positions[pId] !== undefined);
+        
+        if (activeParents.length > 0) {
+          const sumX = activeParents.reduce((sum, pId) => sum + positions[pId].x, 0);
+          idealXValues[id] = sumX / activeParents.length;
+        } else {
+          idealXValues[id] = 0;
+        }
+      });
+
+      ids.sort((a, b) => idealXValues[a] - idealXValues[b]);
+
+      const total = ids.length;
+      const offset = ((total - 1) * HORIZONTAL_STEP) / 2;
+      ids.forEach((id, colIndex) => {
+        positions[id] = {
+          x: CANVAS_MARGIN + colIndex * HORIZONTAL_STEP - offset,
+          y: CANVAS_MARGIN + level * VERTICAL_STEP,
+        };
+      });
+    }
+
+    const allY = Object.values(positions).map((pos) => pos.y);
+    const minY = Math.min(...allY, 0);
+    const shiftY = Math.max(CANVAS_MARGIN, CANVAS_MARGIN - minY);
+
+    Object.keys(positions).forEach((sceneId) => {
+      positions[sceneId].y += shiftY;
+    });
+
+    return positions;
+  }, [uniqueNodes, normalizedEdges]);
+
+  // ฟังก์ชันจัดเรียงตำแหน่งอัตโนมัติและบันทึกลง Backend ทันที
+  const handleAutoLayout = useCallback(async () => {
+    const computedPositions = computeAutoLayoutPositions();
+    if (!Object.keys(computedPositions).length) return;
+
+    // 1. อัปเดตตำแหน่งบน React Flow UI ทันที
+    setRfNodes((currentNds) =>
+      currentNds.map((node) => {
+        if (node.id === "cursor-node" || node.id.startsWith("temp-new-")) return node;
+        const newPos = computedPositions[node.id];
+        if (!newPos) return node;
+        return {
+          ...node,
+          position: { x: newPos.x, y: newPos.y },
+          data: {
+            ...node.data,
+            node_x: newPos.x,
+            node_y: newPos.y,
+            NodeX: newPos.x,
+            NodeY: newPos.y,
+          },
+        };
+      })
+    );
+
+    // 2. ยิง API บันทึกตำแหน่งใหม่ลง Database
+    const token = localStorage.getItem("token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    showToast("กำลังจัดเรียงและบันทึกตำแหน่งอัตโนมัติ...", "info");
+
+    try {
+      const savePromises = Object.entries(computedPositions).map(([sceneId, pos]) =>
+        axios.put(
+          `${API_BASE_URL}/scenes/${sceneId}/position`,
+          {
+            node_x: pos.x,
+            node_y: pos.y,
+          },
+          { headers }
+        )
+      );
+
+      await Promise.all(savePromises);
+
+      showToast("จัดเรียงและบันทึกตำแหน่งเรียบร้อยแล้ว", "success");
+      await fetchStoryTreeAndChapters();
+    } catch (err) {
+      console.error("Auto layout save error:", err);
+      showToast("จัดเรียงสำเร็จ แต่เกิดข้อผิดพลาดในการบันทึกบางตำแหน่ง", "warn");
+    }
+  }, [computeAutoLayoutPositions, setRfNodes, showToast, fetchStoryTreeAndChapters]);
+
   // ฟังก์ชันวนพาผู้ใช้ซูมไปยังตำแหน่งโหนดที่ยังไม่เชื่อมต่อทีละโหนด
   const handleFocusNextOrphan = useCallback(() => {
     if (orphanNodes.length === 0) {
@@ -1052,6 +1261,23 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     }
   }, [orphanNodes, orphanIndex, setCenter, showToast]);
 
+  // Central connection cleanup function to reset all connection-related state
+  const clearConnectionState = useCallback(() => {
+    setConnectSource(null);
+    setConnectTarget(null);
+    setHoverTargetInfo(null);
+    setIsModalOpen(false);
+    setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
+    setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+  }, [setRfNodes, setRfEdges]);
+
+  // Cleanup on unmount or route change
+  useEffect(() => {
+    return () => {
+      clearConnectionState();
+    };
+  }, [clearConnectionState]);
+
   // sync when backend positions change or selection styling updates
   useEffect(() => {
     if (!treeData) return;
@@ -1059,7 +1285,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setRfNodes((currentNds) => {
       const currentTempNodes = currentNds.filter(n => n.id.startsWith("temp-new-") || n.data?.isTemp);
       const hasCursor = currentNds.some(n => n.id === "cursor-node");
-      const cursorN = hasCursor && connectSource ? currentNds.find(n => n.id === "cursor-node") : null;
+      const cursorN = hasCursor && interactionMode === "connect" && connectSource ? currentNds.find(n => n.id === "cursor-node") : null;
       
       let nextNds = Array.isArray(flowNodes) ? [...flowNodes] : [];
       
@@ -1076,13 +1302,13 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
     setRfEdges((currentEds) => {
       const hasCursorEdge = currentEds.some(e => e.id === "cursor-edge");
-      const cursorE = hasCursorEdge && connectSource ? currentEds.find(e => e.id === "cursor-edge") : null;
+      const cursorE = hasCursorEdge && interactionMode === "connect" && connectSource ? currentEds.find(e => e.id === "cursor-edge") : null;
       
       let nextEds = Array.isArray(flowEdges) ? [...flowEdges] : [];
       if (cursorE) nextEds.push(cursorE);
       return nextEds;
     });
-  }, [treeData, novelId, selectedSceneId, selectedEdge, interactionMode, connectSource]);
+  }, [treeData, novelId, selectedSceneId, selectedEdge, interactionMode, connectSource, flowNodes, flowEdges, setRfNodes, setRfEdges]);
 
   // ดักจับและยกเลิก Connect Mode เมื่อออกจากโหมด
   const changeMode = useCallback((newMode) => {
@@ -1090,22 +1316,15 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     
     // เคลียร์ระบบโฟกัสและไฮไลท์กลับสู่กราฟโหมดปกติเมื่อเปลี่ยนเครื่องมือ
     setSelectedSceneId(null);
-    setSelectedScene(null);
     setSelectedEdge(null);
     
-    // รีเซ็ตโหมดการเชื่อม
-    setConnectSource(null);
-    setConnectTarget(null);
-    setIsModalOpen(false);
+    // รีเซ็ตโหมดการเชื่อมด้วยกลาง
+    clearConnectionState();
 
     // รีเซ็ตตัวแปรโหมดลบโหนด
     setSceneToDelete(null);
     setShowDeleteModal(false);
-    
-    // ล้าง cursor-node & cursor-edge ออก
-    setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-    setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
-  }, [setRfNodes, setRfEdges]);
+  }, [clearConnectionState]);
 
   // keydown event listener สำหรับคีย์บอร์ดชอร์ตคัต 'C' และ 'Escape'
   useEffect(() => {
@@ -1114,17 +1333,10 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       
       if (e.key === "Escape") {
         if (isModalOpen) {
-          setIsModalOpen(false);
-          setConnectSource(null);
-          setConnectTarget(null);
-          setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-          setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+          clearConnectionState();
         } else if (interactionMode === "connect" && connectSource) {
           // หากผู้ใช้ลากเส้นประอยู่ และกดยกเลิกด้วย ESC -> ให้สลายเส้นประและเคลียร์ต้นทางทันที แต่ยังคงอยู่ในโหมดเชื่อมต่อ
-          setConnectSource(null);
-          setConnectTarget(null);
-          setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-          setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+          clearConnectionState();
         } else if (interactionMode !== "select") {
           changeMode("select");
         }
@@ -1137,7 +1349,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [interactionMode, isModalOpen, connectSource, changeMode]);
+  }, [interactionMode, isModalOpen, connectSource, changeMode, clearConnectionState]);
 
   // ดึงแผนแมพแบบผสม (โหนดจริงจากหลังบ้าน + โหนดว่างชั่วคราว) เพื่อสนับสนุนการกดและรายละเอียด Sidebar
   const sceneMap = useMemo(() => {
@@ -1211,6 +1423,60 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     return getConnectionBlockReason(connection?.source, connection?.target) === null;
   }, [getConnectionBlockReason]);
 
+  // แปลงรหัส reason ที่ได้จาก getConnectionBlockReason() ให้เป็นข้อความอธิบายภาษาไทย
+  // ใช้ร่วมกันทั้ง toast (คลิกเชื่อมจริง) และ hover tooltip (ก่อนคลิก) เพื่อไม่ให้ข้อความเพี้ยนกัน
+  const getBlockReasonMessage = useCallback((blockReason) => {
+    if (!blockReason) return null;
+    switch (blockReason) {
+      case "source_ending":
+        return "ไม่สามารถเพิ่มทางเลือกได้ เนื่องจาก 'ฉากต้นทางคือฉากจบ' (ฉากจบไม่สามารถเพิ่มทางเลือกเชื่อมไปยังฉากอื่นได้อีก)";
+      case "target_start":
+        return "ไม่สามารถเชื่อมต่อไปยังฉากปลายทางที่เป็น 'จุดเริ่มต้นเรื่อง' ได้ (จุดเริ่มต้นทำหน้าที่เริ่มเดินเรื่องเท่านั้น ห้ามมีเส้นทางอื่นชี้กลับมาปัก)";
+      case "self":
+        return "ไม่สามารถเชื่อมต่อฉากเข้าหาตัวเองได้ กรุณาเลือกฉากปลายทางอื่นที่เป็นคนละฉากกัน";
+      case "cycle":
+        return "ไม่สามารถเชื่อมต่อได้เนื่องจากจะทำให้เกิด ' ลูป ' ในเนื้อเรื่อง กรุณาเลือกฉากปลายทางอื่นเพื่อดำเนินเรื่องไปข้างหน้า";
+      default:
+        return "ไม่สามารถเชื่อมโยงฉากเข้าหากันได้เนื่องจากผิดเงื่อนไขของกราฟ";
+    }
+  }, []);
+
+  // ── Highlight ทั้งกราฟระหว่าง Connect Mode ──────────────────────────────
+  // เมื่อมี connectSource แล้ว ให้คำนวณสถานะของทุกโหนดในกราฟล่วงหน้าว่าเป็น
+  // "valid" (เชื่อมได้) หรือ "invalid" (เชื่อมไม่ได้) โดย reuse getConnectionBlockReason()
+  // เดิมทั้งหมด ไม่เขียน validation ใหม่ ผลลัพธ์เก็บเป็น map: { [nodeId]: "valid" | "invalid" }
+  const connectTargetStatusMap = useMemo(() => {
+    const map = {};
+    if (interactionMode !== "connect" || !connectSource) return map;
+
+    rfNodes.forEach((n) => {
+      if (n.id === "cursor-node" || n.id === connectSource.id) return;
+      const blockReason = getConnectionBlockReason(connectSource.id, n.id);
+      map[n.id] = blockReason ? "invalid" : "valid";
+    });
+
+    return map;
+  }, [interactionMode, connectSource, rfNodes, getConnectionBlockReason]);
+
+  // State เก็บ reason ของโหนดที่กำลัง hover อยู่ระหว่าง Connect Mode (แสดงผลทันทีบน banner โดยไม่ต้องรอ click)
+  const [hoverTargetInfo, setHoverTargetInfo] = useState(null); // { status: "valid" | "invalid", message } | null
+
+  const handleNodeMouseEnter = useCallback((evt, node) => {
+    if (interactionMode !== "connect" || !connectSource || node.id === connectSource.id || node.id === "cursor-node") {
+      return;
+    }
+    const blockReason = getConnectionBlockReason(connectSource.id, node.id);
+    if (!blockReason) {
+      setHoverTargetInfo({ status: "valid", message: "✅ สามารถเชื่อมกับฉากนี้ได้" });
+    } else {
+      setHoverTargetInfo({ status: "invalid", message: `🚫 ไม่สามารถเชื่อมได้: ${getBlockReasonMessage(blockReason)}` });
+    }
+  }, [interactionMode, connectSource, getConnectionBlockReason, getBlockReasonMessage]);
+
+  const handleNodeMouseLeave = useCallback(() => {
+    setHoverTargetInfo(null);
+  }, []);
+
   // ฟังก์ชันสร้างโหนดเปล่าชั่วคราวลงกราฟตามพิกัด Canvas ทันทีโดยมีข้อมูลตอนที่เลือก
   const addSceneOnCanvasLocal = useCallback((x, y, chosenChapterId) => {
     const tempId = `temp-new-${Date.now()}`;
@@ -1262,16 +1528,12 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     if (interactionMode !== "add-node") {
       // หากอยู่ในโหมดเชื่อมโยง และมีฉากต้นทางที่กำลังลากเส้นเชื่อมคาอยู่ -> ให้ยกเลิกและทำลายเส้นประทิ้งทันที
       if (interactionMode === "connect" && connectSource) {
-        setConnectSource(null);
-        setConnectTarget(null);
-        setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-        setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+        clearConnectionState();
         return;
       }
 
       // หากคลิกที่ว่างในโหมดปกติ/เลือก -> ให้ถอนโฟกัสออกจากไฮไลท์เส้นทางกลับสู่กราฟปกติ
       setSelectedSceneId(null);
-      setSelectedScene(null);
       return;
     }
     
@@ -1288,7 +1550,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       setSelectedMoveChapterId("");
     }
     setShowAddScenePopup(true);
-  }, [interactionMode, screenToFlowPosition, novelChapters, connectSource, setRfNodes, setRfEdges]);
+  }, [interactionMode, screenToFlowPosition, novelChapters, connectSource, clearConnectionState]);
 
   const edgeUpdateSuccessful = useRef(true);
 
@@ -1322,7 +1584,8 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       }
     } catch (err) {
       console.error("Create scene error:", err);
-      showToast("เกิดข้อผิดพลาดในการสร้างฉาก", "warn");
+      const errMsg = err.response?.data?.message || err.response?.data?.error || "เกิดข้อผิดพลาดในการสร้างฉาก (ชื่อฉากอาจซ้ำในตอนเดียวกัน)";
+      showToast(errMsg, "warn");
     } finally {
       setShowAddScenePopup(false);
       setPendingScenePosition(null);
@@ -1950,6 +2213,31 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     onNodesChangeRF(changes);
   }, [onNodesChangeRF]);
 
+  // บันทึกตำแหน่ง node ลง Backend หลังจาก Writer ลาก node เสร็จ (drag stop)
+  const onNodeDragStop = useCallback(async (event, node) => {
+    if (!node?.id || node.id === "cursor-node" || node.id.startsWith("temp-new-")) return;
+
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      await axios.put(
+        `${API_BASE_URL}/scenes/${node.id}/position`,
+        {
+          node_x: node.position.x,
+          node_y: node.position.y,
+        },
+        { headers }
+      );
+    } catch (err) {
+      console.error("Save node position error:", err);
+      showToast("บันทึกตำแหน่ง node ไม่สำเร็จ", "warn");
+    }
+  }, [showToast]);
+
   const onEdgesChangeWrapper = useCallback((changes) => {
     onEdgesChangeRF(changes);
   }, [onEdgesChangeRF]);
@@ -2002,7 +2290,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     if (currentMode === "connect" || currentMode === "add-node") return;
     
     const sceneId = node?.id;
-    if (!sceneId) return;
+    if (!sceneId || sceneId === "cursor-node") return;
     
     const isTemp = String(sceneId).startsWith("temp-new-") || node.data?.isTemp;
     if (isTemp) {
@@ -2033,7 +2321,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
   // คลิกที่โหนด
   const handleNodeClick = useCallback((evt, node) => {
-    if (!node) return;
+    if (!node || node.id === "cursor-node") return;
 
     const currentMode = modeRef.current;
 
@@ -2083,22 +2371,16 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       }
       
       if (connectSource) {
-        if (node.id === connectSource.id) return;
+        // คลิกเลือกโหนดเดิมซ้ำ -> ยกเลิกการเลือกฉากต้นทาง
+        if (node.id === connectSource.id) {
+          clearConnectionState();
+          return;
+        }
 
         // ป้องกันเชื่อมต่อผิดกฎโครงสร้างนิยายทางเลือก (เช่น เกิด Loop, ปลายทางเป็นจุดเริ่ม, ต้นทางเป็นฉากจบ)
         const blockReason = getConnectionBlockReason(connectSource.id, node.id);
         if (blockReason) {
-          const message =
-            blockReason === "source_ending"
-              ? "ไม่สามารถเพิ่มทางเลือกได้ เนื่องจาก 'ฉากต้นทางคือฉากจบ' (ฉากจบไม่สามารถเพิ่มทางเลือกเชื่อมไปยังฉากอื่นได้อีก)"
-              : blockReason === "target_start"
-              ? "ไม่สามารถเชื่อมต่อไปยังฉากปลายทางที่เป็น 'จุดเริ่มต้นเรื่อง' ได้ (จุดเริ่มต้นทำหน้าที่เริ่มเดินเรื่องเท่านั้น ห้ามมีเส้นทางอื่นชี้กลับมาปัก)"
-              : blockReason === "self"
-              ? "ไม่สามารถเชื่อมต่อฉากเข้าหาตัวเองได้ กรุณาเลือกฉากปลายทางอื่นที่เป็นคนละฉากกัน"
-              : blockReason === "cycle"
-              ? "ไม่สามารถเชื่อมต่อได้เนื่องจากจะทำให้เกิด ' ลูป ' ในเนื้อเรื่อง กรุณาเลือกฉากปลายทางอื่นเพื่อดำเนินเรื่องไปข้างหน้า"
-              : "ไม่สามารถเชื่อมโยงฉากเข้าหากันได้เนื่องจากผิดเงื่อนไขของกราฟ";
-          showToast(message, "warn");
+          showToast(getBlockReasonMessage(blockReason), "warn");
           return;
         }
         
@@ -2111,7 +2393,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
 
     // โหมดเลือกปกติ (Select Mode)
     setSelectedSceneId(String(node.id));
-  }, [connectSource, getConnectionBlockReason, screenToFlowPosition, setRfNodes, setRfEdges, showToast, setSceneToDelete, setShowDeleteModal]);
+  }, [connectSource, getConnectionBlockReason, getBlockReasonMessage, screenToFlowPosition, setRfNodes, setRfEdges, showToast, setSceneToDelete, setShowDeleteModal, clearConnectionState]);
 
   const handleConfirmConnect = async () => {
     if (!choiceText.trim() || !connectSource || !connectTarget) return;
@@ -2129,7 +2411,6 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       }
 
       // อนุญาตให้มีหลายทางเลือกไปยังฉากปลายทางเดียวกันได้ แต่ต้องตั้ง "ชื่อทางเลือก" ไม่ซ้ำกัน
-      // (ซ้ำทั้งต้นทาง+ปลายทาง+ชื่อทางเลือก เป๊ะๆ ถึงจะถือว่าซ้ำ)
       const trimmedChoiceText = choiceText.trim().toLowerCase();
       const isDuplicateChoiceLabel = normalizedEdges.some(
         (e) =>
@@ -2154,26 +2435,17 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      // 1. ยิงบันทึกทางเลือกไปยังหลังบ้าน (ฐานข้อมูล) โดยปิด withCredentials เพื่อหลีกเลี่ยง CORS block
       await axios.post(`${API_BASE_URL}/choices`, payload, { 
         headers, 
         withCredentials: false 
       });
 
-      // 2. เมื่อมาถึงจุดนี้ได้ แสดงว่า POST บันทึกเรียบร้อยแล้ว
       showToast("เชื่อมทางเลือกสำเร็จแล้ว", "success");
 
-      setIsModalOpen(false);
-      
-      // ล้างข้อมูลทางเลือกชั่วคราวออกไปเพื่อให้พร้อมรับการเชื่อมรอบถัดไป
-      setConnectSource(null);
-      setConnectTarget(null);
-      setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-      setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+      clearConnectionState();
 
-      // แจ้งเตือนบอร์ดผ่าน Event Listener ที่มีระบบครอบนิรภัยความเสถียรเพื่อโหลดข้อมูลใหม่
       window.dispatchEvent(new Event("novel-data-updated"));
-      changeMode(interactionMode); // คงอยู่โหมดเชื่อมต่อไป เพื่อความต่อเนื่อง
+      changeMode(interactionMode);
     } catch (err) {
       console.error("Save choice edge error, starting database fallback verification...", err);
       
@@ -2181,12 +2453,10 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         const srcIdInt = parseInt(connectSource.id, 10);
         const dstIdInt = parseInt(connectTarget.id, 10);
         
-        // กู้ภัย (Fallback): ดึงข้อมูลแผนผังเรื่องล่าสุดจาก DB ขึ้นมาเช็คอย่างเงียบๆ
         const checkRes = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`, { withCredentials: false });
         const freshTree = checkRes.data?.data || checkRes.data || null;
         const freshEdges = freshTree?.Edges || freshTree?.edges || [];
 
-        // ค้นหาว่าใน DB มีเส้นที่เชื่อมโยงระหว่างคู่นี้เกิดขึ้นสำเร็จแล้วจริงหรือไม่
         const isActuallySavedInDb = freshEdges.some(
           (edge) =>
             parseInt(edge.FromID ?? edge.from_id ?? edge.from, 10) === srcIdInt &&
@@ -2194,15 +2464,10 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         );
 
         if (isActuallySavedInDb) {
-          // หากข้อมูลบันทึกสำเร็จจริงในฐานข้อมูล ➔ ถือเป็นความสำเร็จและปิด Modal สะอาดเรียบร้อย!
           setTreeData(freshTree);
           showToast("เชื่อมทางเลือกสำเร็จแล้ว", "success");
           
-          setIsModalOpen(false);
-          setConnectSource(null);
-          setConnectTarget(null);
-          setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-          setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+          clearConnectionState();
           
           window.dispatchEvent(new Event("novel-data-updated"));
           changeMode(interactionMode);
@@ -2212,29 +2477,13 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         console.error("Fallback verification failed:", fallbackErr);
       }
 
-      // // หากตรวจสอบแล้วไม่มีข้อมูลบันทึกจริง ค่อยพ่นข้อความเตือนผิดพลาดสีแดง
-      // const backendError = err.response?.data?.message || err.response?.data?.error || "เกิดข้อผิดพลาดในการบันทึกเส้นทางเชื่อมต่อ";
-      // showToast(backendError, "warn");
-      
-      // setIsModalOpen(false);
-
-      // ล้างเส้นเชื่อมที่ลากค้างและลบล้างเส้นทางเลือกทดลองวาดที่ผิดพลาดออกไป
-      setConnectSource(null);
-      setConnectTarget(null);
-      setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-      setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
-      
-      // ดึงข้อมูลความจริงจากฐานข้อมูลหลังบ้านกลับมาป้องกันเส้นค้างบนจอ
+      clearConnectionState();
       fetchStoryTreeAndChapters();
     }
   };
 
   const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setConnectSource(null);
-    setConnectTarget(null);
-    setRfNodes((nds) => nds.filter((n) => n.id !== "cursor-node"));
-    setRfEdges((eds) => eds.filter((e) => e.id !== "cursor-edge"));
+    clearConnectionState();
   };
 
   const selectedScene = selectedSceneId ? sceneMap.get(selectedSceneId) : null;
@@ -2255,6 +2504,24 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
   const title = treeData?.NovelTitle || treeData?.novel_title || "Story Tree";
 
   // ข้อความและคำแนะนำ Dynamic ปรับตามเครื่องมือที่กด เพื่อนำทางนักเขียน
+  // แนบสถานะ valid/invalid target (คำนวณไว้แล้วใน connectTargetStatusMap) เข้าไปใน data ของแต่ละโหนด
+  // ก่อนส่งเข้า <ReactFlow> เพื่อให้ StoryNode เลือก class/สีได้เอง โดยไม่แตะ state เดิม (rfNodes) เลย
+  const displayNodes = useMemo(() => {
+    if (interactionMode !== "connect" || !connectSource) return rfNodes;
+
+    return rfNodes.map((n) => {
+      if (n.id === "cursor-node") return n;
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          isConnectSourceNode: n.id === connectSource.id,
+          connectTargetStatus: n.id === connectSource.id ? null : (connectTargetStatusMap[n.id] || null),
+        },
+      };
+    });
+  }, [rfNodes, interactionMode, connectSource, connectTargetStatusMap]);
+
   const getBannerInstruction = () => {
     if (interactionMode === "select") {
       return (
@@ -2271,10 +2538,18 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
           </span>
         );
       } else {
+        // ระหว่าง hover โหนดปลายทาง ให้แสดงผลลัพธ์ validation ทันที แทนที่ข้อความคำแนะนำปกติ
+        if (hoverTargetInfo) {
+          return (
+            <span style={{ color: hoverTargetInfo.status === "invalid" ? "#ef4444" : "#16a34a" }}>
+              <strong>{hoverTargetInfo.message}</strong>
+            </span>
+          );
+        }
         return (
           <span>
             🔗 <strong>โหมดเชื่อมโยง:</strong> คลิกเลือกอีกโหนดเพื่อเชื่อมไปยัง <strong>ฉากปลายทาง</strong>{" "}
-            (เชื่อมได้เฉพาะ<strong>ไปข้างหน้า</strong>เท่านั้น ระบบจะกันไม่ให้ย้อนกลับหรือวนลูป · กด ESC เพื่อยกเลิก)
+            (เชื่อมได้เฉพาะ<strong>ไปข้างหน้า</strong>เท่านั้น ระบบจะกันไม่ให้ย้อนกลับหรือวนลูป · โหนดสีเขียวจาง = เชื่อมได้, สีแดงจาง = เชื่อมไม่ได้ · กด ESC เพื่อยกเลิก)
           </span>
         );
       }
@@ -2620,6 +2895,20 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M10 11v6M14 11v6M5 6l1 13a1 1 0 001 1h10a1 1 0 001-1l1-13"/></svg>
                     <span>ลบ</span>
                   </button>
+                  <button 
+                    title="จัดเรียงตำแหน่งฉากอัตโนมัติและบันทึกลงฐานข้อมูลทันที" 
+                    className="wst-toolbar-btn"
+                    onClick={handleAutoLayout}
+                    style={{
+                      background: '#eff6ff',
+                      color: '#1d4ed8',
+                      borderColor: '#bfdbfe',
+                      fontWeight: '700'
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    <span>จัดเรียงอัตโนมัติ</span>
+                  </button>
 
                   {orphanNodes.length > 0 && (
                     <button 
@@ -2640,17 +2929,20 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
                 </div>
 
                 <ReactFlow
-                  nodes={rfNodes}
+                  nodes={displayNodes}
                   edges={rfEdges}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   isValidConnection={isValidConnection}
                   onNodeClick={handleNodeClick}
                   onNodeDoubleClick={handleNodeDoubleClick}
+                  onNodeMouseEnter={handleNodeMouseEnter}
+                  onNodeMouseLeave={handleNodeMouseLeave}
                   onEdgeClick={handleEdgeClick}
                   onPaneClick={handlePaneClick}
                   onNodesChange={onNodesChangeWrapper}
                   onEdgesChange={onEdgesChangeWrapper}
+                  onNodeDragStop={onNodeDragStop}
                   onConnect={onConnect}
                   onEdgeUpdateStart={onEdgeUpdateStart}
                   onEdgeUpdate={onEdgeUpdate}

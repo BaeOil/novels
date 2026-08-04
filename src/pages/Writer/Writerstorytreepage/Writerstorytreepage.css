@@ -365,6 +365,26 @@
 }
 
 /* ─────────────────────────────────────────────
+   Connect Mode: Highlight ทั้งกราฟตั้งแต่เลือก source node
+   ───────────────────────────────────────────── */
+.wst-node-card--connect-source {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.45), 0 10px 25px -5px rgba(37, 99, 235, 0.25) !important;
+}
+
+.wst-node-card--valid-target {
+  background-color: rgba(22, 163, 74, 0.08) !important;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.35) !important;
+  cursor: pointer;
+}
+
+.wst-node-card--invalid-target {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+/* ─────────────────────────────────────────────
    Sidebar & Stats
    ───────────────────────────────────────────── */
 .wst-sidebar {
@@ -1091,6 +1111,12 @@
 
 .react-flow__handle.connectingfrom {
   background: #2563eb !important;
+}
+
+/* handle ปลายทางที่ลากไปปล่อยไม่ได้ (isValidConnection คืน false) จะได้คลาส .invalid จาก React Flow เอง */
+.react-flow__handle.invalid {
+  background: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
 }
 
 /* เส้น preview ระหว่างลากเชื่อม (ยังไม่ปล่อยเมาส์) */

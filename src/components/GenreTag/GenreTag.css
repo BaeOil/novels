@@ -37,3 +37,87 @@
   border-color: var(--pink-300);
   color: var(--pink-500);
 }
+
+/* ─────────────────────────────────── */
+/* Color-by-category variants (opt-in via colorByCategory prop) */
+/* ─────────────────────────────────── */
+
+.genre-tag--category-default {
+  background: var(--pink-50);
+  color: var(--pink-500);
+  border: 1px solid var(--pink-100);
+}
+
+.genre-tag--category-romance {
+  background: #fdf2f8;
+  color: #db2777;
+  border: 1px solid #fbcfe8;
+}
+
+.genre-tag--category-fantasy {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+}
+
+.genre-tag--category-adventure {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.genre-tag--category-comedy {
+  background: #fefce8;
+  color: #ca8a04;
+  border: 1px solid #fef08a;
+}
+
+.genre-tag--category-drama {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.genre-tag--category-horror {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.genre-tag--category-mystery {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.genre-tag--category-action {
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+
+.genre-tag--category-scifi {
+  background: #ecfeff;
+  color: #0891b2;
+  border: 1px solid #a5f3fc;
+}
+
+.genre-tag--category-slice {
+  background: #fafaf9;
+  color: #78716c;
+  border: 1px solid #e7e5e4;
+}
+
+.genre-tag--category-default:hover,
+.genre-tag--category-romance:hover,
+.genre-tag--category-fantasy:hover,
+.genre-tag--category-adventure:hover,
+.genre-tag--category-comedy:hover,
+.genre-tag--category-drama:hover,
+.genre-tag--category-horror:hover,
+.genre-tag--category-mystery:hover,
+.genre-tag--category-action:hover,
+.genre-tag--category-scifi:hover,
+.genre-tag--category-slice:hover {
+  filter: brightness(0.96);
+}

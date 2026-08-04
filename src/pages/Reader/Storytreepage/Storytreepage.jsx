@@ -4,10 +4,17 @@ import ReactFlow, {
   Background,
   Controls,
   MiniMap,
+  Panel,
   Handle,
   Position,
+  NodeToolbar,
   useReactFlow,
+  useNodesInitialized,
   ReactFlowProvider,
+  EdgeLabelRenderer,
+  BaseEdge,
+  getSmoothStepPath,
+  getNodesBounds,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import "./StoryTreePage.css";
@@ -26,6 +33,9 @@ const NODE_START_X = 60;
 const NODE_START_Y = 220;
 // Offset from a node's top-left position to its visual center, used when calling setCenter()
 const NODE_CENTER_OFFSET = { x: 140, y: 60 };
+// Offset between vertically-stacked choice labels when several edges converge on the same
+// target scene — without this their labels land on top of each other and become unreadable.
+const EDGE_LABEL_STAGGER = 20;
 
 const NODE_STATUS = {
   VISITED: "visited",
@@ -58,14 +68,18 @@ const stripHtml = (text) => {
 const StoryNode = ({ data }) => {
   const currentStatus = data.computedStatus || NODE_STATUS.LOCKED;
   const sceneType = data.type || "normal";
-  
+
   const isLocked = !data.isAdmin && (currentStatus === NODE_STATUS.LOCKED || currentStatus === NODE_STATUS.ENDING_LOCKED);
 
-  const getPrefix = () => {
-    if (sceneType === "start") return "▶ ";
-    if (isLocked) return "🔒 ";
-    if (sceneType === "ending") return "🏆 ";
-    return "📖 ";
+  // Icon shown on the corner waypoint badge — mirrors how a map marks "you are here" (📍),
+  // completed checkpoints (✓), locked areas (🔒), and the finish line (🏆).
+  const getWaypointIcon = () => {
+    if (sceneType === "start") return "▶";
+    if (isLocked) return "🔒";
+    if (currentStatus === NODE_STATUS.CURRENT) return "📍";
+    if (currentStatus === NODE_STATUS.ENDING_UNLOCKED) return "🏆";
+    if (currentStatus === NODE_STATUS.VISITED) return "✓";
+    return "📖";
   };
 
   let rawTitle = stripHtml(data.title || data.scene_name || data.name || data.label || data.chapter_name || "เนื้อเรื่อง");
@@ -114,9 +128,10 @@ const StoryNode = ({ data }) => {
         aria-disabled={isLocked}
         onKeyDown={handleKeyDown}
       >
+        <span className="story-node__waypoint" aria-hidden="true">{getWaypointIcon()}</span>
+
         <div>
           <div className="story-node__label">
-            {getPrefix()}
             {isLocked ? "เนื้อเรื่องยังไม่เปิดเผย" : sceneTitle}
           </div>
 
@@ -148,6 +163,62 @@ const nodeTypes = {
   storyNode: StoryNode,
 };
 
+// ป้ายชื่อทางเลือกแบบ built-in ของ React Flow render อยู่ใน SVG layer เดียวกับเส้น ซึ่งอยู่ "ใต้"
+// layer ของโหนดเสมอ — พอป้ายไปตกอยู่ในตำแหน่งที่มีโหนดอื่นทับอยู่ ก็เลยโดนบังมองไม่เห็น
+// EdgeLabelRenderer คือ portal ของ React Flow เองที่ render label ไปไว้ใน layer เหนือโหนด
+// โดยเฉพาะ (ใช้แก้ปัญหานี้ตรงๆ ตามที่ React Flow ออกแบบมา ไม่ใช่การ hack z-index)
+//
+// ส่วน groupIndex/groupTotal (ส่งมาทาง data) ใช้กระจายป้ายที่ต้องซ้อนกันแนวตั้ง เวลามีหลาย
+// ทางเลือกโยงเข้าฉากเดียวกัน จะได้ไม่ทับกันจนอ่านไม่ออกว่าอันไหนของใคร
+const StoryEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style,
+  markerEnd,
+  label,
+  data,
+}) => {
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const groupIndex = data?.groupIndex ?? 0;
+  const groupTotal = data?.groupTotal ?? 1;
+  const offsetY = (groupIndex - (groupTotal - 1) / 2) * EDGE_LABEL_STAGGER;
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
+      {label ? (
+        <EdgeLabelRenderer>
+          <div
+            className="stp-edge-label"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + offsetY}px)`,
+            }}
+          >
+            {label}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
+  );
+};
+
+const edgeTypes = {
+  storyEdge: StoryEdge,
+};
+
 // Shared page shell so guest/loading/error/main states don't each redeclare the same wrapper —
 // this also means loading/error now consistently get the page background instead of sitting bare.
 const StoryTreeShell = ({ children }) => (
@@ -158,6 +229,7 @@ const StoryTreeShell = ({ children }) => (
 
 const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   const reactFlowInstance = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -206,8 +278,8 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   const [restartError, setRestartError] = useState(null);
 
   const [hoveredNode, setHoveredNode] = useState(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const hoverTimerRef = useRef(null);
+  const flowWrapperRef = useRef(null);
   const isTouchDeviceRef = useRef(
     typeof window !== "undefined" &&
       ("ontouchstart" in window || navigator.maxTouchPoints > 0)
@@ -325,15 +397,25 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     const inDegree = {};
     
     connectedRawNodes.forEach(n => { adjList[n.id] = []; inDegree[n.id] = 0; });
-    
-    filteredEdges.forEach(e => {
-      const from = String(e.from_id || e.from);
-      const to = String(e.to_id || e.to);
-      if (!parentMap[to]) parentMap[to] = [];
-      parentMap[to].push(from);
-      if (adjList[from] && inDegree[to] !== undefined) { 
-        adjList[from].push(to); 
-        inDegree[to]++; 
+
+    // Compute each edge's ID exactly once here. Everything downstream (parentMap, the
+    // highlight-path walk, the current-path walk, and the actual React Flow edge objects) reads
+    // this same array instead of separately reconstructing a fallback ID — previously two of
+    // those spots used a different fallback format than the one actually used for lookups, so
+    // path-highlighting silently never matched whenever edge.id was missing from the data.
+    const edgesWithIds = filteredEdges.map((edge, idx) => {
+      const fromId = String(edge.from_id || edge.from);
+      const toId = String(edge.to_id || edge.to);
+      const edgeId = String(edge.id ?? `e-${fromId}-${toId}-${idx}`);
+      return { edge, fromId, toId, edgeId };
+    });
+
+    edgesWithIds.forEach(({ fromId, toId }) => {
+      if (!parentMap[toId]) parentMap[toId] = [];
+      parentMap[toId].push(fromId);
+      if (adjList[fromId] && inDegree[toId] !== undefined) {
+        adjList[fromId].push(toId);
+        inDegree[toId]++;
       }
     });
 
@@ -361,13 +443,38 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
         if (!parents.length) break;
         const parentId = String(parents[0]);
         highlightPathNodes.add(parentId);
-        const edge = filteredEdges.find((edgeNode) => {
-          const fromId = String(edgeNode.from_id || edgeNode.from);
-          const toId = String(edgeNode.to_id || edgeNode.to);
-          return fromId === parentId && toId === currentId;
-        });
-        if (edge) highlightPathEdges.add(String(edge.id || `e-${parentId}-${currentId}`));
+        const found = edgesWithIds.find((e) => e.fromId === parentId && e.toId === currentId);
+        if (found) highlightPathEdges.add(found.edgeId);
         currentId = parentId;
+      }
+    }
+
+
+    // Which node is "current" right now (independent of the mappedNodes loop below, so we can
+    // trace its breadcrumb before building edges).
+    let currentNodeIdStr = null;
+    connectedRawNodes.forEach((node) => {
+      const nodeIdStr = String(node.id);
+      const isCurrentNode = node.is_current || (currentSceneIdStr ? nodeIdStr === currentSceneIdStr : (!hasBackendCurrent && nodeIdStr === startNodeIdStr));
+      if (isCurrentNode) currentNodeIdStr = nodeIdStr;
+    });
+
+    // The direct route from start to the current node — this is "the path you're on right now",
+    // as distinct from any other branch you may have explored and left behind. Without this,
+    // every edge between two visited nodes looked identically highlighted regardless of whether
+    // it led anywhere near where the reader currently is.
+    const currentPathEdges = new Set();
+    if (currentNodeIdStr) {
+      let cursor = currentNodeIdStr;
+      const seen = new Set();
+      while (cursor && !seen.has(cursor)) {
+        seen.add(cursor);
+        const parents = parentMap[cursor] || [];
+        if (!parents.length) break;
+        const parentId = String(parents[0]);
+        const found = edgesWithIds.find((e) => e.fromId === parentId && e.toId === cursor);
+        if (found) currentPathEdges.add(found.edgeId);
+        cursor = parentId;
       }
     }
 
@@ -431,9 +538,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
       };
     });
 
-    const mappedEdges = filteredEdges.map((edge, idx) => {
-      const fromId = String(edge.from_id || edge.from);
-      const toId = String(edge.to_id || edge.to);
+    const mappedEdges = edgesWithIds.map(({ edge, fromId, toId, edgeId }) => {
       const sourceNodeMapped = mappedNodes.find(n => n.id === fromId);
       const targetNodeMapped = mappedNodes.find(n => n.id === toId);
 
@@ -441,27 +546,43 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
       const isTargetVisited = targetNodeMapped?.data?.computedStatus === NODE_STATUS.VISITED || targetNodeMapped?.data?.computedStatus === NODE_STATUS.CURRENT || targetNodeMapped?.data?.computedStatus === NODE_STATUS.ENDING_UNLOCKED;
 
       const isWalkedPath = isSourceVisited && isTargetVisited;
-      const edgeId = String(edge.id || `e-${fromId}-${toId}-${idx}`);
       const isHighlightedEdge = highlightPathEdges.has(edgeId);
+
+      // The current route (or an explicitly deep-linked highlight) gets top billing: solid pink,
+      // glowing, animated flow. Any other branch the reader has explored but isn't on right now
+      // still reads as "visited" but stays visually secondary — muted green, dashed, no glow.
+      const isCurrentPathEdge = isHighlightedEdge || currentPathEdges.has(edgeId);
+      const isExploredOtherPath = !isCurrentPathEdge && isWalkedPath;
 
       return {
         id: edgeId,
         source: fromId,
         target: toId,
-        animated: isHighlightedEdge || isWalkedPath,
+        type: "storyEdge",
+        animated: isCurrentPathEdge,
+        className: isCurrentPathEdge ? "stp-edge--walked" : (isExploredOtherPath ? "stp-edge--explored" : ""),
         label: edge.label || edge.choice_text || edge.text || "",
-        labelStyle: { fill: "#4a5568", fontWeight: 500, fontSize: 11 },
-        labelBgPadding: [4, 4],
-        labelBgRadius: 4,
-        labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95, stroke: "#cbd5e1", strokeWidth: 1 },
-        labelBgBorderRadius: 4,
         style: {
-          stroke: isHighlightedEdge || isWalkedPath ? PINK : "#CBD5E1",
-          strokeWidth: isHighlightedEdge || isWalkedPath ? 3 : 2,
+          stroke: isCurrentPathEdge ? PINK : (isExploredOtherPath ? "#7FCB9E" : "#CBD5E1"),
+          strokeWidth: isCurrentPathEdge ? 3 : 2,
+          strokeDasharray: isExploredOtherPath ? "6 4" : undefined,
+          strokeLinecap: "round",
           pointerEvents: "none",
         },
-        type: "smoothstep",
       };
+    });
+
+    // กระจายป้ายทางเลือกที่โยงเข้าฉากเดียวกัน (ทำหลัง map เสร็จ เพราะต้องรู้จำนวนรวมต่อ target
+    // ก่อนถึงจะหาตำแหน่งกึ่งกลางของกลุ่มที่จะกระจายออกไปแต่ละด้านได้)
+    const edgeCountByTarget = {};
+    mappedEdges.forEach((e) => {
+      edgeCountByTarget[e.target] = (edgeCountByTarget[e.target] || 0) + 1;
+    });
+    const seenByTarget = {};
+    mappedEdges.forEach((e) => {
+      const groupIndex = seenByTarget[e.target] || 0;
+      seenByTarget[e.target] = groupIndex + 1;
+      e.data = { groupIndex, groupTotal: edgeCountByTarget[e.target] };
     });
 
     // 🟢 แก้ไขตรงนี้: เพิ่ม ENDING_UNLOCKED เข้าไปในฉากที่ค้นพบแล้ว
@@ -497,6 +618,18 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     };
   }, [treeData, highlightSceneId, isAdmin]);
 
+  // จำกัดขอบเขตที่ pan ได้ตามขอบเขตจริงของผังเรื่อง (บวก padding รอบๆ ไว้พอหายใจ)
+  // กันผู้อ่าน pan หลุดไปยังพื้นที่ว่างเปล่าไกลๆ จนหาทางกลับผังไม่เจอ
+  const translateExtent = useMemo(() => {
+    if (!computedNodes.length) return undefined;
+    const bounds = getNodesBounds(computedNodes);
+    const padding = 400;
+    return [
+      [bounds.x - padding, bounds.y - padding],
+      [bounds.x + bounds.width + padding, bounds.y + bounds.height + padding],
+    ];
+  }, [computedNodes]);
+
   const endingsForModal = useMemo(() => {
     if (endings && endings.length > 0) {
       return endings;
@@ -515,6 +648,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   }, [endings, treeData]);
 
   const handleFocusCurrent = useCallback(() => {
+    if (!nodesInitialized) return;
     const currentNode = computedNodes.find(n => n.data?.computedStatus === NODE_STATUS.CURRENT);
     if (currentNode && reactFlowInstance) {
       reactFlowInstance.setCenter(
@@ -523,7 +657,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
         { zoom: 1.1, duration: 800 }
       );
     }
-  }, [computedNodes, reactFlowInstance]);
+  }, [computedNodes, reactFlowInstance, nodesInitialized]);
 
   const handleOpenEndingModal = () => setShowEndingModal(true);
 
@@ -598,10 +732,6 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     // node reveals the tooltip instead (title/episode/discovered date); tapping the node again,
     // or the "อ่านอีกครั้ง" button inside the tooltip, proceeds to reading.
     if (isTouchDeviceRef.current && hoveredNode?.id !== targetNode.id) {
-      if (event?.currentTarget) {
-        const rect = event.currentTarget.getBoundingClientRect();
-        setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 12 });
-      }
       setHoveredNode(targetNode);
       return;
     }
@@ -611,15 +741,19 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     try {
       const token = localStorage.getItem("token");
       if (token) {
-        await fetch(`${BASE_URL}/history/progress`, {
+        // path/field name ต้องตรงกับสัญญาของ backend (openapi.yaml): /progress ไม่ใช่
+        // /history/progress และฟิลด์ชื่อ current_scene_id ไม่ใช่ scene_id พร้อมต้องส่ง
+        // user_id ไปด้วย (ยึดสัญญาของ backend เป็นหลักตามที่ตรวจสอบแล้ว)
+        await fetch(`${BASE_URL}/progress`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
+            user_id: Number(effectiveUserId),
             novel_id: Number(activeNovelId),
-            scene_id: Number(targetSceneId),
+            current_scene_id: Number(targetSceneId),
           }),
         });
       }
@@ -641,8 +775,6 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
     
     if (!isAdmin && (status === NODE_STATUS.LOCKED || status === NODE_STATUS.ENDING_LOCKED)) return;
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 12 });
     setHoveredNode(node);
   };
 
@@ -665,6 +797,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
           )}
         </div>
         <div className="stp__header">
+          <span className="stp__header-eyebrow">🗺️ เส้นทางการอ่านของคุณ</span>
           <h1 className="stp__title">แผนผังการอ่าน<span className="stp__title-sep"> — </span><span className="stp__title-novel">{treeData?.novel_title || `นิยาย ${activeNovelId}`}</span></h1>
           <p className="stp__subtitle">สำรวจทางเลือกที่คุณเคยเดินผ่านมา</p>
         </div>
@@ -718,7 +851,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
             <button className="stp__back" onClick={handleGoToDetail}>← กลับรายละเอียด</button>
           </div>
           <div className="stp__actions-group">
-            <button className="stp__focus-btn" type="button" onClick={handleFocusCurrent}>🎯 โฟกัสจุดปัจจุบัน</button>
+            <button className="stp__focus-btn" type="button" onClick={handleFocusCurrent} disabled={!nodesInitialized}>🎯 โฟกัสจุดปัจจุบัน</button>
             {stats.unlockedEndings > 0 && (
               <button className="stp__ending-btn" type="button" onClick={handleOpenEndingModal}>🏆 ดูคลังฉากจบ</button>
             )}
@@ -729,6 +862,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
         </div>
 
         <div className="stp__header">
+          <span className="stp__header-eyebrow">🗺️ เส้นทางการอ่านของคุณ</span>
           <h1 className="stp__title">แผนผังการอ่าน<span className="stp__title-sep">{" "}—{" "}</span><span className="stp__title-novel">{finalTitle}</span></h1>
           <p className="stp__subtitle">สำรวจทางเลือกที่คุณเคยเดินผ่านมา</p>
         </div>
@@ -749,31 +883,22 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
             </div>
           </div>
 
-          <div className="stp__flow-wrapper">
-            <div className="stp__legend-floating">
-              {[
-                { color: PINK, label: "จุดปัจจุบัน" },
-                { color: "#4CAF82", label: "ค้นพบแล้ว" },
-                { color: "#C8C3D4", label: "ยังไม่ค้นพบ" },
-                { color: "#F7C940", label: "ฉากจบ" },
-              ].map(item => (
-                <div key={item.label} className="stp__legend-floating-item">
-                  <span className="stp__legend-floating-dot" style={{ background: item.color }} />
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
-
+          <div className="stp__flow-wrapper" ref={flowWrapperRef}>
             {computedNodes.length > 0 ? (
               <ReactFlow
                 nodes={computedNodes}
                 edges={computedEdges}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 zoomOnScroll
                 panOnDrag
-                nodesDraggable
+                minZoom={0.15}
+                maxZoom={1.75}
+                translateExtent={translateExtent}
+                onlyRenderVisibleElements
+                nodesDraggable={false}
                 nodesConnectable={false}
                 elementsSelectable={false}
                 onNodeClick={handleNodeClick}
@@ -781,9 +906,11 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
                 onNodeMouseLeave={handleNodeMouseLeave}
                 proOptions={{ hideAttribution: true }}
               >
-                <Background gap={24} size={1} color="#e2e8f0" />
+                <Background gap={24} size={1} color="#ecd9e5" />
                 <Controls />
                 <MiniMap
+                  pannable
+                  zoomable
                   nodeColor={(node) => {
                     const status = node.data?.computedStatus;
                     if (status === NODE_STATUS.CURRENT) return PINK;
@@ -793,38 +920,76 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
                   }}
                   maskColor="rgba(248, 249, 250, 0.7)"
                 />
+
+                {/* ย้ายจาก div position:absolute ลอยเองมาเป็น Panel — Panel เป็น component
+                    ของ React Flow โดยเฉพาะสำหรับวาง UI ลอยมุมใดมุมหนึ่งของ canvas ไม่ต้องคุม
+                    z-index/positioning เอง และยังอยู่ถูกตำแหน่งแม้ resize wrapper */}
+                <Panel position="top-left" className="stp__legend-floating">
+                  {[
+                    { icon: "📍", color: PINK, label: "จุดปัจจุบัน" },
+                    { icon: "✓", color: "#4CAF82", label: "ค้นพบแล้ว" },
+                    { icon: "🔒", color: "#C8C3D4", label: "ยังไม่ค้นพบ" },
+                    { icon: "🏆", color: "#F7C940", label: "ฉากจบ" },
+                  ].map(item => (
+                    <div key={item.label} className="stp__legend-floating-item">
+                      <span className="stp__legend-floating-dot" style={{ color: item.color }}>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                  <span className="stp__legend-floating-sep" aria-hidden="true" />
+                  {[
+                    { color: PINK, dashed: false, label: "เส้นทางปัจจุบัน" },
+                    { color: "#7FCB9E", dashed: true, label: "เคยสำรวจ" },
+                  ].map(item => (
+                    <div key={item.label} className="stp__legend-floating-item">
+                      <span
+                        className={`stp__legend-floating-line ${item.dashed ? "stp__legend-floating-line--dashed" : ""}`}
+                        style={{ color: item.color }}
+                      />
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                </Panel>
+
+                {/* แทนที่ tooltip ที่เคยคำนวณตำแหน่งเองด้วย getBoundingClientRect + onMove
+                    ด้วย NodeToolbar ของ React Flow: ผูกกับ nodeId โดยตรง มันขยับตามเวลา
+                    pan/zoom ให้อัตโนมัติ ไม่ต้อง query DOM หรือฟัง onMove เองอีกต่อไป */}
+                <NodeToolbar
+                  nodeId={hoveredNode?.id}
+                  isVisible={!!hoveredNode}
+                  position={Position.Top}
+                  offset={12}
+                  className="stp__hover-tooltip"
+                  onMouseEnter={handleTooltipMouseEnter}
+                  onMouseLeave={handleTooltipMouseLeave}
+                >
+                  {hoveredNode && (
+                    <>
+                      <div className="stp__hover-title">{hoveredNode.data?.chapter_title || hoveredNode.data?.title || "ฉากเนื้อเรื่อง"}</div>
+                      <div className="stp__hover-episode">{hoveredNode.data?.chapter_episode ? `ตอนที่ ${hoveredNode.data.chapter_episode}` : hoveredNode.data?.chapter_name || ""}</div>
+
+                      {formattedVisitedDate && <div className="stp__hover-date">ค้นพบเมื่อ {formattedVisitedDate}</div>}
+
+                      <button
+                        type="button"
+                        className="stp__hover-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNodeClick(null, hoveredNode);
+                          setHoveredNode(null);
+                        }}
+                      >
+                        อ่านอีกครั้ง
+                      </button>
+                    </>
+                  )}
+                </NodeToolbar>
               </ReactFlow>
             ) : (
               <div className="stp__empty-state">
                 <span className="stp__empty-icon">🍁</span>
                 <p className="stp__empty-title">นิยายเรื่องนี้ยังไม่มีการเพิ่มตอนหรือฉากเนื้อเรื่องที่เผยแพร่</p>
                 <p className="stp__empty-sub">โปรดติดตามชมแผนผังการอ่านอีกครั้งเมื่อนักเขียนเริ่มลงเนื้อหา</p>
-              </div>
-            )}
-
-            {hoveredNode && (
-              <div
-                className="stp__hover-tooltip"
-                style={{ top: tooltipPos.y, left: tooltipPos.x }}
-                onMouseEnter={handleTooltipMouseEnter}
-                onMouseLeave={handleTooltipMouseLeave}
-              >
-                <div className="stp__hover-title">{hoveredNode.data?.chapter_title || hoveredNode.data?.title || "ฉากเนื้อเรื่อง"}</div>
-                <div className="stp__hover-episode">{hoveredNode.data?.chapter_episode ? `ตอนที่ ${hoveredNode.data.chapter_episode}` : hoveredNode.data?.chapter_name || ""}</div>
-                
-                {formattedVisitedDate && <div className="stp__hover-date">ค้นพบเมื่อ {formattedVisitedDate}</div>}
-                
-                <button
-                  type="button"
-                  className="stp__hover-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleNodeClick(null, hoveredNode);
-                    setHoveredNode(null);
-                  }}
-                >
-                  อ่านอีกครั้ง
-                </button>
               </div>
             )}
           </div>
@@ -836,7 +1001,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
           onClose={() => setShowEndingModal(false)}
           onViewStoryMap={(sceneId) => {
             setShowEndingModal(false);
-            if (sceneId && reactFlowInstance) {
+            if (sceneId && reactFlowInstance && nodesInitialized) {
               const targetNode = computedNodes.find(n => String(n.id) === String(sceneId));
               if (targetNode) {
                 reactFlowInstance.setCenter(
