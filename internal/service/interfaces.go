@@ -33,6 +33,7 @@ type SceneService interface {
 	GetStoryTree(novelID int, userID int) (models.StoryTreeResponse, error)
 	GetEndingsByNovelID(novelID int, userID int) ([]models.EndingScene, error)
 	ValidateStoryForPublish(novelID int) error
+	UpdateScenePosition(sceneID int, nodeX *float64, nodeY *float64) error
 	Ping() error
 }
 

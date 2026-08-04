@@ -47,6 +47,17 @@ func RegisterRoutes(
 	// ดึงข้อมูลผู้ใช้ปัจจุบัน (ต้องมี Token ที่ถูกต้อง)
 	mux.Handle("/api/users", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(authHandler.GetUserInfo))))
 
+	// 🟢 แก้ไขชื่อผู้ใช้ (Username) ของตัวเอง
+	updateOwnUsernameHandler := middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			authHandler.UpdateOwnUsername(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+	mux.Handle("/api/me/username", updateOwnUsernameHandler)
+	mux.Handle("/me/username", updateOwnUsernameHandler)
+
 	// 🟢 ดึงนิยายที่ผู้ใช้เขียน (ต้องมี Token ที่ถูกต้อง)
 	mux.Handle("/api/me/novels", middleware.RequestLogger(middleware.RequireAuth(handlers.GetMyNovelsHandler(novel, writer))))
 
@@ -90,9 +101,14 @@ func RegisterRoutes(
 	mux.Handle("/api/admin/writers/reject", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(writerHandler.Reject))))
 
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการผู้ใช้
-	mux.Handle("/api/admin/users", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(adminUserHandler.ListUsers))))
-	mux.Handle("/api/admin/users/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	adminUsersSubRouter := middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/username"):
+			if r.Method == http.MethodPatch {
+				adminUserHandler.AdminUpdateUsername(w, r)
+				return
+			}
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		case strings.HasSuffix(r.URL.Path, "/status"):
 			adminUserHandler.UpdateUserStatus(w, r)
 		case strings.HasSuffix(r.URL.Path, "/demote"):
@@ -102,7 +118,10 @@ func RegisterRoutes(
 		default:
 			adminUserHandler.GetUserDetail(w, r)
 		}
-	}))))
+	})))
+	mux.Handle("/api/admin/users", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(adminUserHandler.ListUsers))))
+	mux.Handle("/api/admin/users/", adminUsersSubRouter)
+	mux.Handle("/admin/users/", adminUsersSubRouter)
 
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการรายงานนิยาย
 	// GET /api/admin/reports -> ดึงรายการรีพอร์ตทั้งหมด
@@ -144,7 +163,7 @@ func RegisterRoutes(
 	})))
 
 	// 📖 GET /scenes/:id เปิดอ่านได้ทั่วไป (ไม่ต้องครอบด้วย RequireAuth)
-	mux.Handle("/scenes/", middleware.RequestLogger(http.HandlerFunc(sceneSubRouter(scene, social, notificationService))))
+	mux.Handle("/scenes/", middleware.RequestLogger(http.HandlerFunc(sceneSubRouter(scene, novel, writer, social, notificationService))))
 
 	mux.Handle("/choices", middleware.RequestLogger(middleware.RequireAuth(handlers.CreateChoiceHandler(scene))))
 	mux.Handle("/choices/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -330,10 +349,14 @@ func chapterSubRouter(scene service.SceneService, chapter service.ChapterService
 	}
 }
 
-func sceneSubRouter(scene service.SceneService, social service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
+func sceneSubRouter(scene service.SceneService, novel service.NovelService, writer service.WriterService, social service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
 		switch {
+		// 🔒 PUT /scenes/:id/position - อัปเดตพิกัด Node ใน Story Tree
+		case r.Method == http.MethodPut && strings.HasSuffix(path, "/position"):
+			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateScenePositionHandler(scene, novel, writer))).ServeHTTP(w, r)
+			return
 		// 📖 GET /scenes/:id/comments - อ่านได้ทั่วไป
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/comments"):
 			handlers.GetCommentsBySceneHandler(social)(w, r)

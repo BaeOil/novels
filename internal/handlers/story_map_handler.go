@@ -92,6 +92,8 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 				IsUnlocked:     isNodeAccessible,
 				ChapterTitle:   rawNode.ChapterTitle,
 				ChapterEpisode: rawNode.ChapterEpisode,
+				NodeX:          rawNode.NodeX,
+				NodeY:          rawNode.NodeY,
 			}
 
 			if isNodeAccessible {

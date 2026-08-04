@@ -41,6 +41,7 @@ type SceneRepository interface {
 	GetNodesByNovelIDForUser(novelID int, userID int) ([]models.SceneNode, error)
 	GetEdgesByNovelID(novelID int) ([]models.SceneEdge, error)
 	GetEndingsByNovelIDForUser(novelID int, userID int) ([]models.EndingScene, error)
+	UpdateScenePosition(sceneID int, nodeX *float64, nodeY *float64) error
 }
 
 type ChapterRepository interface {
@@ -106,4 +107,5 @@ type AuthRepository interface {
 	DemoteUserToReader(ctx context.Context, userID uint, adminID uint) error
 	DeleteUser(ctx context.Context, userID uint) error
 	HasWriterNovels(ctx context.Context, userID uint) (bool, error)
+	UpdateUsername(ctx context.Context, userID uint, username string) error
 }

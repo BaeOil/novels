@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"novel-be/internal/dto"
 	"novel-be/internal/middleware"
+	"novel-be/internal/repository"
 	"novel-be/internal/service"
 )
 
@@ -187,4 +189,43 @@ func (h *AuthHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 			"role":        user.Role,
 		},
 	})
+}
+
+func (h *AuthHandler) UpdateOwnUsername(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req dto.UpdateUsernameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	err := h.authService.UpdateUsername(r.Context(), userID, req.Username)
+	if err != nil {
+		if errors.Is(err, repository.ErrUsernameTaken) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if err.Error() == "username is required" ||
+			err.Error() == "username length must be between 3 and 50 characters" ||
+			err.Error() == "username must contain only letters, numbers, and underscores" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "username updated successfully"})
 }

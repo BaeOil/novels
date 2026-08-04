@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"novel-be/internal/dto"
 	"novel-be/internal/models"
 )
+
+var ErrUsernameTaken = errors.New("username already in use")
 
 type sqlAuthRepository struct {
 	db *sql.DB
@@ -414,4 +417,29 @@ func suspendAtValue(suspendedAt *time.Time) interface{} {
 		return nil
 	}
 	return *suspendedAt
+}
+
+func (r *sqlAuthRepository) UpdateUsername(ctx context.Context, userID uint, username string) error {
+	var exists bool
+	checkQuery := `SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND user_id != $2)`
+	if err := r.db.QueryRowContext(ctx, checkQuery, username, userID).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return ErrUsernameTaken
+	}
+
+	query := `UPDATE users SET username = $1, updated_at = NOW() WHERE user_id = $2`
+	res, err := r.db.ExecContext(ctx, query, username, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }

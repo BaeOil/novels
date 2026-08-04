@@ -46,6 +46,10 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type UpdateUsernameRequest struct {
+	Username string `json:"username"`
+}
+
 // AuthResponse ผลลัพธ์ส่งกลับไปหน้าบ้านพร้อมตั๋ว JWT
 type AuthResponse struct {
 	Token        string `json:"token"`

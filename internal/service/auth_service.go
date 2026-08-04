@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -240,6 +241,37 @@ func (s *AuthService) DeleteUser(ctx context.Context, userID uint, adminID uint)
 
 func (s *AuthService) HasWriterNovels(ctx context.Context, userID uint) (bool, error) {
 	return s.repo.HasWriterNovels(ctx, userID)
+}
+
+var validUsernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+
+func (s *AuthService) UpdateUsername(ctx context.Context, userID uint, username string) error {
+	if userID == 0 {
+		return errors.New("invalid user id")
+	}
+
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return errors.New("username is required")
+	}
+
+	if len(username) < 3 || len(username) > 50 {
+		return errors.New("username length must be between 3 and 50 characters")
+	}
+
+	if !validUsernameRegex.MatchString(username) {
+		return errors.New("username must contain only letters, numbers, and underscores")
+	}
+
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	return s.repo.UpdateUsername(ctx, userID, username)
 }
 
 func validateUserStatusForLogin(user *models.User) error {

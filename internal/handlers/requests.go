@@ -187,6 +187,15 @@ func (r *UpdateSceneRequest) Validate() error {
 	return nil
 }
 
+type UpdateScenePositionRequest struct {
+	NodeX *float64 `json:"node_x"`
+	NodeY *float64 `json:"node_y"`
+}
+
+func (r *UpdateScenePositionRequest) Validate() error {
+	return nil
+}
+
 type CreateChoiceRequest struct {
 	FromSceneID int    `json:"from_scene_id"`
 	ToSceneID   int    `json:"to_scene_id"`

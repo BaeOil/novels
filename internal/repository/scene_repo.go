@@ -139,7 +139,6 @@ func GetScenesByChapterID(db *sql.DB, chapterID int) ([]models.Scene, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		choices, err := GetChoicesBySceneID(db, s.SceneID)
 		if err != nil {
 			return nil, err
@@ -341,7 +340,7 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 	// 🎯 เพิ่มการดึง content, ending_title, ending_description สำหรับแสดงข้อมูลครบถ้วน
 	query := `
         SELECT s.scene_id, s.title, s.type, c.title AS chapter_title, c.episode AS chapter_episode, s.content,
-               s.ending_title, s.ending_description,
+               s.ending_title, s.ending_description, s.node_x, s.node_y,
                ROW_NUMBER() OVER (PARTITION BY s.chapter_id ORDER BY s.scene_id) AS scene_number_in_chapter,
                CASE WHEN ush.id IS NOT NULL OR ue.id IS NOT NULL THEN true ELSE false END as is_unlocked
         FROM scenes s
@@ -361,14 +360,23 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 		var n models.SceneNode
 		var endingTitle sql.NullString
 		var endingDesc sql.NullString
+		var nodeX sql.NullFloat64
+		var nodeY sql.NullFloat64
 
 		if err := rows.Scan(&n.ID, &n.Title, &n.Type, &n.ChapterTitle, &n.ChapterEpisode, &n.Content,
-			&endingTitle, &endingDesc, &n.SceneNumberInChapter, &n.IsUnlocked); err != nil {
+			&endingTitle, &endingDesc, &nodeX, &nodeY, &n.SceneNumberInChapter, &n.IsUnlocked); err != nil {
 			return nil, err
 		}
 
 		// 🎯 ใช้ title เป็น Label ด้วย (สำหรับแสดงในกราฟ)
 		n.Label = n.Title
+
+		if nodeX.Valid {
+			n.NodeX = &nodeX.Float64
+		}
+		if nodeY.Valid {
+			n.NodeY = &nodeY.Float64
+		}
 
 		// 🎯 ถ้าเป็น ending scene ให้เก็บ ending information
 		if n.Type == "ending" && endingTitle.Valid {
@@ -379,3 +387,24 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 	}
 	return nodes, nil
 }
+
+func (r *postgresSceneRepository) UpdateScenePosition(sceneID int, nodeX *float64, nodeY *float64) error {
+	res, err := r.db.Exec(`
+		UPDATE scenes
+		SET node_x = $1, node_y = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE scene_id = $3
+	`, nodeX, nodeY, sceneID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+

@@ -313,6 +313,50 @@ func (s *sceneService) ValidateStoryForPublish(novelID int) error {
 	return nil
 }
 
+// wouldCreateCycle ตรวจสอบว่าการเพิ่ม edge
+// fromScene -> toScene จะทำให้เกิดวงวนหรือไม่
+//
+// หลักการ
+// 1. สร้าง adjacency list
+// 2. เริ่ม DFS จาก toScene
+// 3. ถ้าเดินกลับมาถึง fromScene ได้
+//    แสดงว่าเพิ่ม edge นี้แล้วจะเกิด cycle
+
+func (s *sceneService) wouldCreateCycle(fromSceneID, toSceneID int, edges []models.SceneEdge) bool {
+	if fromSceneID == 0 || toSceneID == 0 || fromSceneID == toSceneID {
+		return false
+	}
+
+	adjacency := make(map[int][]int)
+	for _, edge := range edges {
+		adjacency[edge.FromID] = append(adjacency[edge.FromID], edge.ToID)
+	}
+
+	visited := make(map[int]bool)
+	stack := []int{toSceneID}
+
+	for len(stack) > 0 {
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if current == fromSceneID {
+			return true
+		}
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+
+		for _, next := range adjacency[current] {
+			if !visited[next] {
+				stack = append(stack, next)
+			}
+		}
+	}
+
+	return false
+}
+
 func (s *sceneService) CreateChoice(choice models.Choice) (int, error) {
 	choice.Label = strings.TrimSpace(choice.Label)
 
@@ -345,15 +389,29 @@ func (s *sceneService) CreateChoice(choice models.Choice) (int, error) {
 	}
 
 	// เช็คการย้อนกลับ (Reverse Choice)
-	reverseExists, _ := s.repo.CheckChoiceExists(choice.ToSceneID, choice.FromSceneID, "")
+	reverseExists, err := s.repo.CheckChoiceExists(choice.ToSceneID, choice.FromSceneID, "")
+	if err != nil {
+		return 0, fmt.Errorf("check reverse choice: %w", err)
+	}
 	if reverseExists {
 		return 0, errors.New("ไม่สามารถสร้างทางเลือกย้อนกลับไปยังฉากต้นทางได้")
 	}
 
 	// 3. เช็คข้อมูลซ้ำ (Label ซ้ำในเส้นทางเดิม)
-	exists, _ := s.repo.CheckChoiceExists(choice.FromSceneID, choice.ToSceneID, choice.Label)
+	exists, err := s.repo.CheckChoiceExists(choice.FromSceneID, choice.ToSceneID, choice.Label)
+	if err != nil {
+		return 0, fmt.Errorf("check duplicate choice: %w", err)
+	}
 	if exists {
 		return 0, errors.New("ทางเลือกนี้มีอยู่แล้ว")
+	}
+
+	edges, err := s.repo.GetEdgesByNovelID(fromScene.NovelID)
+	if err != nil {
+		return 0, fmt.Errorf("get edges for cycle validation: %w", err)
+	}
+	if s.wouldCreateCycle(choice.FromSceneID, choice.ToSceneID, edges) {
+		return 0, errors.New("การเชื่อมต่อนี้จะสร้างวงวนในกราฟเรื่องได้")
 	}
 
 	return s.repo.CreateChoice(choice)
@@ -362,12 +420,16 @@ func (s *sceneService) CreateChoice(choice models.Choice) (int, error) {
 func (s *sceneService) UpdateChoice(choice models.Choice) error {
 	choice.Label = strings.TrimSpace(choice.Label)
 
+	existingChoice, err := s.repo.GetChoiceByID(choice.ChoiceID)
+	if err != nil {
+		return errors.New("ไม่พบทางเลือกที่ต้องการอัปเดต")
+	}
+
 	if choice.FromSceneID == 0 {
-		existingChoice, err := s.repo.GetChoiceByID(choice.ChoiceID)
-		if err != nil {
-			return errors.New("ไม่พบทางเลือกที่ต้องการอัปเดต")
-		}
 		choice.FromSceneID = existingChoice.FromSceneID
+	}
+	if choice.ToSceneID == 0 {
+		choice.ToSceneID = existingChoice.ToSceneID
 	}
 
 	fromScene, err := s.repo.GetSceneByID(choice.FromSceneID)
@@ -384,6 +446,30 @@ func (s *sceneService) UpdateChoice(choice models.Choice) error {
 	}
 	if choice.FromSceneID == choice.ToSceneID {
 		return errors.New("ฉากต้นทางและปลายทางห้ามเป็นฉากเดียวกัน")
+	}
+
+	// ตรวจ DAG เฉพาะกรณีที่มีการเปลี่ยนต้นทางหรือปลายทาง
+	// ถ้าแก้แค่ Label ไม่จำเป็นต้อง DFS ใหม่
+	shouldValidateDAG := choice.FromSceneID != existingChoice.FromSceneID || choice.ToSceneID != existingChoice.ToSceneID
+	if shouldValidateDAG {
+		edges, err := s.repo.GetEdgesByNovelID(fromScene.NovelID)
+		if err != nil {
+			return fmt.Errorf("get edges for cycle validation: %w", err)
+		}
+
+		filteredEdges := make([]models.SceneEdge, 0, len(edges))
+		for _, edge := range edges {
+			if edge.FromID == existingChoice.FromSceneID &&
+				edge.ToID == existingChoice.ToSceneID &&
+				edge.Label == existingChoice.Label {
+				continue
+			}
+			filteredEdges = append(filteredEdges, edge)
+		}
+
+		if s.wouldCreateCycle(choice.FromSceneID, choice.ToSceneID, filteredEdges) {
+			return errors.New("การเชื่อมต่อนี้จะสร้างวงวนในกราฟเรื่องได้")
+		}
 	}
 
 	return s.repo.UpdateChoice(choice)
@@ -611,6 +697,8 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 			IsUnlocked:     isNodeAccessible,
 			ChapterTitle:   rawNode.ChapterTitle,
 			ChapterEpisode: rawNode.ChapterEpisode,
+			NodeX:          rawNode.NodeX,
+			NodeY:          rawNode.NodeY,
 		}
 
 		if isNodeAccessible {
@@ -662,3 +750,8 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 func (s *sceneService) GetEndingsByNovelID(novelID int, userID int) ([]models.EndingScene, error) {
 	return s.repo.GetEndingsByNovelIDForUser(novelID, userID)
 }
+
+func (s *sceneService) UpdateScenePosition(sceneID int, nodeX *float64, nodeY *float64) error {
+	return s.repo.UpdateScenePosition(sceneID, nodeX, nodeY)
+}
+

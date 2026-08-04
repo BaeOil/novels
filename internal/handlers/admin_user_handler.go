@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"novel-be/internal/dto"
 	"novel-be/internal/middleware"
+	"novel-be/internal/repository"
 	"novel-be/internal/service"
 )
 
@@ -222,4 +224,56 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "ลบผู้ใช้สำเร็จแล้ว"})
+}
+
+func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	pathID := strings.TrimPrefix(r.URL.Path, "/api/admin/users/")
+	pathID = strings.TrimPrefix(pathID, "/admin/users/")
+	pathID = strings.TrimSuffix(pathID, "/username")
+	userID, err := strconv.Atoi(pathID)
+	if err != nil || userID <= 0 {
+		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	adminID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || adminID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req dto.UpdateUsernameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	err = h.authService.UpdateUsername(r.Context(), uint(userID), req.Username)
+	if err != nil {
+		if errors.Is(err, repository.ErrUsernameTaken) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if err.Error() == "user not found" {
+			http.Error(w, "ไม่พบผู้ใช้งาน", http.StatusNotFound)
+			return
+		}
+		if err.Error() == "username is required" ||
+			err.Error() == "username length must be between 3 and 50 characters" ||
+			err.Error() == "username must contain only letters, numbers, and underscores" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "username updated successfully"})
 }

@@ -54,18 +54,20 @@ type TreeStats struct {
 }
 
 type SceneNode struct {
-	ID                   int    `json:"id"`
-	Label                string `json:"label"`
-	Title                string `json:"title"`   // 🎯 ชื่อตอน/หัวข้อฉากจริงๆ เช่น "พบหญิงสาวปริศนา"
-	Content              string `json:"content"` // 🎯 เรื่องย่อท่อนสั้นๆ ประจำฉาก
-	Type                 string `json:"type"`
-	IsUnlocked           bool   `json:"is_unlocked"`
-	IsCurrent            bool   `json:"is_current"` // 🎯 ฉากปัจจุบันที่ผู้เล่นอ่านค้างอยู่
-	ChapterTitle         string `json:"chapter_title,omitempty"`
-	ChapterEpisode       int    `json:"chapter_episode,omitempty"`
-	SceneNumberInChapter int    `json:"scene_number_in_chapter,omitempty"`
-	Excerpt              string `json:"excerpt,omitempty"`
-	Status               string `json:"status,omitempty"`
+	ID                   int      `json:"id"`
+	Label                string   `json:"label"`
+	Title                string   `json:"title"`   // 🎯 ชื่อตอน/หัวข้อฉากจริงๆ เช่น "พบหญิงสาวปริศนา"
+	Content              string   `json:"content"` // 🎯 เรื่องย่อท่อนสั้นๆ ประจำฉาก
+	Type                 string   `json:"type"`
+	IsUnlocked           bool     `json:"is_unlocked"`
+	IsCurrent            bool     `json:"is_current"` // 🎯 ฉากปัจจุบันที่ผู้เล่นอ่านค้างอยู่
+	ChapterTitle         string   `json:"chapter_title,omitempty"`
+	ChapterEpisode       int      `json:"chapter_episode,omitempty"`
+	SceneNumberInChapter int      `json:"scene_number_in_chapter,omitempty"`
+	Excerpt              string   `json:"excerpt,omitempty"`
+	Status               string   `json:"status,omitempty"`
+	NodeX                *float64 `json:"node_x"`
+	NodeY                *float64 `json:"node_y"`
 }
 
 type SceneEdge struct {
