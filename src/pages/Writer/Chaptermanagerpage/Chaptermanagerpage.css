@@ -5,16 +5,19 @@
 ══════════════════════════════════════════ */
 .cm-layout {
   display: grid;
-  grid-template-columns: 1fr 280px;
-  min-height: 100vh;
+  grid-template-columns: 320px 1fr; /* ย้ายแถบตอนไปซ้ายมือ กว้าง 320px */
+  height: calc(100vh - 83px);
   background: var(--gray-50, #f9fafb);
+  overflow: hidden;
 }
 
 /* Main content */
 .cm-main {
   padding: 32px 40px 60px;
   min-width: 0;
+  height: 100%;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 /* Top bar */
@@ -552,13 +555,12 @@
 ══════════════════════════════════════════ */
 .cm-sidebar {
   background: var(--white, #ffffff);
-  border-left: 1px solid #e5e7eb;
+  border-right: 1.5px solid #cbd5e1; /* กรอบฝั่งขวาคมชัดอ่อนโยน */
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  position: sticky;
-  top: 0;
-  max-height: 100vh;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .cm-sidebar__header {

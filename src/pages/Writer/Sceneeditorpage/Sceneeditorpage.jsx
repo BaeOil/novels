@@ -29,6 +29,10 @@ const ChoiceCard = ({
   onUpdate,
   onSave,
   onDelete,
+  novelId,
+  token,
+  onNavigate,
+  navigate,
 }) => {
   // 🔢 เรียงตอนตามลำดับ episode/order_index และเรียงฉากตามลำดับในตอน
   // ก่อนจะแบนราบเป็น allScenes เดียว เพื่อให้ index ที่ใช้ตัดสิน Forward-Only
@@ -39,7 +43,7 @@ const ChoiceCard = ({
     return aOrder - bOrder;
   });
 
-  const allScenes = sortedChaptersForFlow.flatMap((ch) => {
+  const allScenes = sortedChaptersForFlow.flatMap((ch, chIdx) => {
     const scenes = [...(Array.isArray(ch.scenes) ? ch.scenes : [])].sort((a, b) => {
       const aOrder = a.order_index ?? a.orderIndex ?? a.sceneNumber ?? 0;
       const bOrder = b.order_index ?? b.orderIndex ?? b.sceneNumber ?? 0;
@@ -47,13 +51,16 @@ const ChoiceCard = ({
     });
     const chapterTitle = ch.title || ch.chapterTitle || "";
     const chapterId = ch.id || ch.chapter_id || ch.ChapterID || ch.chapter_id || "";
-    return scenes.map((s) => ({
+    const displayNum = ch.chapterNumber ?? ch.order_index ?? ch.episode ?? (chIdx + 1);
+
+    return scenes.map((s, sIdx) => ({
       value: `${chapterId}||${s.id ?? s.scene_id ?? s.SceneID}`,
-      label: `${chapterTitle} › ${s.title || s.label || s.sceneTitle || "ฉากไม่มีชื่อ"}`,
+      label: `ฉากที่ ${displayNum}.${sIdx + 1} — ${s.title || s.label || s.sceneTitle || "ฉากไม่มีชื่อ"}`,
       chapterTitle,
       chapterId,
       sceneId: s.id ?? s.scene_id ?? s.SceneID,
       sceneLabel: s.title || s.label || s.sceneTitle || "ฉากไม่มีชื่อ",
+      content: s.content || "",
     }));
   });
 
@@ -83,13 +90,18 @@ const ChoiceCard = ({
   const [text, setText] = useState(choice.text ?? choice.label ?? choice.Label ?? "");
   const [targetType, setTargetType] = useState(choice.targetType || initialScope);
   const [targetLabel, setTargetLabel] = useState(
-    choice.targetLabel ||
     resolvedScene?.label ||
-    resolvedScene?.sceneLabel ||
+    choice.targetLabel ||
     (resolvedScene ? `${resolvedScene.chapterTitle} › ${resolvedScene.sceneLabel}` : "เลือกฉากปลายทาง...")
   );
   const [subScene, setSubScene] = useState(initialTargetSubScene);
   const [selectedChapterId, setSelectedChapterId] = useState(initialChapterId);
+
+  // States สำหรับโหมดเชื่อมฉากที่มีอยู่ หรือ สร้างฉากใหม่
+  const [connectionMode, setConnectionMode] = useState("existing");
+  const [newSceneTitle, setNewSceneTitle] = useState("");
+  const [newSceneChapterId, setNewSceneChapterId] = useState(currentChapterId || "");
+  const [isCreatingNewScene, setIsCreatingNewScene] = useState(false);
 
   // State ควบคุมโหมดการแก้ไข
   const [isEditing, setIsEditing] = useState(!choice.text);
@@ -128,7 +140,7 @@ const ChoiceCard = ({
   const effectiveChapterId =
     targetType === "same"
       ? currentChapterId
-      : selectedChapterId || otherChapterOptions[0]?.chapterId || currentChapterId;
+      : selectedChapterId;
   const targetScenes = allScenes.filter((scene) => String(scene.chapterId) === String(effectiveChapterId));
   const sceneOptions = targetType === "same" ? sameChapterScenes : targetScenes;
 
@@ -140,41 +152,32 @@ const ChoiceCard = ({
 
   const handleScopeChange = (scopeValue) => {
     setTargetType(scopeValue);
-    const nextChapterId = scopeValue === "same" ? currentChapterId : otherChapterOptions[0]?.chapterId || currentChapterId;
-    setSelectedChapterId(nextChapterId);
-
-    // อัปเดต Dropdown ให้เลือกฉากแรกที่เป็นไปได้ตามกฎ Forward-Only
-    const validScenes = scopeValue === "same"
-      ? sameChapterScenes.filter(s => allScenes.findIndex(all => String(all.sceneId) === String(s.sceneId)) > fromSceneIndex)
-      : allScenes.filter(scene => String(scene.chapterId) === String(nextChapterId) && allScenes.findIndex(all => String(all.sceneId) === String(scene.sceneId)) > fromSceneIndex);
-
-    if (validScenes.length > 0) {
-      setSubScene(validScenes[0].value);
-      setTargetLabel(validScenes[0].label);
-      // ลบการเรียก onUpdate ออก เพื่อให้ยังไม่บันทึกจนกดยืนยัน
+    if (scopeValue === "same") {
+      setSelectedChapterId(currentChapterId);
+      // สำหรับตอนเดียวกัน ให้เลือกฉากแรกที่สามารถโยงได้ตามกฎ Forward-Only
+      const validScenes = sameChapterScenes.filter(
+        (s) => allScenes.findIndex((all) => String(all.sceneId) === String(s.sceneId)) > fromSceneIndex
+      );
+      if (validScenes.length > 0) {
+        setSubScene(validScenes[0].value);
+        setTargetLabel(validScenes[0].label);
+      } else {
+        setSubScene("");
+        setTargetLabel("กรุณาเลือกฉากปลายทาง");
+      }
     } else {
+      // สำหรับตอนอื่น ให้เริ่มด้วยค่าว่างเพื่อให้แสดง "กรุณาเลือกตอนปลายทาง"
+      setSelectedChapterId("");
       setSubScene("");
-      setTargetLabel("เลือกฉากปลายทาง...");
+      setTargetLabel("กรุณาเลือกฉากปลายทาง");
     }
   };
 
   const handleChapterChange = (chapterId) => {
     setSelectedChapterId(chapterId);
-
-    // กรองฉากสำหรับตอนที่เลือกตามกฎ Forward-Only
-    const validScenes = allScenes.filter(scene =>
-      String(scene.chapterId) === String(chapterId) &&
-      allScenes.findIndex(all => String(all.sceneId) === String(scene.sceneId)) > fromSceneIndex
-    );
-
-    if (validScenes.length > 0) {
-      setSubScene(validScenes[0].value);
-      setTargetLabel(validScenes[0].label);
-      // ลบการเรียก onUpdate ออก
-    } else {
-      setSubScene("");
-      setTargetLabel("เลือกฉากปลายทาง...");
-    }
+    // เมื่อเปลี่ยนตอน ให้ล้างค่าฉากเก่าเพื่อให้ผู้ใช้เลือกใหม่จากข้อความเริ่มต้น "กรุณาเลือกฉากปลายทาง"
+    setSubScene("");
+    setTargetLabel("กรุณาเลือกฉากปลายทาง");
   };
 
   const handleSubSceneChange = (val) => {
@@ -232,6 +235,86 @@ const ChoiceCard = ({
     setIsEditing(false);
   };
 
+  const handleCreateAndConnect = async () => {
+    if (!text || text.trim() === "") {
+      setFormError("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
+      return;
+    }
+    if (!newSceneTitle || newSceneTitle.trim() === "") {
+      setFormError("กรุณากรอกชื่อฉากใหม่ที่ต้องการสร้าง");
+      return;
+    }
+    if (!newSceneChapterId || newSceneChapterId === "") {
+      setFormError("กรุณาเลือกตอนสำหรับฉากใหม่");
+      return;
+    }
+
+    setIsCreatingNewScene(true);
+    setFormError("");
+
+    try {
+      const payload = {
+        novel_id: parseInt(novelId, 10),
+        chapter_id: parseInt(newSceneChapterId, 10),
+        title: newSceneTitle.trim(),
+        content: "",
+        x: 150, 
+        y: 150,
+        type: "normal",
+        status: "draft",
+        choices: []
+      };
+
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE_URL}/scenes`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || errData?.message || "สร้างฉากใหม่ไม่สำเร็จ");
+      }
+
+      const resData = await res.json();
+      const savedSceneId = resData?.data?.scene_id || resData?.scene_id || resData?.data?.id || resData?.id;
+
+      if (!savedSceneId) {
+        throw new Error("ระบบไม่ได้รับรหัสฉากจากหลังบ้าน");
+      }
+
+      const targetSubSceneValue = `${newSceneChapterId}||${savedSceneId}`;
+      const resolvedLabelText = `ฉากที่เพิ่งสร้าง : ${newSceneTitle.trim()}`;
+
+      setSubScene(targetSubSceneValue);
+      setTargetLabel(resolvedLabelText);
+
+      const updatedChoice = {
+        ...choice,
+        text: text.trim(),
+        targetType: String(newSceneChapterId) === String(currentChapterId) ? "same" : "other",
+        targetSubScene: targetSubSceneValue,
+        targetLabel: resolvedLabelText
+      };
+
+      onUpdate?.(updatedChoice);
+      onSave?.(updatedChoice);
+
+      window.dispatchEvent(new Event("novel-data-updated"));
+
+      setIsEditing(false);
+      setNewSceneTitle("");
+    } catch (err) {
+      console.error(err);
+      setFormError(`❌ เกิดข้อผิดพลาด: ${err.message}`);
+    } finally {
+      setIsCreatingNewScene(false);
+    }
+  };
+
   const performDiscardEdit = () => {
     if (choice.id && String(choice.id).startsWith("choice-new-")) {
       onDelete(choice.id);
@@ -285,36 +368,135 @@ const ChoiceCard = ({
 
       <div className="se-choice__body">
         {!isEditing ? (
-          <div className="se-choice__view">
-            <p className="se-choice__view-text">
-              {text || <span className="se-choice__view-value--empty">ยังไม่ได้ระบุข้อความ...</span>}
-            </p>
-            <div className="se-choice__view-row">
-              <span className="se-choice__view-label">ไปยัง</span>
-              {subScene ? (
-                <span className="se-choice__dest-pill">→ {targetLabel}</span>
-              ) : (
-                <span className="se-choice__view-value--empty">ยังไม่ได้เลือกฉากปลายทาง...</span>
-              )}
+          <div className="se-choice__view" style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "4px 0" }}>
+            
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px dashed #f1f5f9", paddingBottom: "8px", marginBottom: "2px" }}>
+              <span style={{ fontSize: "0.88rem", fontWeight: "800", color: accentColor }}>
+                ตัวเลือกที่ {index + 1}
+              </span>
+              
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  className="se-choice__btn-action se-choice__btn-action--edit"
+                  onClick={() => setIsEditing(true)}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "0.78rem",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#475569",
+                    cursor: "pointer",
+                    fontWeight: "700",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  แก้ไข
+                </button>
+
+                <button
+                  type="button"
+                  className="se-choice__btn-action se-choice__btn-action--del"
+                  onClick={() => onDelete(choice.id)}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "0.78rem",
+                    borderRadius: "6px",
+                    border: "1px solid #fca5a5",
+                    background: "#fff5f5",
+                    color: "#e11d48",
+                    cursor: "pointer",
+                    fontWeight: "700",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  ลบ
+                </button>
+              </div>
             </div>
-            <div className="se-choice__actions">
-              <button
-                type="button"
-                className="se-choice__btn-action se-choice__btn-action--del"
-                onClick={() => onDelete(choice.id)}
-                // ยืนยันการลบผ่าน custom modal ("ยืนยันการลบตัวเลือก?") ที่ระดับหน้าหลักอยู่แล้ว
-                // (deleteChoice จะเปิด modal เองถ้าเป็นตัวเลือกที่บันทึกแล้ว)
-              >
-                ลบตัวเลือก
-              </button>
-              <button type="button" className="se-choice__btn-action se-choice__btn-action--edit" onClick={() => setIsEditing(true)}>✏️ แก้ไข</button>
+
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", textAlign: "left" }}>
+              <span style={{ fontSize: "0.78rem", fontWeight: "800", color: "#9ca3af", whiteSpace: "nowrap" }}>
+                ข้อความที่ผู้อ่านเห็น:
+              </span>
+              <span style={{ fontSize: "0.95rem", fontWeight: "700", color: "#1f2937", wordBreak: "break-word" }}>
+                {text || <span style={{ color: "#d1d5db", fontStyle: "italic", fontWeight: "400" }}>ยังไม่ได้ระบุข้อความ...</span>}
+              </span>
             </div>
+
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", textAlign: "left" }}>
+              <span style={{ fontSize: "0.78rem", fontWeight: "800", color: "#9ca3af", whiteSpace: "nowrap" }}>
+                เชื่อมไป:
+              </span>
+              <span style={{ fontSize: "0.88rem", fontWeight: "700", color: "#4b5563" }}>
+                {subScene ? (
+                  targetLabel
+                ) : (
+                  <span style={{ color: "#f97316", fontStyle: "italic" }}>⚠️ ยังไม่ได้เลือกฉากปลายทาง</span>
+                )}
+              </span>
+            </div>
+
+            {/* ปุ่มลัด "ไปเขียนเนื้อหาฉากนี้" (แสดงเฉพาะเมื่อยังไม่มีเนื้อหา) */}
+            {(() => {
+              const targetSceneObj = findSceneByValue(subScene);
+              const isTargetSceneEmpty = targetSceneObj ? (!targetSceneObj.content || targetSceneObj.content.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim() === "") : false;
+              if (subScene && targetSceneObj && isTargetSceneEmpty) {
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const parts = String(subScene).split("||");
+                      const targetChId = parts[0];
+                      const targetScId = parts[parts.length - 1];
+                      if (targetChId && targetScId) {
+                        if (typeof onNavigate === "function") {
+                          onNavigate("scene-editor", { novelId, chapterId: targetChId, sceneId: targetScId });
+                        } else if (navigate) {
+                          navigate(`/writer/${novelId}/scene/${targetScId}?chapterId=${targetChId}`);
+                        }
+                      }
+                    }}
+                    style={{
+                      marginTop: "8px",
+                      padding: "8px 14px",
+                      fontSize: "0.8rem",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: "linear-gradient(135deg, var(--pink-500), #ec4899)",
+                      color: "#ffffff",
+                      cursor: "pointer",
+                      fontWeight: "700",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      alignSelf: "flex-start",
+                      boxShadow: "0 4px 10px rgba(219, 39, 119, 0.15)",
+                      transition: "all 0.15s ease"
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                    onMouseOut={(e) => e.currentTarget.style.transform = 'none'}
+                  >
+                    ไปเขียนเนื้อหาฉากนี้
+                  </button>
+                );
+              }
+              return null;
+            })()}
 
           </div>
         ) : (
-          <div className="se-choice__config">
-            <div className="se-choice__config-col">
-              <div className="se-choice__config-label">ข้อความตัวเลือก</div>
+          <div className="se-choice__config" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            
+            <div className="se-choice__config-col" style={{ display: "flex", flexDirection: "column", gap: "8px", textAlign: "left" }}>
+              <div className="se-choice__config-label" style={{ fontSize: "0.88rem", fontWeight: "700", color: "#475569" }}>ข้อความตัวเลือก</div>
               <input
                 className="se-input"
                 value={text}
@@ -322,86 +504,285 @@ const ChoiceCard = ({
                   setText(e.target.value);
                 }}
                 placeholder="ตัวอย่าง: สำรวจแบบไม่ย่อท้อ..."
+                style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
               />
             </div>
 
-            <div className="se-choice__config-col">
-              <div className="se-choice__config-label">ลิงก์ปลายทาง</div>
-
-              <div className="se-choice__radios">
-                <label className="se-radio">
-                  <input
-                    type="radio"
-                    name={`tt-${choice.id}`}
-                    value="same"
-                    checked={targetType === "same"}
-                    onChange={() => handleScopeChange("same")}
-                  />
-                  <span className="se-radio__dot" />
-                  ฉากในตอนเดียวกัน
-                </label>
-
-                <label className="se-radio">
-                  <input
-                    type="radio"
-                    name={`tt-${choice.id}`}
-                    value="other"
-                    checked={targetType === "other"}
-                    onChange={() => handleScopeChange("other")}
-                  />
-                  <span className="se-radio__dot" />
-                  ฉากในตอนอื่น
-                </label>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {targetType === "other" && (
-                  <select
-                    className="se-select"
-                    value={effectiveChapterId || ""}
-                    onChange={(e) => handleChapterChange(e.target.value)}
-                  >
-                    <option value="">เลือกตอนปลายทาง...</option>
-                    {otherChapterOptions.map((ch) => (
-                      <option key={`chapter-target-${ch.chapterId}`} value={ch.chapterId}>
-                        {ch.chapterTitle || `ตอน ${ch.chapterId}`}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                <select
-                  className="se-select"
-                  value={subScene}
-                  onChange={(e) => handleSubSceneChange(e.target.value)}
+            <div className="se-choice__config-col" style={{ display: "flex", flexDirection: "column", gap: "10px", textAlign: "left" }}>
+              <div className="se-choice__config-label" style={{ fontSize: "0.88rem", fontWeight: "700", color: "#475569" }}>เชื่อมไปยังฉากปลายทาง</div>
+              
+              {/* แถบสลับแบบกล่องสองบล็อก (Grid Layout) สวยงามตามรูป */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", width: "100%", marginBottom: "14px" }}>
+                {/* บล็อก 1: เลือกฉากที่มี */}
+                <div
+                  onClick={() => {
+                    setConnectionMode("existing");
+                    setFormError("");
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "12px 14px",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    border: connectionMode === "existing" ? "2px solid #db2777" : "1.5px solid #cbd5e1",
+                    backgroundColor: connectionMode === "existing" ? "rgba(219, 39, 119, 0.04)" : "#ffffff",
+                    boxShadow: connectionMode === "existing" ? "0 4px 12px rgba(219, 39, 119, 0.08)" : "none",
+                    transition: "all 0.2s ease"
+                  }}
                 >
-                  <option value="">
-                    {forwardOnlySceneOptions.length > 0
-                      ? "เลือกฉากปลายทาง..."
-                      : "-- ไม่มีฉากถัดไปที่สามารถเลือกโยงได้ --"}
-                  </option>
-                  {forwardOnlySceneOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  <div style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    backgroundColor: connectionMode === "existing" ? "rgba(219, 39, 119, 0.1)" : "#f1f5f9",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: connectionMode === "existing" ? "#db2777" : "#64748b",
+                    fontSize: "0.95rem",
+                    flexShrink: 0
+                  }}>
+                    🔗
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "#1f2937" }}>เลือกฉากที่มี</span>
+                    <span style={{ fontSize: "0.72rem", color: "#6b7280", fontWeight: "500" }}>เชื่อมกับฉากที่สร้างแล้ว</span>
+                  </div>
+                </div>
+
+                {/* บล็อก 2: สร้างฉากใหม่ */}
+                <div
+                  onClick={() => {
+                    setConnectionMode("new");
+                    setFormError("");
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "12px 14px",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    border: connectionMode === "new" ? "2px solid #db2777" : "1.5px solid #cbd5e1",
+                    backgroundColor: connectionMode === "new" ? "rgba(219, 39, 119, 0.04)" : "#ffffff",
+                    boxShadow: connectionMode === "new" ? "0 4px 12px rgba(219, 39, 119, 0.08)" : "none",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  <div style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    backgroundColor: connectionMode === "new" ? "rgba(219, 39, 119, 0.1)" : "#f1f5f9",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: connectionMode === "new" ? "#db2777" : "#64748b",
+                    fontSize: "0.95rem",
+                    flexShrink: 0
+                  }}>
+                    📝
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "#1f2937" }}>สร้างฉากใหม่</span>
+                    <span style={{ fontSize: "0.72rem", color: "#6b7280", fontWeight: "500" }}>สร้างและเชื่อมอัตโนมัติ</span>
+                  </div>
+                </div>
               </div>
+
+              {connectionMode === "existing" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+                  <div className="se-choice__radios" style={{ display: "flex", gap: "16px", marginBottom: "4px" }}>
+                    <label className="se-radio" style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem", fontWeight: "600", color: "#475569" }}>
+                      <input
+                        type="radio"
+                        name={`tt-${choice.id}`}
+                        value="same"
+                        checked={targetType === "same"}
+                        onChange={() => handleScopeChange("same")}
+                        style={{ accentColor: "#db2777" }}
+                      />
+                      <span className="se-radio__dot" />
+                      ฉากในตอนเดียวกัน
+                    </label>
+
+                    <label className="se-radio" style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem", fontWeight: "600", color: "#475569" }}>
+                      <input
+                        type="radio"
+                        name={`tt-${choice.id}`}
+                        value="other"
+                        checked={targetType === "other"}
+                        onChange={() => handleScopeChange("other")}
+                        style={{ accentColor: "#db2777" }}
+                      />
+                      <span className="se-radio__dot" />
+                      ฉากในตอนอื่น
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
+                    {targetType === "other" && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <div style={{ fontSize: "0.82rem", fontWeight: "700", color: "#64748b", textAlign: "left" }}>เลือกตอนปลายทาง</div>
+                        <select
+                          className="se-select"
+                          value={selectedChapterId}
+                          onChange={(e) => handleChapterChange(e.target.value)}
+                        >
+                          <option value="">กรุณาเลือกตอนปลายทาง</option>
+                          {otherChapterOptions.map((ch, idx) => {
+                            const foundCh = allTargetOptions.find(c => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(ch.chapterId));
+                            const chIndex = allTargetOptions.findIndex(c => String(c.id ?? c.chapter_id ?? c.ChapterID) === String(ch.chapterId));
+                            const displayNum = foundCh 
+                              ? (foundCh.chapterNumber ?? foundCh.order_index ?? (chIndex !== -1 ? chIndex + 1 : idx + 1)) 
+                              : (idx + 1);
+                            return (
+                              <option key={ch.chapterId} value={ch.chapterId}>
+                                ตอนที่ {displayNum} — {ch.chapterTitle || "ไม่มีชื่อตอน"}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
+
+                    {(targetType === "same" || (targetType === "other" && effectiveChapterId)) && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
+                        <div style={{ fontSize: "0.82rem", fontWeight: "700", color: "#64748b", textAlign: "left" }}>เลือกฉากปลายทาง</div>
+                        <select
+                          className="se-select"
+                          value={subScene}
+                          onChange={(e) => handleSubSceneChange(e.target.value)}
+                          disabled={forwardOnlySceneOptions.length === 0}
+                        >
+                          <option value="">
+                            {forwardOnlySceneOptions.length > 0
+                              ? "กรุณาเลือกฉากปลายทาง"
+                              : "-- ไม่มีฉากที่สามารถเลือกโยงได้ --"}
+                          </option>
+                          {forwardOnlySceneOptions.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ fontSize: "0.82rem", fontWeight: "700", color: "#64748b", textAlign: "left" }}>ตั้งชื่อฉากใหม่</div>
+                    <input
+                      className="se-input"
+                      value={newSceneTitle}
+                      onChange={(e) => setNewSceneTitle(e.target.value)}
+                      placeholder="ตั้งชื่อฉากใหม่"
+                      style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ fontSize: "0.82rem", fontWeight: "700", color: "#64748b", textAlign: "left" }}>สร้างในตอนที่ ...</div>
+                    <select
+                      className="se-select"
+                      value={newSceneChapterId}
+                      onChange={(e) => setNewSceneChapterId(e.target.value)}
+                    >
+                      <option value="">เลือกตอนสำหรับฉากใหม่</option>
+                      {(allTargetOptions || []).map((ch, idx) => {
+                        const displayNum = ch.episode ?? ch.order_index ?? (idx + 1);
+                        return (
+                          <option key={ch.id ?? ch.chapter_id ?? ch.ChapterID} value={ch.id ?? ch.chapter_id ?? ch.ChapterID}>
+                            ตอนที่ {displayNum} — {ch.title || "ไม่มีชื่อตอน"}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {formError && <div className="se-choice__error">{formError}</div>}
+            {formError && <div className="se-choice__error" style={{ color: "#ef4444", fontSize: "0.8rem", fontWeight: "700", textAlign: "left", marginTop: "4px" }}>{formError}</div>}
 
-            <div className="se-choice__actions">
-              <button type="button" className="se-choice__btn-action se-choice__btn-action--cancel" onClick={handleCancelEdit}>❌ ยกเลิก</button>
-              <button
-                type="button"
-                className="se-choice__btn-action se-choice__btn-action--save"
-                onClick={handleSaveEdit}
-                disabled={forwardOnlySceneOptions.length === 0}
-                title={forwardOnlySceneOptions.length === 0 ? "ไม่มีฉากถัดไปให้เลือกโยง จึงยังยืนยันไม่ได้" : undefined}
+            <div className="se-choice__actions" style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "16px", borderTop: "1px dashed #e5e7eb", paddingTop: "14px", width: "100%" }}>
+              <button 
+                type="button" 
+                className="se-choice__btn-action se-choice__btn-action--cancel" 
+                onClick={handleCancelEdit}
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "0.88rem",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "transparent",
+                  color: "#ef4444",
+                  cursor: "pointer",
+                  fontWeight: "700",
+                  transition: "all 0.15s ease",
+                  marginRight: "8px"
+                }}
               >
-                ✓ ยืนยันการแก้ไข
+                ยกเลิก
               </button>
+              
+              {connectionMode === "existing" ? (
+                <button
+                  type="button"
+                  className="se-choice__btn-action se-choice__btn-action--save"
+                  onClick={handleSaveEdit}
+                  disabled={forwardOnlySceneOptions.length === 0}
+                  title={forwardOnlySceneOptions.length === 0 ? "ไม่มีฉากที่ปลอดภัยให้เลือกโยง จึงยังยืนยันไม่ได้" : undefined}
+                  style={{
+                    padding: "10px 20px",
+                    fontSize: "0.88rem",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: forwardOnlySceneOptions.length === 0 ? "#cbd5e1" : "linear-gradient(90deg, #db2777, #ec4899)",
+                    color: forwardOnlySceneOptions.length === 0 ? "#94a3b8" : "#ffffff",
+                    cursor: forwardOnlySceneOptions.length === 0 ? "not-allowed" : "pointer",
+                    fontWeight: "700",
+                    boxShadow: forwardOnlySceneOptions.length === 0 ? "none" : "0 4px 10px rgba(219, 39, 119, 0.18)",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  ✓ ยืนยันการแก้ไข
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="se-choice__btn-action se-choice__btn-action--save"
+                  onClick={handleCreateAndConnect}
+                  disabled={isCreatingNewScene}
+                  style={{
+                    padding: "10px 20px",
+                    fontSize: "0.88rem",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "linear-gradient(90deg, #db2777, #ec4899)",
+                    color: "#ffffff",
+                    cursor: isCreatingNewScene ? "not-allowed" : "pointer",
+                    fontWeight: "700",
+                    boxShadow: "0 4px 10px rgba(219, 39, 119, 0.18)",
+                    transition: "all 0.15s ease",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  {isCreatingNewScene ? (
+                    "⏳ กำลังสร้าง..."
+                  ) : (
+                    <>
+                      <span>📄</span> สร้างและเชื่อม
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -544,16 +925,16 @@ const SceneTreeSidebar = ({
 
   return (
     <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-      <div className="se-tree__header" style={{ marginBottom: "12px" }}>สถานะและประเภท</div>
-      <div className="se-tree__toggles" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="se-tree__header" style={{ marginBottom: "8px" }}>สถานะและประเภท</div>
+      <div className="se-tree__toggles" style={{ marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
         {/* แสดงผลสถานะการเผยแพร่แบบ Badge */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--gray-800)' }}>สถานะเผยแพร่</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--gray-800)' }}>สถานะเผยแพร่</span>
           <span style={{
             fontSize: '0.78rem',
             fontWeight: '700',
-            padding: '4px 10px',
+            padding: '3px 8px',
             borderRadius: '999px',
             color: isPublished ? '#166534' : '#475569',
             background: isPublished ? '#d1fae5' : '#f1f5f9',
@@ -563,45 +944,68 @@ const SceneTreeSidebar = ({
           </span>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--gray-800)' }}>ตั้งค่าฉากจบ</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{isEnding ? "ใช่ (นี่คือฉากจบ)" : "ไม่ใช่"}</span>
-          </div>
-          <Toggle
-            checked={isEnding}
-            onChange={(value) => {
-              onToggleEnding?.(value);
-            }}
-            id={`toggle-ending-sidebar`}
-          />
+        {/* แสดงประเภทของฉาก */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--gray-800)' }}>ประเภทของฉาก</span>
+          {(() => {
+            const currentSceneObj = safeChapters
+              .flatMap((ch) => ch.scenes || [])
+              .find((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId));
+            const resolvedSceneType = currentSceneObj?.type || currentSceneObj?.scene_type || (isEnding ? "ending" : "normal");
+
+            if (resolvedSceneType === "start" || resolvedSceneType === "starting") {
+              return (
+                <span style={{
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  color: '#059669',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  border: '1px solid #a7f3d0'
+                }}>
+                  ฉากเริ่มต้น
+                </span>
+              );
+            } else if (resolvedSceneType === "ending" || isEnding) {
+              return (
+                <span style={{
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  color: '#db2777',
+                  background: 'rgba(219, 39, 119, 0.1)',
+                  border: '1px solid #fbcfe8'
+                }}>
+                  ฉากจบ
+                </span>
+              );
+            } else {
+              return (
+                <span style={{
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  color: '#2563eb',
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid #bfdbfe'
+                }}>
+                  ฉากทั่วไป
+                </span>
+              );
+            }
+          })()}
         </div>
-        {isEnding && (
-          <button
-            type="button"
-            onClick={() => onOpenEndingSettings?.()}
-            style={{
-              marginTop: '4px',
-              border: 'none',
-              background: 'transparent',
-              color: '#1d4ed8',
-              cursor: 'pointer',
-              fontSize: '0.82rem',
-              textAlign: 'left',
-              padding: 0,
-            }}
-          >
-            ดูรายละเอียดฉากจบ
-          </button>
-        )}
       </div>
 
-      <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '0 0 20px 0' }} />
+      <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '4px 0 6px 0' }} />
 
-      <div className="se-tree__header" style={{ marginBottom: "8px" }}>ภาพรวมของนิยาย</div>
+      <div className="se-tree__header" style={{ marginBottom: "6px" }}>รายการตอนและฉาก</div>
 
       {/* ช่องค้นหาตอนและฉาก */}
-      <div className="se-search-container" style={{ marginBottom: "16px", position: "relative" }}>
+      <div className="se-search-container" style={{ marginBottom: "12px", position: "relative" }}>
         <input
           type="text"
           className="se-input"
@@ -621,11 +1025,34 @@ const SceneTreeSidebar = ({
         <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", fontSize: "0.82rem", color: "#94a3b8" }}>🔍</span>
       </div>
 
-      <div className="se-tree__filters">
+      {/* แถบฟิลเตอร์ 3 ปุ่มเรียงกันในแถวเดียว แยกเป็นกล่องแคปซูลอิสระจากกัน (ไม่ Wrap ตกบรรทัด) */}
+      <div className="se-tree__filters" style={{
+        display: "flex",
+        flexWrap: "nowrap",
+        gap: "6px",
+        backgroundColor: "transparent",
+        padding: "0",
+        borderRadius: "0",
+        marginBottom: "16px"
+      }}>
         <button
           type="button"
           className={`se-tree__filter-btn ${sceneFilter === "all" ? "active" : ""}`}
           onClick={() => setSceneFilter("all")}
+          style={{
+            flex: 1,
+            textAlign: "center",
+            padding: "6px 2px",
+            fontSize: "0.78rem",
+            borderRadius: "999px",
+            border: sceneFilter === "all" ? "1px solid #fbcfe8" : "1px solid #e2e8f0",
+            cursor: "pointer",
+            transition: "all 0.2s ease-in-out",
+            backgroundColor: sceneFilter === "all" ? "#fff0f5" : "#ffffff",
+            color: sceneFilter === "all" ? "#db2777" : "#475569",
+            fontWeight: "700",
+            whiteSpace: "nowrap"
+          }}
         >
           ทั้งหมด
         </button>
@@ -633,6 +1060,20 @@ const SceneTreeSidebar = ({
           type="button"
           className={`se-tree__filter-btn ${sceneFilter === "published" ? "active" : ""}`}
           onClick={() => setSceneFilter("published")}
+          style={{
+            flex: 1,
+            textAlign: "center",
+            padding: "6px 2px",
+            fontSize: "0.78rem",
+            borderRadius: "999px",
+            border: sceneFilter === "published" ? "1px solid #fbcfe8" : "1px solid #e2e8f0",
+            cursor: "pointer",
+            transition: "all 0.2s ease-in-out",
+            backgroundColor: sceneFilter === "published" ? "#fff0f5" : "#ffffff",
+            color: sceneFilter === "published" ? "#db2777" : "#475569",
+            fontWeight: "700",
+            whiteSpace: "nowrap"
+          }}
         >
           เผยแพร่
         </button>
@@ -640,6 +1081,20 @@ const SceneTreeSidebar = ({
           type="button"
           className={`se-tree__filter-btn ${sceneFilter === "draft" ? "active" : ""}`}
           onClick={() => setSceneFilter("draft")}
+          style={{
+            flex: 1,
+            textAlign: "center",
+            padding: "6px 2px",
+            fontSize: "0.78rem",
+            borderRadius: "999px",
+            border: sceneFilter === "draft" ? "1px solid #fbcfe8" : "1px solid #e2e8f0",
+            cursor: "pointer",
+            transition: "all 0.2s ease-in-out",
+            backgroundColor: sceneFilter === "draft" ? "#fff0f5" : "#ffffff",
+            color: sceneFilter === "draft" ? "#db2777" : "#475569",
+            fontWeight: "700",
+            whiteSpace: "nowrap"
+          }}
         >
           ฉบับร่าง
         </button>
@@ -692,40 +1147,73 @@ const SceneTreeSidebar = ({
 
                     const scDisplayNum = sceneIndex + 1;
                     const sceneStatus = getSceneStatus(scene, safeChapters);
+                    const publishState = getScenePublishState(scene, ch);
 
-                    let statusIcon = "●";
-                    let statusColor = "#ffffff";
-                    let tooltipMsg = "";
-
+                    let playIcon = null;
                     if (sceneStatus === "start") {
-                      statusIcon = "●";
-                      statusColor = "#16A34A";
-                      tooltipMsg = "ฉากเริ่มต้น";
+                      playIcon = (
+                        <span style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "6px",
+                          backgroundColor: "#e8f5e9", // สีเขียวพาสเทลจาง
+                          color: "#16A34A", // สีเขียว
+                          fontSize: "0.6rem",
+                          marginRight: "8px",
+                          flexShrink: 0
+                        }}>
+                          ▶
+                        </span>
+                      );
                     } else if (sceneStatus === "ending") {
-                      statusIcon = "●";
-                      statusColor = "#EF4444";
-                      tooltipMsg = "ฉากจบเรื่อง";
-                    } else if (sceneStatus === "orphan") {
-                      statusIcon = "⚠";
-                      statusColor = "#FBBF24";
-                      tooltipMsg = "ยังไม่มีฉากมาเชื่อม หรือยังไม่มีฉากปลายทาง";
+                      playIcon = (
+                        <span style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "6px",
+                          backgroundColor: "#fce4ec", // สีชมพูพาสเทลจาง
+                          color: "#db2777", // สีชมพูเข้ม
+                          fontSize: "0.6rem",
+                          marginRight: "8px",
+                          flexShrink: 0
+                        }}>
+                          ▶
+                        </span>
+                      );
                     }
+
+                    const dotColor = publishState === "published" ? "#22c55e" : "#cbd5e1";
+                    const tooltipMsg = publishState === "published" ? "เผยแพร่แล้ว" : "ฉบับร่าง";
 
                     return (
                       <div key={sceneKey} className="se-tree__scene-wrapper">
                         <button
                           className={`se-tree__scene-row ${isCurrent ? "se-tree__scene-row--active" : ""}`}
                           onClick={() => onSelectScene(chapterIdValue, sceneIdValue)}
+                          style={{ display: "flex", alignItems: "center", width: "100%" }}
                         >
-                          <span className="se-tree__scene-text">
+                          {playIcon}
+                          <span className="se-tree__scene-text" style={{ flex: 1, textAlign: "left" }}>
                             ฉากที่ {chDisplayNum}.{scDisplayNum} — {scene.label || scene.title || scene.sceneTitle || "ฉากไม่มีชื่อ"}
                           </span>
                           <span
                             className="se-tree__scene-status"
-                            style={{ color: statusColor }}
+                            style={{
+                              color: dotColor,
+                              fontSize: "0.85rem",
+                              marginLeft: "8px",
+                              flexShrink: 0,
+                              lineHeight: 1
+                            }}
                             title={tooltipMsg}
                           >
-                            {statusIcon}
+                            ●
                           </span>
                         </button>
                       </div>
@@ -748,6 +1236,66 @@ const SceneTreeSidebar = ({
       <button className="se-tree__add-ch" onClick={onAddChapter} style={{ marginTop: "16px" }}>
         เพิ่มตอนใหม่
       </button>
+
+      {/* สัญลักษณ์ประเภทฉาก & สถานะเผยแพร่ */}
+      <div className="se-tree__legend" style={{
+        marginTop: "20px",
+        padding: "16px",
+        borderRadius: "12px",
+        backgroundColor: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        fontSize: "0.82rem",
+        color: "#475569",
+        textAlign: "left",
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px"
+      }}>
+        <div style={{ fontWeight: "800", color: "#1f2937", marginBottom: "2px", fontSize: "0.85rem" }}>สัญลักษณ์ประเภทฉาก</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "22px",
+            height: "22px",
+            borderRadius: "6px",
+            backgroundColor: "#e8f5e9",
+            color: "#16A34A",
+            fontSize: "0.6rem",
+            flexShrink: 0
+          }}>
+            ▶
+          </span>
+          <span style={{ fontWeight: "600", color: "#334155" }}>ฉากเริ่มต้น</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "22px",
+            height: "22px",
+            borderRadius: "6px",
+            backgroundColor: "#fce4ec",
+            color: "#db2777",
+            fontSize: "0.6rem",
+            flexShrink: 0
+          }}>
+            ▶
+          </span>
+          <span style={{ fontWeight: "600", color: "#334155" }}>ฉากจบ</span>
+        </div>
+        
+        <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "4px", paddingTop: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ color: "#22c55e", fontSize: "0.9rem" }}>●</span> เผยแพร่แล้ว
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ color: "#cbd5e1", fontSize: "0.9rem" }}>●</span> ฉบับร่าง
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -1051,8 +1599,8 @@ const SceneEditorPage = ({
     };
   }, [handleQuillImageUpload]);
 
-  const fetchSceneData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchSceneData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setErrorMsg(null);
     try {
       const headers = {};
@@ -1289,6 +1837,9 @@ const SceneEditorPage = ({
   }, [saveDraftToStorage]);
 
   const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null, overrideIsEnding = null, showToast = false) => {
+    const editorContainer = document.querySelector('.se-editor');
+    const savedScrollTop = editorContainer ? editorContainer.scrollTop : 0;
+
     setIsSaving(true);
     setErrorMsg(null);
     try {
@@ -1398,7 +1949,15 @@ const SceneEditorPage = ({
         }
       }
 
-      await fetchSceneData();
+      await fetchSceneData(true);
+      if (editorContainer) {
+        editorContainer.scrollTop = savedScrollTop;
+      }
+      setTimeout(() => {
+        const el = document.querySelector('.se-editor');
+        if (el) el.scrollTop = savedScrollTop;
+      }, 50);
+
       window.dispatchEvent(new Event("novel-data-updated"));
 
       if (showToast) {
@@ -2126,36 +2685,142 @@ const SceneEditorPage = ({
             </div>
           </div>
 
-          {/* โซน Choices */}
+          {/* โซน Choices & ฉากจบย้ายมาฝังแบบ Inline */}
           <div className="se-section se-section--choices">
-            <div className="se-section__heading-row">
-              <div className="se-section__heading">ตัวเลือกท้ายตอน</div>
-              <button className="se-btn se-btn--add-choice" onClick={addChoice}>
-                ✚ เพิ่มตัวเลือกใหม่
-              </button>
+            {/* 🏁 ฉากนี้จะ... โซนสลับปุ่มเลือกโหมดฉากจบ vs ช้อยส์ทางเลือก */}
+            <div className="se-ending-toggle-section" style={{ margin: "0 0 24px 0", border: "1px solid #cbd5e1", borderRadius: "16px" }}>
+              <div className="se-ending-toggle-title" style={{ fontSize: "0.95rem", fontWeight: "800", color: "#1f2937", marginBottom: "16px" }}>
+                ฉากนี้จะ...
+              </div>
+              <div className="se-ending-toggle-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                {/* ปุ่ม 1: มีทางเลือกต่อไป */}
+                <button
+                  type="button"
+                  className={`se-ending-toggle-btn ${!isEnding ? "active" : ""}`}
+                  onClick={() => {
+                    if (isEnding) {
+                      setIsEnding(false);
+                      setIsUnsaved(true);
+                    }
+                  }}
+                >
+                  <div className="checkmark-badge">✓</div>
+                  <div className="se-ending-toggle-icon" style={{ fontSize: "1.4rem", marginBottom: "6px" }}>🔀</div>
+                  <div className="se-ending-toggle-text-main">มีทางเลือกต่อไป</div>
+                  <div className="se-ending-toggle-text-sub">ผู้อ่านเลือกเส้นทางถัดไปได้</div>
+                </button>
+
+                {/* ปุ่ม 2: ฉากจบของเรื่อง */}
+                <button
+                  type="button"
+                  className={`se-ending-toggle-btn ${isEnding ? "active" : ""}`}
+                  onClick={() => {
+                    if (!isEnding) {
+                      if (choices.length > 0) {
+                        setErrorMsg(
+                          "ฉากจบไม่สามารถสร้างทางเลือกต่อได้ **กรุณาลบตัวเลือกในฉากนี้ออกก่อน**"
+                        );
+                        setTimeout(() => setErrorMsg(null), 6000);
+                        return;
+                      }
+                      if (sceneType === "start") {
+                        setErrorMsg("ไม่สามารถตั้งค่าฉากเริ่มต้นให้เป็นฉากจบได้");
+                        setTimeout(() => setErrorMsg(null), 5000);
+                        return;
+                      }
+                      setIsEnding(true);
+                      setIsUnsaved(true);
+                    }
+                  }}
+                >
+                  <div className="checkmark-badge">✓</div>
+                  <div className="se-ending-toggle-icon" style={{ fontSize: "1.4rem", marginBottom: "6px" }}>🏁</div>
+                  <div className="se-ending-toggle-text-main">ฉากจบของเรื่อง</div>
+                  <div className="se-ending-toggle-text-sub">เส้นทางสิ้นสุดที่ฉากนี้</div>
+                </button>
+              </div>
             </div>
 
-            <div className="se-choices-list">
-              {choices.map((choice, i) => (
-                <ChoiceCard
-                  key={choice.id || choice._tempId || i}
-                  choice={choice}
-                  index={i}
-                  allTargetOptions={chapters}
-                  currentChapterId={effectiveChapterId}
-                  currentSceneId={sceneId}
-                  onUpdate={updateChoice}
-                  onSave={saveChoiceImmediately}
-                  onDelete={deleteChoice}
+            {/* ส่วนของ ฉากจบ (ถ้าเป็น Ending) */}
+            {isEnding ? (
+              <div className="se-inline-ending-wrapper" style={{ border: "1.5px solid #cbd5e1", padding: "20px", borderRadius: "16px", backgroundColor: "#ffffff" }}>
+                <EndingSettings
+                  sceneTitle={sceneTitle || sceneLabel}
+                  isEnding={isEnding}
+                  endingTitle={endingTitle}
+                  endingType={endingType}
+                  endingDescription={endingDescription}
+                  endingDescriptionEnabled={endingDescriptionEnabled}
+                  onToggleEnding={(val) => {
+                    setIsEnding(val);
+                    setIsUnsaved(true);
+                  }}
+                  onToggleEndingDescriptionEnabled={(val) => {
+                    setEndingDescriptionEnabled(val);
+                    setIsUnsaved(true);
+                  }}
+                  onChangeEndingTitle={(val) => {
+                    setEndingTitle(val);
+                    setIsUnsaved(true);
+                  }}
+                  onChangeEndingType={(val) => {
+                    setEndingType(val);
+                    setIsUnsaved(true);
+                  }}
+                  onChangeEndingDescription={(val) => {
+                    setEndingDescription(val);
+                    setIsUnsaved(true);
+                  }}
+                  onSave={() => {
+                    setToastMessage("อัปเดตการตั้งค่าฉากจบชั่วคราวแล้ว (กดบันทึกขวาบนเพื่อบันทึกจริง)");
+                    setTimeout(() => setToastMessage(null), 2500);
+                  }}
+                  onClose={() => {
+                    setIsEnding(false);
+                    setIsUnsaved(true);
+                  }}
                 />
-              ))}
-
-              {choices.length === 0 && (
-                <div className="se-choices-empty">
-                  <p>ยังไม่มีตัวเลือก (เมื่ออ่านมาถึงฉากนี้จะจบตอนทันที)</p>
+              </div>
+            ) : (
+              /* ส่วนของ ทางเลือกปกติ (ถ้าไม่ใช่ฉากจบ) */
+              <>
+                <div className="se-section__heading-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                  <div className="se-section__heading" style={{ margin: 0, fontSize: "0.95rem", fontWeight: "800" }}>
+                    ตัวเลือกท้ายฉาก <span style={{ color: "#94a3b8", fontSize: "0.85rem", marginLeft: "6px", fontWeight: "600" }}>| {choices.length} ตัวเลือก</span>
+                  </div>
+                  <button className="se-btn se-btn--add-choice" onClick={addChoice}>
+                    ✚ เพิ่มตัวเลือกใหม่
+                  </button>
                 </div>
-              )}
-            </div>
+
+                <div className="se-choices-list">
+                  {choices.map((choice, i) => (
+                    <ChoiceCard
+                      key={choice.id || choice._tempId || i}
+                      choice={choice}
+                      index={i}
+                      allTargetOptions={chapters}
+                      currentChapterId={effectiveChapterId}
+                      currentSceneId={sceneId}
+                      onUpdate={updateChoice}
+                      onSave={saveChoiceImmediately}
+                      onDelete={deleteChoice}
+                      novelId={novelId}
+                      token={token}
+                      onNavigate={onNavigate}
+                      navigate={navigate}
+                    />
+                  ))}
+
+                  {choices.length === 0 && (
+                    <div className="se-choices-empty">
+                      <p>⚠️ ยังไม่มีตัวเลือกถัดไป</p>
+                      <p>ฉากนี้ยังไม่ได้เชื่อมโยงไปฉากอื่น เนื้อเรื่องจะหยุดค้างอยู่ที่ฉากนี้ กรุณาเพิ่มตัวเลือกเพื่อเชื่อมไปยังฉากถัดไป</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -2193,42 +2858,7 @@ const SceneEditorPage = ({
         </div>
       )}
 
-      {/* Dialog ตั้งค่าฉากจบ */}
-      {showEndingSettingsDialog && (
-        <div className="se-modal-overlay">
-          <div className="se-modal-content se-modal-content--wide">
-            <div className="se-modal-panel-header">
-              <div>
-                <div className="se-modal-panel-title">กำหนดรายละเอียดฉากจบของคุณ</div>
-                <div className="se-modal-panel-subtitle">ข้อมูลส่วนนี้จะแสดงให้ผู้อ่านเห็น หลังจากอ่านมาถึงและปลดล็อกฉากจบนี้แล้วเท่านั้น</div>
-              </div>
-              <button
-                type="button"
-                className="se-modal-panel-close"
-                onClick={() => setShowEndingSettingsDialog(false)}
-                aria-label="ปิด"
-              >
-                ×
-              </button>
-            </div>
-            <EndingSettings
-              sceneTitle={sceneTitle || sceneLabel}
-              isEnding={isEnding}
-              endingTitle={endingTitle}
-              endingType={endingType}
-              endingDescription={endingDescription}
-              endingDescriptionEnabled={endingDescriptionEnabled}
-              onToggleEnding={setIsEnding}
-              onToggleEndingDescriptionEnabled={setEndingDescriptionEnabled}
-              onChangeEndingTitle={setEndingTitle}
-              onChangeEndingType={setEndingType}
-              onChangeEndingDescription={setEndingDescription}
-              onSave={saveEndingSettings}
-              onClose={() => setShowEndingSettingsDialog(false)}
-            />
-          </div>
-        </div>
-      )}
+
 
       {/* Dialog เพิ่มฉากใหม่ */}
       {showAddSceneDialog && (

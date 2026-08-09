@@ -139,11 +139,16 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 20px 16px; /* บีบกรอบบน-ล่างให้แคบลง */
-  border-radius: 12px; /* ลดความมนลงให้สมดุลกับกล่องเล็ก */
+  padding: 24px 20px;
+  border-radius: 16px;
   border-width: 2px;
   border-style: solid;
   transition: all 0.3s ease;
+  width: 280px; /* ล็อกขนาดความกว้างคงที่เหมือนฝั่งนักอ่าน */
+  min-height: 360px; /* ล็อกความสูงขั้นต่ำให้เป็นแนวตั้งที่ได้สัดส่วน */
+  box-sizing: border-box;
+  margin: 0 auto; /* จัดกึ่งกลางฝั่งซ้าย */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
 }
 
 .preview-icon {
@@ -181,6 +186,8 @@
   line-height: 1.5;
   white-space: pre-wrap;
   max-width: 100%;
+  width: 100%;
+  word-break: break-word; /* ป้องกันคำยาวล้นการ์ด */
 }
 
 .preview-card small {

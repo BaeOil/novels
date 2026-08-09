@@ -748,7 +748,7 @@ useEffect(() => {
               fontWeight: 700
             }}
           >
-            Exit Preview
+            ออกจากโหมดทดลองอ่าน
           </button>
         </div>
       )}

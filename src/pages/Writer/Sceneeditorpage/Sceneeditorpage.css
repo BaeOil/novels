@@ -185,7 +185,7 @@
   justify-content: center;
   gap: 6px;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 12px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -202,42 +202,41 @@
 }
 
 .se-header__btn--preview {
-  background: var(--pink-100);
-  color: var(--pink-700);
-  border: 2px solid var(--pink-300);
-  box-shadow: 0 6px 18px rgba(251, 146, 175, 0.18);
+  background: #fce7f3;
+  color: #db2777;
+  border: none;
+  box-shadow: none;
 }
 .se-header__btn--preview:hover {
-  background: #ec4899;
-  color: white;
-  border-color: #db2777;
-  box-shadow: 0 10px 24px rgba(236, 72, 153, 0.22);
+  background: #fbcfe8;
+  color: #be185d;
+  box-shadow: 0 4px 12px rgba(219, 39, 119, 0.12);
 }
 
 /* ปุ่มทดลองอ่านแบบอยู่ในส่วนเนื้อหา */
 .se-header__btn--preview-inline {
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(233, 30, 140, 0.12);
+  box-shadow: none;
 }
 
 .se-header__btn--save {
   background: #10b981;
   color: white;
-  border: 1.5px solid #10b981;
+  border: none;
 }
 .se-header__btn--save:hover {
   background: #059669;
-  border-color: #059669;
-  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.22);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
 }
 
 .se-header__btn--publish {
-  background: var(--pink-500);
+  background: #ec4899;
   color: white;
+  border: none;
 }
 .se-header__btn--publish:hover {
-  background: var(--pink-700);
-  box-shadow: 0 8px 20px rgba(181, 22, 110, 0.24);
+  background: #db2777;
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.12);
 }
 
 .se-header__btn:disabled,
@@ -478,22 +477,27 @@
 .se-tree__add-scene {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 10px;
-  border-radius: 7px;
-  border: 1.5px dashed var(--gray-300);
-  background: transparent;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--pink-300);
+  background: #fdf2f8;
   font-family: inherit;
   font-size: 12px;
   color: var(--pink-500);
   cursor: pointer;
-  transition: all 0.13s;
-  margin: 4px 0 4px 24px;
+  transition: all 0.18s;
+  margin: 6px 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-weight: 600;
 }
 .se-tree__add-scene:hover {
-  background: var(--pink-50);
+  background: var(--pink-500);
+  color: var(--white);
   border-style: solid;
-  border-color: var(--pink-300);
+  border-color: var(--pink-500);
 }
 
 /* Add chapter */
@@ -672,17 +676,16 @@
 }
 
 .se-btn--add-choice {
-  background: var(--pink-50);
-  color: var(--pink-700);
-  border: 2px solid var(--pink-300);
+  background: var(--pink-500);
+  color: var(--white);
+  border: none;
   font-weight: 700;
 }
 .se-btn--add-choice:hover {
-  background: var(--pink-500);
+  background: var(--pink-600);
   color: var(--white);
-  border-color: var(--pink-500);
   transform: translateY(-1.5px);
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.15);
+  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.25);
 }
 .se-btn--add-choice:active {
   transform: translateY(0);
@@ -827,13 +830,14 @@
 
 .se-quill .ql-container {
   border: 1px solid var(--gray-300);
-  min-height: 380px;
+  height: 720px;
   font-size: 15px;
   line-height: 1.8;
 }
 
 .se-quill .ql-editor {
-  min-height: 380px;
+  height: 100%;
+  overflow-y: auto;
   padding: 20px;
 }
 
@@ -954,14 +958,14 @@
   color: #b91c1c;
 }
 .se-choice__btn-action--cancel {
-  background: var(--white);
-  color: var(--gray-600);
-  border-color: var(--gray-300);
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
 }
 .se-choice__btn-action--cancel:hover {
-  background: var(--gray-100);
-  color: var(--black);
-  border-color: var(--gray-600);
+  background: #e2e8f0;
+  color: #1e293b;
+  border-color: #94a3b8;
 }
 .se-choice__error {
   color: #dc2626;
@@ -1116,9 +1120,14 @@
 }
 
 .se-modal-btn--cancel {
-  background: #f8fafc;
-  color: #334155;
-  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1.5px solid #cbd5e1;
+}
+.se-modal-btn--cancel:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+  border-color: #94a3b8;
 }
 
 .se-modal-btn--save {
@@ -1300,4 +1309,191 @@
 /* เมื่อรูปโดนคลิกเลือก (หรือมีคลาสที่ Quill ทำไฮไลท์) */
 .ql-editor img::selection {
   background: rgba(0, 123, 255, 0.3);
+}
+
+/* 🏁 ฉากนี้จะ... โซนสลับปุ่มเลือกโหมดฉากจบ vs ช้อยส์ทางเลือก */
+.se-ending-toggle-section {
+  background: var(--white);
+  border: 1px solid #f1f5f9; /* บางเฉียบ สบายตามาก */
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.015);
+}
+
+.se-ending-toggle-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.se-ending-toggle-row {
+  display: flex;
+  gap: 16px;
+}
+
+.se-ending-toggle-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1.5px solid #cbd5e1; /* ขอบหนาขึ้นนิดหน่อยเพื่อให้มีขอบเด่นชัดขึ้น */
+  background: var(--white);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+}
+
+.se-ending-toggle-btn:hover:not(.active) {
+  border-color: #ec4899; /* เปลี่ยนขอบเป็นสีชมพูแสนหวาน */
+  background: #fdf2f8; /* พื้นหลังสีชมพูพาสเทลจางๆ ละมุนตา */
+  transform: translateY(-2px); /* ลอยตัวขึ้นเล็กน้อยมีมิติ */
+  box-shadow: 0 8px 20px rgba(233, 30, 140, 0.08); /* เงารองใต้ปุ่ม */
+}
+
+.se-ending-toggle-btn.active {
+  border: 2px solid #db2777; /* ขอบชมพูสดชัดเจน */
+  background: rgba(219, 39, 119, 0.05); /* สีชมพูระเรื่อเด่นชัดนำสายตา */
+  box-shadow: 0 6px 16px rgba(219, 39, 119, 0.1);
+  transform: scale(1.02); /* ขยายขนาดใหญ่ขึ้นเล็กน้อย */
+}
+
+.se-ending-toggle-icon {
+  font-size: 1.6rem;
+  margin-bottom: 8px;
+  color: var(--gray-600);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.se-ending-toggle-btn:hover:not(.active) .se-ending-toggle-icon {
+  transform: scale(1.1) translateY(-2px); /* ไอคอนลอยตัวขึ้นและขยาย */
+  color: #db2777;
+}
+
+.se-ending-toggle-btn.active .se-ending-toggle-icon {
+  color: #db2777;
+}
+
+.se-ending-toggle-text-main {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 4px;
+  transition: color 0.2s ease;
+}
+
+.se-ending-toggle-btn:hover:not(.active) .se-ending-toggle-text-main {
+  color: #db2777;
+}
+
+.se-ending-toggle-btn.active .se-ending-toggle-text-main {
+  color: #db2777;
+}
+
+.se-ending-toggle-text-sub {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+}
+
+/* ป้ายเช็คถูกวงกลมสีชมพูที่มุมขวาบน */
+.se-ending-toggle-btn .checkmark-badge {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #db2777;
+  color: #ffffff;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.se-ending-toggle-btn.active .checkmark-badge {
+  display: flex;
+}
+
+/* 🏁 Override EndingSettings component style to render inline flawlessly */
+.se-inline-ending-wrapper {
+  margin-top: 16px;
+  border-top: 1px dashed var(--gray-200);
+  padding-top: 24px;
+}
+
+.se-inline-ending-wrapper .ending-page {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.se-inline-ending-wrapper .ending-card {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* ซ่อน Header toggles และปุ่มเซฟภายในคอมโพเนนต์ฉากจบ เพราะจะแชร์ปุ่มหลักร่วมกัน */
+.se-inline-ending-wrapper .ending-header,
+.se-inline-ending-wrapper .save-wrapper {
+  display: none !important;
+}
+
+.se-inline-ending-wrapper .ending-card .section {
+  padding: 16px 0 !important;
+  border-bottom: 1.5px solid var(--gray-100) !important;
+}
+
+.se-inline-ending-wrapper .ending-card .section:first-of-type {
+  padding-top: 0 !important;
+}
+
+/* 💡 Custom Hover Tooltip สำหรับเครื่องเขียน */
+.ql-toolbar button[data-tooltip],
+.ql-toolbar .ql-picker[data-tooltip] {
+  position: relative;
+}
+
+.ql-toolbar button[data-tooltip]::after,
+.ql-toolbar .ql-picker[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background: #0f172a;
+  color: #ffffff;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  pointer-events: none;
+  font-family: 'Sarabun', sans-serif;
+}
+
+.ql-toolbar button[data-tooltip]:hover::after,
+.ql-toolbar .ql-picker[data-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-2px);
 }
