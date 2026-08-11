@@ -139,6 +139,14 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     onNavigate("story-tree", { novelId: id });
   };
 
+  const handleAnalytics = (novelObj) => {
+    localStorage.setItem("selectedNovel", JSON.stringify(novelObj));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("novel-selected"));
+    const id = novelObj.id || novelObj.novel_id;
+    onNavigate("analytics", { novelId: id });
+  };
+
   if (loading) {
     return (
       <div className="wdb" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
@@ -214,6 +222,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
                 novel={novel}
                 onEdit={() => handleEdit(novel)}
                 onTree={() => handleTree(novel)}
+                onAnalytics={() => handleAnalytics(novel)}
                 onDelete={() => handleDeleteNovel(id)}
               />
             );
@@ -236,7 +245,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   );
 };
 
-const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
+const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
@@ -353,8 +362,9 @@ const NovelCard = ({ novel, onEdit, onTree, onDelete }) => {
           )}
         </div>
 
-        <div className="nvc__actions">
-          <button className="nvc__btn nvc__btn--edit" onClick={onEdit}>✏️ แก้ไข</button>
+        <div className="nvc__actions" style={{ display: "flex", gap: "8px" }}>
+          <button className="nvc__btn nvc__btn--edit" style={{ flex: 1 }} onClick={onEdit}>✏️ แก้ไข</button>
+          <button className="nvc__btn nvc__btn--stats" style={{ flex: 1 }} onClick={onAnalytics}>📊 สถิติ</button>
         </div>
       </div>
 
