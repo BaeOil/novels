@@ -1125,3 +1125,34 @@
   stroke-width: 2px;
   stroke-dasharray: 5, 5;
 }
+/* ─────────────────────────────────────────────────────────────
+   Toggle Switch for Structure / Analytics
+   ───────────────────────────────────────────────────────────── */
+.wsg-toggle-wrap {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.wsg-toggle-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wsg-toggle-btn.active {
+  background: #ffffff;
+  color: #db2777;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}

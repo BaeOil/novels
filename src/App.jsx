@@ -30,6 +30,7 @@ import WriterStoryTreePage from "./pages/Writer/WriterStoryTreePage/WriterStoryT
 import SceneEditorPage from "./pages/Writer/Sceneeditorpage/Sceneeditorpage";
 import EditNovelPage from "./pages/Writer/Editnovelpage/Editnovelpage";
 import WriterProfile from "./pages/Writer/WriterProfile/WriterProfile";
+import StatisticsGraph from "./pages/Writer/StatisticsGraph/StatisticsGraph";
 
 import Manageusers from "./pages/Admin/Manageusers/Manageusers";
 import WriterRequestsPage from "./pages/Admin/WriterRequestsPage/WriterRequestsPage";
@@ -319,6 +320,13 @@ const createNavigateHandler = (navigate, currentNovelId = null) => (page, payloa
         navigate("/writer/dashboard");
       }
       break;
+    case "analytics":
+      if (activeNovelId) {
+        navigate(`/writer/${activeNovelId}/analytics`);
+      } else {
+        navigate("/writer/dashboard");
+      }
+      break;
     case "novel-detail":
     case "detail":
       if (payload?.novelId || payload?.id) {
@@ -492,6 +500,18 @@ const WriterStoryTreeRoute = () => {
   return (
     <WriterLayout onNavigate={navHandler}>
       <WriterStoryTreePage novelId={novelId} onNavigate={navHandler} />
+    </WriterLayout>
+  );
+};
+
+const StatisticsGraphRoute = () => {
+  const navigate = useNavigate();
+  const { novelId } = useParams();
+  const navHandler = createNavigateHandler(navigate, novelId);
+
+  return (
+    <WriterLayout onNavigate={navHandler}>
+      <StatisticsGraph novelId={novelId} onNavigate={navHandler} />
     </WriterLayout>
   );
 };
@@ -855,6 +875,7 @@ function App() {
         <Route path="/writer/:novelId/chapters" element={<RequireWriterRoute><ChapterManagerRoute /></RequireWriterRoute>} />
         <Route path="/writer/:novelId/scene/:sceneId" element={<RequireWriterRoute><SceneEditorRoute /></RequireWriterRoute>} />
         <Route path="/writer/:novelId/storytree" element={<RequireWriterRoute><WriterStoryTreeRoute /></RequireWriterRoute>} />
+        <Route path="/writer/:novelId/analytics" element={<RequireWriterRoute><StatisticsGraphRoute /></RequireWriterRoute>} />
         <Route path="/writer/storytree/:novelId" element={<RequireWriterRoute><LegacyWriterStoryTreeRedirect /></RequireWriterRoute>} />
         <Route path="/writer/:novelId/edit" element={<RequireWriterRoute><EditNovelRoute /></RequireWriterRoute>} />
           

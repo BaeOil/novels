@@ -414,6 +414,21 @@
   box-shadow: 0 4px 14px rgba(236, 72, 153, 0.25);
 }
 
+.nvc__btn--stats {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0f2fe 100%);
+  border: 1.5px solid #bae6fd;
+  color: #0284c7 !important;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.08);
+}
+
+.nvc__btn--stats:hover {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: #ffffff !important;
+  border-color: #0284c7;
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.25);
+}
+
 /* ล็อคหน้าจอสำหรับยืนยันการลบ */
 .nvc__confirm {
   position: absolute;

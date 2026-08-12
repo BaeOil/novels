@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactFlow, {
   Handle,
   Position,
@@ -2701,6 +2701,18 @@ let orphanCounter = 0;
           <LegendBar />
         </div>
         <div className="wst-topbar__actions">
+          {/* ปุ่มสลับโครงสร้าง (Structure) กับสถิติวิเคราะห์ (Analytics) */}
+          <div className="wsg-toggle-wrap" style={{ marginRight: "16px" }}>
+            <button className="wsg-toggle-btn active">
+              โครงสร้าง
+            </button>
+            <button 
+              className="wsg-toggle-btn"
+              onClick={() => onNavigate && onNavigate("analytics")}
+            >
+              วิเคราะห์การตัดสินใจ
+            </button>
+          </div>
           <button className="wst-topbar__add" onClick={() => onNavigate && onNavigate("chapters", { novelId })}>จัดการตอน</button>
         </div>
       </header>
