@@ -4,6 +4,7 @@ import "./WriterRegisterPage.css";
 import { useNavigate } from "react-router-dom";
 import ReactQuill from "react-quill-new";
 import "quill/dist/quill.snow.css";
+import DOMPurify from "dompurify"; // npm install dompurify — sanitize bio HTML before ever rendering it
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -36,6 +37,39 @@ async function authFetch(path, options = {}) {
     }
 
     return res.json().catch(() => ({}));
+}
+
+// ─────────────────────────────────────────────
+//  Draft storage: ต้องผูกกับ user_id เสมอ ห้ามใช้ key กลางๆ
+//  เพราะบนเครื่องที่ใช้ร่วมกัน user A เขียนร่างค้างไว้แล้วปิดแท็บ (ไม่ยกเลิก/ไม่ส่ง)
+//  จากนั้น user B ล็อกอินเครื่องเดียวกัน จะเห็นข้อมูลของ user A ทันทีถ้า key ไม่แยกตาม user
+// ─────────────────────────────────────────────
+function getCurrentUserId() {
+    try {
+        const userJson = localStorage.getItem("user");
+        if (!userJson) return null;
+        const user = JSON.parse(userJson);
+        return user.user_id ?? user.id ?? user.email ?? null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function getDraftKeys() {
+    const uid = getCurrentUserId();
+    // ไม่รู้ว่าเป็น user ไหน -> ไม่บันทึกร่างลง localStorage เลย (กันรั่วดีกว่าเสียความสะดวก)
+    if (!uid) return { stepKey: null, formKey: null };
+    return {
+        stepKey: `writerRegStep:${uid}`,
+        formKey: `writerRegForm:${uid}`,
+    };
+}
+
+// ล้าง key รุ่นเก่าที่ไม่ได้ผูกกับ user (ของค้างจากก่อนแก้บั๊กนี้) ทิ้งทันทีที่เจอ
+// เพื่อไม่ให้ user คนถัดไปที่เข้ามาในเครื่องเดียวกันเห็นข้อมูลนี้อีก
+function purgeLegacyUnscopedDraft() {
+    localStorage.removeItem("writerRegStep");
+    localStorage.removeItem("writerRegForm");
 }
 
 const QUILL_MODULES = {
@@ -259,10 +293,19 @@ const SummaryCard = ({ data, genreOptions }) => {
         .map((id) => genreOptions.find((g) => g.id === id)?.name)
         .filter(Boolean);
 
+    // sanitize ก่อนโชว์เสมอ เพราะ bio อาจมาจาก endpoint ที่ไม่ได้ผ่าน Quill toolbar
+    // (POST /api/writers/apply รับ JSON ตรงได้ — ต้อง sanitize ทั้งฝั่ง client และ backend)
+    const safeBio = data.bio
+        ? DOMPurify.sanitize(data.bio, {
+              ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "s", "ol", "ul", "li", "blockquote", "a", "h1", "h2", "h3"],
+              ALLOWED_ATTR: ["href", "target", "rel"],
+          })
+        : "—";
+
     const rows = [
         { label: "ชื่อ - นามสกุล", value: data.fullName || "—" },
         { label: "นามปากกา", value: data.penName || "—" },
-        { label: "แนะนำตัวนักเขียน", html: data.bio || "—" },
+        { label: "แนะนำตัวนักเขียน", html: safeBio },
         { label: "ประเภทนิยายที่แต่ง", value: genreNames.length ? genreNames.join(", ") : "—" },
         { label: "อีเมล", value: data.email || "—" },
         { label: "ช่องทางติดต่อหลัก", value: data.mainContact || "—" },
@@ -302,18 +345,23 @@ const SummaryCard = ({ data, genreOptions }) => {
 const WriterRegisterPage = ({ onComplete, onBack }) => {
     const navigate = useNavigate();
     
-    // 1. ดึงข้อมูล Step จาก localStorage (ถ้ามี)
+    // 0. เคลียร์ร่างรุ่นเก่าที่ไม่ผูกกับ user (บั๊กเดิม) ทิ้งก่อนเสมอ กันรั่วข้ามบัญชี
+    purgeLegacyUnscopedDraft();
+    const { stepKey: draftStepKey, formKey: draftFormKey } = getDraftKeys();
+
+    // 1. ดึงข้อมูล Step จาก localStorage (ถ้ามี และผูกกับ user คนปัจจุบันเท่านั้น)
     const [step, setStep] = useState(() => {
-        const savedStep = localStorage.getItem("writerRegStep");
+        if (!draftStepKey) return 1;
+        const savedStep = localStorage.getItem(draftStepKey);
         return savedStep ? Number(savedStep) : 1;
     });
 
     const [checkingAuth, setCheckingAuth] = useState(true);
     const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
-    // 2. ดึงข้อมูล Form จาก localStorage (ถ้ามี)
+    // 2. ดึงข้อมูล Form จาก localStorage (ถ้ามี และผูกกับ user คนปัจจุบันเท่านั้น)
     const [form, setForm] = useState(() => {
-        const savedForm = localStorage.getItem("writerRegForm");
+        const savedForm = draftFormKey ? localStorage.getItem(draftFormKey) : null;
         if (savedForm) {
             try {
                 const parsed = JSON.parse(savedForm);
@@ -343,6 +391,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [writerAppStatus, setWriterAppStatus] = useState("none");
+    const [writerAppRejectionReason, setWriterAppRejectionReason] = useState(null);
     const [writerAppLoading, setWriterAppLoading] = useState(true);
     const [writerAppError, setWriterAppError] = useState(null);
     const hasPerformedAuthCheck = useRef(false);
@@ -353,21 +402,23 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
     const [genresError, setGenresError] = useState(null);
     const [genresReloadKey, setGenresReloadKey] = useState(0);
 
-    // 3. บันทึกข้อมูลลง localStorage ทุกครั้งที่ Step หรือ Form เปลี่ยนแปลง
+    // 3. บันทึกข้อมูลลง localStorage ทุกครั้งที่ Step หรือ Form เปลี่ยนแปลง (เฉพาะ key ที่ผูกกับ user แล้วเท่านั้น)
     useEffect(() => {
-        localStorage.setItem("writerRegStep", step.toString());
+        if (!draftStepKey) return;
+        localStorage.setItem(draftStepKey, step.toString());
     }, [step]);
 
     useEffect(() => {
+        if (!draftFormKey) return;
         // แยกไฟล์รูปออก ไม่เซฟลง localStorage
         const { avatarFile, avatarPreview, ...formToSave } = form;
-        localStorage.setItem("writerRegForm", JSON.stringify(formToSave));
+        localStorage.setItem(draftFormKey, JSON.stringify(formToSave));
     }, [form]);
 
-    // 4. ฟังก์ชันล้างความจำเมื่อทำงานเสร็จสิ้นหรือยกเลิก
+    // 4. ฟังก์ชันล้างความจำเมื่อทำงานเสร็จสิ้นหรือยกเลิก (ล้างเฉพาะ key ของ user คนปัจจุบัน)
     const clearSavedData = () => {
-        localStorage.removeItem("writerRegStep");
-        localStorage.removeItem("writerRegForm");
+        if (draftStepKey) localStorage.removeItem(draftStepKey);
+        if (draftFormKey) localStorage.removeItem(draftFormKey);
     };
 
     useEffect(() => {
@@ -381,6 +432,21 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             try {
                 const data = await authFetch("/api/writers/me");
                 setWriterAppStatus(data.status || "none");
+                setWriterAppRejectionReason(data.rejection_reason || null);
+
+                if (data.status === "rejected") {
+                    setForm((prev) => ({
+                        ...prev,
+                        fullName: prev.fullName || data.full_name || data.name_lastname || "",
+                        penName: prev.penName || data.pen_name || "",
+                        email: prev.email || data.email || data.email_writer || "",
+                        bio: prev.bio || data.bio || "",
+                        genres: (prev.genres && prev.genres.length > 0) ? prev.genres : (data.category_ids || data.genres || []),
+                        mainContact: prev.mainContact || data.main_contact || data.primary_contact || "",
+                        otherLinks: prev.otherLinks || data.other_links || data.secondary_contact || "",
+                        avatarPreview: prev.avatarPreview || data.avatar_url || null,
+                    }));
+                }
             } catch (err) {
                 // backend ส่ง 200 + {status:"none"} เสมอเมื่อยังไม่เคยสมัคร (sql.ErrNoRows)
                 // ดังนั้น catch ตรงนี้คือ error จริงๆ เท่านั้น (401/500 ฯลฯ)
@@ -610,8 +676,16 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                 />
 
                 {writerAppStatus === "rejected" && (
-                    <div className="wr-form-notice wr-form-notice--info">
-                        คำขอครั้งก่อนถูกปฏิเสธ คุณสามารถแก้ข้อมูลและยื่นสมัครใหม่ได้
+                    <div className="wr-form-notice wr-form-notice--warning">
+                        <p className="wr-form-notice__title">คำขอครั้งก่อนถูกปฏิเสธ</p>
+                        {writerAppRejectionReason ? (
+                            <p className="wr-form-notice__reason">เหตุผล: {writerAppRejectionReason}</p>
+                        ) : (
+                            <p className="wr-form-notice__reason wr-form-notice__reason--muted">
+                                ผู้ดูแลระบบไม่ได้ระบุเหตุผลเพิ่มเติม
+                            </p>
+                        )}
+                        <p>คุณสามารถแก้ข้อมูลและยื่นสมัครใหม่ได้</p>
                     </div>
                 )}
 

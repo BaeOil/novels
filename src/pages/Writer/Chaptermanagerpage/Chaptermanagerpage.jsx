@@ -2059,6 +2059,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       return;
     }
     const previewUrl = `/novel/${idToOpen}?preview=true`;
+    sessionStorage.setItem("previewReturnUrl", window.location.pathname + window.location.search);
     try {
       window.open(previewUrl, "_blank", "noopener,noreferrer");
     } catch (err) {

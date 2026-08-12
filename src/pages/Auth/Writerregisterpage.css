@@ -1061,3 +1061,43 @@ input::-webkit-credentials-auto-fill-button {
     margin: 0 !important;
 }
 
+
+/* ══════════════════════════════════════════
+   Writer Application Notice Banner
+   (เดิมไม่มี style ของ wr-form-notice เลย ทำให้ banner ที่ขึ้นตอน rejected ไม่มีสไตล์ใดๆ)
+══════════════════════════════════════════ */
+
+.wr-form-notice {
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.wr-form-notice--info {
+  background: #eef6ff;
+  border: 1px solid #bcdcff;
+  color: #1a4d8f;
+}
+
+.wr-form-notice--warning {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.wr-form-notice__title {
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.wr-form-notice__reason {
+  margin: 0 0 8px;
+}
+
+.wr-form-notice__reason--muted {
+  color: #b45309;
+  font-style: italic;
+}

@@ -2351,6 +2351,7 @@ const SceneEditorPage = ({
     }
 
     if (!novelId || !sceneId) return;
+    sessionStorage.setItem("previewReturnUrl", window.location.pathname + window.location.search);
     window.open(`/reading/${novelId}/${sceneId}?preview=true`, "_blank", "noopener,noreferrer");
   };
 
@@ -2393,6 +2394,7 @@ const SceneEditorPage = ({
 
     if (action === "preview") {
       if (!novelId || !sceneId) return;
+      sessionStorage.setItem("previewReturnUrl", window.location.pathname + window.location.search);
       window.open(`/reading/${novelId}/${sceneId}?preview=true`, "_blank", "noopener,noreferrer");
       return;
     }

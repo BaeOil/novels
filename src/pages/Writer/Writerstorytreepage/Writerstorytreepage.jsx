@@ -532,9 +532,11 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
     setIsLoading(true);
     setError(null);
     try {
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const [treeRes, chaptersRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`, { withCredentials: false }),
-        axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`, { withCredentials: false })
+        axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`, { headers, withCredentials: false }),
+        axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`, { headers, withCredentials: false })
       ]);
       setTreeData(treeRes.data?.data || treeRes.data || null);
       
@@ -636,7 +638,7 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
         const rawSource = edge.fromId;
         const rawTarget = edge.toId;
         const source = findMatchingNodeId(rawSource);
-        const target = findMatchingNodeId(rawTarget);
+      const target = findMatchingNodeId(rawTarget);
         if (source && adjacency[source] && inDegree[target] !== undefined) {
           adjacency[source].push(target);
           inDegree[target] += 1;
@@ -769,21 +771,31 @@ const StoryTreeInner = ({ novelId, onNavigate }) => {
       positions[sceneId].y += shiftY;
     });
 
+let orphanCounter = 0;
     const positionedNodes = nodeIds.map((sceneId) => {
       const scene = localMap.get(sceneId);
       const position = positions[sceneId] || { x: CANVAS_MARGIN, y: CANVAS_MARGIN };
 
-      // ใช้ตำแหน่งที่ Writer เคยลากบันทึกไว้ (node_x / node_y จาก Backend) ถ้ามีค่าครบ
-      // ถ้าไม่มี (เป็น null/undefined) ให้ใช้ตำแหน่งจาก layout อัตโนมัติเดิมแทน (behavior เดิม)
       const apiX = scene.node_x ?? scene.NodeX;
       const apiY = scene.node_y ?? scene.NodeY;
       const hasSavedPosition = apiX !== null && apiX !== undefined && apiY !== null && apiY !== undefined;
 
+      const isOrphan = nodeStatuses[sceneId] === WRITER_NODE_STATUS.ORPHAN;
+      let fallbackX = position.x;
+      let fallbackY = position.y;
+      if (!hasSavedPosition && isOrphan) {
+        const col = orphanCounter % 5;
+        const row = Math.floor(orphanCounter / 5);
+        fallbackX = CANVAS_MARGIN + col * NODE_HORIZONTAL_GAP;
+        fallbackY = CANVAS_MARGIN + row * NODE_VERTICAL_GAP;
+        orphanCounter += 1;
+      }
+
       return {
         id: sceneId,
         scene,
-        x: hasSavedPosition ? apiX : (scene.x ?? position.x),
-        y: hasSavedPosition ? apiY : (scene.y ?? position.y),
+        x: hasSavedPosition ? apiX : (scene.x ?? fallbackX),
+        y: hasSavedPosition ? apiY : (scene.y ?? fallbackY),
         status: nodeStatuses[sceneId],
       };
     });

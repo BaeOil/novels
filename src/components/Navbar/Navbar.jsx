@@ -13,18 +13,6 @@ const isWriterPublicProfilePath = (pathname) =>
     /^\/writer\/profile\/[^/]+\/?$/.test(pathname) || // /writer/profile/:id
     /^\/writer\/[^/]+\/profile\/?$/.test(pathname); // /writer/:id/profile
 
-/**
- * Navbar เดียวสำหรับทั้งเว็บ — แทนที่ Navbar.jsx + Navbarwriter.jsx เดิม
- *
- * เดิมมี 2 ไฟล์แยกกัน copy logic เดียวกันไว้คนละชุด (auth, search, notification,
- * dropdown) พอแก้ไม่พร้อมกันก็เพี้ยนออกจากกันเรื่อยๆ — ทั้งหน้าตา, ปุ่ม,
- * และแม้แต่ตัวเลขแจ้งเตือนก็ไม่ตรงกัน ทั้งที่เป็นบัญชีเดียวกัน
- *
- * ไฟล์นี้รวม state ทั้งหมดผ่าน hooks (useAuthUser / useNotifications /
- * useNavSearch) และคำนวณ `isWriterMode` จุดเดียว แล้วสลับแค่ "เนื้อหาเมนู"
- * ตามโหมด — ไม่มีทางที่สอง component จะแสดงผลไม่ตรงกันอีก เพราะเหลือ
- * component เดียวแล้ว
- */
 const Navbar = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -222,6 +210,19 @@ const Navbar = () => {
         navigateToNovelPage(selectedNovel.id || selectedNovel.novel_id, target);
     };
 
+    // บั๊กเดิม: ปุ่มชื่อเรื่องที่กำลังแก้ไข (selected-novel-btn) เปิด popup ด้วย
+    // openNovelPopup(null) เสมอ พอเลือกนิยายใหม่ handleSelectNovel เห็น popupTarget
+    // เป็น null เลยไม่ navigate ไปไหน -> selectedNovel/title บน navbar เปลี่ยนถูก
+    // แต่ URL ยังค้างอยู่หน้าของนิยายเก่า เนื้อหาในหน้าเลยไม่ตามไปด้วย
+    // แก้โดยเดา "section" ปัจจุบันจาก URL ก่อนเปิด popup เพื่อให้พอเลือกนิยายใหม่
+    // แล้ว navigate ไปหน้า section เดียวกันของนิยายใหม่ให้อัตโนมัติ
+    const getCurrentNovelSection = () => {
+        if (/^\/writer\/[^/]+\/chapters/.test(location.pathname)) return "chapters";
+        if (/^\/writer\/[^/]+\/storytree/.test(location.pathname)) return "tree";
+        if (/^\/writer\/[^/]+\/scene\//.test(location.pathname)) return "write";
+        return null;
+    };
+
     const handleSelectNovel = (novel) => {
         setSelectedNovel(novel);
         localStorage.setItem("selectedNovel", JSON.stringify(novel));
@@ -320,7 +321,7 @@ const Navbar = () => {
                                             <button
                                                 type="button"
                                                 className="selected-novel-btn"
-                                                onClick={() => openNovelPopup(null)}
+                                                onClick={() => openNovelPopup(getCurrentNovelSection())}
                                                 title="คลิกเพื่อเปลี่ยนนิยายที่กำลังแก้ไข"
                                             >
                                                 <span className="selected-dot"></span>

@@ -270,14 +270,6 @@
   border-bottom: 1px solid var(--gray-100);
 }
 
-.novel-detail__section-sub {
-  font-family: 'Sarabun', sans-serif;
-  font-size: 13.5px;
-  font-weight: 400;
-  color: var(--gray-500, #6b7280);
-  margin: -12px 0 16px 0;
-}
-
 .novel-detail__synopsis-detail {
   font-family: 'Sarabun', sans-serif;
   font-size: 14px;

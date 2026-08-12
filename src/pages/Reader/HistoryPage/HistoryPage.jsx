@@ -299,7 +299,10 @@ const HistoryPage = () => {
             if (!book.isTimeTraveling || book.currentSceneId === 0) return book;
 
             try {
-              const sceneRes = await axios.get(`${API_BASE_URL}/scenes/${book.currentSceneId}`);
+              const token = localStorage.getItem("token");
+              const headers = {};
+              if (token) headers["Authorization"] = `Bearer ${token}`;
+              const sceneRes = await axios.get(`${API_BASE_URL}/scenes/${book.currentSceneId}`, { headers });
               const sceneData = sceneRes.data?.data || sceneRes.data;
               if (!sceneData) return book;
 

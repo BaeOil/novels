@@ -77,15 +77,55 @@ const NovelProgressBar = ({
   const effectiveIsAdmin = checkIsAdmin();
 
   useEffect(() => {
-    // 🎭 หากเป็นโหมด Preview ของนักเขียน ให้จำลองข้อมูลตัวอย่างขึ้นมาแสดง
+    // 👁️ โหมดทดลองอ่านของนักเขียนเจ้าของนิยาย: ดึง "ทุกฉาก" (รวมฉบับร่างที่ยังไม่เผยแพร่)
+    // มาแสดงเป็นสารบัญ ไม่มีแนวคิดเรื่อง "อ่านล่าสุด" หรือความคืบหน้าใดๆ เพราะเป็นแค่การพรีวิว
     if (isPreview) {
-      const mockNodes = [
-        { id: 1, title: "จุดเริ่มต้นเรื่องราว", type: "start", chapter_episode: 1, computedStatus: "visited" },
-        { id: 2, title: "เส้นทางสายหมอก", type: "normal", chapter_episode: 2, computedStatus: "current" },
-      ];
-      setVisitedNodes(mockNodes);
-      setLatestNode(mockNodes[1]);
-      return;
+      if (!novelId) return;
+
+      let isMounted = true;
+      const fetchAllScenesForPreview = async () => {
+        setLoading(true);
+        try {
+          const token = localStorage.getItem("token");
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+          const res = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree?preview=true`, { headers });
+          const treeData = res.data?.data || res.data;
+          const rawNodes = treeData?.nodes || [];
+
+          const allNodes = rawNodes.map((node) => {
+            const isPublished =
+              typeof node.is_published === "boolean"
+                ? node.is_published
+                : String(node.status ?? node.Status ?? "").toLowerCase() === "published";
+            return { ...node, computedStatus: isPublished ? "published" : "draft" };
+          });
+
+          // เรียงลำดับตามตอน/ลำดับฉาก ให้อ่านเป็นสารบัญได้เป็นธรรมชาติ
+          allNodes.sort((a, b) => {
+            const episodeA = a.chapter_episode ?? a.chapterEpisode ?? a.episode ?? a.chapter_order ?? 0;
+            const episodeB = b.chapter_episode ?? b.chapterEpisode ?? b.episode ?? b.chapter_order ?? 0;
+            if (episodeA !== episodeB) return episodeA - episodeB;
+            return (a.order ?? a.id ?? 0) - (b.order ?? b.id ?? 0);
+          });
+
+          if (isMounted) {
+            setVisitedNodes(allNodes);
+            setLatestNode(null);
+          }
+        } catch (err) {
+          console.error("Error fetching full story tree for preview:", err);
+          if (isMounted) setVisitedNodes([]);
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+      };
+
+      fetchAllScenesForPreview();
+
+      return () => {
+        isMounted = false;
+      };
     }
 
     if (!autoFetch || !novelId) return;
@@ -212,6 +252,109 @@ const NovelProgressBar = ({
     if (!node) return "ไม่ระบุชื่อฉาก";
     return stripHtml(node.title || node.scene_name || node.name || node.label || `ฉากที่ ${node.id}`);
   };
+
+  // 👁️ โหมดทดลองอ่านของนักเขียนเจ้าของนิยาย: เรนเดอร์เป็นสารบัญของตัวเอง
+  // เห็นทุกฉาก (ทั้งเผยแพร่แล้ว/ฉบับร่าง) กดเข้าอ่านจากตรงนี้ได้เลย
+  // ไม่มีปุ่มบันทึกความคืบหน้า ไม่มี "อ่านล่าสุด" เพราะเป็นแค่การจำลองมุมมองนักอ่าน
+  if (isPreview) {
+    if (loading) {
+      return (
+        <div className={`novel-timeline-card loading ${className}`}>
+          <div className="spinner" />
+          <span>กำลังโหลดสารบัญ...</span>
+        </div>
+      );
+    }
+
+    if (visitedNodes.length === 0) {
+      return (
+        <div className={`novel-timeline-card empty-state ${className}`}>
+          <div className="empty-state-content">
+            <div className="empty-icon">📖</div>
+            <div>
+              <h4 className="empty-title">ยังไม่มีฉากในนิยายเรื่องนี้</h4>
+              <p className="empty-subtitle">เริ่มสร้างฉากแรกเพื่อดูตัวอย่างสารบัญที่นี่</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`novel-timeline-card ${className}`}>
+        <div className="preview-toc-banner">
+          👁️ สารบัญโหมดทดลองอ่าน — เห็นทุกฉากรวมฉบับร่าง ไม่มีการบันทึกความคืบหน้าใดๆ
+        </div>
+
+        <div className="timeline-list-section">
+          <div className="timeline-header-flex">
+            <div>
+              <h3 className="timeline-section-title">สารบัญทั้งหมด</h3>
+              <p className="timeline-section-subtitle">คลิกฉากใดก็ได้เพื่อทดลองอ่าน</p>
+            </div>
+            <span className="timeline-count-badge">{visitedNodes.length} ฉาก</span>
+          </div>
+
+          <ul className="timeline-list">
+            {paginatedNodes.map((node) => (
+              <li
+                key={node.id}
+                className="timeline-item preview-toc-item"
+                style={{ cursor: "pointer" }}
+                onClick={() => onSceneClick && onSceneClick(node.id)}
+              >
+                <div className="timeline-item-icon">
+                  {node.type === "start" ? "▶" : node.type === "ending" ? "🏁" : "•"}
+                </div>
+                <div className="timeline-item-content">
+                  <span className="timeline-item-chapter">{getChapterLabel(node)}</span>
+                  <span className="timeline-item-title">
+                    {getSceneTitle(node)}
+                    {node.type === "ending" && <span className="ending-inline-tag">🏆 ฉากจบ</span>}
+                    <span
+                      className={`toc-status-badge ${
+                        node.computedStatus === "published"
+                          ? "toc-status-badge--published"
+                          : "toc-status-badge--draft"
+                      }`}
+                    >
+                      {node.computedStatus === "published" ? "เผยแพร่แล้ว" : "ฉบับร่าง"}
+                    </span>
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {totalPages > 1 && (
+            <div className="timeline-pagination">
+              <button
+                type="button"
+                className="timeline-page-btn"
+                onClick={goToPrevPage}
+                disabled={safePage === 1}
+                aria-label="หน้าก่อนหน้า"
+              >
+                ← ก่อนหน้า
+              </button>
+              <span className="timeline-page-indicator">
+                หน้า {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className="timeline-page-btn"
+                onClick={goToNextPage}
+                disabled={safePage === totalPages}
+                aria-label="หน้าถัดไป"
+              >
+                ถัดไป →
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

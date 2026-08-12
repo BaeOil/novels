@@ -151,7 +151,9 @@ const EditNovelPage = ({ onNavigate }) => {
                 try {
                     console.log("EditNovelPage: attempting fetch for id", idCandidate);
                     console.debug("EditNovelPage: attempting novel fetch", { idCandidate });
-                    const response = await fetch(`${API_BASE_URL}/novels/${idCandidate}`);
+                    const response = await fetch(`${API_BASE_URL}/novels/${idCandidate}`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    });
                     console.log("EditNovelPage: fetch response status", { idCandidate, status: response.status });
                     if (!response.ok) {
                         lastErr = new Error(`novel fetch failed (${response.status})`);
@@ -341,7 +343,21 @@ const EditNovelPage = ({ onNavigate }) => {
             console.debug("EditNovelPage: PUT response", { status: response.status, body: respBody });
 
             if (!response.ok) {
-                const errorMessage = respBody?.message || respBody?.error || "Update failed";
+                // ดึง issues และ error จาก backend (รองรับทั้ง top-level และ respBody.data)
+                const issuesList = Array.isArray(respBody?.issues) 
+                    ? respBody.issues 
+                    : Array.isArray(respBody?.data?.issues) 
+                        ? respBody.data.issues 
+                        : [];
+                const blockingIssue = issuesList.find((i) => i.Severity === "blocking" || i.severity === "blocking");
+                let errorMessage;
+                if (blockingIssue?.Code === "COMPLETED_WITHOUT_ENDING" || blockingIssue?.code === "COMPLETED_WITHOUT_ENDING") {
+                    errorMessage = "ไม่สามารถตั้งนิยายเป็นจบได้ กรุณาเพิ่มฉากจบก่อน";
+                } else if (blockingIssue) {
+                    errorMessage = blockingIssue.Message || blockingIssue.message || respBody?.error || respBody?.data?.error || "บันทึกไม่สำเร็จ";
+                } else {
+                    errorMessage = respBody?.error || respBody?.data?.error || respBody?.message || "บันทึกไม่สำเร็จ";
+                }
                 throw new Error(errorMessage);
             }
 

@@ -80,6 +80,34 @@ const NovelDetailPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isPreview = new URLSearchParams(location.search).get("preview") === "true";
+
+  const handleExitPreview = () => {
+    const fallbackUrl = sessionStorage.getItem("previewReturnUrl") || "";
+    sessionStorage.removeItem("previewReturnUrl");
+
+    // แท็บทดลองอ่านถูกเปิดผ่าน window.open(...,'_blank','noopener,noreferrer') จากหน้า
+    // Scene Editor เสมอ (ดู handleOpenPreview ใน SceneEditorPage.jsx) ดังนั้นแท็บนี้มีสิทธิ์
+    // ปิดตัวเองผ่าน window.close() ได้เลยโดยไม่ต้องพึ่ง window.opener
+    //
+    // บั๊กเดิม (จุดเดียวกับ ReadingPage.jsx): เพราะ noopener ทำให้ window.opener เป็น null
+    // เสมอ โค้ดเดิมเอา window.close() ไปซ่อนไว้หลังเงื่อนไข `if (window.opener && ...)`
+    // ที่ไม่มีวันเป็นจริง -> กดออกจาก preview จากหน้ารายละเอียดนี้แล้วแท็บไม่เคยถูกปิดเลย
+    window.close();
+
+    // เผื่อ browser ไม่ยอมให้ปิดแท็บ ให้ fallback พากลับไปหน้าที่ควรกลับไปแทน
+    if (fallbackUrl) {
+      navigate(fallbackUrl);
+      return;
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/");
+  };
+
   const [novel, setNovel] = useState(initialNovelState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -214,7 +242,10 @@ const NovelDetailPage = () => {
         };
 
         const progressSceneId = resolveSceneId(progressSource);
-        if (progressSceneId) {
+        // 🟢 โหมดทดลองอ่าน (preview) ต้องเริ่มจากฉากแรกเสมอ ห้ามพึ่งความคืบหน้าการอ่านจริงของ user
+        // (เดิมไม่มีเงื่อนไข isPreview ตรงนี้ ทำให้ปุ่ม "อ่านต่อ" ใน preview พาไปที่ scene ตาม
+        // progress จริงแทนที่จะเริ่มฉากแรกตามที่ preview ควรเป็น)
+        if (progressSceneId && !isPreview) {
           setNextSceneId(String(progressSceneId));
         }
 
@@ -266,7 +297,7 @@ const NovelDetailPage = () => {
 
         if (currentChapterProgress === 0 && progressSceneId) {
           try {
-            const sceneResp = await fetch(`${API_BASE_URL}/scenes/${progressSceneId}`);
+            const sceneResp = await fetch(`${API_BASE_URL}/scenes/${progressSceneId}`, { headers });
             if (sceneResp.ok) {
               const scenePayload = await sceneResp.json().catch(() => null);
               const sceneData = scenePayload?.data || scenePayload || {};
@@ -365,7 +396,7 @@ const NovelDetailPage = () => {
 
   // ใช้ร่วมกันระหว่างเคส admin กับเคส non-admin ที่ไม่มี nextSceneId บันทึกไว้
   // (เดิมสองเคสนี้ fetch story-tree แล้วดึง first_scene_id ด้วยโค้ดชุดเดียวกันซ้ำสองรอบ)
-  const fetchFirstSceneAndNavigate = async (previewSuffix) => {
+const fetchFirstSceneAndNavigate = async (previewSuffix) => {
     try {
       const userId = getCurrentUserId();
       const headers = { "Content-Type": "application/json" };
@@ -381,13 +412,32 @@ const NovelDetailPage = () => {
       const firstScene = treeData.first_scene_id ?? treeData.current_scene_id ?? treeData.CurrentSceneID ?? treeData.currentSceneId ?? null;
 
       if (firstScene) {
-        navigate(`/reading/${novel.id}/${firstScene}${previewSuffix}`);
+        // ✅ ยิง API ไปโหลดข้อมูลฉากเพื่อแกะดูสถานะข้างใน
+        const sceneResp = await fetch(`${API_BASE_URL}/scenes/${firstScene}`, { headers });
+        if (sceneResp.ok) {
+          const scenePayload = await sceneResp.json().catch(() => null);
+          const sceneData = scenePayload?.data || scenePayload || {};
+          
+          // ✅ เช็กสถานะ Publish จาก JSON จริงๆ (รองรับทั้ง is_published และ status)
+          const isPub = (typeof sceneData.is_published === "boolean") 
+            ? sceneData.is_published === true 
+            : String(sceneData.status ?? sceneData.Status ?? "").toLowerCase() === "published";
+
+          // ถ้า Published แล้ว, หรือเป็น Admin, หรืออยู่ในโหมด Preview ค่อยให้เข้าอ่าน
+          if (isPub || isPreview || isAdmin) {
+            navigate(`/reading/${novel.id}/${firstScene}${previewSuffix}`);
+          } else {
+            setShowNoContentDialog(true);
+          }
+        } else {
+          setShowNoContentDialog(true);
+        }
       } else {
-        navigate(`/reading/${novel.id}${previewSuffix}`);
+        setShowNoContentDialog(true);
       }
     } catch (err) {
       console.warn("Failed to fetch initial scene", err);
-      navigate(`/reading/${novel.id}${previewSuffix}`);
+      setShowNoContentDialog(true);
     }
   };
 
@@ -402,15 +452,40 @@ const NovelDetailPage = () => {
     if (!novel.id) return;
     const previewSuffix = isPreview ? "?preview=true" : "";
 
-    // For admins, always start from the first scene and ignore any saved progress
     if (isAdmin) {
       await fetchFirstSceneAndNavigate(previewSuffix);
       return;
     }
 
-    // Non-admin behavior: use saved nextSceneId if available
-    if (nextSceneId) {
-      navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
+    // 🟢 preview mode ต้องไม่เข้าทางนี้เลย ต้องเริ่มฉากแรกเสมอผ่าน fetchFirstSceneAndNavigate() ด้านล่าง
+    if (nextSceneId && !isPreview) {
+      try {
+        const headers = { "Content-Type": "application/json" };
+        const token = localStorage.getItem("token");
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        
+        // ✅ ยิง API เช็กฉากถัดไปเหมือนกัน
+        const checkResp = await fetch(`${API_BASE_URL}/scenes/${nextSceneId}`, { headers });
+        if (checkResp.ok) {
+          const scenePayload = await checkResp.json().catch(() => null);
+          const sceneData = scenePayload?.data || scenePayload || {};
+          
+          // ✅ เช็กสถานะ Publish จริงๆ ไม่พึ่งแค่ HTTP 200 OK
+          const isPub = (typeof sceneData.is_published === "boolean") 
+            ? sceneData.is_published === true 
+            : String(sceneData.status ?? sceneData.Status ?? "").toLowerCase() === "published";
+
+          if (isPub || isPreview || isAdmin) {
+            navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
+          } else {
+            setShowNoContentDialog(true);
+          }
+        } else {
+          setShowNoContentDialog(true);
+        }
+      } catch (err) {
+        setShowNoContentDialog(true);
+      }
       return;
     }
 
@@ -684,7 +759,7 @@ const NovelDetailPage = () => {
           <button
             type="button"
             className="novel-detail__preview-banner-btn"
-            onClick={() => window.close()}
+            onClick={handleExitPreview}
           >
             ออกจากโหมดทดลองอ่าน
           </button>
@@ -807,6 +882,16 @@ const NovelDetailPage = () => {
                   onSceneClick={(sceneId) => navigate(`/reading/${novel.id}/${sceneId}`)}
                 />
               </div>
+            ) : isPreview ? (
+              // 👁️ โหมดทดลองอ่านของนักเขียนเจ้าของนิยาย: แสดงเป็นสารบัญทุกฉาก (รวมฉบับร่าง)
+              // ให้กดเข้าอ่านจากตรงนี้ได้เลย โดยไม่มีการบันทึกความคืบหน้าใดๆ
+              <div className="novel-detail__progress">
+                <NovelProgressBar
+                  novelId={novel.id}
+                  isPreview={true}
+                  onSceneClick={(sceneId) => navigate(`/reading/${novel.id}/${sceneId}?preview=true`)}
+                />
+              </div>
             ) : !isPreview && isLoggedIn ? (
               <div className="novel-detail__progress">
                 <NovelProgressBar
@@ -853,42 +938,46 @@ const NovelDetailPage = () => {
           />
         </section>
 
-        {!isPreview && (
-          <Comments
-            comments={comments}
-            currentUserId={getCurrentUserId()}
-            commentText={commentText}
-            onCommentTextChange={(e) => setCommentText(e.target.value)}
-            onSubmit={(text) => handleSendComment(text)}
-            readOnly={isAdmin}
-            onDeleteComment={async (commentId) => {
-              const token = localStorage.getItem("token");
-              if (!token) {
-                navigate("/login-register");
-                return;
-              }
+        {/* 🟢 โหมดทดลองอ่านของนักเขียนเจ้าของนิยายก็ยังต้องเห็นคอมเมนต์เพื่อจำลองมุมมองนักอ่าน
+            แต่ห้ามโพสต์/ลบคอมเมนต์ใดๆ เพราะเป็นแค่การพรีวิว ไม่ใช่การกระทำจริง */}
+        <Comments
+          comments={comments}
+          currentUserId={getCurrentUserId()}
+          commentText={commentText}
+          onCommentTextChange={(e) => setCommentText(e.target.value)}
+          onSubmit={isPreview ? undefined : (text) => handleSendComment(text)}
+          readOnly={isAdmin || isPreview}
+          onDeleteComment={
+            isPreview
+              ? undefined
+              : async (commentId) => {
+                  const token = localStorage.getItem("token");
+                  if (!token) {
+                    navigate("/login-register");
+                    return;
+                  }
 
-              try {
-                const response = await fetch(`${API_BASE_URL}/comments?comment_id=${commentId}`, {
-                  method: "DELETE",
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                });
+                  try {
+                    const response = await fetch(`${API_BASE_URL}/comments?comment_id=${commentId}`, {
+                      method: "DELETE",
+                      headers: {
+                        Authorization: `Bearer ${token}`,
+                      },
+                    });
 
-                if (!response.ok) {
-                  const payload = await response.json().catch(() => null);
-                  throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+                    if (!response.ok) {
+                      const payload = await response.json().catch(() => null);
+                      throw new Error(payload?.error || payload?.message || `${response.status} ${response.statusText}`);
+                    }
+
+                    await fetchNovelComments();
+                  } catch (err) {
+                    console.error("Failed to delete comment:", err);
+                    alert(`ไม่สามารถลบความคิดเห็นได้: ${err.message || "ระบบขัดข้อง"}`);
+                  }
                 }
-
-                await fetchNovelComments();
-              } catch (err) {
-                console.error("Failed to delete comment:", err);
-                alert(`ไม่สามารถลบความคิดเห็นได้: ${err.message || "ระบบขัดข้อง"}`);
-              }
-            }}
-          />
-        )}
+          }
+        />
 
         <EndingCollection
           isOpen={showEndingModal && isLoggedIn}

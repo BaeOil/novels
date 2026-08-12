@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom"; 
-// 🟢 quill.snow.css ต้องมาก่อน ReadingPage.css เสมอ ไม่งั้นสไตล์ default ของกล่อง editor
-// (padding, line-height, cursor) จะ override ทับสไตล์การอ่านที่ตั้งใจออกแบบไว้ (ดู .rp__body.ql-editor ใน css)
 import "react-quill-new/dist/quill.snow.css";
 import "./ReadingPage.css";
 import ReadingBreadcrumb from "../../../components/ReadingBreadcrumb/ReadingBreadcrumb";
@@ -13,8 +11,6 @@ import Comments from "../../../components/Comments/Comments";
 import EndingUnlockedModal from "../../../components/EndingUnlockedModal/EndingUnlockedModal";
 import AdminModeBanner from "../../../components/AdminModeBanner/AdminModeBanner";
 
-// 🟢 เดิม hardcode "http://localhost:8080" ตรงๆ ทำให้ build ขึ้น production แล้วยังยิงไป localhost
-// เปลี่ยนให้อ่านจาก env ก่อน ถ้าไม่มีค่อย fallback เป็น localhost ตอน dev เหมือนเดิม
 const BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:8080";
 
 const ReadingPage = ({
@@ -30,6 +26,36 @@ const ReadingPage = ({
   const searchParams = new URLSearchParams(location.search);
   const isPreviewMode = searchParams.get("preview") === "true";
   const previewQueryString = isPreviewMode ? `?${searchParams.toString()}` : "";
+
+  const handleExitPreview = () => {
+    const fallbackUrl = sessionStorage.getItem("previewReturnUrl") || "";
+    sessionStorage.removeItem("previewReturnUrl");
+
+    // แท็บนี้ถูกเปิดผ่าน window.open(...) จากหน้า Scene Editor เสมอเวลาเข้าโหมดทดลองอ่าน
+    // (ดู handleOpenPreview / handleConfirmPendingAction ใน SceneEditorPage.jsx) ดังนั้นแท็บนี้
+    // มีสิทธิ์ปิดตัวเองผ่าน window.close() ได้เลยโดยไม่ต้องพึ่ง window.opener
+    //
+    // บั๊กเดิม: window.open ฝั่ง editor เปิดด้วย flag "noopener" (กัน reverse-tabnabbing)
+    // ทำให้ window.opener ในแท็บนี้เป็น null เสมอ แต่โค้ดเดิมเอา window.close() ไปซ่อนไว้
+    // หลังเงื่อนไข `if (window.opener && ...)` ที่ไม่มีวันเป็นจริง -> กดออกจาก preview
+    // แล้วแท็บไม่เคยถูกปิดเลย แค่ navigate เปลี่ยนหน้าในแท็บเดิมแทน
+    window.close();
+
+    // เผื่อ browser ไม่ยอมให้ปิดแท็บ (เช่น แท็บนี้ไม่ได้ถูกเปิดโดยสคริปต์จริงๆ อย่างกรณี
+    // ผู้ใช้เปิดลิงก์เองหรือ refresh) ให้ fallback พากลับไปหน้าที่ควรกลับไปแทน
+    // เพื่อไม่ให้ผู้ใช้ค้างอยู่ในโหมด preview
+    if (fallbackUrl) {
+      navigate(fallbackUrl);
+      return;
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/");
+  };
 
   const getCurrentUserId = () => {
     const userJson = localStorage.getItem("user");
@@ -304,7 +330,15 @@ useEffect(() => {
           url = `${BASE_URL}/scenes/${activeSceneId}${query}`;
         }
 
-        const response = await fetch(url);
+        const token = localStorage.getItem("token");
+        console.log("Loading scene:", activeSceneId);
+
+        const headers = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(url, { headers });
         
         if (response.status === 404) {
           setError("EMPTY_SCENE"); 
@@ -333,7 +367,10 @@ useEffect(() => {
           
           setCurrentSceneId(loadedSceneId);
           fetchSceneComments(loadedSceneId);
-          updateReadingProgress(novelId, loadedSceneId, resData.data.type);
+
+          if (!isPreviewMode) {
+            updateReadingProgress(novelId, loadedSceneId, resData.data.type);
+          }
 
         } else {
           setError("EMPTY_SCENE");
@@ -361,38 +398,56 @@ useEffect(() => {
         const pct = Math.round((scrolled / total) * 100);
         setReadProgress(pct);
 
-        // 🎯 หากอยู่ในฉากจบ และสกรอลล์อ่านลงมาถึงก้นหน้า (92% ขึ้นไป) -> เด้ง Pop-up ค้นพบฉากจบใหม่
-        if (sceneData && (sceneData.type === "ending" || sceneData.type === "Ending") && pct >= 90) {
+        // 🎯 หากอยู่ในฉากจบ และสกรอลล์อ่านลงมาถึงก้นหน้า (92% ขึ้นไป) -> เด้ง Pop-up ค้นพบฉากจบใหม่ (ปิดถ้าอยู่ใน preview mode)
+        if (!isPreviewMode && sceneData && (sceneData.type === "ending" || sceneData.type === "Ending") && pct >= 90) {
           setShowEndingModal(true);
         }
       }
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [sceneData]);
+  }, [sceneData, isPreviewMode]);
 
   const handleChoose = async (choice) => {
+    // Reader ปกติ: เส้นทางยังมีอยู่ แต่ฉากปลายทางยังไม่พร้อมอ่าน
+    // ต้องให้ feedback โดยไม่บันทึก choice history / navigate / update progress
+    if (!isPreviewMode && choice.is_published === false) {
+      showToast("ฉากถัดไปกำลังอยู่ระหว่างการเขียน โปรดกลับมาอ่านใหม่ภายหลัง");
+      return;
+    }
+
     setIsTransitioning(true);
 
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (!isPreviewMode) {
+      try {
+        const token = localStorage.getItem("token");
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      if (!effectiveUserId) {
-        console.warn("No logged-in user found, skipping choice history save.");
-      } else {
-        await fetch(`${BASE_URL}/choice-history`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            user_id: parseInt(effectiveUserId),
-            choice_id: parseInt(choice.choice_id)
-          })
-        });
+        if (!effectiveUserId) {
+          console.warn("No logged-in user found, skipping choice history save.");
+        } else {
+          const response = await fetch(`${BASE_URL}/choice-history`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              user_id: parseInt(effectiveUserId),
+              choice_id: parseInt(choice.choice_id)
+            })
+          });
+
+          if (!response.ok) {
+            setIsTransitioning(false);
+            showToast("ฉากถัดไปกำลังอยู่ระหว่างการเขียน โปรดกลับมาอ่านใหม่ภายหลัง");
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("บันทึกประวัติการเลือกทางเลือกผิดพลาด:", err);
+        setIsTransitioning(false);
+        showToast("ฉากถัดไปกำลังอยู่ระหว่างการเขียน โปรดกลับมาอ่านใหม่ภายหลัง");
+        return;
       }
-    } catch (err) {
-      console.error("บันทึกประวัติการเลือกทางเลือกผิดพลาด:", err);
     }
 
     setTimeout(() => {
@@ -409,11 +464,14 @@ useEffect(() => {
     }, 350);
   };
 
+  // 🟢 ตอนอยู่ใน preview mode ปุ่มย้อนกลับ/ดูผังเรื่องต้องพากลับไปหน้าที่ยัง "อยู่ใน preview" ต่อ
+  // (ใช้ previewQueryString ตัวเดียวกับที่ handleChoose ใช้อยู่แล้ว ไม่สร้าง logic ใหม่ซ้ำ)
+  // เดิมไม่แนบ query นี้เลย ทำให้กดย้อนกลับแล้วหลุดออกจาก preview ไปหน้ารายละเอียดจริงทันที
   const handleLocalNavigate = (targetView) => {
     if (targetView === "story-tree") {
-      navigate(`/storytree/${novelId}`); 
+      navigate(`/storytree/${novelId}${previewQueryString}`);
     } else if (targetView === "novel-detail") {
-      navigate(`/novel/${novelId}`);
+      navigate(`/novel/${novelId}${previewQueryString}`);
     }
   };
 
@@ -720,6 +778,26 @@ useEffect(() => {
     <div className={`rp rp--theme-${theme}`}>
       <div className="rp__progress-bar" style={{ width: `${readProgress}%` }} role="progressbar" />
 
+      {toastMessage && (
+        <div className="rp-toast" role="status" aria-live="polite">
+          <div className="rp-toast__icon" aria-hidden="true">✍️</div>
+
+          <div className="rp-toast__content">
+            <strong className="rp-toast__title">เส้นทางนี้กำลังเขียน</strong>
+            <span className="rp-toast__message">{toastMessage}</span>
+          </div>
+
+          <button
+            type="button"
+            className="rp-toast__close"
+            onClick={() => setToastMessage("")}
+            aria-label="ปิดข้อความ"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {isAdmin && <AdminModeBanner page="หน้าอ่านนิยาย" />}
 
       {isPreviewMode && (
@@ -737,7 +815,7 @@ useEffect(() => {
           <span style={{ fontWeight: 700 }}>คุณกำลังอยู่ในโหมดทดลองอ่าน</span>
           <button
             type="button"
-            onClick={() => window.close()}
+            onClick={handleExitPreview}
             style={{
               background: "#1d4ed8",
               color: "#ffffff",
@@ -816,12 +894,19 @@ useEffect(() => {
           {choices && choices.length > 0 && (
             <ChoiceButtons
               prompt="คุณจะเลือกเส้นทางดำเนินเรื่องอย่างไรต่อไป?"
-              choices={choices.map(c => ({
-                id: c.choice_id,
-                text: c.label || c.text,
-                choice_id: c.choice_id,
-                to_scene_id: c.to_scene_id
-              }))}
+              choices={choices.map((c) => {
+                const choiceText = c.label || c.text;
+                const isDraftDestination = !isPreviewMode && c.is_published === false;
+
+                return {
+                  id: c.choice_id,
+                  text: choiceText,
+                  choice_id: c.choice_id,
+                  to_scene_id: c.to_scene_id,
+                  is_published: c.is_published,
+                  is_unavailable: isDraftDestination,
+                };
+              })}
               onChoose={handleChoose}
             />
           )}
@@ -913,8 +998,8 @@ useEffect(() => {
       {/* 🎯 Pop-up ชวนเพิ่มเข้าชั้นหนังสือ ลอยกลางจอ แสดงเฉพาะตอนอ่านถึงตอนล่าสุด (ยังไม่ใช่ฉากจบ) และยังไม่เคยเพิ่ม
           หมายเหตุ: ต้องวางนอก .rp__article เพราะ .rp__article มี transform ติดอยู่ (ใช้ทำ animation เปลี่ยนฉาก)
           ซึ่งจะทำให้ position:fixed ของลูกข้างในอ้างอิงกรอบของ .rp__article แทน viewport จริง ทำให้ popup เพี้ยนไม่กึ่งกลางจอ */}
-      {/* Pop-up ชวนเพิ่มเข้าชั้นหนังสือ — ไม่แสดงสำหรับแอดมิน */}
-      {!isAdmin && isUnfinishedDeadEnd && !isBookmarked && !bookmarkNudgeDismissed && (
+      {/* Pop-up ชวนเพิ่มเข้าชั้นหนังสือ — ไม่แสดงสำหรับแอดมิน หรือโหมด preview */}
+      {!isAdmin && !isPreviewMode && isUnfinishedDeadEnd && !isBookmarked && !bookmarkNudgeDismissed && (
         <div
           className="rp__modal-overlay"
           onClick={() => setBookmarkNudgeDismissed(true)}

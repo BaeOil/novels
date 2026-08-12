@@ -47,7 +47,7 @@ function parseContactInfo(raw) {
   if (!s) return {};
 
   if (s.startsWith("{") || s.startsWith("[")) {
-    try { return JSON.parse(s); } catch (_) {}
+    try { return JSON.parse(s); } catch (_) { }
   }
 
   try {
@@ -55,7 +55,7 @@ function parseContactInfo(raw) {
     if (decoded.startsWith("{") || decoded.startsWith("[")) {
       return JSON.parse(decoded);
     }
-  } catch (_) {}
+  } catch (_) { }
 
   return { contact_required: s };
 }
@@ -88,7 +88,7 @@ export default function WriterProfile() {
         const r = (u?.role || u?.user_role || u?.role_name || "").toString().toLowerCase();
         if (r === "admin" || u?.is_admin === true || u?.isAdmin === true) return true;
       }
-    } catch {}
+    } catch { }
     try {
       const token = localStorage.getItem("token");
       if (token) {
@@ -103,7 +103,7 @@ export default function WriterProfile() {
           if (r === "admin" || parsed?.is_admin === true || parsed?.isAdmin === true) return true;
         }
       }
-    } catch {}
+    } catch { }
     return false;
   };
   const isAdmin = checkIsAdmin();
@@ -142,7 +142,7 @@ export default function WriterProfile() {
               const meData = await meRes.json();
               myWriterId = meData.writer_id || meData.data?.writer_id || null;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         // ถ้าไม่มี id ใน URL (เจ้าของโปรไฟล์เปิดหน้า /profile เอง) ให้ใช้ writer_id ของตัวเอง
@@ -323,7 +323,7 @@ export default function WriterProfile() {
     <div className="profile-wrapper" style={{ paddingTop: isAdmin ? 0 : undefined }}>
       {isAdmin && <AdminModeBanner page="โปรไฟล์นักเขียน" />}
       <div className="profile-container">
-        
+
         {/* ============================================================== */}
         {/* 1. Header Card (Dek-D / ReadAWrite Style - Compact & Clean) */}
         {/* ============================================================== */}
@@ -562,11 +562,11 @@ export default function WriterProfile() {
 // Presets Gradient Themes สำหรับโปรไฟล์
 // ------------------------------------------
 const BANNER_THEMES = [
-  { id: "soft-pink",       name: "Soft Pink",          gradient: "linear-gradient(135deg, #fbcfe8 0%, #f472b6 50%, #ec4899 100%)" },
-  { id: "sunset-blush",   name: "Sunset Blush",        gradient: "linear-gradient(135deg, #ffedd5 0%, #fb923c 50%, #f43f5e 100%)" },
-  { id: "lavender-dream", name: "Lavender",            gradient: "linear-gradient(135deg, #e0e7ff 0%, #c084fc 50%, #9333ea 100%)" },
-  { id: "mint-breeze",    name: "Mint",                gradient: "linear-gradient(135deg, #ccfbf1 0%, #2dd4bf 50%, #0d9488 100%)" },
-  { id: "midnight-romance", name: "Midnight Romance",  gradient: "linear-gradient(135deg, #312e81 0%, #4c1d95 50%, #831843 100%)" },
+  { id: "soft-pink", name: "Soft Pink", gradient: "linear-gradient(135deg, #fbcfe8 0%, #f472b6 50%, #ec4899 100%)" },
+  { id: "sunset-blush", name: "Sunset Blush", gradient: "linear-gradient(135deg, #ffedd5 0%, #fb923c 50%, #f43f5e 100%)" },
+  { id: "lavender-dream", name: "Lavender", gradient: "linear-gradient(135deg, #e0e7ff 0%, #c084fc 50%, #9333ea 100%)" },
+  { id: "mint-breeze", name: "Mint", gradient: "linear-gradient(135deg, #ccfbf1 0%, #2dd4bf 50%, #0d9488 100%)" },
+  { id: "midnight-romance", name: "Midnight Romance", gradient: "linear-gradient(135deg, #312e81 0%, #4c1d95 50%, #831843 100%)" },
 ];
 
 // Component Modal สำหรับแก้ไขโปรไฟล์
@@ -708,13 +708,17 @@ function EditProfileModal({ writerInfo, onClose, onSuccess }) {
     setErrorMsg("");
 
     const payload = {
-      pen_name: penName.trim(),
-      email_writer: emailWriter.trim(),
-      bio: bio,
-      avatar_url: avatarUrl,
-      contact_required: contactRequired.trim(),
-      contact_optional: contactOptional.trim(),
-      category_ids: selectedCategoryIds,
+      pen_name: penName?.trim() || "",
+      email_writer: emailWriter?.trim() || "",
+      bio: bio || "",
+      avatar_url: avatarUrl || "",
+      category_ids: Array.isArray(selectedCategoryIds) ? selectedCategoryIds : [],
+
+      // รวบฟิลด์ติดต่อให้อยู่ในรูปแบบ Object ตามที่ Backend คาดหวัง
+      contact_info: {
+        ...(contactRequired?.trim() ? { contact_required: contactRequired.trim() } : {}),
+        ...(contactOptional?.trim() ? { contact_optional: contactOptional.trim() } : {}),
+      },
     };
 
     try {

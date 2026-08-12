@@ -78,6 +78,23 @@ const getInitial = (name) => {
   return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
 };
 
+// แสดงรูปโปรไฟล์จริงถ้า backend ส่ง url มาให้ (เผื่อไว้สำหรับตอนที่ backend เพิ่ม field นี้)
+// ถ้าไม่มี url หรือโหลดรูปไม่สำเร็จ จะ fallback กลับไปเป็นวงกลมตัวอักษรย่อเหมือนเดิมทุกอย่าง
+const UserAvatar = ({ src, name, className }) => {
+  const [broken, setBroken] = useState(false);
+  if (src && !broken) {
+    return (
+      <img
+        src={src}
+        alt={displayName(name)}
+        className={className}
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return <div className={className}>{getInitial(name)}</div>;
+};
+
 const displayName = (name) => name || 'ไม่ทราบชื่อผู้ใช้';
 
 // ─────────────────────────────────────────────
@@ -196,8 +213,28 @@ const RequestDetailModal = ({ isOpen, user, onCancel, onApprove, onReject }) => 
         </div>
 
         <div className="wr-modal__body">
+          {user.previous_attempt_count > 0 && (
+            <div className="wr-reapply-notice">
+              <AlertTriangle size={16} />
+              <div>
+                <div className="wr-reapply-notice__title">
+                  สมัครซ้ำครั้งที่ {user.previous_attempt_count + 1} — เคยถูกปฏิเสธมาก่อน
+                </div>
+                {user.previous_rejection_reason && (
+                  <div className="wr-reapply-notice__reason">
+                    เหตุผลรอบก่อน: {user.previous_rejection_reason}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="wr-modal__profile-row">
-            <div className="wr-modal__avatar">{getInitial(user.username)}</div>
+            <UserAvatar
+              src={user.avatar_url || user.pic_profile}
+              name={user.username}
+              className="wr-modal__avatar"
+            />
             <div>
               <div className="wr-modal__profile-name">{writerData.penName}</div>
               <div className="wr-modal__profile-sub">ชื่อผู้ใช้: {displayName(user.username)}</div>
@@ -680,10 +717,17 @@ const WriterRequestsPage = () => {
                       <td className="wr-row-num">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                       <td>
                         <div className="wr-user-info-cell">
-                          <div className="wr-user-avatar-small">
-                            {getInitial(req.username)}
-                          </div>
+                          <UserAvatar
+                            src={req.pic_profile || req.avatar_url}
+                            name={req.username}
+                            className="wr-user-avatar-small"
+                          />
                           <span className="wr-username-text">{displayName(req.username)}</span>
+                          {req.previous_attempt_count > 0 && (
+                            <span className="wr-reapply-badge" title="เคยยื่นสมัครมาก่อนหน้านี้">
+                              สมัครครั้งที่ {req.previous_attempt_count + 1}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td>{req.pen_name || <span className="wr-subtext">ไม่ระบุ</span>}</td>

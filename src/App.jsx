@@ -528,7 +528,18 @@ const SceneEditorRoute = () => {
     setLoadingChapter(true);
     setChapterError(null);
 
-    fetch(`${API_BASE_URL}/scenes/${sceneId}`)
+    const token = localStorage.getItem("token");
+    console.log({
+      token,
+      sceneId
+    });
+
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    fetch(`${API_BASE_URL}/scenes/${sceneId}`, { headers })
       .then((res) => {
         if (!res.ok) throw new Error(`ไม่สามารถโหลดข้อมูลฉากได้ (${res.status})`);
         return res.json();
