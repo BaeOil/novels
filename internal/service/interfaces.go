@@ -27,12 +27,14 @@ type SceneService interface {
 	UpdateScene(models.Scene) error
 	DeleteScene(sceneID int) error
 	SyncSceneChoices(fromSceneID int, rawChoices []interface{}) error
+	GetChoiceByID(int) (*models.Choice, error)
 	CreateChoice(models.Choice) (int, error)
 	UpdateChoice(models.Choice) error
 	DeleteChoice(choiceID int) error
 	GetStoryTree(novelID int, userID int) (models.StoryTreeResponse, error)
 	GetEndingsByNovelID(novelID int, userID int) ([]models.EndingScene, error)
-	ValidateStoryForPublish(novelID int) error
+	ValidateStoryForPublish(novelID int) PublishValidationResult
+	ValidateNovelPublishability(novelID int) PublishValidationResult
 	UpdateScenePosition(sceneID int, nodeX *float64, nodeY *float64) error
 	Ping() error
 }

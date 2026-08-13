@@ -6,6 +6,7 @@ import (
 	"novel-be/internal/models"
 	"novel-be/internal/service"
 	"strconv"
+	"strings"
 )
 
 // helper ฟังก์ชันสำหรับตัดข้อความเนื้อหานิยายเอามาทำเป็นข้อความสั้นๆ ประจำฉาก (Truncate Content)
@@ -18,7 +19,7 @@ func truncateContent(content string, maxLen int) string {
 }
 
 // GetStoryTreeHandler สำหรับดึงโครงสร้าง Node และ Edge ของนิยายทั้งเรื่อง พร้อมคำนวณสถิติและระบบกันสปอยล์
-func GetStoryTreeHandler(sceneService service.SceneService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
+func GetStoryTreeHandler(sceneService service.SceneService, novelService service.NovelService, chapterService service.ChapterService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		novelID, err := extractIDFromPath(r.URL.Path, "/novels/")
 		if err != nil {
@@ -26,22 +27,40 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 			return
 		}
 
-		// 🔒 ตรวจสอบสิทธิ์: ถ้าเป็นการเรียกจากผู้ใช้ที่ login แล้ว ต้องเช็คว่านิยายนี้เป็นของเขาหรือเปล่า
+		// 🔒 ตรวจสอบสิทธิ์: ถ้าเป็นการเรียกจากผู้ใช้ที่ login แล้ว ตรวจสอบเจ้าของหรือ admin
 		authUserID, ok := middleware.GetUserIDFromContext(r.Context())
 		userIDFromQuery, _ := strconv.Atoi(r.URL.Query().Get("user_id"))
+		isOwnerOrAdmin := false
+		novelIsPublished := false
+		var novelDetail interface{}
+		var novelErr error
+
 		if ok && authUserID != 0 {
-			// ผู้ใช้ logged in - ต้องตรวจสอบ ownership (สำหรับไปที่ writer's story tree view)
-			writer, err := writerService.GetWriterByUserID(int(authUserID))
-			if err == nil && writer != nil {
-				// เป็นนักเขียน - ตรวจสอบว่านิยายเป็นของเขา
-				novelDetail, err := novelService.GetNovelDetail(novelID)
-				if err == nil {
-					novelPtr, ok := novelDetail.(*models.Novel)
-					if ok && novelPtr != nil && novelPtr.AuthorID != writer.WriterID {
-						WriteError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูแผนผังนิยายเรื่องนี้")
-						return
+			// check admin role
+			if role, roleOk := middleware.GetRoleFromContext(r.Context()); roleOk && role == "admin" {
+				isOwnerOrAdmin = true
+			} else if writerService != nil {
+				writer, wErr := writerService.GetWriterByUserID(int(authUserID))
+				if wErr == nil && writer != nil {
+					// check novel ownership by comparing author_id to writer_id
+					novelDetail, novelErr = novelService.GetNovelDetail(novelID)
+					if novelErr == nil {
+						if np, ok := novelDetail.(*models.Novel); ok && np != nil {
+							if np.AuthorID == writer.WriterID {
+								isOwnerOrAdmin = true
+							}
+						}
 					}
 				}
+			}
+		}
+
+		if novelDetail == nil {
+			novelDetail, novelErr = novelService.GetNovelDetail(novelID)
+		}
+		if novelErr == nil {
+			if np, ok := novelDetail.(*models.Novel); ok && np != nil {
+				novelIsPublished = np.IsPublished
 			}
 		}
 
@@ -58,29 +77,57 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 			novelTitle = "นิยายเรื่องใหม่อันลึกลับ"
 		}
 
+		// =================================================================
+		// 🎯 แก้ไขส่วนที่ 1: หาค่า currentSceneID เริ่มต้นก่อนการกรอง
+		// =================================================================
 		currentSceneID := tree.CurrentSceneID
 		if currentSceneID == 0 {
-			currentSceneID = 1
+			for _, n := range tree.Nodes {
+				if n.Type == "start" {
+					currentSceneID = n.ID
+					break
+				}
+			}
 		}
 
 		// =================================================================
-		// 🎯 ปรับปรุงส่วนที่ 2: ลอจิกกรองสปอยล์ และแก้ไขบั๊กโหนดแรกว่างเปล่า
+		// 🎯 ปรับปรุงส่วนที่ 2: ลอจิกกรองสปอยล์
 		// =================================================================
-		var secureNodes []models.SceneNode
+		secureNodes := make([]models.SceneNode, 0)
+		secureNodesMap := make(map[int]bool)
 
 		visitedCount := 0
-		totalScenes := len(tree.Nodes)
 		totalEndings := 0
 
 		unlockedNodesMap := make(map[int]bool)
 
 		for _, rawNode := range tree.Nodes {
+			// 🟢 ดึงสถานะเผยแพร่จริงของฉากนี้เสมอ ไม่ว่าจะเป็น owner/admin หรือผู้อ่านทั่วไป
+			// (เดิมดึงเฉพาะตอน !isOwnerOrAdmin เพื่อกรองสปอยล์เท่านั้น ไม่เคยเก็บผลไว้ใช้กับ node เลย
+			// ทำให้ node.Status ไม่ถูก set เลยสักครั้ง — พอ frontend fallback ไปเช็ค node.status
+			// เจอค่าว่างเสมอ เลยขึ้น "ฉบับร่าง" ทุกฉากไม่ว่าจะเผยแพร่จริงหรือไม่ก็ตาม โดยเฉพาะตอน
+			// preview mode ที่ isOwnerOrAdmin เป็น true เสมอ ซึ่งไม่เคยเข้าบล็อกดึงสถานะนี้เลย)
+			sceneDetail, errS := sceneService.GetScene(rawNode.ID)
+			nodeStatus := "draft"
+			if errS == nil && strings.ToLower(sceneDetail.Status) == "published" {
+				if chapterDetail, errC := chapterService.GetChapterByID(sceneDetail.ChapterID); errC == nil && chapterDetail != nil && strings.ToLower(chapterDetail.Status) == "published" {
+					nodeStatus = "published"
+				}
+			}
+
+			// หากผู้ใช้ไม่ใช่เจ้าของหรือ admin ให้กรองโหนดที่ไม่ได้เผยแพร่ (พฤติกรรมเดิมทุกประการ
+			// แค่ใช้ nodeStatus ที่คำนวณไว้ด้านบนแทนการเช็คซ้ำ)
+			if !isOwnerOrAdmin {
+				if !novelIsPublished || nodeStatus != "published" {
+					continue
+				}
+			}
+
 			if rawNode.Type == "ending" {
 				totalEndings++
 			}
 
-			// 🎯 บังคับเปิดไฟ: ถ้าเป็นโหนดที่ปลดล็อกแล้ว หรือเป็นโหนดไอดี 1 หรือไทป์สตาร์ท
-			isNodeAccessible := rawNode.IsUnlocked || rawNode.ID == 1 || rawNode.Type == "start"
+			isNodeAccessible := rawNode.IsUnlocked || rawNode.Type == "start"
 
 			if isNodeAccessible {
 				unlockedNodesMap[rawNode.ID] = true
@@ -90,6 +137,7 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 				ID:             rawNode.ID,
 				Type:           rawNode.Type,
 				IsUnlocked:     isNodeAccessible,
+				Status:         nodeStatus, // 🟢 ใช้ field ที่มีอยู่แล้วใน struct ไม่ต้องเพิ่มใหม่
 				ChapterTitle:   rawNode.ChapterTitle,
 				ChapterEpisode: rawNode.ChapterEpisode,
 				NodeX:          rawNode.NodeX,
@@ -97,7 +145,6 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 			}
 
 			if isNodeAccessible {
-				// 🎯 ซ่อมบั๊กค่าว่าง: ถ้าปลดล็อกแล้วแต่ค่าจาก DB ดันว่าง ให้ใส่ค่าเริ่มต้นให้เลยครับน้า หน้าบ้านจะได้ไม่พัง
 				node.Label = rawNode.Label
 				if node.Label == "" {
 					node.Label = "จุดเริ่มต้นเนื้อเรื่อง"
@@ -114,35 +161,61 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 					node.Content = "ร่วมเลือกเส้นทางเพื่อดำเนินเนื้อเรื่องต่อไป..."
 				}
 			} else {
-				// ระบบกันสปอยล์สำหรับโหนดที่ผู้เล่นยังเดินไปไม่ถึง
 				node.Label = "🔒 ยังไม่ได้ปลดล็อก"
 				node.Title = "เนื้อเรื่องยังไม่เปิดเผย"
 				node.Content = "เดินเรื่องตามเงื่อนไขในฉากก่อนหน้าเพื่อเปิดเผยเส้นทางนี้"
 			}
 
 			secureNodes = append(secureNodes, node)
+			secureNodesMap[node.ID] = true
 		}
 
 		// =================================================================
-		// 🎯 ส่วนที่ 3: คำนวณสถิติสำหรับผู้เขียน
+		// 🎯 ตรวจสอบความถูกต้องของ currentSceneID หลังการ Filter
 		// =================================================================
-		// นับฉากที่ไม่มี incoming edge และไม่ใช่ start scene
+		if !secureNodesMap[currentSceneID] {
+			currentSceneID = 0
+			for _, n := range secureNodes {
+				if n.Type == "start" {
+					currentSceneID = n.ID
+					break
+				}
+			}
+			if currentSceneID == 0 && len(secureNodes) > 0 {
+				currentSceneID = secureNodes[0].ID
+			}
+		}
+
+		// =================================================================
+		// 🎯 แก้ไขส่วนที่ 3: ใช้ models.SceneEdge ประกาศ Slice ใหม่
+		// =================================================================
+		secureEdges := make([]models.SceneEdge, 0)
+		if tree.Edges != nil {
+			for _, edge := range tree.Edges {
+				if secureNodesMap[edge.FromID] && secureNodesMap[edge.ToID] {
+					secureEdges = append(secureEdges, edge)
+				}
+			}
+		}
+
+		// =================================================================
+		// 🎯 ส่วนที่ 4: คำนวณสถิติอิงจาก secureEdges
+		// =================================================================
 		incomingEdgeCount := make(map[int]int)
-		for _, edge := range tree.Edges {
+		for _, edge := range secureEdges {
 			incomingEdgeCount[edge.ToID]++
 		}
 
-		for _, node := range tree.Nodes {
-			// นับฉากที่ไม่มี incoming edge และไม่ใช่ start scene
+		for _, node := range secureNodes {
 			if incomingEdgeCount[node.ID] == 0 && node.Type != "start" {
 				visitedCount++
 			}
 		}
 
-		totalChoices := len(tree.Edges)
+		totalChoices := len(secureEdges)
 		discoveredChoices := 0
 
-		for _, edge := range tree.Edges {
+		for _, edge := range secureEdges {
 			if unlockedNodesMap[edge.FromID] {
 				discoveredChoices++
 			}
@@ -150,10 +223,10 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 
 		calculatedStats := models.TreeStats{
 			VisitedScenes:     visitedCount,
-			TotalScenes:       totalScenes,
+			TotalScenes:       len(secureNodes),
 			DiscoveredChoices: discoveredChoices,
 			TotalChoicePoints: totalChoices,
-			UnlockedEndings:   0, // ไม่ใช้สำหรับผู้เขียน
+			UnlockedEndings:   0,
 			TotalEndings:      totalEndings,
 		}
 
@@ -162,7 +235,7 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 			CurrentSceneID: currentSceneID,
 			Stats:          calculatedStats,
 			Nodes:          secureNodes,
-			Edges:          tree.Edges,
+			Edges:          secureEdges,
 		}
 
 		WriteJSON(w, http.StatusOK, finalResponse)

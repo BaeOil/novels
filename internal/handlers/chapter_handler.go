@@ -48,7 +48,7 @@ func CreateChapterHandler(chapterService service.ChapterService, notificationSer
 	}
 }
 
-func UpdateChapterHandler(chapterService service.ChapterService) http.HandlerFunc {
+func UpdateChapterHandler(chapterService service.ChapterService, sceneService service.SceneService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
 			RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -88,6 +88,8 @@ func UpdateChapterHandler(chapterService service.ChapterService) http.HandlerFun
 			return
 		}
 
+		oldStatus := chapter.Status
+
 		if strings.TrimSpace(req.Title) != "" {
 			chapter.Title = req.Title
 		}
@@ -95,12 +97,34 @@ func UpdateChapterHandler(chapterService service.ChapterService) http.HandlerFun
 			chapter.Status = req.Status
 		}
 
+		var validationResult *service.PublishValidationResult
+		isPublishing := !strings.EqualFold(oldStatus, "published") && strings.EqualFold(chapter.Status, "published")
+		if isPublishing {
+			val := sceneService.ValidateNovelPublishability(chapter.NovelID)
+			validationResult = &val
+			if !val.CanPublish {
+				RespondWithJSON(w, http.StatusBadRequest, map[string]any{
+					"error":       "ไม่สามารถเผยแพร่ตอนได้เนื่องจากมีปัญหาโครงสร้างนิยาย",
+					"can_publish": false,
+					"issues":      val.Issues,
+				})
+				return
+			}
+		}
+
 		if err := chapterService.UpdateChapter(*chapter); err != nil {
 			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		RespondWithJSON(w, http.StatusOK, map[string]any{"message": "chapter updated"})
+		responsePayload := map[string]any{
+			"message": "chapter updated",
+		}
+		if validationResult != nil && len(validationResult.Issues) > 0 {
+			responsePayload["issues"] = validationResult.Issues
+		}
+
+		RespondWithJSON(w, http.StatusOK, responsePayload)
 	}
 }
 

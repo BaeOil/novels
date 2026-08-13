@@ -208,9 +208,9 @@ func AddFollow(db *sql.DB, follow models.Follow) error {
 	`, follow.FollowingID).Scan(&resolvedWriterID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// try matching by user_id
+			// try matching by user_id (must be approved writer)
 			err = db.QueryRow(`
-				SELECT writer_id FROM writers WHERE user_id = $1 LIMIT 1
+				SELECT writer_id FROM writers WHERE user_id = $1 AND status = 'approved' ORDER BY applied_at DESC LIMIT 1
 			`, follow.FollowingID).Scan(&resolvedWriterID)
 			if err != nil {
 				if err == sql.ErrNoRows {
@@ -245,7 +245,7 @@ func RemoveFollow(db *sql.DB, userID, writerID int) error {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = db.QueryRow(`
-				SELECT writer_id FROM writers WHERE user_id = $1 LIMIT 1
+				SELECT writer_id FROM writers WHERE user_id = $1 AND status = 'approved' ORDER BY applied_at DESC LIMIT 1
 			`, writerID).Scan(&resolvedWriterID)
 			if err != nil {
 				if err == sql.ErrNoRows {

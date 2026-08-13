@@ -29,6 +29,7 @@ type NotificationService interface {
 	NotifyComment(novelID, actorID int, commentText string) error
 	DeleteLikeNotification(novelID, actorID int) error
 	NotifyWriterApproved(writerID int) error
+	NotifyWriterRejected(writerID int, reason string) error
 }
 
 type notificationService struct {
@@ -424,6 +425,24 @@ func (s *notificationService) NotifyWriterApproved(writerID int) error {
 	}
 
 	_, err = s.CreateNotification(recipientUserID, 0, "system", "คุณได้รับการอนุมัติเป็นนักเขียนแล้ว", "ตอนนี้คุณสามารถสร้างนิยายและเผยแพร่ผลงานได้แล้ว", nil, nil, nil)
+	return err
+}
+
+func (s *notificationService) NotifyWriterRejected(writerID int, reason string) error {
+	recipientUserID, err := repository.ResolveWriterUserID(s.db, writerID)
+	if err != nil {
+		return err
+	}
+	if recipientUserID == 0 {
+		return nil
+	}
+
+	message := "คำขอสมัครเป็นนักเขียนของคุณไม่ได้รับการอนุมัติในครั้งนี้ ลองแก้ไขข้อมูลแล้วสมัครใหม่ได้อีกครั้งนะคะ"
+	if strings.TrimSpace(reason) != "" {
+		message = fmt.Sprintf("คำขอสมัครเป็นนักเขียนของคุณไม่ได้รับการอนุมัติ เหตุผล: %s", strings.TrimSpace(reason))
+	}
+
+	_, err = s.CreateNotification(recipientUserID, 0, "system", "คำขอสมัครนักเขียนถูกปฏิเสธ", message, nil, nil, nil)
 	return err
 }
 

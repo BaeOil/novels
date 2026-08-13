@@ -16,6 +16,14 @@ type sqlWriterRepository struct {
 	db *sql.DB
 }
 
+// Sentinel errors ให้ handler ชั้นบนแยกแยะได้ว่าควรตอบ 404/409 ไม่ใช่ 500 เหมารวม
+// และให้แอดมินเห็นสาเหตุจริงแทนข้อความกำกวมแบบเดิม
+var (
+	ErrWriterApplicationNotFound         = errors.New("ไม่พบคำขอนักเขียนนี้ในระบบ")
+	ErrNotLatestWriterApplication        = errors.New("คำขอนี้ไม่ใช่คำขอล่าสุดของผู้ใช้แล้ว (มีการยื่นคำขอใหม่ทับไปแล้ว) กรุณารีเฟรชรายการ")
+	ErrWriterApplicationAlreadyProcessed = errors.New("คำขอนี้ถูกดำเนินการไปแล้ว หรือไม่อยู่ในสถานะรอตรวจสอบ")
+)
+
 func NewWriterRepository(db *sql.DB) WriterRepository {
 	return &sqlWriterRepository{db: db}
 }
@@ -143,12 +151,66 @@ func (r *sqlWriterRepository) GetWriterByUserID(userID int) (*models.Writer, err
 }
 
 func (r *sqlWriterRepository) GetLatestWriterApplicationByUserID(userID int) (*models.Writer, error) {
-	query := `SELECT writer_id, user_id, pen_name, bio, email_writer, contact_info, avatar_url, status FROM writers WHERE user_id = $1 ORDER BY applied_at DESC LIMIT 1`
+	query := `
+		SELECT 
+			w.writer_id, 
+			w.user_id, 
+			COALESCE(w.name_lastname, '') AS name_lastname, 
+			w.pen_name, 
+			COALESCE(w.bio, '') AS bio, 
+			COALESCE(w.email_writer, '') AS email_writer, 
+			COALESCE(w.contact_info::text, '{}') AS contact_info, 
+			COALESCE(w.avatar_url, '') AS avatar_url, 
+			w.status, 
+			w.rejected_at, 
+			w.rejection_reason,
+			COALESCE(
+				(SELECT json_agg(wc.category_id)
+				 FROM writer_categories wc
+				 WHERE wc.writer_id = w.writer_id),
+				'[]'::json
+			)::text AS category_ids_json
+		FROM writers w 
+		WHERE w.user_id = $1 
+		ORDER BY w.applied_at DESC 
+		LIMIT 1`
 
 	var w models.Writer
-	err := r.db.QueryRow(query, userID).Scan(&w.WriterID, &w.UserID, &w.PenName, &w.Bio, &w.EmailWriter, &w.ContactInfo, &w.AvatarURL, &w.Status)
+	var bioStr, emailStr, contactInfoStr, categoryIDsJSON string
+	var rejectedAt sql.NullTime
+	var rejectionReason sql.NullString
+
+	err := r.db.QueryRow(query, userID).Scan(
+		&w.WriterID,
+		&w.UserID,
+		&w.NameLastname,
+		&w.PenName,
+		&bioStr,
+		&emailStr,
+		&contactInfoStr,
+		&w.AvatarURL,
+		&w.Status,
+		&rejectedAt,
+		&rejectionReason,
+		&categoryIDsJSON,
+	)
 	if err != nil {
 		return nil, err
+	}
+
+	w.Bio = &bioStr
+	w.EmailWriter = &emailStr
+	w.ContactInfo = contactInfoStr
+
+	if rejectedAt.Valid {
+		w.RejectedAt = &rejectedAt.Time
+	}
+	if rejectionReason.Valid {
+		w.RejectionReason = &rejectionReason.String
+	}
+
+	if len(categoryIDsJSON) > 0 && categoryIDsJSON != "[]" && categoryIDsJSON != "null" {
+		_ = json.Unmarshal([]byte(categoryIDsJSON), &w.CategoryIDs)
 	}
 
 	return &w, nil
@@ -207,7 +269,8 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 	limit = max(limit, 0)
 
 	query := `
-		SELECT w.writer_id, w.user_id, u.username, w.name_lastname, w.pen_name, w.bio, w.email_writer, w.contact_info::text,
+		SELECT w.writer_id, w.user_id, u.username, COALESCE(u.pic_profile, '') AS pic_profile,
+			w.name_lastname, w.pen_name, w.bio, COALESCE(w.avatar_url, '') AS avatar_url, w.email_writer, w.contact_info::text,
 			COALESCE(
 				(SELECT json_agg(c.name)
 				 FROM writer_categories wc
@@ -216,7 +279,20 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 				'[]'::json
 			) AS genres_json,
 			w.status, w.applied_at, w.approved_at, w.rejected_at, w.acted_by_admin_id,
-			admin_u.username AS acted_by_admin_username, w.rejection_reason
+			admin_u.username AS acted_by_admin_username, w.rejection_reason,
+			COALESCE(
+				(SELECT COUNT(*) FROM writers w2 WHERE w2.user_id = w.user_id AND w2.status = 'rejected' AND w2.applied_at < w.applied_at),
+				0
+			) AS previous_attempt_count,
+			(
+				SELECT w2.rejection_reason
+				FROM writers w2
+				WHERE w2.user_id = w.user_id
+					AND w2.status = 'rejected'
+					AND w2.applied_at < w.applied_at
+				ORDER BY w2.rejected_at DESC, w2.applied_at DESC
+				LIMIT 1
+			) AS previous_rejection_reason
 		FROM writers w
 		LEFT JOIN users u ON u.user_id = w.user_id
 		LEFT JOIN users admin_u ON admin_u.user_id = w.acted_by_admin_id
@@ -256,13 +332,16 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 		var actedByAdminID sql.NullInt64
 		var actedByAdminUsername sql.NullString
 		var rejectionReason sql.NullString
+		var previousRejectionReason sql.NullString
 		err := rows.Scan(
 			&resp.WriterID,
 			&resp.UserID,
 			&resp.Username,
+			&resp.PicProfile,
 			&resp.NameLastname,
 			&resp.PenName,
 			&resp.Bio,
+			&resp.AvatarURL,
 			&resp.EmailWriter,
 			&resp.ContactInfo,
 			&genresJSON,
@@ -273,6 +352,8 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 			&actedByAdminID,
 			&actedByAdminUsername,
 			&rejectionReason,
+			&resp.PreviousAttemptCount,
+			&previousRejectionReason,
 		)
 		if err != nil {
 			return nil, err
@@ -297,6 +378,10 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 			rr := rejectionReason.String
 			resp.RejectionReason = &rr
 		}
+		if previousRejectionReason.Valid {
+			prr := previousRejectionReason.String
+			resp.PreviousRejectionReason = &prr
+		}
 		if len(genresJSON) > 0 && string(genresJSON) != "null" {
 			if err := json.Unmarshal(genresJSON, &resp.Genres); err != nil {
 				return nil, err
@@ -320,15 +405,38 @@ func (r *sqlWriterRepository) ApproveWriter(ctx context.Context, writerID uint, 
 	}
 	defer tx.Rollback()
 
+	// กันเคสแอดมินถือ writer_id เก่าค้างจาก tab/cache ที่เปิดไว้นาน แล้ว user
+	// ยื่นคำขอใหม่ทับไปแล้ว (เช่น หลังถูก reject แล้วแก้ไขส่งใหม่) — ต้อง approve
+	// เฉพาะคำขอที่เป็น "ล่าสุด" ของ user คนนั้นเท่านั้น ไม่งั้นจะไป approve คำขอเก่าที่ตายไปแล้ว
+	var isLatest bool
+	checkQuery := `
+		SELECT w.writer_id = (
+			SELECT w2.writer_id FROM writers w2 WHERE w2.user_id = w.user_id ORDER BY w2.applied_at DESC LIMIT 1
+		)
+		FROM writers w WHERE w.writer_id = $1`
+	err = tx.QueryRowContext(ctx, checkQuery, writerID).Scan(&isLatest)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWriterApplicationNotFound
+		}
+		return err
+	}
+	if !isLatest {
+		return ErrNotLatestWriterApplication
+	}
+
 	var userID uint
 	queryUpdateWriter := `
 		UPDATE writers 
 		SET status = 'approved', approved_at = NOW(), acted_by_admin_id = $2, rejected_at = NULL, rejection_reason = NULL
-		WHERE writer_id = $1 
+		WHERE writer_id = $1 AND status = 'pending'
 		RETURNING user_id
 	`
 	err = tx.QueryRowContext(ctx, queryUpdateWriter, writerID, adminID).Scan(&userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWriterApplicationAlreadyProcessed
+		}
 		return err
 	}
 
@@ -343,12 +451,39 @@ func (r *sqlWriterRepository) ApproveWriter(ctx context.Context, writerID uint, 
 
 // ❌ แอดมินกดปฏิเสธคำขอ (อัปเดตสถานะในตาราง writers เป็น 'rejected')
 func (r *sqlWriterRepository) RejectWriter(ctx context.Context, writerID uint, adminID uint, rejectionReason string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var currentStatus string
+	var isLatest bool
+	checkQuery := `
+		SELECT w.status, w.writer_id = (
+			SELECT w2.writer_id FROM writers w2 WHERE w2.user_id = w.user_id ORDER BY w2.applied_at DESC LIMIT 1
+		)
+		FROM writers w WHERE w.writer_id = $1`
+	err = tx.QueryRowContext(ctx, checkQuery, writerID).Scan(&currentStatus, &isLatest)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWriterApplicationNotFound
+		}
+		return err
+	}
+	if !isLatest {
+		return ErrNotLatestWriterApplication
+	}
+	if currentStatus != "pending" {
+		return ErrWriterApplicationAlreadyProcessed
+	}
+
 	query := `
 		UPDATE writers 
 		SET status = 'rejected', rejected_at = NOW(), acted_by_admin_id = $2, rejection_reason = NULLIF(TRIM($3), '' )
 		WHERE writer_id = $1 AND status = 'pending'
 	`
-	result, err := r.db.ExecContext(ctx, query, writerID, adminID, rejectionReason)
+	result, err := tx.ExecContext(ctx, query, writerID, adminID, rejectionReason)
 	if err != nil {
 		return err
 	}
@@ -357,9 +492,10 @@ func (r *sqlWriterRepository) RejectWriter(ctx context.Context, writerID uint, a
 		return err
 	}
 	if rowsAffected == 0 {
-		return errors.New("คำขอนี้ถูกดำเนินการไปแล้ว หรือไม่พบคำขอนี้ในระบบ")
+		return ErrWriterApplicationAlreadyProcessed
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // ✏️ อัปเดตข้อมูลโปรไฟล์นักเขียน (pen_name, bio, avatar_url, contact_info และ writer_categories)

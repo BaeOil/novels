@@ -50,6 +50,9 @@ type Writer struct {
 	TotalViewCount      int           `json:"total_view_count,omitempty" db:"total_view_count"`
 	TotalBookshelfCount int           `json:"total_bookshelf_count" db:"total_bookshelf_count"`
 	Categories          []Category    `json:"categories,omitempty"`
+	CategoryIDs         []int         `json:"category_ids,omitempty"`
 	AppliedAt           *time.Time    `json:"applied_at,omitempty"`
 	ApprovedAt          *time.Time    `json:"approved_at,omitempty"`
+	RejectedAt          *time.Time    `json:"rejected_at,omitempty"`
+	RejectionReason     *string       `json:"rejection_reason,omitempty"`
 }

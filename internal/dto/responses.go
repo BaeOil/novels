@@ -66,6 +66,7 @@ type ChoiceDTO struct {
 	FromSceneID int    `json:"from_scene_id"`
 	ToSceneID   int    `json:"to_scene_id"`
 	Label       string `json:"label"`
+	IsPublished *bool  `json:"is_published,omitempty"`
 }
 
 // Comment Response DTOs

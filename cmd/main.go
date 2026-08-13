@@ -103,6 +103,10 @@ func main() {
 	notificationService := service.NewNotificationService(dbConn)
 	reportService := service.NewReportService(reportRepo)
 
+	// 🟢 Analytics Service
+	analyticsRepo := repository.NewAnalyticsRepository(dbConn)
+	analyticsService := service.NewAnalyticsService(analyticsRepo)
+
 	// สร้าง ServeMux ใหม่
 	mux := http.NewServeMux()
 
@@ -123,6 +127,7 @@ func main() {
 		*authService, // 👈 ส่งบริการ Authen เข้าพ่วงท้ายแถวโดยใช้ * แกะ Pointer ออกตามโครงสร้างเดิม
 		notificationService,
 		reportService,
+		analyticsService,
 	)
 
 	// -----------------------

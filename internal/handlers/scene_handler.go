@@ -9,6 +9,7 @@ import (
 	"novel-be/internal/middleware"
 	"novel-be/internal/models"
 	"novel-be/internal/service"
+	"strings"
 )
 
 func toPtr(s string) *string {
@@ -172,6 +173,21 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 			scene.Type = "ending"
 		}
 
+		var validationResult *service.PublishValidationResult
+		isPublishing := !strings.EqualFold(existingScene.Status, "published") && strings.EqualFold(req.Status, "published")
+		if isPublishing {
+			val := sceneService.ValidateNovelPublishability(existingScene.NovelID)
+			validationResult = &val
+			if !val.CanPublish {
+				WriteJSON(w, http.StatusBadRequest, map[string]any{
+					"error":       "ไม่สามารถเผยแพร่ฉากได้เนื่องจากมีปัญหาโครงสร้างนิยาย",
+					"can_publish": false,
+					"issues":      val.Issues,
+				})
+				return
+			}
+		}
+
 		if err := sceneService.UpdateScene(scene); err != nil {
 			WriteError(w, http.StatusBadRequest, err.Error())
 			return
@@ -188,7 +204,14 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 			}
 		}
 
-		WriteJSON(w, http.StatusOK, map[string]any{"message": "scene updated"})
+		responsePayload := map[string]any{
+			"message": "scene updated",
+		}
+		if validationResult != nil && len(validationResult.Issues) > 0 {
+			responsePayload["issues"] = validationResult.Issues
+		}
+
+		WriteJSON(w, http.StatusOK, responsePayload)
 	}
 }
 
@@ -210,7 +233,7 @@ func DeleteSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 }
 
 // ... GetSceneHandler คงเดิม ...
-func GetSceneHandler(sceneService service.SceneService) http.HandlerFunc {
+func GetSceneHandler(sceneService service.SceneService, chapterService service.ChapterService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sceneID, err := extractIDFromPath(r.URL.Path, "/scenes/")
 		if err != nil {
@@ -222,6 +245,57 @@ func GetSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 		if err != nil {
 			WriteError(w, http.StatusNotFound, "scene not found")
 			return
+		}
+
+		// ดึง chapter เพื่อตรวจสอบ status
+		chapter, err := chapterService.GetChapterByID(scene.ChapterID)
+		if err != nil || chapter == nil {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+
+		// ดึง novel เพื่อตรวจสอบ is_published
+		novelDetail, err := novelService.GetNovelDetail(scene.NovelID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+		novelPtr, ok := novelDetail.(*models.Novel)
+		if !ok || novelPtr == nil {
+			WriteError(w, http.StatusInternalServerError, "failed to load novel details")
+			return
+		}
+
+		isOwnerOrAdmin := false
+		var currentWriterID int
+		var ctxRole string
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if ok && ctxUserID != 0 {
+			if role, roleOk := middleware.GetRoleFromContext(r.Context()); roleOk && role == "admin" {
+				isOwnerOrAdmin = true
+				ctxRole = role
+			} else if writerService != nil {
+				writer, wErr := writerService.GetWriterByUserID(int(ctxUserID))
+				if wErr == nil && writer != nil {
+					currentWriterID = writer.WriterID
+					if writer.WriterID == novelPtr.AuthorID {
+						isOwnerOrAdmin = true
+					}
+				}
+			}
+		}
+
+		log.Printf("[DEBUG GetSceneHandler] sceneID=%d sceneStatus=%s chapterID=%d chapterStatus=%s novelID=%d novelAuthorID=%d userID=%d writerID=%d role=%s isOwnerOrAdmin=%v novelIsPublished=%v",
+			sceneID, scene.Status, scene.ChapterID, chapter.Status, scene.NovelID, novelPtr.AuthorID, ctxUserID, currentWriterID, ctxRole, isOwnerOrAdmin, novelPtr.IsPublished)
+
+		if !isOwnerOrAdmin {
+			// ตรวจ 3 ระดับ: novel published + chapter published + scene published
+			if !novelPtr.IsPublished || chapter.Status != "published" || scene.Status != "published" {
+				log.Printf("[DEBUG GetSceneHandler REJECT 404] sceneID=%d isOwnerOrAdmin=false novelIsPublished=%v chapterStatus=%s sceneStatus=%s",
+					sceneID, novelPtr.IsPublished, chapter.Status, scene.Status)
+				WriteError(w, http.StatusNotFound, "scene not found")
+				return
+			}
 		}
 
 		WriteJSON(w, http.StatusOK, scene)

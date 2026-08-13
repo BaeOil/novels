@@ -180,9 +180,6 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 		title := novelPtr.Title
 		captions := novelPtr.Captions
 		introduction := novelPtr.Introduction
-		status := novelPtr.Status
-		isPublished := novelPtr.IsPublished
-		isCompleted := novelPtr.IsCompleted
 		coverImage := novelPtr.CoverImage
 		categoryIDs := novelPtr.CategoryIDs
 
@@ -201,22 +198,50 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 		if len(req.CategoryIDs) > 0 {
 			categoryIDs = req.CategoryIDs
 		}
+
+		// คำนวณ final state จากข้อมูลเดิมใน DB ผสมกับ Request Payload อย่างแน่ชัด
+		oldIsPublished := novelPtr.IsPublished
+		oldIsCompleted := novelPtr.IsCompleted
+
+		finalIsPublished := oldIsPublished
 		if req.IsPublished != nil {
-			isPublished = *req.IsPublished
+			finalIsPublished = *req.IsPublished
 		}
+
+		finalIsCompleted := oldIsCompleted
 		if req.IsCompleted != nil {
-			isCompleted = *req.IsCompleted
+			finalIsCompleted = *req.IsCompleted
 		}
-		if strings.TrimSpace(req.Status) != "" || req.IsPublished != nil || req.IsCompleted != nil {
-			status, isPublished, isCompleted = resolveNovelStatus(req.Status, nil, nil)
-			if req.IsPublished != nil {
-				isPublished = *req.IsPublished
+
+		// ถ้าผู้ใช้ส่ง status string มา ให้ตีความประกอบกรณีไม่ได้ส่ง boolean flags มา
+		if req.IsPublished == nil || req.IsCompleted == nil {
+			switch strings.TrimSpace(strings.ToLower(req.Status)) {
+			case "published":
+				if req.IsPublished == nil {
+					finalIsPublished = true
+				}
+			case "completed-published":
+				if req.IsPublished == nil {
+					finalIsPublished = true
+				}
+				if req.IsCompleted == nil {
+					finalIsCompleted = true
+				}
+			case "completed-draft", "completed":
+				if req.IsCompleted == nil {
+					finalIsCompleted = true
+				}
+			case "draft":
+				if req.IsPublished == nil {
+					finalIsPublished = false
+				}
 			}
-			if req.IsCompleted != nil {
-				isCompleted = *req.IsCompleted
-			}
-			status = deriveNovelStatus(isCompleted, isPublished)
 		}
+
+		status := deriveNovelStatus(finalIsCompleted, finalIsPublished)
+
+		log.Printf("[DEBUG UpdateNovelHandler] novelID=%d oldIsPublished=%v oldIsCompleted=%v reqStatus=%s reqIsPublished=%v reqIsCompleted=%v finalIsPublished=%v finalIsCompleted=%v finalStatus=%s",
+			novelID, oldIsPublished, oldIsCompleted, req.Status, req.IsPublished, req.IsCompleted, finalIsPublished, finalIsCompleted, status)
 
 		updatedNovel := models.Novel{
 			ID:           novelID,
@@ -226,8 +251,62 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 			CategoryIDs:  categoryIDs,
 			CoverImage:   coverImage,
 			Status:       status,
-			IsPublished:  isPublished,
-			IsCompleted:  isCompleted,
+			IsPublished:  finalIsPublished,
+			IsCompleted:  finalIsCompleted,
+		}
+
+		var validationResult *service.PublishValidationResult
+
+		// กรณีที่ 1: กำลัง publish novel ครั้งแรก (draft → published)
+		if finalIsPublished && !oldIsPublished {
+			log.Printf("[DEBUG UpdateNovelHandler] Entering Case 1: draft -> published for novelID=%d", novelID)
+			val := sceneService.ValidateNovelPublishability(novelID)
+			validationResult = &val
+			if !val.CanPublish {
+				log.Printf("[DEBUG UpdateNovelHandler] Case 1 BLOCKED for novelID=%d, issues=%+v", novelID, val.Issues)
+				WriteJSON(w, http.StatusBadRequest, map[string]any{
+					"error":       "ไม่สามารถเผยแพร่นิยายได้เนื่องจากมีปัญหาโครงสร้าง",
+					"can_publish": false,
+					"issues":      val.Issues,
+				})
+				return
+			}
+		}
+
+		// กรณีที่ 2: final state จะเป็น published+completed → ตรวจ ending scene โดยตรงจาก StoryTree
+		// ตรวจจาก FINAL STATE เพื่อป้องกันทุกกรณีที่สถานะสุดท้ายคือ is_published=true + is_completed=true
+		// รวมถึงกรณีที่ novel อยู่ใน completed-published อยู่แล้ว และ frontend ส่ง payload ซ้ำ
+		if finalIsPublished && finalIsCompleted {
+			log.Printf("[DEBUG UpdateNovelHandler] Entering Case 2: final state published+completed for novelID=%d", novelID)
+			nodes, err := sceneService.GetStoryTree(novelID, 0)
+			hasEnding := false
+			if err == nil {
+				for _, node := range nodes.Nodes {
+					if strings.EqualFold(node.Type, "ending") {
+						hasEnding = true
+						break
+					}
+				}
+			}
+			if !hasEnding {
+				issue := service.PublishIssue{
+					Severity: "blocking",
+					Code:     "COMPLETED_WITHOUT_ENDING",
+					Message:  "นิยายถูกตั้งค่าว่าจบแล้ว (is_completed = true) แต่ยังไม่มีฉากจบ (ending scene) ในเรื่อง กรุณาเพิ่มฉากจบอย่างน้อย 1 ฉาก",
+				}
+				val := service.PublishValidationResult{
+					CanPublish: false,
+					Issues:     []service.PublishIssue{issue},
+				}
+				validationResult = &val
+				log.Printf("[DEBUG UpdateNovelHandler] Case 2 BLOCKED for novelID=%d: no ending scene", novelID)
+				WriteJSON(w, http.StatusBadRequest, map[string]any{
+					"error":       "ไม่สามารถตั้งนิยายเป็นจบได้เนื่องจากไม่มีฉากจบ",
+					"can_publish": false,
+					"issues":      val.Issues,
+				})
+				return
+			}
 		}
 
 		if err := novelService.UpdateNovel(updatedNovel); err != nil {
@@ -241,41 +320,48 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 			}
 		}
 
-		WriteJSON(w, http.StatusOK, map[string]string{"message": "novel updated"})
+		responsePayload := map[string]any{
+			"message": "novel updated",
+		}
+		if validationResult != nil && len(validationResult.Issues) > 0 {
+			responsePayload["issues"] = validationResult.Issues
+		}
+
+		WriteJSON(w, http.StatusOK, responsePayload)
 	}
 }
 
 // UnbanNovelHandler allows an admin to unban a novel
 func UnbanNovelHandler(novelService service.NovelService) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        if r.Method != http.MethodPatch {
-            WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-            return
-        }
-        // Ensure admin role
-        role, ok := middleware.GetRoleFromContext(r.Context())
-        if !ok || role != "admin" {
-            WriteError(w, http.StatusForbidden, "Forbidden: admin role required")
-            return
-        }
-        // Extract novel ID from URL path /api/admin/novels/{id}/unban
-        parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-        if len(parts) < 5 {
-            WriteError(w, http.StatusBadRequest, "invalid path")
-            return
-        }
-        novelID, err := strconv.Atoi(parts[3])
-        if err != nil || novelID <= 0 {
-            WriteError(w, http.StatusBadRequest, "invalid novel id")
-            return
-        }
-        // Perform unban via service
-        if err := novelService.UnbanNovel(r.Context(), novelID); err != nil {
-            WriteError(w, http.StatusInternalServerError, err.Error())
-            return
-        }
-        WriteJSON(w, http.StatusOK, map[string]string{"message": "novel unbanned"})
-    }
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		// Ensure admin role
+		role, ok := middleware.GetRoleFromContext(r.Context())
+		if !ok || role != "admin" {
+			WriteError(w, http.StatusForbidden, "Forbidden: admin role required")
+			return
+		}
+		// Extract novel ID from URL path /api/admin/novels/{id}/unban
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) < 5 {
+			WriteError(w, http.StatusBadRequest, "invalid path")
+			return
+		}
+		novelID, err := strconv.Atoi(parts[3])
+		if err != nil || novelID <= 0 {
+			WriteError(w, http.StatusBadRequest, "invalid novel id")
+			return
+		}
+		// Perform unban via service
+		if err := novelService.UnbanNovel(r.Context(), novelID); err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]string{"message": "novel unbanned"})
+	}
 }
 
 func extractNovelIDFromPath(urlPath string) (int, error) {
@@ -288,7 +374,7 @@ func extractNovelIDFromPath(urlPath string) (int, error) {
 	return 0, errors.New("invalid path")
 }
 
-func NovelSubRouteHandler(sceneService service.SceneService) http.HandlerFunc {
+func NovelSubRouteHandler(sceneService service.SceneService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -305,6 +391,36 @@ func NovelSubRouteHandler(sceneService service.SceneService) http.HandlerFunc {
 		id, err := strconv.Atoi(strings.Trim(idStr, "/"))
 		if err != nil {
 			WriteError(w, http.StatusBadRequest, "invalid novel id")
+			return
+		}
+
+		novelDetail, err := novelService.GetNovelDetail(id)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+
+		novelPtr, ok := novelDetail.(*models.Novel)
+		if !ok || novelPtr == nil {
+			WriteError(w, http.StatusInternalServerError, "failed to load novel details")
+			return
+		}
+
+		isOwnerOrAdmin := false
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if ok && ctxUserID != 0 {
+			if role, roleOk := middleware.GetRoleFromContext(r.Context()); roleOk && role == "admin" {
+				isOwnerOrAdmin = true
+			} else if writerService != nil {
+				writer, wErr := writerService.GetWriterByUserID(int(ctxUserID))
+				if wErr == nil && writer != nil && writer.WriterID == novelPtr.AuthorID {
+					isOwnerOrAdmin = true
+				}
+			}
+		}
+
+		if !isOwnerOrAdmin && !novelPtr.IsPublished {
+			WriteError(w, http.StatusNotFound, "novel not found")
 			return
 		}
 

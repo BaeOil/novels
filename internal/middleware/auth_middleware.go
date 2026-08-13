@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -18,6 +20,21 @@ const (
 	UserIDKey contextKey = "user_id"
 	RoleKey   contextKey = "role"
 )
+
+// jwtSecret ต้องมาจาก env var JWT_SECRET เสมอในโปรดักชัน
+// ของเดิม hardcode ค่าไว้ในซอร์สโค้ดตรงๆ — ใครก็เห็น repo (leak/public) ก็ปลอม token
+// เป็น role admin ได้ทันที นี่คือช่องโหว่ร้ายแรงที่สุดในไฟล์นี้
+var jwtSecret = loadJWTSecret()
+
+func loadJWTSecret() []byte {
+	if s := strings.TrimSpace(os.Getenv("JWT_SECRET")); s != "" {
+		return []byte(s)
+	}
+	// fallback นี้มีไว้กันแอปพังตอน deploy ครั้งแรกที่ยังไม่ได้ตั้ง env เท่านั้น
+	// ห้ามปล่อยให้รันแบบนี้ใน production เด็ดขาด — ตั้ง JWT_SECRET ให้เป็นค่าสุ่มยาวๆ แล้ว rotate token เดิมทั้งหมดทิ้ง (บังคับ re-login)
+	log.Println("⚠️  WARNING: JWT_SECRET env var ไม่ได้ตั้งค่า — กำลังใช้ fallback secret ที่ไม่ปลอดภัย ห้ามใช้ค่านี้ใน production!")
+	return []byte("my-super-secret-novel-key")
+}
 
 func RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +57,7 @@ func RequireAuth(next http.Handler) http.Handler {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method")
 			}
-			return []byte("my-super-secret-novel-key"), nil
+			return jwtSecret, nil
 		})
 
 		if err != nil || !token.Valid {
@@ -52,6 +69,40 @@ func RequireAuth(next http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), UserIDKey, claims["user_id"])
 			ctx = context.WithValue(ctx, RoleKey, claims["role"])
 			r = r.WithContext(ctx)
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func OptionalAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		authHeader := r.Header.Get("Authorization")
+		tokenString := extractBearerToken(authHeader)
+		if tokenString == "" {
+			tokenString = r.URL.Query().Get("token")
+		}
+
+		if tokenString != "" {
+			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method")
+				}
+				return jwtSecret, nil
+			})
+
+			if err == nil && token.Valid {
+				if claims, ok := token.Claims.(jwt.MapClaims); ok {
+					ctx := context.WithValue(r.Context(), UserIDKey, claims["user_id"])
+					ctx = context.WithValue(ctx, RoleKey, claims["role"])
+					r = r.WithContext(ctx)
+				}
+			}
 		}
 
 		next.ServeHTTP(w, r)

@@ -7,11 +7,16 @@ import (
 
 func GetChoicesBySceneID(db *sql.DB, sceneID int) ([]models.Choice, error) {
 	rows, err := db.Query(`
-        SELECT choice_id, from_scene_id, to_scene_id, label
-        FROM choices
-        WHERE from_scene_id = $1
-        ORDER BY choice_id ASC
-    `, sceneID)
+		SELECT 
+			c.choice_id, c.from_scene_id, c.to_scene_id, c.label,
+			COALESCE((ts.status = 'published' AND ch.status = 'published' AND n.is_published = true), false) AS is_published
+		FROM choices c
+		LEFT JOIN scenes ts ON c.to_scene_id = ts.scene_id
+		LEFT JOIN chapters ch ON ts.chapter_id = ch.chapter_id
+		LEFT JOIN novels n ON ts.novel_id = n.novel_id
+		WHERE c.from_scene_id = $1
+		ORDER BY c.choice_id ASC
+	`, sceneID)
 	if err != nil {
 		return nil, err
 	}
@@ -20,10 +25,12 @@ func GetChoicesBySceneID(db *sql.DB, sceneID int) ([]models.Choice, error) {
 	choices := []models.Choice{}
 	for rows.Next() {
 		var c models.Choice
-		err := rows.Scan(&c.ChoiceID, &c.FromSceneID, &c.ToSceneID, &c.Label)
+		var isPub bool
+		err := rows.Scan(&c.ChoiceID, &c.FromSceneID, &c.ToSceneID, &c.Label, &isPub)
 		if err != nil {
 			return nil, err
 		}
+		c.IsPublished = &isPub
 		choices = append(choices, c)
 	}
 	return choices, nil

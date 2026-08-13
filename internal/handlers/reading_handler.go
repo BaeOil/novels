@@ -14,8 +14,47 @@ import (
 	"novel-be/internal/service"
 )
 
+func CheckIsOwnerOrAdmin(r *http.Request, novelID int, novelService service.NovelService, writerService service.WriterService) bool {
+	ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || ctxUserID == 0 {
+		return false
+	}
+
+	if role, roleOk := middleware.GetRoleFromContext(r.Context()); roleOk && role == "admin" {
+		return true
+	}
+
+	if novelService == nil || writerService == nil {
+		return false
+	}
+
+	novelDetail, err := novelService.GetNovelDetail(novelID)
+	if err != nil {
+		return false
+	}
+
+	novelPtr, ok := novelDetail.(*models.Novel)
+	if !ok || novelPtr == nil {
+		return false
+	}
+
+	writer, err := writerService.GetWriterByUserID(int(ctxUserID))
+	if err != nil || writer == nil {
+		return false
+	}
+
+	return writer.WriterID == novelPtr.AuthorID
+}
+
+func IsPreviewMode(r *http.Request, novelID int, novelService service.NovelService, writerService service.WriterService) bool {
+	if r.URL.Query().Get("preview") != "true" {
+		return false
+	}
+	return CheckIsOwnerOrAdmin(r, novelID, novelService, writerService)
+}
+
 // StartReadingHandler หาฉากแรกสุดของนิยายเรื่องนั้น
-func StartReadingHandler(sceneService service.SceneService) http.HandlerFunc {
+func StartReadingHandler(sceneService service.SceneService, novelService service.NovelService, writerService service.WriterService, chapterService service.ChapterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// รับ id จาก path parameter เช่น /novels/{id}/start
 		novelID, err := extractIDFromPath(r.URL.Path, "/novels/")
@@ -24,10 +63,38 @@ func StartReadingHandler(sceneService service.SceneService) http.HandlerFunc {
 			return
 		}
 
+		novelDetail, err := novelService.GetNovelDetail(novelID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+
+		novelPtr, ok := novelDetail.(*models.Novel)
+		if !ok || novelPtr == nil {
+			WriteError(w, http.StatusInternalServerError, "failed to load novel details")
+			return
+		}
+
+		isOwnerOrAdmin := CheckIsOwnerOrAdmin(r, novelID, novelService, writerService)
+
+		if !isOwnerOrAdmin && !novelPtr.IsPublished {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+
 		scene, err := sceneService.GetStartScene(novelID)
 		if err != nil {
 			WriteError(w, http.StatusNotFound, "ไม่พบจุดเริ่มต้นของนิยายเรื่องนี้")
 			return
+		}
+
+		// ตรวจ chapter + scene status (reader ต้องเห็นเฉพาะที่ published ครบ 3 ระดับ)
+		if !isOwnerOrAdmin {
+			ch, chErr := chapterService.GetChapterByID(scene.ChapterID)
+			if chErr != nil || ch == nil || ch.Status != "published" || scene.Status != "published" {
+				WriteError(w, http.StatusNotFound, "ไม่พบจุดเริ่มต้นของนิยายเรื่องนี้")
+				return
+			}
 		}
 
 		WriteJSON(w, http.StatusOK, scene)
@@ -159,7 +226,7 @@ func DeleteReadingHistoryBulkHandler(readingService service.ReadingService) http
 	}
 }
 
-func ProgressHandler(readingService service.ReadingService) http.HandlerFunc {
+func ProgressHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodOptions:
@@ -167,7 +234,7 @@ func ProgressHandler(readingService service.ReadingService) http.HandlerFunc {
 		case http.MethodGet:
 			GetProgressHandler(readingService)(w, r)
 		case http.MethodPost:
-			SaveProgressHandler(readingService)(w, r)
+			SaveProgressHandler(readingService, novelService, writerService)(w, r)
 		case http.MethodDelete:
 			ResetProgressHandler(readingService)(w, r)
 		default:
@@ -199,7 +266,7 @@ func ResetProgressHandler(readingService service.ReadingService) http.HandlerFun
 	}
 }
 
-func RestartStoryHandler(sceneService service.SceneService, readingService service.ReadingService) http.HandlerFunc {
+func RestartStoryHandler(sceneService service.SceneService, readingService service.ReadingService, novelService service.NovelService, chapterService service.ChapterService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := middleware.GetUserIDFromContext(r.Context())
 		if !ok || userID == 0 {
@@ -213,9 +280,45 @@ func RestartStoryHandler(sceneService service.SceneService, readingService servi
 			return
 		}
 
+		novelDetail, err := novelService.GetNovelDetail(novelID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+		novelPtr, nOk := novelDetail.(*models.Novel)
+		if !nOk || novelPtr == nil {
+			WriteError(w, http.StatusInternalServerError, "failed to load novel details")
+			return
+		}
+
+		isOwnerOrAdmin := CheckIsOwnerOrAdmin(r, novelID, novelService, writerService)
+		isPreview := IsPreviewMode(r, novelID, novelService, writerService)
+
+		if !isOwnerOrAdmin && !novelPtr.IsPublished {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+
 		startScene, err := sceneService.GetStartScene(novelID)
 		if err != nil {
 			WriteError(w, http.StatusNotFound, "ไม่พบจุดเริ่มต้นของนิยายเรื่องนี้")
+			return
+		}
+
+		// ตรวจ chapter + scene status (reader ต้องเห็นเฉพาะที่ published ครบ 3 ระดับ)
+		if !isOwnerOrAdmin {
+			ch, chErr := chapterService.GetChapterByID(startScene.ChapterID)
+			if chErr != nil || ch == nil || ch.Status != "published" || startScene.Status != "published" {
+				WriteError(w, http.StatusNotFound, "ไม่พบจุดเริ่มต้นของนิยายเรื่องนี้")
+				return
+			}
+		}
+
+		if isPreview {
+			WriteJSON(w, http.StatusOK, dto.RestartStoryResponseDTO{
+				NovelID:      novelID,
+				StartSceneID: startScene.SceneID,
+			})
 			return
 		}
 
@@ -240,7 +343,7 @@ func RestartStoryHandler(sceneService service.SceneService, readingService servi
 	}
 }
 
-func SaveProgressHandler(readingService service.ReadingService) http.HandlerFunc {
+func SaveProgressHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SaveProgressRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -250,6 +353,12 @@ func SaveProgressHandler(readingService service.ReadingService) http.HandlerFunc
 
 		if err := req.Validate(); err != nil {
 			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		isPreview := IsPreviewMode(r, req.NovelID, novelService, writerService)
+		if isPreview {
+			WriteJSON(w, http.StatusCreated, map[string]string{"message": "progress saved"})
 			return
 		}
 
@@ -266,7 +375,7 @@ func SaveProgressHandler(readingService service.ReadingService) http.HandlerFunc
 	}
 }
 
-func RecordChoiceHistoryHandler(readingService service.ReadingService) http.HandlerFunc {
+func RecordChoiceHistoryHandler(readingService service.ReadingService, sceneService service.SceneService, novelService service.NovelService, writerService service.WriterService, chapterService service.ChapterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req RecordChoiceHistoryRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -279,6 +388,52 @@ func RecordChoiceHistoryHandler(readingService service.ReadingService) http.Hand
 			return
 		}
 
+		if sceneService == nil || novelService == nil || chapterService == nil {
+			WriteError(w, http.StatusInternalServerError, "required services not initialized")
+			return
+		}
+
+		choice, err := sceneService.GetChoiceByID(req.ChoiceID)
+		if err != nil || choice == nil {
+			WriteError(w, http.StatusNotFound, "choice not found")
+			return
+		}
+
+		toScene, err := sceneService.GetScene(choice.ToSceneID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+
+		chapter, err := chapterService.GetChapterByID(toScene.ChapterID)
+		if err != nil || chapter == nil {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+
+		novelDetail, err := novelService.GetNovelDetail(toScene.NovelID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+
+		novelPtr, ok := novelDetail.(*models.Novel)
+		if !ok || novelPtr == nil {
+			WriteError(w, http.StatusInternalServerError, "failed to load novel details")
+			return
+		}
+
+		isPreview := IsPreviewMode(r, toScene.NovelID, novelService, writerService)
+		if isPreview {
+			WriteJSON(w, http.StatusCreated, map[string]string{"message": "choice history recorded"})
+			return
+		}
+
+		if !novelPtr.IsPublished || chapter.Status != "published" || toScene.Status != "published" {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+
 		if err := readingService.RecordChoiceHistory(models.ChoiceHistory{UserID: req.UserID, ChoiceID: req.ChoiceID}); err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -288,7 +443,7 @@ func RecordChoiceHistoryHandler(readingService service.ReadingService) http.Hand
 	}
 }
 
-func RecordUserEndingHandler(readingService service.ReadingService) http.HandlerFunc {
+func RecordUserEndingHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type EndingRequest struct {
 			UserID  int `json:"user_id"`
@@ -304,6 +459,12 @@ func RecordUserEndingHandler(readingService service.ReadingService) http.Handler
 
 		if req.UserID == 0 || req.NovelID == 0 || req.SceneID == 0 {
 			WriteError(w, http.StatusBadRequest, "user_id, novel_id, and scene_id are required")
+			return
+		}
+
+		isPreview := IsPreviewMode(r, req.NovelID, novelService, writerService)
+		if isPreview {
+			WriteJSON(w, http.StatusCreated, map[string]string{"message": "ending recorded successfully"})
 			return
 		}
 

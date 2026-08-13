@@ -33,7 +33,7 @@ func extractIDFromPath(urlPath, prefix string) (int, error) {
 }
 
 // GET /novels/{id}
-func GetNovelDetailHandler(novelService service.NovelService, sceneService service.SceneService, socialService service.SocialService) http.HandlerFunc {
+func GetNovelDetailHandler(novelService service.NovelService, sceneService service.SceneService, socialService service.SocialService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			RespondWithError(w, http.StatusMethodNotAllowed, "method not allowed", "only GET is supported")
@@ -46,17 +46,39 @@ func GetNovelDetailHandler(novelService service.NovelService, sceneService servi
 			return
 		}
 
-		// เพิ่มยอดวิวเมื่อผู้ใช้เข้าหน้านิยาย
-		if err := novelService.IncrementViews(id); err != nil {
-			// ถ้าเพิ่มยอดวิวล้มเหลว ไม่ขัดขวางการแสดงรายละเอียดนิยาย
-			// สามารถ log เพิ่มได้ที่ middleware หรือ logger ภายนอก
-		}
-
 		// ดึงข้อมูลรายละเอียดนิยายดั้งเดิม
 		novel, err := novelService.GetNovelDetail(id)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, "novel not found", err.Error())
 			return
+		}
+
+		novelModel, isNovel := novel.(*models.Novel)
+		isOwnerOrAdmin := false
+
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if ok && ctxUserID != 0 {
+			if role, roleOk := middleware.GetRoleFromContext(r.Context()); roleOk && role == "admin" {
+				isOwnerOrAdmin = true
+			} else if isNovel && writerService != nil {
+				writer, wErr := writerService.GetWriterByUserID(int(ctxUserID))
+				if wErr == nil && writer != nil && writer.WriterID == novelModel.AuthorID {
+					isOwnerOrAdmin = true
+				}
+			}
+		}
+
+		if !isOwnerOrAdmin {
+			if !isNovel || !novelModel.IsPublished {
+				RespondWithError(w, http.StatusNotFound, "novel not found", "novel not found")
+				return
+			}
+		}
+
+		// เพิ่มยอดวิวเมื่อผู้ใช้เข้าหน้านิยาย
+		if err := novelService.IncrementViews(id); err != nil {
+			// ถ้าเพิ่มยอดวิวล้มเหลว ไม่ขัดขวางการแสดงรายละเอียดนิยาย
+			// สามารถ log เพิ่มได้ที่ middleware หรือ logger ภายนอก
 		}
 
 		// ถ้ามี user_id มาให้ตรวจว่า user นี้กดไลค์นิยายเรื่องนี้หรือยัง
@@ -175,39 +197,50 @@ func GetChaptersByNovelHandler(chapterService service.ChapterService, novelServi
 			return
 		}
 
-		// 🔒 ตรวจสอบสิทธิ์: ถ้าเป็นการเรียกจากผู้ใช้ที่ login แล้ว ต้องเช็คว่านิยายนี้เป็นของเขาหรือเปล่า
-		userID, ok := middleware.GetUserIDFromContext(r.Context())
-		if ok && userID != 0 {
-			// ผู้ใช้ logged in - ต้องตรวจสอบ ownership
-			writer, err := writerService.GetWriterByUserID(int(userID))
-			if err != nil || writer == nil {
-				// ไม่ใช่นักเขียน แต่ขอข้อมูล chapter - อาจเป็นผู้อ่าน ให้ return 403
-				WriteError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูข้อมูลนี้")
-				return
-			}
+		novelDetail, err := novelService.GetNovelDetail(novelID)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, "novel not found", "novel not found")
+			return
+		}
 
-			novelDetail, err := novelService.GetNovelDetail(novelID)
-			if err != nil {
-				WriteError(w, http.StatusNotFound, "novel not found")
-				return
-			}
+		novelPtr, ok := novelDetail.(*models.Novel)
+		if !ok || novelPtr == nil {
+			RespondWithError(w, http.StatusInternalServerError, "failed to load novel details", "failed to load novel details")
+			return
+		}
 
-			novelPtr, ok := novelDetail.(*models.Novel)
-			if !ok || novelPtr == nil {
-				WriteError(w, http.StatusInternalServerError, "failed to load novel details")
-				return
+		isOwnerOrAdmin := false
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if ok && ctxUserID != 0 {
+			if role, roleOk := middleware.GetRoleFromContext(r.Context()); roleOk && role == "admin" {
+				isOwnerOrAdmin = true
+			} else if writerService != nil {
+				writer, wErr := writerService.GetWriterByUserID(int(ctxUserID))
+				if wErr == nil && writer != nil && writer.WriterID == novelPtr.AuthorID {
+					isOwnerOrAdmin = true
+				}
 			}
+		}
 
-			if novelPtr.AuthorID != writer.WriterID {
-				WriteError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูบทของนิยายเรื่องนี้")
-				return
-			}
+		if !isOwnerOrAdmin && !novelPtr.IsPublished {
+			RespondWithError(w, http.StatusNotFound, "novel not found", "novel not found")
+			return
 		}
 
 		chapters, err := chapterService.GetChaptersByNovelID(novelID)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, "failed to fetch chapters", err.Error())
 			return
+		}
+
+		if !isOwnerOrAdmin {
+			filtered := make([]models.Chapter, 0)
+			for _, ch := range chapters {
+				if ch.Status == "published" {
+					filtered = append(filtered, ch)
+				}
+			}
+			chapters = filtered
 		}
 
 		RespondWithJSON(w, http.StatusOK, map[string]interface{}{
@@ -218,7 +251,7 @@ func GetChaptersByNovelHandler(chapterService service.ChapterService, novelServi
 }
 
 // GET /chapters/{id}/scenes
-func GetScenesByChapterHandler(sceneService service.SceneService) http.HandlerFunc {
+func GetScenesByChapterHandler(sceneService service.SceneService, chapterService service.ChapterService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			RespondWithError(w, http.StatusMethodNotAllowed, "method not allowed", "only GET is supported")
@@ -239,10 +272,58 @@ func GetScenesByChapterHandler(sceneService service.SceneService) http.HandlerFu
 			return
 		}
 
+		chapter, err := chapterService.GetChapterByID(chapterID)
+		if err != nil || chapter == nil {
+			RespondWithError(w, http.StatusNotFound, "chapter not found", "chapter not found")
+			return
+		}
+
+		novelDetail, err := novelService.GetNovelDetail(chapter.NovelID)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, "novel not found", "novel not found")
+			return
+		}
+
+		novelPtr, ok := novelDetail.(*models.Novel)
+		if !ok || novelPtr == nil {
+			RespondWithError(w, http.StatusInternalServerError, "failed to load novel details", "failed to load novel details")
+			return
+		}
+
+		isOwnerOrAdmin := false
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if ok && ctxUserID != 0 {
+			if role, roleOk := middleware.GetRoleFromContext(r.Context()); roleOk && role == "admin" {
+				isOwnerOrAdmin = true
+			} else if writerService != nil {
+				writer, wErr := writerService.GetWriterByUserID(int(ctxUserID))
+				if wErr == nil && writer != nil && writer.WriterID == novelPtr.AuthorID {
+					isOwnerOrAdmin = true
+				}
+			}
+		}
+
+		if !isOwnerOrAdmin {
+			if !novelPtr.IsPublished || chapter.Status != "published" {
+				RespondWithError(w, http.StatusNotFound, "chapter not found", "chapter not found")
+				return
+			}
+		}
+
 		scenes, err := sceneService.GetScenesByChapterID(chapterID)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, "failed to fetch scenes", err.Error())
 			return
+		}
+
+		if !isOwnerOrAdmin {
+			filtered := make([]models.Scene, 0)
+			for _, sc := range scenes {
+				if sc.Status == "published" {
+					filtered = append(filtered, sc)
+				}
+			}
+			scenes = filtered
 		}
 
 		RespondWithJSON(w, http.StatusOK, map[string]interface{}{

@@ -92,11 +92,6 @@ type UpdateNovelRequest struct {
 }
 
 func (r *UpdateNovelRequest) Validate() error {
-	if strings.TrimSpace(r.Status) != "" || r.IsPublished != nil || r.IsCompleted != nil {
-		resolvedStatus, _, _ := resolveNovelStatus(r.Status, r.IsPublished, r.IsCompleted)
-		r.Status = resolvedStatus
-	}
-
 	// At least one updatable field must be present
 	if strings.TrimSpace(r.Title) == "" && strings.TrimSpace(r.Status) == "" && r.Captions == nil && r.Introduction == nil && r.CoverImage == nil && len(r.CategoryIDs) == 0 && r.IsPublished == nil && r.IsCompleted == nil {
 		return errors.New("at least one field is required")

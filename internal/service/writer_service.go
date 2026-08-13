@@ -5,13 +5,35 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"novel-be/internal/dto"
 	"novel-be/internal/models"
 	"novel-be/internal/repository"
+
+	"github.com/microcosm-cc/bluemonday" // go get github.com/microcosm-cc/bluemonday
 )
 
 type writerService struct {
 	repo repository.WriterRepository
+}
+
+// sanitizeBioHTML ทำความสะอาด HTML ของ bio ก่อนเข้า DB เสมอ ไม่ว่าจะมาจาก
+// ทาง Quill editor (multipart/form-data) หรือยิง JSON ตรงเข้า /api/writers/apply ก็ตาม
+// จำกัด tag ให้ตรงกับ QUILL_MODULES.toolbar ฝั่ง frontend เท่านั้น (ไม่รวม img/script/on* ฯลฯ)
+var bioSanitizer = newBioSanitizer()
+
+func newBioSanitizer() *bluemonday.Policy {
+	p := bluemonday.NewPolicy()
+	p.AllowElements("p", "br", "strong", "em", "u", "s", "blockquote", "ol", "ul", "li", "h1", "h2", "h3")
+	p.AllowAttrs("href").OnElements("a")
+	p.AllowElements("a")
+	p.RequireNoFollowOnLinks(true)
+	p.AllowStandardURLs()
+	return p
+}
+
+func sanitizeBio(raw string) string {
+	return bioSanitizer.Sanitize(raw)
 }
 
 // NewWriterServiceDirect ส่งมอบบริการและสวมรอยอินเตอร์เฟซหลัก
@@ -59,6 +81,8 @@ func (s *writerService) ApplyForWriter(ctx context.Context, userID uint, req dto
 	if existingWriter != nil && existingWriter.Status != "rejected" {
 		return ErrAlreadyApply
 	}
+
+	req.Bio = sanitizeBio(req.Bio)
 
 	// มัดรวมข้อมูลการติดต่อและประเภทนิยายทั้งหมดลงใน JSON เดียว
 	contacts := map[string]interface{}{
@@ -116,8 +140,11 @@ func (s *writerService) UpdateWriterProfile(ctx context.Context, writerID int, r
 	if req.PenName == "" {
 		return errors.New("นามปากกาต้องไม่เป็นค่าว่าง")
 	}
+	req.Bio = sanitizeBio(req.Bio)
 
-	var contactJSON string
+	// ✅ แก้ไข: กำหนดค่าเริ่มต้นเป็น {} ป้องกันการพยายาม insert string ว่างลงคอลัมน์ json
+	var contactJSON string = "{}"
+
 	if req.ContactRequired != "" || req.ContactOptional != "" {
 		contacts := map[string]string{
 			"contact_required": req.ContactRequired,
@@ -130,7 +157,10 @@ func (s *writerService) UpdateWriterProfile(ctx context.Context, writerID int, r
 		contactJSON = string(bytes)
 	} else if req.ContactInfo != nil {
 		if str, ok := req.ContactInfo.(string); ok {
-			contactJSON = str
+			// ✅ แก้ไข: เช็กดักอีกชั้นว่าถ้าเป็น "" จะไม่เอาไปทับ "{}"
+			if strings.TrimSpace(str) != "" {
+				contactJSON = str
+			}
 		} else {
 			bytes, err := json.Marshal(req.ContactInfo)
 			if err != nil {

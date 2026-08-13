@@ -140,7 +140,7 @@ func (r *sqlAuthRepository) ListUsers(ctx context.Context, role, status, search 
 			COALESCE((SELECT json_agg(c.name) FROM writer_categories wc JOIN categories c ON c.category_id = wc.category_id WHERE wc.writer_id = w.writer_id), '[]'::json) AS genres_json,
 			w.name_lastname, w.pen_name, w.bio, w.contact_info, w.writer_id
 		FROM users u
-		LEFT JOIN writers w ON w.user_id = u.user_id
+		LEFT JOIN writers w ON w.writer_id = (SELECT w2.writer_id FROM writers w2 WHERE w2.user_id = u.user_id ORDER BY w2.applied_at DESC LIMIT 1)
 		WHERE 1=1`
 	args := []interface{}{}
 	argCount := 1
@@ -268,7 +268,7 @@ func (r *sqlAuthRepository) GetUserForAdmin(ctx context.Context, userID uint) (*
 			COALESCE((SELECT json_agg(c.name) FROM writer_categories wc JOIN categories c ON c.category_id = wc.category_id WHERE wc.writer_id = w.writer_id), '[]'::json) AS genres_json,
 			w.name_lastname, w.pen_name, w.bio, w.contact_info, w.writer_id
 		FROM users u
-		LEFT JOIN writers w ON w.user_id = u.user_id
+		LEFT JOIN writers w ON w.writer_id = (SELECT w2.writer_id FROM writers w2 WHERE w2.user_id = u.user_id ORDER BY w2.applied_at DESC LIMIT 1)
 		WHERE u.user_id = $1`
 
 	var item dto.AdminUserDetailDTO

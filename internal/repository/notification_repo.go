@@ -168,12 +168,19 @@ func ResolveUserIDByUsername(db *sql.DB, username string) (int, error) {
 
 func ResolveUserAvatarByUserID(db *sql.DB, userID int) (string, error) {
 	var avatar sql.NullString
+	// เลือก writer row ที่ approved ก่อน (status='approved' = 0), ไม่งั้นเรียงตาม applied_at ล่าสุด
+	// เพื่อให้ได้ผลลัพธ์ที่แน่นอนเมื่อ user มีหลาย writer rows (rejected history)
 	err := db.QueryRow(`
 		SELECT COALESCE(NULLIF(w.avatar_url, ''), NULLIF(u.pic_profile, ''))
 		FROM users u
-		LEFT JOIN writers w ON u.user_id = w.user_id
+		LEFT JOIN writers w ON w.writer_id = (
+			SELECT w2.writer_id
+			FROM writers w2
+			WHERE w2.user_id = u.user_id
+			ORDER BY (CASE WHEN w2.status = 'approved' THEN 0 ELSE 1 END), w2.applied_at DESC
+			LIMIT 1
+		)
 		WHERE u.user_id = $1
-		LIMIT 1
 	`, userID).Scan(&avatar)
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -5,4 +5,5 @@ type Choice struct {
 	FromSceneID int    `json:"from_scene_id,omitempty"`
 	Label       string `json:"label"`
 	ToSceneID   int    `json:"to_scene_id"`
+	IsPublished *bool  `json:"is_published,omitempty"`
 }
