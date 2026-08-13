@@ -38,7 +38,7 @@ END $$;
 
 CREATE TABLE writers (
     writer_id SERIAL PRIMARY KEY,
-    user_id INTEGER UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
     name_lastname VARCHAR(255),
     pen_name VARCHAR(255) NOT NULL,
     bio TEXT,
