@@ -443,3 +443,73 @@ func (r *sqlAuthRepository) UpdateUsername(ctx context.Context, userID uint, use
 	}
 	return nil
 }
+
+func (r *sqlAuthRepository) UpdateEmail(ctx context.Context, userID uint, email string) error {
+	query := `UPDATE users SET email = $1, updated_at = NOW() WHERE user_id = $2`
+	res, err := r.db.ExecContext(ctx, query, email, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *sqlAuthRepository) UpdatePassword(ctx context.Context, userID uint, passwordHash string) error {
+	query := `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE user_id = $2`
+	res, err := r.db.ExecContext(ctx, query, passwordHash, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *sqlAuthRepository) UpdateProfilePicture(ctx context.Context, userID uint, picProfile string) error {
+	query := `UPDATE users SET pic_profile = $1, updated_at = NOW() WHERE user_id = $2`
+	res, err := r.db.ExecContext(ctx, query, picProfile, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *sqlAuthRepository) SuspendUser(ctx context.Context, userID uint, reason string) error {
+	query := `
+		UPDATE users
+		SET status = 'suspended',
+		    suspended_reason = NULLIF(TRIM($1), ''),
+		    suspended_at = NOW(),
+		    updated_at = NOW()
+		WHERE user_id = $2`
+	res, err := r.db.ExecContext(ctx, query, normalizeSuspendReason(reason), userID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}

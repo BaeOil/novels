@@ -667,3 +667,52 @@ func CreateNotificationForUser(db *sql.DB, userID int, typ, title, message strin
 	}
 	return CreateNotification(db, notif)
 }
+
+func GetNotificationSettings(db *sql.DB, userID int) (*models.NotificationSettings, error) {
+	query := `
+		SELECT
+			user_id, novel_update_enabled, follower_enabled,
+			like_enabled, comment_enabled, system_enabled
+		FROM notification_settings
+		WHERE user_id = $1
+	`
+	var s models.NotificationSettings
+	err := db.QueryRow(query, userID).Scan(
+		&s.UserID, &s.NovelUpdateEnabled, &s.FollowerEnabled,
+		&s.LikeEnabled, &s.CommentEnabled, &s.SystemEnabled,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return &models.NotificationSettings{
+				UserID:             uint(userID),
+				NovelUpdateEnabled: true,
+				FollowerEnabled:    true,
+				LikeEnabled:        true,
+				CommentEnabled:     true,
+				SystemEnabled:      true,
+			}, nil
+		}
+		return nil, err
+	}
+	return &s, nil
+}
+
+func UpsertNotificationSettings(db *sql.DB, userID int, settings models.NotificationSettings) error {
+	query := `
+		INSERT INTO notification_settings (
+			user_id, novel_update_enabled, follower_enabled,
+			like_enabled, comment_enabled, system_enabled
+		)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (user_id)
+		DO UPDATE SET
+			novel_update_enabled = EXCLUDED.novel_update_enabled,
+			follower_enabled = EXCLUDED.follower_enabled,
+			like_enabled = EXCLUDED.like_enabled,
+			comment_enabled = EXCLUDED.comment_enabled,
+			system_enabled = EXCLUDED.system_enabled
+	`
+	_, err := db.Exec(query, userID, settings.NovelUpdateEnabled, settings.FollowerEnabled,
+		settings.LikeEnabled, settings.CommentEnabled, settings.SystemEnabled)
+	return err
+}

@@ -243,6 +243,57 @@ func (s *AuthService) HasWriterNovels(ctx context.Context, userID uint) (bool, e
 	return s.repo.HasWriterNovels(ctx, userID)
 }
 
+func (s *AuthService) SuspendOwnAccount(ctx context.Context, userID uint) error {
+	if userID == 0 {
+		return errors.New("invalid user id")
+	}
+
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	if strings.EqualFold(user.Status, "suspended") {
+		return errors.New("account is already suspended")
+	}
+
+	return s.repo.SuspendUser(ctx, userID, "Self-deactivated")
+}
+
+func (s *AuthService) DeleteOwnAccount(ctx context.Context, userID uint, currentPassword string) error {
+	if userID == 0 {
+		return errors.New("invalid user id")
+	}
+	if strings.TrimSpace(currentPassword) == "" {
+		return errors.New("current password is required")
+	}
+
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return errors.New("current password is incorrect")
+	}
+
+	hasWriterNovels, err := s.HasWriterNovels(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if hasWriterNovels {
+		return errors.New("ต้องระงับบัญชีแทนการลบ เนื่องจากมีนิยายอยู่ในระบบ")
+	}
+
+	return s.repo.DeleteUser(ctx, userID)
+}
+
 var validUsernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
 func (s *AuthService) UpdateUsername(ctx context.Context, userID uint, username string) error {
@@ -272,6 +323,86 @@ func (s *AuthService) UpdateUsername(ctx context.Context, userID uint, username 
 	}
 
 	return s.repo.UpdateUsername(ctx, userID, username)
+}
+
+func (s *AuthService) UpdateEmail(ctx context.Context, userID uint, email string) error {
+	if userID == 0 {
+		return errors.New("invalid user id")
+	}
+
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" {
+		return errors.New("email is required")
+	}
+
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	foundUser, err := s.repo.GetByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if foundUser != nil && foundUser.ID != userID {
+		return errors.New("email already in use")
+	}
+
+	return s.repo.UpdateEmail(ctx, userID, email)
+}
+
+func (s *AuthService) ChangePassword(ctx context.Context, userID uint, req dto.ChangePasswordRequest) error {
+	if userID == 0 {
+		return errors.New("invalid user id")
+	}
+
+	if err := req.Validate(); err != nil {
+		return err
+	}
+
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword))
+	if err != nil {
+		return errors.New("current password is incorrect")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.UpdatePassword(ctx, userID, string(hashedPassword))
+}
+
+func (s *AuthService) UpdateProfilePicture(ctx context.Context, userID uint, picProfile string) error {
+	if userID == 0 {
+		return errors.New("invalid user id")
+	}
+
+	picProfile = strings.TrimSpace(picProfile)
+	if picProfile == "" {
+		return errors.New("profile picture URL is required")
+	}
+
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	return s.repo.UpdateProfilePicture(ctx, userID, picProfile)
 }
 
 func validateUserStatusForLogin(user *models.User) error {

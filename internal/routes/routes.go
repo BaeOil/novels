@@ -59,6 +59,76 @@ func RegisterRoutes(
 	mux.Handle("/api/me/username", updateOwnUsernameHandler)
 	mux.Handle("/me/username", updateOwnUsernameHandler)
 
+	// 🟢 แก้ไขอีเมล (Email) ของตัวเอง
+	updateOwnEmailHandler := middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			authHandler.UpdateOwnEmail(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+	mux.Handle("/api/me/email", updateOwnEmailHandler)
+	mux.Handle("/me/email", updateOwnEmailHandler)
+
+	// 🟢 แก้ไขรหัสผ่าน (Password) ของตัวเอง
+	updateOwnPasswordHandler := middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			authHandler.UpdateOwnPassword(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+	mux.Handle("/api/me/password", updateOwnPasswordHandler)
+	mux.Handle("/me/password", updateOwnPasswordHandler)
+
+	// 🟢 แก้ไขรูปโปรไฟล์ (Profile Picture) ของตัวเอง
+	updateOwnProfilePictureHandler := middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch || r.Method == http.MethodPut {
+			authHandler.UpdateOwnProfilePicture(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+	mux.Handle("/api/me/profile-picture", updateOwnProfilePictureHandler)
+	mux.Handle("/me/profile-picture", updateOwnProfilePictureHandler)
+
+	// 🟢 ลบบัญชีผู้ใช้ (Delete Account) ของตัวเอง
+	deleteOwnAccountHandler := middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			authHandler.DeleteOwnAccount(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+	mux.Handle("/api/me", deleteOwnAccountHandler)
+	mux.Handle("/me", deleteOwnAccountHandler)
+
+	// 🟢 พักบัญชีผู้ใช้ (Suspend Account) ของตัวเอง
+	suspendOwnAccountHandler := middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			authHandler.SuspendOwnAccount(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+	mux.Handle("/api/me/suspend", suspendOwnAccountHandler)
+	mux.Handle("/me/suspend", suspendOwnAccountHandler)
+
+	// 🟢 การตั้งค่าแจ้งเตือน (Notification Settings) ของตัวเอง
+	notificationSettingsHandler := middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			notificationHandler.GetSettings(w, r)
+			return
+		}
+		if r.Method == http.MethodPatch || r.Method == http.MethodPut {
+			notificationHandler.UpdateSettings(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+	mux.Handle("/api/me/notification-settings", notificationSettingsHandler)
+	mux.Handle("/me/notification-settings", notificationSettingsHandler)
+
 	// 🟢 ดึงนิยายที่ผู้ใช้เขียน (ต้องมี Token ที่ถูกต้อง)
 	mux.Handle("/api/me/novels", middleware.RequestLogger(middleware.RequireAuth(handlers.GetMyNovelsHandler(novel, writer))))
 

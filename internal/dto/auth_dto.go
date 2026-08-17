@@ -50,6 +50,49 @@ type UpdateUsernameRequest struct {
 	Username string `json:"username"`
 }
 
+type UpdateEmailRequest struct {
+	Email string `json:"email"`
+}
+
+func (r *UpdateEmailRequest) Validate() error {
+	r.Email = strings.TrimSpace(r.Email)
+	if r.Email == "" {
+		return errors.New("email is required")
+	}
+	return nil
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+	ConfirmPassword string `json:"confirm_password"`
+}
+
+func (r *ChangePasswordRequest) Validate() error {
+	if strings.TrimSpace(r.CurrentPassword) == "" {
+		return errors.New("current password is required")
+	}
+	if strings.TrimSpace(r.NewPassword) == "" {
+		return errors.New("new password is required")
+	}
+	if strings.TrimSpace(r.ConfirmPassword) == "" {
+		return errors.New("confirm password is required")
+	}
+	if len(r.NewPassword) < 8 {
+		return errors.New("new password must be at least 8 characters")
+	}
+	if !regexp.MustCompile(`[A-Z]`).MatchString(r.NewPassword) {
+		return errors.New("new password must contain at least 1 uppercase letter")
+	}
+	if !regexp.MustCompile(`\d`).MatchString(r.NewPassword) {
+		return errors.New("new password must contain at least 1 number")
+	}
+	if r.NewPassword != r.ConfirmPassword {
+		return errors.New("passwords do not match")
+	}
+	return nil
+}
+
 // AuthResponse ผลลัพธ์ส่งกลับไปหน้าบ้านพร้อมตั๋ว JWT
 type AuthResponse struct {
 	Token        string `json:"token"`
@@ -61,4 +104,16 @@ type AuthResponse struct {
 		PicProfile string `json:"pic_profile"`
 		Role       string `json:"role"`
 	} `json:"user"`
+}
+
+type NotificationSettingsDTO struct {
+	InAppNotifications bool `json:"in_app_notifications"`
+	NovelUpdates       bool `json:"novel_updates"`
+	Comments           bool `json:"comments"`
+	Likes              bool `json:"likes"`
+	Follows            bool `json:"follows"`
+}
+
+type DeleteOwnAccountRequest struct {
+	CurrentPassword string `json:"current_password"`
 }

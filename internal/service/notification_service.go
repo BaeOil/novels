@@ -3,12 +3,14 @@ package service
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
 
+	"novel-be/internal/dto"
 	"novel-be/internal/models"
 	"novel-be/internal/repository"
 )
@@ -21,6 +23,8 @@ type NotificationService interface {
 	MarkAllRead(userID int) error
 	Delete(notificationID, userID int) error
 	DeleteAll(userID int) error
+	GetNotificationSettings(userID int) (*dto.NotificationSettingsDTO, error)
+	UpdateNotificationSettings(userID int, settings dto.NotificationSettingsDTO) error
 	NotifyNewNovelPublished(novelID int) error
 	NotifyNovelChapterPublished(novelID, chapterID int) error
 	NotifySceneUpdated(novelID, sceneID int) error
@@ -100,6 +104,41 @@ func (s *notificationService) CreateNotification(userID int, actorID int, typ, t
 		log.Println("CreateNotification skipped because userID == actorID")
 		return 0, nil
 	}
+
+	settings, err := repository.GetNotificationSettings(s.db, userID)
+	if err != nil {
+		log.Printf("CreateNotification error fetching settings for user %d: %v", userID, err)
+		return 0, err
+	}
+
+	switch typ {
+	case "novel_update":
+		if !settings.NovelUpdateEnabled {
+			log.Printf("CreateNotification skipped for user %d: novel_update_enabled disabled", userID)
+			return 0, nil
+		}
+	case "follower":
+		if !settings.FollowerEnabled {
+			log.Printf("CreateNotification skipped for user %d: follower_enabled disabled", userID)
+			return 0, nil
+		}
+	case "like":
+		if !settings.LikeEnabled {
+			log.Printf("CreateNotification skipped for user %d: like_enabled disabled", userID)
+			return 0, nil
+		}
+	case "comment":
+		if !settings.CommentEnabled {
+			log.Printf("CreateNotification skipped for user %d: comment_enabled disabled", userID)
+			return 0, nil
+		}
+	case "system":
+		if !settings.SystemEnabled {
+			log.Printf("CreateNotification skipped for user %d: system_enabled disabled", userID)
+			return 0, nil
+		}
+	}
+
 	id, err := repository.CreateNotificationForUser(s.db, userID, typ, title, message, cover, referenceID, referenceType)
 	if err != nil {
 		log.Printf("CreateNotification error: %v", err)
@@ -186,6 +225,38 @@ func (s *notificationService) Delete(notificationID, userID int) error {
 
 func (s *notificationService) DeleteAll(userID int) error {
 	return repository.DeleteAllNotifications(s.db, userID)
+}
+
+func (s *notificationService) GetNotificationSettings(userID int) (*dto.NotificationSettingsDTO, error) {
+	if userID <= 0 {
+		return nil, errors.New("invalid user id")
+	}
+	settings, err := repository.GetNotificationSettings(s.db, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.NotificationSettingsDTO{
+		InAppNotifications: settings.SystemEnabled,
+		NovelUpdates:       settings.NovelUpdateEnabled,
+		Comments:           settings.CommentEnabled,
+		Likes:              settings.LikeEnabled,
+		Follows:            settings.FollowerEnabled,
+	}, nil
+}
+
+func (s *notificationService) UpdateNotificationSettings(userID int, settings dto.NotificationSettingsDTO) error {
+	if userID <= 0 {
+		return errors.New("invalid user id")
+	}
+	modelSettings := models.NotificationSettings{
+		UserID:             uint(userID),
+		NovelUpdateEnabled: settings.NovelUpdates,
+		FollowerEnabled:    settings.Follows,
+		LikeEnabled:        settings.Likes,
+		CommentEnabled:     settings.Comments,
+		SystemEnabled:      settings.InAppNotifications,
+	}
+	return repository.UpsertNotificationSettings(s.db, userID, modelSettings)
 }
 
 func (s *notificationService) NotifyNewNovelPublished(novelID int) error {

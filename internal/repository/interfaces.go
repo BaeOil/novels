@@ -108,4 +108,8 @@ type AuthRepository interface {
 	DeleteUser(ctx context.Context, userID uint) error
 	HasWriterNovels(ctx context.Context, userID uint) (bool, error)
 	UpdateUsername(ctx context.Context, userID uint, username string) error
+	UpdateEmail(ctx context.Context, userID uint, email string) error
+	UpdatePassword(ctx context.Context, userID uint, passwordHash string) error
+	UpdateProfilePicture(ctx context.Context, userID uint, picProfile string) error
+	SuspendUser(ctx context.Context, userID uint, reason string) error
 }

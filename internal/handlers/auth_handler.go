@@ -182,11 +182,14 @@ func (h *AuthHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"user": map[string]interface{}{
-			"id":          user.ID,
-			"username":    user.Username,
-			"email":       user.Email,
-			"pic_profile": user.PicProfile,
-			"role":        user.Role,
+			"id":               user.ID,
+			"username":         user.Username,
+			"email":            user.Email,
+			"pic_profile":      user.PicProfile,
+			"role":             user.Role,
+			"status":           user.Status,
+			"created_at":       user.CreatedAt,
+			"suspended_reason": user.SuspendedReason,
 		},
 	})
 }
@@ -228,4 +231,239 @@ func (h *AuthHandler) UpdateOwnUsername(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "username updated successfully"})
+}
+
+func (h *AuthHandler) UpdateOwnEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req dto.UpdateEmailRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := h.authService.UpdateEmail(r.Context(), userID, req.Email)
+	if err != nil {
+		if err.Error() == "email already in use" {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if err.Error() == "email is required" || err.Error() == "invalid user id" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err.Error() == "user not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "email updated successfully"})
+}
+
+func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req dto.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := h.authService.ChangePassword(r.Context(), userID, req)
+	if err != nil {
+		if err.Error() == "current password is incorrect" ||
+			err.Error() == "current password is required" ||
+			err.Error() == "new password is required" ||
+			err.Error() == "confirm password is required" ||
+			err.Error() == "new password must be at least 8 characters" ||
+			err.Error() == "new password must contain at least 1 uppercase letter" ||
+			err.Error() == "new password must contain at least 1 number" ||
+			err.Error() == "passwords do not match" ||
+			err.Error() == "invalid user id" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err.Error() == "user not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "password updated successfully"})
+}
+
+func (h *AuthHandler) UpdateOwnProfilePicture(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch && r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		http.Error(w, "รูปภาพขนาดใหญ่เกินไป (จำกัด 5MB)", http.StatusBadRequest)
+		return
+	}
+
+	file, handler, err := r.FormFile("profileImage")
+	if err != nil {
+		file, handler, err = r.FormFile("profile_image")
+	}
+	if err != nil {
+		file, handler, err = r.FormFile("avatar")
+	}
+	if err != nil {
+		http.Error(w, "ไม่พบไฟล์รูปภาพโปรไฟล์", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	uploadedURL, uploadErr := h.mediaService.UploadImage(r.Context(), handler)
+	if uploadErr != nil {
+		http.Error(w, "ไม่สามารถอัปโหลดรูปภาพได้: "+uploadErr.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = h.authService.UpdateProfilePicture(r.Context(), userID, uploadedURL)
+	if err != nil {
+		if err.Error() == "profile picture URL is required" || err.Error() == "invalid user id" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err.Error() == "user not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":     "profile picture updated successfully",
+		"pic_profile": uploadedURL,
+	})
+}
+
+func (h *AuthHandler) DeleteOwnAccount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req dto.DeleteOwnAccountRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	err := h.authService.DeleteOwnAccount(r.Context(), userID, req.CurrentPassword)
+	if err != nil {
+		if err.Error() == "current password is required" || err.Error() == "invalid user id" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err.Error() == "current password is incorrect" {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		if err.Error() == "user not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if err.Error() == "ต้องระงับบัญชีแทนการลบ เนื่องจากมีนิยายอยู่ในระบบ" {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "account deleted successfully",
+	})
+}
+
+func (h *AuthHandler) SuspendOwnAccount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	err := h.authService.SuspendOwnAccount(r.Context(), userID)
+	if err != nil {
+		if err.Error() == "account is already suspended" ||
+			err.Error() == "invalid user id" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err.Error() == "user not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "account suspended successfully",
+	})
 }

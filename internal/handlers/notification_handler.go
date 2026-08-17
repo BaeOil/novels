@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"novel-be/internal/dto"
 	"novel-be/internal/middleware"
 	"novel-be/internal/models"
 	"novel-be/internal/service"
@@ -286,6 +287,48 @@ func (h *NotificationHandler) CreateFromPayload(w http.ResponseWriter, r *http.R
 		return
 	}
 	RespondWithJSON(w, http.StatusCreated, map[string]any{"message": "notification created"})
+}
+
+func (h *NotificationHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		RespondWithError3(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	settings, err := h.service.GetNotificationSettings(int(userID))
+	if err != nil {
+		RespondWithError3(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	RespondWithJSON(w, http.StatusOK, settings)
+}
+
+func (h *NotificationHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch && r.Method != http.MethodPut {
+		RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		RespondWithError3(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req dto.NotificationSettingsDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError3(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
+		return
+	}
+	if err := h.service.UpdateNotificationSettings(int(userID), req); err != nil {
+		RespondWithError3(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	RespondWithJSON(w, http.StatusOK, map[string]string{
+		"message": "notification settings updated successfully",
+	})
 }
 
 func extractNotificationID(path string) (int, bool) {

@@ -19,3 +19,12 @@ type Notification struct {
 	ActorColor     string    `json:"actor_color,omitempty"`
 	ReferenceTitle string    `json:"reference_title,omitempty"`
 }
+
+type NotificationSettings struct {
+	UserID             uint `json:"user_id" db:"user_id"`
+	NovelUpdateEnabled bool `json:"novel_update_enabled" db:"novel_update_enabled"`
+	FollowerEnabled    bool `json:"follower_enabled" db:"follower_enabled"`
+	LikeEnabled        bool `json:"like_enabled" db:"like_enabled"`
+	CommentEnabled     bool `json:"comment_enabled" db:"comment_enabled"`
+	SystemEnabled      bool `json:"system_enabled" db:"system_enabled"`
+}
