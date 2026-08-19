@@ -215,9 +215,30 @@ func RegisterRoutes(
 	// PATCH /api/admin/reports/:id/status -> อัปเดตสถานะรีพอร์ต
 	mux.Handle("/api/admin/reports/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.UpdateReportStatus))))
 
+	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการหมวดหมู่นิยาย
+	adminCategoriesSubRouter := middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPatch:
+			handlers.AdminUpdateCategoryHandler(category)(w, r)
+		case http.MethodDelete:
+			handlers.AdminDeleteCategoryHandler(category)(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+	mux.Handle("/api/admin/categories", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			handlers.AdminCreateCategoryHandler(category)(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}))))
+	mux.Handle("/api/admin/categories/", adminCategoriesSubRouter)
+
 	// 🟢 กลุ่มแยกย่อยตาม Resource
 	// ------------------------------------------
 	mux.Handle("/categories", middleware.RequestLogger(handlers.GetAllCategoriesHandler(category)))
+
 	mux.Handle("/novels/", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(novelSubRouter(novel, scene, chapter, social, writer, reading, notificationService)))))
 
 	// 🔒 POST /chapters ต้องมีการยืนยันตัวตนผู้ใช้ (JWT Token)
