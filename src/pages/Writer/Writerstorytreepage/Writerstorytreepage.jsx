@@ -2710,7 +2710,7 @@ let orphanCounter = 0;
               className="wsg-toggle-btn"
               onClick={() => onNavigate && onNavigate("analytics")}
             >
-              วิเคราะห์การตัดสินใจ
+              วิเคราะห์การเลือกของนักอ่าน
             </button>
           </div>
           <button className="wst-topbar__add" onClick={() => onNavigate && onNavigate("chapters", { novelId })}>จัดการตอน</button>

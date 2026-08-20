@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./NotificationPage.css";
 import NotificationItem from "../../../components/Notification/NotificationItem";
@@ -97,6 +97,46 @@ export default function NotificationPage() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState("all");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [notifSettings, setNotifSettings] = useState(null);
+  const settingsRef = useRef(null);
+
+  const userObj = JSON.parse(localStorage.getItem("user") || "{}");
+  const isWriter = userObj.role === "writer" || userObj.role === "admin";
+
+  const activeTabs = useMemo(() => {
+    return [
+      { key: "all", label: "ทั้งหมด" },
+      { key: "unread", label: "ยังไม่อ่าน" },
+      { key: "system", label: "ระบบ" },
+      { key: "novel_update", label: "นิยาย" },
+      ...(isWriter ? [
+        { key: "comment", label: "คอมเมนต์" },
+        { key: "like", label: "ถูกใจ ❤️" },
+        { key: "follower", label: "ผู้ติดตาม" }
+      ] : [])
+    ];
+  }, [isWriter]);
+
+  const isCurrentTabDisabled = useMemo(() => {
+    if (!notifSettings) return false;
+    if (tab === "novel_update" && notifSettings.novel_updates === false) return true;
+    if (tab === "follower" && notifSettings.follows === false) return true;
+    if (tab === "comment" && notifSettings.comments === false) return true;
+    if (tab === "like" && notifSettings.likes === false) return true;
+    if (tab === "system" && notifSettings.in_app_notifications === false) return true;
+    return false;
+  }, [tab, notifSettings]);
+
+  const disabledNotifTypes = useMemo(() => {
+    if (!notifSettings) return [];
+    const list = [];
+    if (notifSettings.novel_updates === false) list.push("นิยายหรือตอนใหม่");
+    if (notifSettings.follows === false) list.push("นักเขียนที่ผู้ใช้ติดตาม");
+    if (notifSettings.comments === false) list.push("ความคิดเห็น");
+    if (notifSettings.likes === false && isWriter) list.push("การถูกใจ");
+    if (notifSettings.in_app_notifications === false) list.push("การแจ้งเตือนจากระบบ");
+    return list;
+  }, [notifSettings, isWriter]);
 
   const unreadCount = items.filter((i) => !i.read).length;
 
@@ -111,10 +151,40 @@ export default function NotificationPage() {
 
     setLoading(true);
     try {
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Load settings first
+      const settingsRes = await fetch(`${API_BASE_URL}/api/me/notification-settings`, { headers });
+      let settings = {
+        in_app_notifications: true,
+        novel_updates: true,
+        comments: true,
+        likes: true,
+        follows: true
+      };
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        settings = settingsData?.data || settingsData || settings;
+      }
+      setNotifSettings(settings);
+      settingsRef.current = settings;
+
       const payload = await requestJson(`/notifications?limit=50`);
       const data = payload?.data ?? payload;
       const list = Array.isArray(data) ? data : Array.isArray(data?.notifications) ? data.notifications : [];
-      setItems(list.map(normalizeNotification));
+      const normalized = list.map(normalizeNotification);
+
+      // Filter based on settings
+      const filteredList = normalized.filter(item => {
+        if (item.type === "novel_update" && settings.novel_updates === false) return false;
+        if (item.type === "follower" && settings.follows === false) return false;
+        if (item.type === "comment" && settings.comments === false) return false;
+        if (item.type === "like" && settings.likes === false) return false;
+        if (item.type === "system" && settings.in_app_notifications === false) return false;
+        return true;
+      });
+
+      setItems(filteredList);
       setError("");
     } catch (err) {
       console.error("โหลดแจ้งเตือนไม่สำเร็จ", err);
@@ -136,6 +206,16 @@ export default function NotificationPage() {
       try {
         const payload = JSON.parse(event.data);
         const incoming = normalizeNotification(payload);
+
+        const currentSettings = settingsRef.current;
+        if (currentSettings) {
+          if (incoming.type === "novel_update" && currentSettings.novel_updates === false) return;
+          if (incoming.type === "follower" && currentSettings.follows === false) return;
+          if (incoming.type === "comment" && currentSettings.comments === false) return;
+          if (incoming.type === "like" && currentSettings.likes === false) return;
+          if (incoming.type === "system" && currentSettings.in_app_notifications === false) return;
+        }
+
         setItems((prev) =>
           prev.some((item) => item.id === incoming.id) ? prev : [incoming, ...prev]
         );
@@ -326,7 +406,7 @@ export default function NotificationPage() {
 
       {/* ================= TAB ================= */}
       <div className="notification-tabs" role="tablist" aria-label="กรองการแจ้งเตือน">
-        {TABS.map((tabItem) => {
+        {activeTabs.map((tabItem) => {
           const count =
             tabItem.key === "all"
               ? items.length
@@ -352,7 +432,31 @@ export default function NotificationPage() {
 
       {/* ================= CONTENT ================= */}
       <div className="notification-content">
-        {loading ? (
+        {isCurrentTabDisabled ? (
+          <div className="notification-empty" style={{ padding: "40px 20px" }}>
+            <div className="empty-icon">⚠️</div>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 800 }}>การแจ้งเตือนหมวดนี้ถูกปิดอยู่</h2>
+            <p style={{ maxWidth: "380px", margin: "8px auto 16px auto", color: "#64748b", fontSize: "0.85rem" }}>
+              คุณได้ปิดการแจ้งเตือนนี้ไว้ในหน้าตั้งค่าระบบ ทำให้ไม่มีข้อความแจ้งเตือนใหม่เข้ามาและไม่แสดงผลในหมวดนี้ค่ะ
+            </p>
+            <button 
+              type="button" 
+              onClick={() => navigate("/settings")} 
+              style={{
+                padding: "10px 20px",
+                backgroundColor: "var(--pink-500)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+                fontSize: "0.85rem"
+              }}
+            >
+              ไปเปิดที่หน้าตั้งค่า
+            </button>
+          </div>
+        ) : loading ? (
           <div className="notification-empty">
             <div className="empty-icon notification-spinner">⏳</div>
             <h2>กำลังโหลดการแจ้งเตือน…</h2>
@@ -366,47 +470,93 @@ export default function NotificationPage() {
               ลองอีกครั้ง
             </button>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="notification-empty">
-            <div className="empty-icon">
-              {hasItems ? "🔍" : "🔔"}
-            </div>
-            <h2>
-              {hasItems ? "ไม่มีรายการในหมวดนี้" : "ยังไม่มีการแจ้งเตือน"}
-            </h2>
-            <p>
-              {hasItems
-                ? "ลองเลือกแท็บอื่นเพื่อดูการแจ้งเตือนประเภทอื่น"
-                : "การแจ้งเตือนใหม่จะปรากฏที่นี่"}
-            </p>
-            {hasItems ? (
-              <button type="button" onClick={() => setTab("all")}>
-                ดูทั้งหมด
-              </button>
-            ) : (
-              <button type="button" onClick={() => navigate("/")}>
-                ไปสำรวจนิยาย
-              </button>
-            )}
-          </div>
         ) : (
-          ["วันนี้", "เมื่อวาน", "สัปดาห์นี้", "เก่ากว่านี้"]
-            .filter((group) => grouped[group])
-            .map((group) => (
-              <section key={group} className="notification-group">
-                <h3 className="group-title">{group}</h3>
-                <div className="notification-group-list">
-                  {grouped[group].map((notification) => (
-                    <NotificationItem
-                      key={notification.id}
-                      notification={notification}
-                      onClick={handleNotificationClick}
-                      onDelete={deleteNotification}
-                    />
-                  ))}
+          <>
+            {(tab === "all" || tab === "unread") && disabledNotifTypes.length > 0 && (
+              <div style={{
+                margin: "0 0 16px 0",
+                padding: "12px 16px",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fee2e2",
+                borderRadius: "12px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "1.1rem" }}>⚠️</span>
+                  <span style={{ fontSize: "0.82rem", color: "#991b1b", fontWeight: 600, textAlign: "left", lineHeight: 1.4 }}>
+                    คุณปิดการแจ้งเตือน ({disabledNotifTypes.join(", ")}) อยู่ หากต้องการรับข้อมูลกรุณาไปเปิดใช้งานที่หน้าตั้งค่าค่ะ
+                  </span>
                 </div>
-              </section>
-            ))
+                <button 
+                  type="button" 
+                  onClick={() => navigate("/settings")}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#ef4444",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    transition: "background-color 0.2s"
+                  }}
+                  onMouseOver={(e) => e.target.style.backgroundColor = "#dc2626"}
+                  onMouseOut={(e) => e.target.style.backgroundColor = "#ef4444"}
+                >
+                  ไปหน้าตั้งค่า
+                </button>
+              </div>
+            )}
+
+            {filtered.length === 0 ? (
+              <div className="notification-empty">
+                <div className="empty-icon">
+                  {hasItems ? "🔍" : "🔔"}
+                </div>
+                <h2>
+                  {hasItems ? "ไม่มีรายการในหมวดนี้" : "ยังไม่มีการแจ้งเตือน"}
+                </h2>
+                <p>
+                  {hasItems
+                    ? "ลองเลือกแท็บอื่นเพื่อดูการแจ้งเตือนประเภทอื่น"
+                    : "การแจ้งเตือนใหม่จะปรากฏที่นี่"}
+                </p>
+                {hasItems ? (
+                  <button type="button" onClick={() => setTab("all")}>
+                    ดูทั้งหมด
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => navigate("/")}>
+                    ไปสำรวจนิยาย
+                  </button>
+                )}
+              </div>
+            ) : (
+              ["วันนี้", "เมื่อวาน", "สัปดาห์นี้", "เก่ากว่านี้"]
+                .filter((group) => grouped[group])
+                .map((group) => (
+                  <section key={group} className="notification-group">
+                    <h3 className="group-title">{group}</h3>
+                    <div className="notification-group-list">
+                      {grouped[group].map((notification) => (
+                        <NotificationItem
+                          key={notification.id}
+                          notification={notification}
+                          onClick={handleNotificationClick}
+                          onDelete={deleteNotification}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))
+            )}
+          </>
         )}
       </div>
     </div>

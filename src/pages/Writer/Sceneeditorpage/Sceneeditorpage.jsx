@@ -885,11 +885,11 @@ const SceneTreeSidebar = ({
     return safeChapters
       .map((ch, chapterIndex) => {
         const chapterTitle = ch.title || ch.chapterTitle || "";
-        const chapterMatches = query ? chapterTitle.toLowerCase().includes(query) : false;
+        const chapterMatches = query ? chapterTitle.toLowerCase().includes(query) : true;
 
         const scenes = (ch.scenes || []).filter((scene) => {
           const title = (scene.title || scene.scene_title || scene.sceneTitle || scene.label || "").toLowerCase();
-          const contentMatch = query ? (title.includes(query) || chapterMatches) : true;
+          const contentMatch = query ? (title.includes(query) || chapterTitle.toLowerCase().includes(query)) : true;
 
           const publishState = getScenePublishState(scene, ch);
           const filterMatch =
@@ -900,12 +900,19 @@ const SceneTreeSidebar = ({
           return contentMatch && filterMatch;
         });
 
-        if (scenes.length > 0) {
+        // หากไม่มีคำค้นหา และเลือกประเภทตัวกรองทั้งหมด -> ให้แสดงตอนทั้งหมดเสมอ แม้ไม่มีฉากย่อยก็ตาม
+        if (!query && sceneFilter === "all") {
+          return { ...ch, scenes: ch.scenes || [] };
+        }
+
+        // หากมีคำค้นหา และชื่อตอนตรงกับคำค้นหา
+        if (query && chapterTitle.toLowerCase().includes(query)) {
           return { ...ch, scenes };
         }
 
-        if (chapterMatches && sceneFilter === "all") {
-          return { ...ch, scenes: ch.scenes || [] };
+        // หากมีฉากย่อยที่ตรงกับฟิลเตอร์/คำค้นหา
+        if (scenes.length > 0) {
+          return { ...ch, scenes };
         }
 
         return null;
@@ -951,7 +958,9 @@ const SceneTreeSidebar = ({
             const currentSceneObj = safeChapters
               .flatMap((ch) => ch.scenes || [])
               .find((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId));
-            const resolvedSceneType = currentSceneObj?.type || currentSceneObj?.scene_type || (isEnding ? "ending" : "normal");
+            const resolvedSceneType = isEnding 
+              ? "ending" 
+              : (currentSceneObj?.type === "start" || currentSceneObj?.type === "starting" ? "start" : "normal");
 
             if (resolvedSceneType === "start" || resolvedSceneType === "starting") {
               return (
@@ -1100,7 +1109,7 @@ const SceneTreeSidebar = ({
         </button>
       </div>
 
-      <div className="se-tree__list" style={{ flex: 1 }}>
+      <div className="se-tree__list" style={{ flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 350px)", paddingRight: "4px" }}>
         {filteredChapters.map((ch, chapterIndex) => {
           const chapterKey = ch.id ?? ch.chapter_id ?? ch.ChapterID ?? chapterIndex;
           const isExpanded = expandedChapters.includes(chapterKey);
@@ -1146,7 +1155,9 @@ const SceneTreeSidebar = ({
                     const isCurrent = String(sceneIdValue) === String(currentSceneId);
 
                     const scDisplayNum = sceneIndex + 1;
-                    const sceneStatus = getSceneStatus(scene, safeChapters);
+                    const sceneStatus = isCurrent
+                      ? (isEnding ? "ending" : ((scene.type === "start" || scene.type === "starting" || scene.scene_type === "start" || scene.scene_type === "starting") ? "start" : "normal"))
+                      : getSceneStatus(scene, safeChapters);
                     const publishState = getScenePublishState(scene, ch);
 
                     let playIcon = null;
@@ -1406,6 +1417,7 @@ const SceneEditorPage = ({
   const [endingTitle, setEndingTitle] = useState("");
   const [endingType, setEndingType] = useState("true");
   const [endingDescription, setEndingDescription] = useState("");
+  const [nextSceneTarget, setNextSceneTarget] = useState(null);
   const [endingDescriptionEnabled, setEndingDescriptionEnabled] = useState(false);
   const [showEndingSettingsDialog, setShowEndingSettingsDialog] = useState(false);
   const [choices, setChoices] = useState([]);
@@ -1678,11 +1690,11 @@ const SceneEditorPage = ({
         setSceneType(resolvedSceneType);
 
         // ข้อมูลของส่วนฉากจบ (Ending Settings)
-        setIsEnding(
-          draftData?.sceneType === "ending" || draftData?.isEnding !== undefined
-            ? !!draftData.isEnding
-            : (sceneData.type === "ending" || sceneData.isEnding || sceneData.is_ending || false)
-        );
+        const isBackendEnding = sceneData.type === "ending" || sceneData.isEnding === true || sceneData.is_ending === true || sceneData.isEnding === "true" || sceneData.is_ending === "true";
+        const resolvedIsEnding = draftData?.isEnding !== undefined 
+          ? !!draftData.isEnding 
+          : (draftData?.sceneType === "ending" ? true : isBackendEnding);
+        setIsEnding(resolvedIsEnding);
         setEndingTitle(draftData?.endingTitle !== undefined ? draftData.endingTitle : (sceneData.endingTitle || sceneData.ending_title || ""));
         setEndingType(draftData?.endingType !== undefined ? draftData.endingType : (sceneData.endingType || sceneData.ending_type || "true"));
         setEndingDescription(draftData?.endingDescription !== undefined ? draftData.endingDescription : (sceneData.endingDescription || sceneData.ending_description || ""));
@@ -2283,11 +2295,10 @@ const SceneEditorPage = ({
     setErrorMsg(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
   }
 };
-  const savedText = lastSaved
-    ? `บันทึกแล้ว ${lastSaved.getHours().toString().padStart(2, "0")}:${lastSaved.getMinutes().toString().padStart(2, "0")} น.`
-    : draftSavedAt
-      ? `บันทึกอัตโนมัติ ${draftSavedAt.getHours().toString().padStart(2, "0")}:${draftSavedAt.getMinutes().toString().padStart(2, "0")} น.`
-      : null;
+  const savedTime = lastSaved || draftSavedAt;
+  const savedText = savedTime
+    ? `บันทึกล่าสุด ${savedTime.getHours().toString().padStart(2, "0")}:${savedTime.getMinutes().toString().padStart(2, "0")} น.`
+    : null;
 
   const safeChapters = Array.isArray(chapters) ? chapters : [];
 
@@ -2368,7 +2379,7 @@ const SceneEditorPage = ({
     }
   };
   const handleDiscardPendingAction = (action) => {
-    if (action === "back") {
+    if (action === "back" || action === "change-scene") {
       if (saveDraftTimer.current) {
         clearTimeout(saveDraftTimer.current);
       }
@@ -2383,6 +2394,15 @@ const SceneEditorPage = ({
         onNavigate("chapters", { novelId });
       } else {
         navigate(`/writer/${novelId}/chapters`);
+      }
+    } else if (action === "change-scene") {
+      if (nextSceneTarget) {
+        onNavigate("scene-editor", { 
+          novelId, 
+          chapterId: nextSceneTarget.chapterId, 
+          sceneId: nextSceneTarget.sceneId 
+        });
+        setNextSceneTarget(null);
       }
     }
   };
@@ -2404,6 +2424,15 @@ const SceneEditorPage = ({
         onNavigate("chapters", { novelId });
       } else {
         navigate(`/writer/${novelId}/chapters`);
+      }
+    } else if (action === "change-scene") {
+      if (nextSceneTarget) {
+        onNavigate("scene-editor", { 
+          novelId, 
+          chapterId: nextSceneTarget.chapterId, 
+          sceneId: nextSceneTarget.sceneId 
+        });
+        setNextSceneTarget(null);
       }
     }
   };
@@ -2616,7 +2645,15 @@ const SceneEditorPage = ({
           currentChapterId={effectiveChapterId}
           currentChapterTitle={chapterTitle}
           currentSceneLabel={sceneLabel}
-          onSelectScene={(chId, sId) => onNavigate("scene-editor", { novelId, chapterId: chId, sceneId: sId })}
+          onSelectScene={(chId, sId) => {
+            if (String(sId) === String(sceneId)) return;
+            if (isUnsaved) {
+              setNextSceneTarget({ chapterId: chId, sceneId: sId });
+              setPendingAction("change-scene");
+              return;
+            }
+            onNavigate("scene-editor", { novelId, chapterId: chId, sceneId: sId });
+          }}
           onAddScene={handleAddScene}
           onAddChapter={handleAddChapter}
           isPublished={isPublished}
@@ -2911,8 +2948,18 @@ const SceneEditorPage = ({
       {pendingAction && (
         <ConfirmModal
           title="มีเนื้อหาที่ยังไม่ได้บันทึก"
-          description={`กรุณาบันทึกข้อมูลก่อน${pendingAction === "preview" ? "เข้าสู่โหมดทดลองอ่าน" : "ออกจากหน้านี้"}เพื่อป้องกันการสูญหาย`}
-          cancelText={pendingAction === "back" ? "ออกโดยไม่บันทึก" : "ยกเลิก"}
+          description={
+            pendingAction === "preview"
+              ? "กรุณาบันทึกข้อมูลก่อนเข้าสู่โหมดทดลองอ่านเพื่อป้องกันการสูญหาย"
+              : pendingAction === "change-scene"
+              ? "กรุณาบันทึกข้อมูลก่อนสลับไปยังฉากอื่นเพื่อป้องกันการสูญหาย"
+              : "กรุณาบันทึกข้อมูลก่อนออกจากหน้านี้เพื่อป้องกันการสูญหาย"
+          }
+          cancelText={
+            pendingAction === "back" || pendingAction === "change-scene"
+              ? "ออกโดยไม่บันทึก"
+              : "ยกเลิก"
+          }
           confirmText="✓ บันทึก"
           onCancel={() => handleDiscardPendingAction(pendingAction)}
           onConfirm={() => handleConfirmPendingAction(pendingAction)}

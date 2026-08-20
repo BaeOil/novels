@@ -942,7 +942,7 @@ const SceneCard = ({
                 </span>
               ) : isEnding ? (
                 <span style={{ color: '#db2777', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                  🚩 ฉากจบ
+                  🚩 {formatEndingText()}
                 </span>
               ) : (
                 <span style={{ color: '#0369a1', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -1045,6 +1045,59 @@ const SceneCard = ({
                     </svg>
                     เขียนเนื้อหา
                   </button>
+
+                  {isChapterOneScene && !isStartScene && (
+                    <>
+                      <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
+                      <button
+                        style={{ 
+                          width: '100%', textAlign: 'left', background: 'none', border: 'none', 
+                          padding: '10px 16px', fontSize: '13.5px', color: '#2563eb', cursor: 'pointer', 
+                          fontWeight: '600', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: '8px',
+                          fontFamily: "'Sarabun', sans-serif"
+                        }}
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#eff6ff'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                        onClick={async () => {
+                          setIsMenuOpen(false);
+                          try {
+                            const authToken = getToken();
+                            const res = await fetch(`${API_BASE}/scenes/${sceneId}`, {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${authToken}`
+                              },
+                              body: JSON.stringify({
+                                title: sceneTitle,
+                                content: sceneContent,
+                                type: 'start',
+                                status: sceneStatus,
+                                is_ending: false,
+                                ending_title: endingTitle,
+                                ending_type: endingType,
+                                ending_description: scene?.ending_description ?? scene?.endingDescription ?? scene?.EndingDescription ?? ''
+                              })
+                            });
+                            if (!res.ok) {
+                              const errorText = await res.text().catch(() => 'ไม่สามารถตั้งฉากเริ่มต้นได้');
+                              alert(errorText || 'ไม่สามารถตั้งฉากเริ่มต้นได้');
+                              return;
+                            }
+                            await fetchScenes();
+                          } catch (err) {
+                            console.error(err);
+                            alert('ไม่สามารถตั้งฉากเริ่มต้นได้ กรุณาลองใหม่');
+                          }
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        ตั้งเป็นฉากเริ่มต้น
+                      </button>
+                    </>
+                  )}
                   
                   <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
                   
@@ -1239,6 +1292,7 @@ const ChapterPanel = ({
   const [isSavingTitle, setIsSavingTitle] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isPublishingAll, setIsPublishingAll] = useState(false);
+  const [isChapterMenuOpen, setIsChapterMenuOpen] = useState(false);
 
   const chapterId = chapter?.id ?? chapter?.chapter_id ?? chapter?.ChapterID;
   const chapterTitle = chapter?.title ?? "บทที่ไม่มีชื่อ";
@@ -1356,6 +1410,79 @@ const ChapterPanel = ({
 
         const sceneType = (scene?.type || scene?.Type || "normal").toString().toLowerCase();
         const nextSceneStatus = nextStatus;
+        const isEnding = sceneType === "ending" || Boolean(scene?.ending_title || scene?.EndingTitle || scene?.endingTitle);
+
+        const payload = {
+          title: scene?.title ?? scene?.Title ?? "",
+          content: scene?.content ?? scene?.Content ?? "",
+          type: isEnding ? "ending" : (sceneType || "normal"),
+          status: nextSceneStatus,
+          is_ending: isEnding,
+          ending_title: scene?.ending_title ?? scene?.EndingTitle ?? scene?.endingTitle ?? "",
+          ending_type: scene?.ending_type ?? scene?.EndingType ?? scene?.endingType ?? "",
+          ending_description: scene?.ending_description ?? scene?.endingDescription ?? scene?.EndingDescription ?? "",
+        };
+
+        const sceneRes = await fetch(`${API_BASE}/scenes/${sceneId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!sceneRes.ok) {
+          const errText = await sceneRes.text().catch(() => "");
+          throw new Error(errText || `อัปเดตฉาก ${sceneId} ไม่สำเร็จ`);
+        }
+
+        return sceneId;
+      });
+
+      await Promise.all(sceneUpdates);
+      await fetchScenes();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "เปลี่ยนสถานะตอนไม่สำเร็จ");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleUpdateChapterStatus = async (nextStatus) => {
+    if (blockIfBanned(novel)) return;
+    const currentStatus = (chapter?.status || chapter?.Status || "draft").toString().toLowerCase();
+    const targetStatus = nextStatus === "published" ? "published" : "draft";
+
+    if (currentStatus === targetStatus) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      const authToken = getToken();
+      const chapterRes = await fetch(`${API_BASE}/chapters/${chapterId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          episode: Number(chapterNumber),
+          title: chapterTitle,
+          status: targetStatus
+        })
+      });
+
+      if (!chapterRes.ok) {
+        throw new Error("เปลี่ยนสถานะตอนไม่สำเร็จ");
+      }
+
+      const sceneUpdates = (chapter?.scenes || []).map(async (scene) => {
+        const sceneId = scene?.scene_id ?? scene?.id ?? scene?.ID ?? scene?.SceneID;
+        if (!sceneId) return null;
+
+        const sceneType = (scene?.type || scene?.Type || "normal").toString().toLowerCase();
+        const nextSceneStatus = targetStatus;
         const isEnding = sceneType === "ending" || Boolean(scene?.ending_title || scene?.EndingTitle || scene?.endingTitle);
 
         const payload = {
@@ -1553,15 +1680,6 @@ const ChapterPanel = ({
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>
                     ตอนที่ {chapterNumber} : {chapterTitle}
                   </h3>
-                  {/* 🟢🔴 ป้ายสถานะตอนหลักขนาดใหญ่เห็นชัด */}
-                  <span style={{
-                    backgroundColor: isChapterDraft ? '#fee2e2' : '#dcfce7',
-                    color: isChapterDraft ? '#991b1b' : '#15803d',
-                    border: `1px solid ${isChapterDraft ? '#fca5a5' : '#86efac'}`,
-                    padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800'
-                  }}>
-                    {isChapterDraft ? "📌 ฉบับร่าง" : "🌐 เผยแพร่แล้ว"}
-                  </span>
                 </div>
                 {/* แสดงจำนวนฉากเผยแพร่แล้ว ใต้ชื่อตอนย่อย */}
                 <div style={{ fontSize: '13.5px', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
@@ -1573,52 +1691,140 @@ const ChapterPanel = ({
           </div>
         </div>
 
-        {/* ขวาสุด: แถวปุ่มปฏิบัติการแนวนอน 3 ปุ่มเรียงกัน พร้อมระบุวันอัปเดตล่าสุดไว้ใต้ปุ่ม */}
+        {/* ขวาสุด: แถวปุ่มปฏิบัติการที่มี Dropdown และปุ่มเมนูย่อย จุดสามจุด */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {/* 1. ปุ่มแก้ไขชื่อตอน */}
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '10px', flexWrap: 'wrap', position: 'relative' }}>
+            {/* 1. Dropdown เปลี่ยนสถานะเผยแพร่/ฉบับร่าง */}
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <select
+                value={isChapterDraft ? "draft" : "published"}
+                disabled={isUpdatingStatus || isNovelBanned}
+                onChange={(e) => handleUpdateChapterStatus(e.target.value)}
+                style={{
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  borderRadius: '20px',
+                  padding: '6px 28px 6px 12px',
+                  border: `1.5px solid ${!isChapterDraft ? '#86efac' : '#cbd5e1'}`,
+                  backgroundColor: !isChapterDraft ? '#e6f4ea' : '#f1f5f9',
+                  color: !isChapterDraft ? '#15803d' : '#475569',
+                  cursor: (isUpdatingStatus || isNovelBanned) ? 'not-allowed' : 'pointer',
+                  outline: 'none',
+                  appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23${!isChapterDraft ? '15803d' : '475569'}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 10px center',
+                  backgroundSize: '10px',
+                  fontFamily: "'Sarabun', sans-serif"
+                }}
+              >
+                <option value="draft">🔴 ฉบับร่าง</option>
+                <option value="published">🟢 เผยแพร่</option>
+              </select>
+            </div>
+
+            {/* 2. ปุ่มจุดสามจุด (⋮) ของการ์ดตอน */}
             <button
-              onClick={() => setIsEditingTitle(true)}
               style={{
-                backgroundColor: '#ffffff', border: '1px solid #cbd5e1', color: '#475569',
-                padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', transition: 'all 0.2s'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                color: '#475569',
+                border: '1px solid #cbd5e1',
+                borderRadius: '50%',
+                backgroundColor: isChapterMenuOpen ? '#f1f5f9' : '#fff',
+                transition: 'background 0.2s',
+                outline: 'none'
               }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+              onClick={() => setIsChapterMenuOpen(!isChapterMenuOpen)}
             >
-              แก้ไขชื่อตอน
+              ⋮
             </button>
 
-            {/* 2. ปุ่มเผยแพร่ฉากทั้งหมด */}
-            <button
-              onClick={handlePublishAllScenes}
-              disabled={isPublishingAll || isNovelBanned}
-              style={{
-                backgroundColor: '#dcfce7', border: '1.5px solid #86efac', color: '#15803d',
-                padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: '700', 
-                cursor: (isPublishingAll || isNovelBanned) ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => { if (!isPublishingAll && !isNovelBanned) e.currentTarget.style.backgroundColor = '#bbf7d0'; }}
-              onMouseOut={(e) => { if (!isPublishingAll && !isNovelBanned) e.currentTarget.style.backgroundColor = '#dcfce7'; }}
-            >
-              {isPublishingAll ? "กำลังเผยแพร่..." : "เผยแพร่ฉากทั้งหมด"}
-            </button>
+            {isChapterMenuOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998, backgroundColor: 'transparent' }}
+                  onClick={() => setIsChapterMenuOpen(false)}
+                />
+                <div style={{
+                  position: 'absolute',
+                  top: '38px',
+                  right: '0px',
+                  width: '180px',
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #f1f5f9',
+                  borderRadius: '14px',
+                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.08)',
+                  zIndex: 999,
+                  padding: '6px 0',
+                  overflow: 'hidden'
+                }}>
+                  {/* 2.1 แก้ไขชื่อตอน */}
+                  <button
+                    style={{ 
+                      width: '100%', textAlign: 'left', background: 'none', border: 'none', 
+                      padding: '10px 16px', fontSize: '13.5px', color: '#1e293b', cursor: 'pointer', 
+                      fontWeight: '600', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: '8px',
+                      fontFamily: "'Sarabun', sans-serif"
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                    onClick={() => { setIsChapterMenuOpen(false); setIsEditingTitle(true); }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    แก้ไขชื่อตอน
+                  </button>
 
-            {/* 3. ปุ่มลบตอนนี้ */}
-            <button
-              onClick={() => onDeleteChapter && onDeleteChapter(chapterId)}
-              style={{
-                backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#ef4444',
-                padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
-            >
-              ลบตอนนี้
-            </button>
+                  {/* 2.2 เผยแพร่ฉากทั้งหมด */}
+                  <button
+                    style={{ 
+                      width: '100%', textAlign: 'left', background: 'none', border: 'none', 
+                      padding: '10px 16px', fontSize: '13.5px', color: '#15803d', cursor: 'pointer', 
+                      fontWeight: '600', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: '8px',
+                      fontFamily: "'Sarabun', sans-serif"
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#eff6ff'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                    onClick={() => { setIsChapterMenuOpen(false); handlePublishAllScenes(); }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    เผยแพร่ฉากทั้งหมด
+                  </button>
+
+                  <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
+
+                  {/* 2.3 ลบตอนนี้ */}
+                  <button
+                    style={{ 
+                      width: '100%', textAlign: 'left', background: 'none', border: 'none', 
+                      padding: '10px 16px', fontSize: '13.5px', color: '#ef4444', cursor: 'pointer', 
+                      fontWeight: '600', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: '8px',
+                      fontFamily: "'Sarabun', sans-serif"
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#fef2f2'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                    onClick={() => { setIsChapterMenuOpen(false); onDeleteChapter && onDeleteChapter(chapterId); }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    ลบตอนนี้
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           
           {/* ข้อมูลวันเวลาอัปเดตล่าสุด */}
@@ -2120,20 +2326,23 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     const displayIndex = String(index + 1);
     const displayIndexZero = displayIndex.padStart(2, '0');
 
-    // 1. ตรวจสอบกรณีค้นหาด้วยตัวเลขล้วน (เช่น "2" หรือ "02")
+    // 1. ตรวจสอบกรณีตรงกับลำดับตอนด้วยตัวเลขล้วน (เช่น "2" หรือ "02")
     const isNumeric = /^\d+$/.test(search);
     if (isNumeric) {
-      return displayIndex === search || displayIndexZero === search;
+      if (displayIndex === search || displayIndexZero === search) {
+        return true;
+      }
     }
 
-    // 2. ตรวจสอบกรณีค้นหาด้วยเลขตอนพ่วงฉากย่อย (เช่น "1.1" หรือ "1.")
+    // 2. ตรวจสอบกรณีตรงกับเลขตอนพ่วงฉากย่อย (เช่น "1.1" หรือ "1.")
     const isDecimalPattern = /^\d+\.\d*$/.test(search);
     if (isDecimalPattern) {
       const scenes = ch.scenes || ch.Scenes || [];
-      return scenes.some((s, scIdx) => {
+      const isDecimalMatch = scenes.some((s, scIdx) => {
         const scDisplayNum = `${index + 1}.${scIdx + 1}`;
         return scDisplayNum === search || scDisplayNum.startsWith(search);
       });
+      if (isDecimalMatch) return true;
     }
 
     // 3. ค้นหาแบบข้อความทั่วไป (ชื่อตอน หรือ ชื่อฉากย่อย)

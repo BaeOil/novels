@@ -180,11 +180,12 @@ const LoginForm = ({ onSwitchToRegister }) => {
         setIsLoading(false);
         return;
       }
-
       if (data.token) {
         console.log("💾 Saving token to LocalStorage");
         localStorage.setItem('token', data.token);
+        localStorage.setItem('pw_len', password.length);
       }
+
       if (data.refresh_token) {
         console.log("💾 Saving refresh token to LocalStorage");
         localStorage.setItem('refresh_token', data.refresh_token);
@@ -424,11 +425,12 @@ const RegisterForm = ({ onSwitchToLogin }) => {
         setIsLoading(false);
         return;
       }
-
       if (data.token) {
         console.log("💾 Token received successfully! Storing to LocalStorage.");
         localStorage.setItem('token', data.token);
+        localStorage.setItem('pw_len', password.length);
       }
+
       if (data.refresh_token) {
         console.log("💾 Refresh token received successfully! Storing to LocalStorage.");
         localStorage.setItem('refresh_token', data.refresh_token);

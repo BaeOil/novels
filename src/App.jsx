@@ -22,6 +22,7 @@ import BookshelfPage from "./pages/Reader/BookshelfPage/BookshelfPage";
 import HistoryPage from "./pages/Reader/HistoryPage/HistoryPage";
 import FollowingWriters from "./pages/Reader/FollowingWriters/FollowingWriters";
 import NotificationPage from "./pages/Reader/NotificationPage/NotificationPage";
+import ReaderSetting from "./pages/Reader/ReaderSetting/ReaderSetting";
 
 import WriterDashboardPage from "./pages/Writer/WriterDashboardPage/WriterDashboardPage";
 import CreateNovelPage from "./pages/Writer/Createnovelpage/Createnovelpage";
@@ -31,6 +32,7 @@ import SceneEditorPage from "./pages/Writer/Sceneeditorpage/Sceneeditorpage";
 import EditNovelPage from "./pages/Writer/Editnovelpage/Editnovelpage";
 import WriterProfile from "./pages/Writer/WriterProfile/WriterProfile";
 import StatisticsGraph from "./pages/Writer/StatisticsGraph/StatisticsGraph";
+
 
 import Manageusers from "./pages/Admin/Manageusers/Manageusers";
 import WriterRequestsPage from "./pages/Admin/WriterRequestsPage/WriterRequestsPage";
@@ -625,8 +627,18 @@ const EditNovelRoute = () => {
 const WriterProfileRoute = () => {
   const navigate = useNavigate();
   return (
-    <ReaderLayout>
+    <WriterLayout>
       <WriterProfile onNavigate={createNavigateHandler(navigate)} />
+    </WriterLayout>
+  );
+};
+
+const ReaderSettingRoute = () => {
+  const navigate = useNavigate();
+  const navHandler = createNavigateHandler(navigate);
+  return (
+    <ReaderLayout>
+      <ReaderSetting onNavigate={navHandler} />
     </ReaderLayout>
   );
 };
@@ -860,6 +872,7 @@ function App() {
         <Route path="/history" element={<RequireAuthRoute><HistoryRoute /></RequireAuthRoute>} />
         <Route path="/following-writers" element={<RequireAuthRoute><FollowingWritersRoute /></RequireAuthRoute>} />
         <Route path="/notifications" element={<RequireAuthRoute><NotificationRoute /></RequireAuthRoute>} />
+        <Route path="/settings" element={<RequireAuthRoute><ReaderSettingRoute /></RequireAuthRoute>} />
         <Route path="/storytree/:novelId" element={<StoryTreeRoute />} />
         <Route path="/reading/:novelId" element={<ReadingRoute />} />
         <Route path="/reading/:novelId/:sceneId" element={<ReadingRoute />} />
@@ -870,6 +883,7 @@ function App() {
 
         {/* Writer Private Workspace Routes (ต้องล็อกอิน + เป็นนักเขียนเท่านั้น) */}
         <Route path="/writer/profile" element={<RequireWriterRoute><WriterProfileRoute /></RequireWriterRoute>} />
+        <Route path="/writer/settings" element={<Navigate to="/settings" replace />} />
         <Route path="/writer/dashboard" element={<RequireWriterRoute><WriterDashboardRoute /></RequireWriterRoute>} />
         <Route path="/writer/create" element={<RequireWriterRoute><CreateNovelRoute /></RequireWriterRoute>} />
         <Route path="/writer/:novelId/chapters" element={<RequireWriterRoute><ChapterManagerRoute /></RequireWriterRoute>} />

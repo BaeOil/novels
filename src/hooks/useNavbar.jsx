@@ -111,13 +111,47 @@ export function useNotifications(isLoggedIn) {
             return;
         }
         try {
-            const res = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const headers = { Authorization: `Bearer ${token}` };
+
+            // 1. Fetch settings
+            const settingsRes = await fetch(`${API_BASE_URL}/api/me/notification-settings`, { headers });
+            let settings = {
+                in_app_notifications: true,
+                novel_updates: true,
+                comments: true,
+                likes: true,
+                follows: true
+            };
+            if (settingsRes.ok) {
+                const settingsData = await settingsRes.json();
+                settings = settingsData?.data || settingsData || settings;
+            }
+
+            // 2. Fetch notifications to calculate setting-filtered count
+            const res = await fetch(`${API_BASE_URL}/notifications?limit=100`, {
+                headers,
                 credentials: "include",
             });
             if (res.ok) {
-                const data = await res.json();
-                setUnreadCount(Number(data?.data?.unread_count ?? data?.unread_count ?? 0));
+                const payload = await res.json();
+                const data = payload?.data ?? payload;
+                const list = Array.isArray(data) ? data : Array.isArray(data?.notifications) ? data.notifications : [];
+                
+                const filteredUnread = list.filter(item => {
+                    const isRead = Boolean(item.is_read ?? item.read);
+                    if (isRead) return false;
+
+                    const type = item.type === "follow" ? "follower" : item.type || "system";
+                    if (type === "novel_update" && settings.novel_updates === false) return false;
+                    if (type === "follower" && settings.follows === false) return false;
+                    if (type === "comment" && settings.comments === false) return false;
+                    if (type === "like" && settings.likes === false) return false;
+                    if (type === "system" && settings.in_app_notifications === false) return false;
+
+                    return true;
+                });
+                
+                setUnreadCount(filteredUnread.length);
             }
         } catch (err) {
             console.warn("useNotifications: fetch error:", err);
