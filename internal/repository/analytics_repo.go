@@ -14,6 +14,8 @@ type AnalyticsRepository interface {
 	GetSceneAnalytics(novelID, sceneID int) (*models.SceneAnalyticsStats, error)
 	// GetSceneChoiceAnalytics คืน stats สรุปสถิติ Choices ของฉากที่ระบุ
 	GetSceneChoiceAnalytics(novelID, sceneID int) (*models.SceneChoiceAnalyticsStats, error)
+	// GetAllScenesAnalytics คืน stats สรุปของทุกฉากในนิยาย
+	GetAllScenesAnalytics(novelID int) ([]models.AllScenesAnalyticsStats, error)
 }
 
 type postgresAnalyticsRepository struct {
@@ -69,8 +71,13 @@ func (r *postgresAnalyticsRepository) GetSceneChoiceAnalytics(novelID, sceneID i
 
 	for rows.Next() {
 		var cs models.ChoiceStat
-		if err := rows.Scan(&cs.ChoiceID, &cs.Label, &cs.ToSceneID, &cs.TargetSceneTitle, &cs.SelectionCount); err != nil {
+		var toSceneID sql.NullInt64
+		if err := rows.Scan(&cs.ChoiceID, &cs.Label, &toSceneID, &cs.TargetSceneTitle, &cs.SelectionCount); err != nil {
 			return nil, err
+		}
+		if toSceneID.Valid {
+			v := int(toSceneID.Int64)
+			cs.ToSceneID = &v
 		}
 		stats.Choices = append(stats.Choices, cs)
 	}
@@ -410,3 +417,58 @@ func (r *postgresAnalyticsRepository) GetNovelOverview(novelID int) (*models.Nov
 func roundFloat2(v float64) float64 {
 	return float64(int64(v*100+0.5)) / 100
 }
+
+func (r *postgresAnalyticsRepository) GetAllScenesAnalytics(novelID int) ([]models.AllScenesAnalyticsStats, error) {
+	query := `
+		WITH scene_visit AS (
+			SELECT s.scene_id, s.title, s.type,
+				SUM(ush.visit_count) AS total_visit_count,
+				COUNT(DISTINCT ush.user_id) AS visited_users
+			FROM scenes s
+			LEFT JOIN user_scene_history ush ON ush.scene_id = s.scene_id
+			WHERE s.novel_id = $1
+			GROUP BY s.scene_id, s.title, s.type
+		),
+		scene_continued AS (
+			SELECT c.from_scene_id AS scene_id,
+				COUNT(DISTINCT uch.user_id) AS continued_users
+			FROM user_choice_history uch
+			JOIN choices c ON c.choice_id = uch.choice_id
+			JOIN scenes s ON s.scene_id = c.from_scene_id
+			WHERE s.novel_id = $1
+			GROUP BY c.from_scene_id
+		)
+		SELECT sv.scene_id, sv.title,
+			COALESCE(sv.total_visit_count, 0) AS visit_count,
+			COALESCE(sv.visited_users, 0) AS unique_readers,
+			CASE WHEN sv.type = 'ending' OR sv.visited_users = 0 THEN 0
+				ELSE ROUND((sv.visited_users - COALESCE(sc.continued_users, 0))::numeric * 100.0 / NULLIF(sv.visited_users, 0), 2)
+			END AS drop_off_rate
+		FROM scene_visit sv
+		LEFT JOIN scene_continued sc ON sc.scene_id = sv.scene_id
+		ORDER BY sv.scene_id ASC
+	`
+	rows, err := r.db.Query(query, novelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []models.AllScenesAnalyticsStats
+	for rows.Next() {
+		var s models.AllScenesAnalyticsStats
+		var dropOffRate sql.NullFloat64
+		if err := rows.Scan(&s.SceneID, &s.Title, &s.VisitCount, &s.UniqueReaders, &dropOffRate); err != nil {
+			return nil, err
+		}
+		if dropOffRate.Valid {
+			s.DropOffRate = dropOffRate.Float64
+		}
+		results = append(results, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+

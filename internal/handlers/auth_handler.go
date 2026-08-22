@@ -14,10 +14,11 @@ import (
 type AuthHandler struct {
 	authService  *service.AuthService
 	mediaService service.MediaService
+	auditService service.AuditService
 }
 
-func NewAuthHandler(as *service.AuthService, ms service.MediaService) *AuthHandler {
-	return &AuthHandler{authService: as, mediaService: ms}
+func NewAuthHandler(as *service.AuthService, ms service.MediaService, auditService service.AuditService) *AuthHandler {
+	return &AuthHandler{authService: as, mediaService: ms, auditService: auditService}
 }
 
 // 📝 1. ท่อสมัครสมาชิก (Register) - รับ Multipart Form เผื่อการอัปโหลดรูปภาพ
@@ -68,6 +69,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "สมัครสมาชิกไม่สำเร็จ: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAuditWithBackendActor(r, h.auditService, &res.User.ID, res.User.Role, service.AuditEvent{Action: "REGISTER", TargetType: "user", TargetID: int64Pointer(int(res.User.ID)), Status: "SUCCESS", Metadata: map[string]interface{}{"email": res.User.Email, "username": res.User.Username}})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -87,7 +89,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
 		return
 	}
-
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, "กรุณากรอกอีเมลและรหัสผ่าน", http.StatusBadRequest)
 		return
@@ -100,6 +101,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
+	recordAuditWithBackendActor(r, h.auditService, &res.User.ID, res.User.Role, service.AuditEvent{Action: "LOGIN", TargetType: "user", TargetID: int64Pointer(int(res.User.ID)), Status: "SUCCESS", Metadata: map[string]interface{}{"email": res.User.Email}})
 
 	// พ่นข้อมูลตั๋วพร้อมรายละเอียดประวัติผู้ใช้กลับไปให้หน้าบ้านจัดเก็บลง LocalStorage/Cookie
 	w.Header().Set("Content-Type", "application/json")
@@ -136,6 +138,11 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+	if userID, ok := middleware.GetUserIDFromContext(r.Context()); ok && userID != 0 {
+		if user, err := h.authService.GetUserByID(r.Context(), userID); err == nil && user != nil {
+			recordAudit(r, h.auditService, service.AuditEvent{Action: "LOGOUT", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"email": user.Email}})
+		}
 	}
 
 	// ในระบบ JWT ปัจจุบัน เราใช้ token แบบ stateless จึงไม่มีการเก็บสถานะเซสชันใน server
@@ -227,6 +234,7 @@ func (h *AuthHandler) UpdateOwnUsername(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "username"}})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -273,6 +281,7 @@ func (h *AuthHandler) UpdateOwnEmail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "email"}})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -323,6 +332,7 @@ func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "profile_picture"}})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -378,6 +388,7 @@ func (h *AuthHandler) UpdateOwnProfilePicture(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAuditWithBackendActor(r, h.auditService, nil, "", service.AuditEvent{Action: "DELETE_ACCOUNT", TargetType: "user", TargetID: nil, Status: "SUCCESS", Metadata: map[string]interface{}{"deleted_user_id": userID}})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

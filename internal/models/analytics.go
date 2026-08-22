@@ -76,7 +76,7 @@ type SceneChoiceAnalyticsStats struct {
 type ChoiceStat struct {
 	ChoiceID         int     `json:"choice_id"`
 	Label            string  `json:"label"`
-	ToSceneID        int     `json:"to_scene_id"`
+	ToSceneID        *int    `json:"to_scene_id"`
 	TargetSceneTitle string  `json:"target_scene_title"`
 	SelectionCount   int64   `json:"selection_count"` // COUNT(*) จาก user_choice_history
 	Percentage       float64 `json:"percentage"`      // % สัดส่วนเทียบกับยอดเลือก choices ทั้งหมดในฉากนี้
@@ -89,3 +89,13 @@ type TopChoiceStat struct {
 	SelectionCount int64   `json:"selection_count"`
 	Percentage     float64 `json:"percentage"`
 }
+
+// AllScenesAnalyticsStats คือ Analytics สรุปของทุกฉากในนิยาย
+type AllScenesAnalyticsStats struct {
+	SceneID       int     `json:"scene_id"`
+	Title         string  `json:"title"`
+	VisitCount    int64   `json:"visit_count"`
+	UniqueReaders int64   `json:"unique_readers"`
+	DropOffRate   float64 `json:"drop_off_rate"`
+}
+

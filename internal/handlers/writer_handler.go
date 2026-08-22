@@ -54,10 +54,11 @@ type WriterHandler struct {
 	service             service.WriterService
 	mediaService        service.MediaService
 	notificationService service.NotificationService
+	auditService        service.AuditService
 }
 
-func NewWriterHandler(s service.WriterService, ms service.MediaService, ns service.NotificationService) *WriterHandler {
-	return &WriterHandler{service: s, mediaService: ms, notificationService: ns}
+func NewWriterHandler(s service.WriterService, ms service.MediaService, ns service.NotificationService, auditService service.AuditService) *WriterHandler {
+	return &WriterHandler{service: s, mediaService: ms, notificationService: ns, auditService: auditService}
 }
 
 // ✍️ 1. ท่อยื่นคำขอเป็นนักเขียน -> POST /api/writers/apply
@@ -185,6 +186,7 @@ func (h *WriterHandler) Approve(w http.ResponseWriter, r *http.Request) {
 			log.Printf("NotifyWriterApproved failed: %v", err)
 		}
 	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "APPROVE_WRITER", TargetType: "writer", TargetID: int64Pointer(writerID), Status: "SUCCESS"})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "อนุมัตินักเขียนเรียบร้อยแล้ว ยูสเซอร์ดังกล่าวพร้อมเขียนนิยายแล้วค่ะ!"})
@@ -316,6 +318,7 @@ func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {
 			log.Printf("NotifyWriterRejected failed: %v", err)
 		}
 	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "REJECT_WRITER", TargetType: "writer", TargetID: int64Pointer(int(writerID)), Status: "SUCCESS", Metadata: map[string]interface{}{"rejection_reason": req.RejectionReason}})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{

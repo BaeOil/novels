@@ -11,6 +11,7 @@ import (
 type ReportService interface {
 	CreateReport(ctx context.Context, userID int, req dto.CreateReportRequest) error
 	GetPendingReports(ctx context.Context) ([]dto.ReportResponse, error)
+	GetReportStatus(ctx context.Context, reportID int) (string, error)
 	UpdateReportStatus(ctx context.Context, reportID int, req dto.UpdateReportStatusRequest) error
 	CreateAppeal(ctx context.Context, userID int, req dto.CreateAppealRequest) error
 }
@@ -66,4 +67,8 @@ func (s *reportService) CreateAppeal(ctx context.Context, userID int, req dto.Cr
 
 	// เรียกใช้งาน repository
 	return s.repo.CreateAppeal(ctx, userID, req)
+}
+
+func (s *reportService) GetReportStatus(ctx context.Context, reportID int) (string, error) {
+	return s.repo.GetStatus(ctx, reportID)
 }

@@ -18,6 +18,7 @@ var (
 
 type CategoryService interface {
 	GetCategories() ([]models.Category, error)
+	GetCategory(ctx context.Context, id int) (*models.Category, error)
 	CreateCategory(ctx context.Context, name string) (*models.Category, error)
 	UpdateCategory(ctx context.Context, id int, name string) (*models.Category, error)
 	DeleteCategory(ctx context.Context, id int) error
@@ -34,6 +35,10 @@ func NewCategoryService(repo repository.CategoryRepository) CategoryService {
 func (s *categoryService) GetCategories() ([]models.Category, error) {
 	// เรียกใช้งาน Repository เพื่อดึงข้อมูล
 	return s.repo.GetAllCategories()
+}
+
+func (s *categoryService) GetCategory(ctx context.Context, id int) (*models.Category, error) {
+	return s.repo.GetCategoryByID(ctx, id)
 }
 
 func (s *categoryService) CreateCategory(ctx context.Context, name string) (*models.Category, error) {

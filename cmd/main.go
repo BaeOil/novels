@@ -71,6 +71,7 @@ func main() {
 	authRepo := repository.NewAuthRepository(dbConn)
 	writerRepo := repository.NewWriterRepository(dbConn) // 👈 ผูกเชื่อมตารางสมัครนักเขียนเข้าฐานข้อมูลจริง
 	reportRepo := repository.NewReportRepository(dbConn)
+	auditRepo := repository.NewAuditRepository(dbConn)
 
 	// Ensure MinIO bucket exists
 	ctx := context.Background()
@@ -102,6 +103,7 @@ func main() {
 	authService := service.NewAuthService(authRepo)
 	notificationService := service.NewNotificationService(dbConn)
 	reportService := service.NewReportService(reportRepo)
+	auditService := service.NewAuditService(auditRepo)
 
 	// 🟢 Analytics Service
 	analyticsRepo := repository.NewAnalyticsRepository(dbConn)
@@ -128,6 +130,7 @@ func main() {
 		notificationService,
 		reportService,
 		analyticsService,
+		auditService,
 	)
 
 	// -----------------------

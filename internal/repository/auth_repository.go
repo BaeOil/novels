@@ -37,14 +37,14 @@ func (r *sqlAuthRepository) CreateUser(ctx context.Context, user *models.User) e
 
 // GetByUsername ดึงข้อมูลจากฐานข้อมูลมาตรวจสอบตอนล็อกอิน
 func (r *sqlAuthRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
-	query := `SELECT user_id, username, email, password_hash, pic_profile, role, status, suspended_reason, suspended_at, last_action_by_admin_id FROM users WHERE username = $1`
+	query := `SELECT user_id, username, email, password_hash, pic_profile, role, status, suspended_reason, suspended_at, last_action_by_admin_id, created_at, updated_at FROM users WHERE username = $1`
 
 	var user models.User
 	var suspendedReason sql.NullString
 	var suspendedAt sql.NullTime
 	var lastActionByAdminID sql.NullInt64
 	err := r.db.QueryRowContext(ctx, query, username).
-		Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.PicProfile, &user.Role, &user.Status, &suspendedReason, &suspendedAt, &lastActionByAdminID)
+		Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.PicProfile, &user.Role, &user.Status, &suspendedReason, &suspendedAt, &lastActionByAdminID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -66,14 +66,14 @@ func (r *sqlAuthRepository) GetByUsername(ctx context.Context, username string) 
 }
 
 func (r *sqlAuthRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	query := `SELECT user_id, username, email, password_hash, pic_profile, role, status, suspended_reason, suspended_at, last_action_by_admin_id FROM users WHERE email = $1`
+	query := `SELECT user_id, username, email, password_hash, pic_profile, role, status, suspended_reason, suspended_at, last_action_by_admin_id, created_at, updated_at FROM users WHERE email = $1`
 
 	var user models.User
 	var suspendedReason sql.NullString
 	var suspendedAt sql.NullTime
 	var lastActionByAdminID sql.NullInt64
 	err := r.db.QueryRowContext(ctx, query, email).
-		Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.PicProfile, &user.Role, &user.Status, &suspendedReason, &suspendedAt, &lastActionByAdminID)
+		Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.PicProfile, &user.Role, &user.Status, &suspendedReason, &suspendedAt, &lastActionByAdminID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -96,14 +96,14 @@ func (r *sqlAuthRepository) GetByEmail(ctx context.Context, email string) (*mode
 
 // GetByID ดึงข้อมูลผู้ใช้จากไอดีของเขา (ใช้ตอนต้องการเรียกดูข้อมูลผู้ใช้ปัจจุบัน)
 func (r *sqlAuthRepository) GetByID(ctx context.Context, userID uint) (*models.User, error) {
-	query := `SELECT user_id, username, email, password_hash, pic_profile, role, status, suspended_reason, suspended_at, last_action_by_admin_id FROM users WHERE user_id = $1`
+	query := `SELECT user_id, username, email, password_hash, pic_profile, role, status, suspended_reason, suspended_at, last_action_by_admin_id, created_at, updated_at FROM users WHERE user_id = $1`
 
 	var user models.User
 	var suspendedReason sql.NullString
 	var suspendedAt sql.NullTime
 	var lastActionByAdminID sql.NullInt64
 	err := r.db.QueryRowContext(ctx, query, userID).
-		Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.PicProfile, &user.Role, &user.Status, &suspendedReason, &suspendedAt, &lastActionByAdminID)
+		Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.PicProfile, &user.Role, &user.Status, &suspendedReason, &suspendedAt, &lastActionByAdminID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil

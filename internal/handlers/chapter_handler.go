@@ -11,7 +11,7 @@ import (
 	"novel-be/internal/service"
 )
 
-func CreateChapterHandler(chapterService service.ChapterService, notificationService service.NotificationService) http.HandlerFunc {
+func CreateChapterHandler(chapterService service.ChapterService, notificationService service.NotificationService, novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -26,6 +26,13 @@ func CreateChapterHandler(chapterService service.ChapterService, notificationSer
 
 		if err := req.Validate(); err != nil {
 			RespondWithError3(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if err := requireWriterOwnsNovel(r.Context(), writerService, novelService, req.NovelID); err != nil {
+			if writeOwnershipError(w, err) {
+				return
+			}
+			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -43,12 +50,13 @@ func CreateChapterHandler(chapterService service.ChapterService, notificationSer
 		if err := notificationService.NotifyNovelChapterPublished(req.NovelID, chapterID); err != nil {
 			log.Printf("NotifyNovelChapterPublished failed: %v", err)
 		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": req.NovelID}})
 
 		RespondWithJSON(w, http.StatusCreated, map[string]any{"message": "chapter created", "chapter_id": chapterID})
 	}
 }
 
-func UpdateChapterHandler(chapterService service.ChapterService, sceneService service.SceneService) http.HandlerFunc {
+func UpdateChapterHandler(chapterService service.ChapterService, sceneService service.SceneService, novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
 			RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -87,6 +95,13 @@ func UpdateChapterHandler(chapterService service.ChapterService, sceneService se
 			RespondWithError3(w, http.StatusNotFound, "chapter not found")
 			return
 		}
+		if err := requireWriterOwnsNovel(r.Context(), writerService, novelService, chapter.NovelID); err != nil {
+			if writeOwnershipError(w, err) {
+				return
+			}
+			RespondWithError3(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		oldStatus := chapter.Status
 
@@ -116,6 +131,7 @@ func UpdateChapterHandler(chapterService service.ChapterService, sceneService se
 			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": chapter.NovelID}})
 
 		responsePayload := map[string]any{
 			"message": "chapter updated",
@@ -128,7 +144,7 @@ func UpdateChapterHandler(chapterService service.ChapterService, sceneService se
 	}
 }
 
-func DeleteChapterHandler(chapterService service.ChapterService) http.HandlerFunc {
+func DeleteChapterHandler(chapterService service.ChapterService, novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -140,11 +156,28 @@ func DeleteChapterHandler(chapterService service.ChapterService) http.HandlerFun
 			RespondWithError3(w, http.StatusBadRequest, "invalid chapter id")
 			return
 		}
+		chapter, err := chapterService.GetChapterByID(chapterID)
+		if err != nil {
+			RespondWithError3(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if chapter == nil {
+			RespondWithError3(w, http.StatusNotFound, "chapter not found")
+			return
+		}
+		if err := requireWriterOwnsNovel(r.Context(), writerService, novelService, chapter.NovelID); err != nil {
+			if writeOwnershipError(w, err) {
+				return
+			}
+			RespondWithError3(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		if err := chapterService.DeleteChapter(chapterID); err != nil {
 			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": chapter.NovelID}})
 
 		RespondWithJSON(w, http.StatusOK, map[string]any{"message": "chapter deleted"})
 	}

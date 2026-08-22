@@ -7,16 +7,17 @@ import (
 	"strings"
 
 	"novel-be/internal/dto"
-	"novel-be/internal/middleware" 
+	"novel-be/internal/middleware"
 	"novel-be/internal/service"
 )
 
 type ReportHandler struct {
-	service service.ReportService
+	service      service.ReportService
+	auditService service.AuditService
 }
 
-func NewReportHandler(service service.ReportService) *ReportHandler {
-	return &ReportHandler{service: service}
+func NewReportHandler(service service.ReportService, auditService service.AuditService) *ReportHandler {
+	return &ReportHandler{service: service, auditService: auditService}
 }
 
 // 📌 1. API: รับรีพอร์ตจากคนอ่าน
@@ -81,10 +82,16 @@ func (h *ReportHandler) UpdateReportStatus(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	previousStatus, err := h.service.GetReportStatus(r.Context(), reportID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := h.service.UpdateReportStatus(r.Context(), reportID, req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_REPORT_STATUS", TargetType: "report", TargetID: int64Pointer(reportID), Status: "SUCCESS", Metadata: map[string]interface{}{"old_status": previousStatus, "new_status": req.Status}})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

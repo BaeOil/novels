@@ -15,11 +15,12 @@ import (
 )
 
 type AdminUserHandler struct {
-	authService service.AuthService
+	authService  service.AuthService
+	auditService service.AuditService
 }
 
-func NewAdminUserHandler(authService service.AuthService) *AdminUserHandler {
-	return &AdminUserHandler{authService: authService}
+func NewAdminUserHandler(authService service.AuthService, auditService service.AuditService) *AdminUserHandler {
+	return &AdminUserHandler{authService: authService, auditService: auditService}
 }
 
 func (h *AdminUserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +121,7 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 		reason = strings.TrimSpace(*req.Reason)
 	}
 
+	previous, _ := h.authService.GetUserForAdmin(r.Context(), uint(userID))
 	err = h.authService.UpdateUserStatus(r.Context(), uint(userID), req.Status, reason, suspendedAt, adminID)
 	if err != nil {
 		if strings.Contains(err.Error(), "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้") {
@@ -129,6 +131,15 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	action := "UNSUSPEND_USER"
+	if req.Status == "suspended" {
+		action = "SUSPEND_USER"
+	}
+	metadata := map[string]interface{}{"new_status": req.Status, "reason": reason}
+	if previous != nil {
+		metadata["previous_status"] = previous.Status
+	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: action, TargetType: "user", TargetID: int64Pointer(userID), Status: "SUCCESS", Metadata: metadata})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -160,6 +171,7 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previous, _ := h.authService.GetUserForAdmin(r.Context(), uint(userID))
 	err = h.authService.DemoteUserToReader(r.Context(), uint(userID), adminID)
 	if err != nil {
 		if strings.Contains(err.Error(), "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้") {
@@ -169,6 +181,11 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	metadata := map[string]interface{}{"new_role": "reader"}
+	if previous != nil {
+		metadata["previous_role"] = previous.Role
+	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "CHANGE_ROLE", TargetType: "user", TargetID: int64Pointer(userID), Status: "SUCCESS", Metadata: metadata})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "ย้ายสถานะผู้ใช้เป็น reader สำเร็จแล้ว"})
@@ -208,6 +225,15 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previous, err := h.authService.GetUserForAdmin(r.Context(), uint(userID))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if previous == nil {
+		http.Error(w, "ไม่พบผู้ใช้งาน", http.StatusNotFound)
+		return
+	}
 	err = h.authService.DeleteUser(r.Context(), uint(userID), adminID)
 	if err != nil {
 		if strings.Contains(err.Error(), "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้") {
@@ -221,6 +247,8 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	metadata := map[string]interface{}{"username": previous.Username, "email": previous.Email, "role": previous.Role, "status": previous.Status}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "DELETE_USER", TargetType: "user", TargetID: int64Pointer(userID), Status: "SUCCESS", Metadata: metadata})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "ลบผู้ใช้สำเร็จแล้ว"})

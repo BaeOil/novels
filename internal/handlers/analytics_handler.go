@@ -245,6 +245,55 @@ func SceneChoiceAnalyticsHandler(
 	}
 }
 
+// AllScenesAnalyticsHandler จัดการ GET /api/v1/writer/novels/:id/analytics/scenes
+func AllScenesAnalyticsHandler(analyticsSvc service.AnalyticsService, novelSvc service.NovelService, writerSvc service.WriterService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			RespondWithError(w, http.StatusMethodNotAllowed, "method not allowed", "only GET is supported")
+			return
+		}
+		novelID, err := extractIDFromPath(r.URL.Path, "/api/v1/writer/novels/")
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, "invalid novel_id", err.Error())
+			return
+		}
+		userID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || userID == 0 {
+			RespondWithError(w, http.StatusUnauthorized, "unauthorized", "missing user context")
+			return
+		}
+		role, _ := middleware.GetRoleFromContext(r.Context())
+		if role != "admin" {
+			writer, err := writerSvc.GetWriterByUserID(int(userID))
+			if err != nil || writer == nil {
+				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูสถิตินิยายนี้", "not a writer")
+				return
+			}
+			novelDetail, err := novelSvc.GetNovelDetail(novelID)
+			if err != nil {
+				RespondWithError(w, http.StatusNotFound, "novel not found", err.Error())
+				return
+			}
+			novelPtr, ok := novelDetail.(*models.Novel)
+			if !ok || novelPtr == nil {
+				RespondWithError(w, http.StatusNotFound, "novel not found", "invalid novel detail")
+				return
+			}
+			if novelPtr.AuthorID != writer.WriterID {
+				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่ใช่เจ้าของนิยายนี้", "not the owner")
+				return
+			}
+		}
+		stats, err := analyticsSvc.GetAllScenesAnalytics(novelID)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, "เกิดข้อผิดพลาดในการดึงข้อมูลสถิติทุกฉาก", err.Error())
+			return
+		}
+		RespondWithJSON(w, http.StatusOK, stats)
+	}
+}
+
+
 // extractNovelAndSceneIDFromPath ถอด novelID และ sceneID จาก path เช่น /api/v1/writer/novels/1/analytics/scenes/5
 func extractNovelAndSceneIDFromPath(urlPath string) (int, int, error) {
 	prefix := "/api/v1/writer/novels/"

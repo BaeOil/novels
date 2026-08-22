@@ -27,7 +27,7 @@ type CategoryRequest struct {
 	Name string `json:"name"`
 }
 
-func AdminCreateCategoryHandler(s service.CategoryService) http.HandlerFunc {
+func AdminCreateCategoryHandler(s service.CategoryService, audit service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed", "method not allowed")
@@ -55,10 +55,11 @@ func AdminCreateCategoryHandler(s service.CategoryService) http.HandlerFunc {
 		}
 
 		RespondWithJSON(w, http.StatusCreated, c)
+		recordAudit(r, audit, service.AuditEvent{Action: "CREATE_CATEGORY", TargetType: "category", TargetID: int64Pointer(c.CategoryID), Status: "SUCCESS", Metadata: map[string]interface{}{"name": c.Name}})
 	}
 }
 
-func AdminUpdateCategoryHandler(s service.CategoryService) http.HandlerFunc {
+func AdminUpdateCategoryHandler(s service.CategoryService, audit service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch {
 			RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed", "method not allowed")
@@ -79,6 +80,19 @@ func AdminUpdateCategoryHandler(s service.CategoryService) http.HandlerFunc {
 			return
 		}
 
+		old, err := s.GetCategory(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, service.ErrCategoryNotFound) {
+				RespondWithError(w, http.StatusNotFound, "Category not found", err.Error())
+				return
+			}
+			RespondWithError(w, http.StatusInternalServerError, "Failed to read category snapshot", err.Error())
+			return
+		}
+		if old == nil {
+			RespondWithError(w, http.StatusNotFound, "Category not found", "category not found")
+			return
+		}
 		c, err := s.UpdateCategory(r.Context(), id, req.Name)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidCategoryName) {
@@ -98,10 +112,13 @@ func AdminUpdateCategoryHandler(s service.CategoryService) http.HandlerFunc {
 		}
 
 		RespondWithJSON(w, http.StatusOK, c)
+		metadata := map[string]interface{}{"new_name": c.Name}
+		metadata["old_name"] = old.Name
+		recordAudit(r, audit, service.AuditEvent{Action: "UPDATE_CATEGORY", TargetType: "category", TargetID: int64Pointer(id), Status: "SUCCESS", Metadata: metadata})
 	}
 }
 
-func AdminDeleteCategoryHandler(s service.CategoryService) http.HandlerFunc {
+func AdminDeleteCategoryHandler(s service.CategoryService, audit service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed", "method not allowed")
@@ -116,6 +133,19 @@ func AdminDeleteCategoryHandler(s service.CategoryService) http.HandlerFunc {
 			return
 		}
 
+		old, err := s.GetCategory(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, service.ErrCategoryNotFound) {
+				RespondWithError(w, http.StatusNotFound, "Category not found", err.Error())
+				return
+			}
+			RespondWithError(w, http.StatusInternalServerError, "Failed to read category snapshot", err.Error())
+			return
+		}
+		if old == nil {
+			RespondWithError(w, http.StatusNotFound, "Category not found", "category not found")
+			return
+		}
 		err = s.DeleteCategory(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, service.ErrCategoryNotFound) {
@@ -133,5 +163,7 @@ func AdminDeleteCategoryHandler(s service.CategoryService) http.HandlerFunc {
 		RespondWithJSON(w, http.StatusOK, map[string]string{
 			"message": "ลบหมวดหมู่สำเร็จแล้ว",
 		})
+		metadata := map[string]interface{}{"name": old.Name}
+		recordAudit(r, audit, service.AuditEvent{Action: "DELETE_CATEGORY", TargetType: "category", TargetID: int64Pointer(id), Status: "SUCCESS", Metadata: metadata})
 	}
 }

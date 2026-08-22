@@ -91,7 +91,7 @@ func UpdateScenePositionHandler(sceneService service.SceneService, novelService 
 	}
 }
 
-func CreateSceneHandler(sceneService service.SceneService, notificationService service.NotificationService) http.HandlerFunc {
+func CreateSceneHandler(sceneService service.SceneService, notificationService service.NotificationService, chapterService service.ChapterService, novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req CreateSceneRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -101,6 +101,18 @@ func CreateSceneHandler(sceneService service.SceneService, notificationService s
 
 		if err := req.Validate(); err != nil {
 			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		chapter, err := chapterService.GetChapterByID(req.ChapterID)
+		if err != nil || chapter == nil || chapter.NovelID != req.NovelID {
+			WriteError(w, http.StatusBadRequest, "chapter does not belong to novel")
+			return
+		}
+		if err := requireWriterOwnsNovel(r.Context(), writerService, novelService, chapter.NovelID); err != nil {
+			if writeOwnershipError(w, err) {
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -126,12 +138,13 @@ func CreateSceneHandler(sceneService service.SceneService, notificationService s
 		if err := notificationService.NotifySceneUpdated(req.NovelID, sceneID); err != nil {
 			log.Printf("NotifySceneUpdated failed: %v", err)
 		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": req.NovelID, "chapter_id": req.ChapterID}})
 
 		WriteJSON(w, http.StatusCreated, map[string]any{"message": "scene created", "scene_id": sceneID})
 	}
 }
 
-func UpdateSceneHandler(sceneService service.SceneService, notificationService service.NotificationService) http.HandlerFunc {
+func UpdateSceneHandler(sceneService service.SceneService, notificationService service.NotificationService, chapterService service.ChapterService, novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sceneID, err := extractIDFromPath(r.URL.Path, "/scenes/")
 		if err != nil {
@@ -142,6 +155,18 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 		existingScene, err := sceneService.GetScene(sceneID)
 		if err != nil {
 			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+		chapter, err := chapterService.GetChapterByID(existingScene.ChapterID)
+		if err != nil || chapter == nil || chapter.NovelID != existingScene.NovelID {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+		if err := requireWriterOwnsNovel(r.Context(), writerService, novelService, existingScene.NovelID); err != nil {
+			if writeOwnershipError(w, err) {
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -195,6 +220,8 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 
 		if err := notificationService.NotifySceneUpdated(scene.NovelID, sceneID); err != nil {
 			log.Printf("NotifySceneUpdated failed: %v", err)
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 
 		if req.Choices != nil {
@@ -203,6 +230,7 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 				return
 			}
 		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": scene.NovelID, "chapter_id": scene.ChapterID}})
 
 		responsePayload := map[string]any{
 			"message": "scene updated",
@@ -215,11 +243,28 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 	}
 }
 
-func DeleteSceneHandler(sceneService service.SceneService) http.HandlerFunc {
+func DeleteSceneHandler(sceneService service.SceneService, chapterService service.ChapterService, novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sceneID, err := extractIDFromPath(r.URL.Path, "/scenes/")
 		if err != nil {
 			WriteError(w, http.StatusBadRequest, "invalid id parameter")
+			return
+		}
+		existingScene, err := sceneService.GetScene(sceneID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+		chapter, err := chapterService.GetChapterByID(existingScene.ChapterID)
+		if err != nil || chapter == nil || chapter.NovelID != existingScene.NovelID {
+			WriteError(w, http.StatusNotFound, "scene not found")
+			return
+		}
+		if err := requireWriterOwnsNovel(r.Context(), writerService, novelService, existingScene.NovelID); err != nil {
+			if writeOwnershipError(w, err) {
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -227,6 +272,7 @@ func DeleteSceneHandler(sceneService service.SceneService) http.HandlerFunc {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": existingScene.NovelID, "chapter_id": existingScene.ChapterID}})
 
 		WriteJSON(w, http.StatusOK, map[string]any{"message": "scene deleted"})
 	}

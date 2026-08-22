@@ -1198,6 +1198,61 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /api/admin/audit-logs:
+    get:
+      summary: List admin audit logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - {in: query, name: actor_user_id, schema: {type: integer, minimum: 1}}
+        - {in: query, name: action, schema: {type: string}}
+        - {in: query, name: target_type, schema: {type: string}}
+        - {in: query, name: target_id, schema: {type: integer, minimum: 1}}
+        - {in: query, name: status, schema: {type: string}}
+        - {in: query, name: date_from, schema: {type: string, format: date-time}}
+        - {in: query, name: date_to, schema: {type: string, format: date-time}}
+        - {in: query, name: page, schema: {type: integer, minimum: 1, default: 1}}
+        - {in: query, name: limit, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+      responses:
+        '200':
+          description: Audit log page
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuditLogListResponse'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/admin/audit-logs/{id}:
+    get:
+      summary: Get an admin audit log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: integer, minimum: 1}
+      responses:
+        '200':
+          description: Audit log detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuditLog'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
   /writer/{id}:
     get:
       summary: Get public writer profile by writer_id
@@ -1220,7 +1275,12 @@ paths:
 
   /writer/{id}/bookshelf-counts:
     get:
-      summary: Get bookshelf count per novel for this writer
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuditLog'
       parameters:
         - in: path
           name: id
@@ -1316,6 +1376,17 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
 
   schemas:
+    SuccessResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        data:
+          nullable: true
+
     ErrorResponse:
       type: object
       required: [error]
@@ -1573,3 +1644,29 @@ components:
         approved_at:
           type: string
           format: date-time
+
+    AuditLog:
+      type: object
+      required: [log_id, actor_role, action, status, metadata, created_at]
+      properties:
+        log_id: {type: integer, format: int64}
+        actor_user_id: {type: integer, nullable: true}
+        actor_role: {type: string}
+        action: {type: string}
+        target_type: {type: string, nullable: true}
+        target_id: {type: integer, format: int64, nullable: true}
+        status: {type: string}
+        ip_address: {type: string, nullable: true}
+        metadata: {type: object, additionalProperties: true}
+        created_at: {type: string, format: date-time}
+
+    AuditLogListResponse:
+      type: object
+      required: [items, page, limit, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AuditLog'}
+        page: {type: integer}
+        limit: {type: integer}
+        total: {type: integer}

@@ -25,13 +25,15 @@ func RegisterRoutes(
 	notificationService service.NotificationService,
 	reportService service.ReportService,
 	analytics service.AnalyticsService,
+	audit service.AuditService,
 ) {
 	// ประกาศตัวด่านหน้าสำหรับ Authen และ ระบบคำขอนักเขียน
-	authHandler := handlers.NewAuthHandler(&auth, media)
-	writerHandler := handlers.NewWriterHandler(writer, media, notificationService)
-	adminUserHandler := handlers.NewAdminUserHandler(auth)
+	authHandler := handlers.NewAuthHandler(&auth, media, audit)
+	writerHandler := handlers.NewWriterHandler(writer, media, notificationService, audit)
+	adminUserHandler := handlers.NewAdminUserHandler(auth, audit)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
-	reportHandler := handlers.NewReportHandler(reportService)
+	reportHandler := handlers.NewReportHandler(reportService, audit)
+	auditHandler := handlers.NewAuditHandler(audit)
 
 	// ------------------------------------------
 	// 🟢 Health & Authen Endpoints
@@ -43,7 +45,7 @@ func RegisterRoutes(
 	mux.Handle("/api/register", middleware.RequestLogger(http.HandlerFunc(authHandler.Register)))
 	mux.Handle("/api/login", middleware.RequestLogger(http.HandlerFunc(authHandler.Login)))
 	mux.Handle("/api/refresh", middleware.RequestLogger(http.HandlerFunc(authHandler.Refresh)))
-	mux.Handle("/api/logout", middleware.RequestLogger(http.HandlerFunc(authHandler.Logout)))
+	mux.Handle("/api/logout", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(authHandler.Logout))))
 
 	// ดึงข้อมูลผู้ใช้ปัจจุบัน (ต้องมี Token ที่ถูกต้อง)
 	mux.Handle("/api/users", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(authHandler.GetUserInfo))))
@@ -135,10 +137,10 @@ func RegisterRoutes(
 	// POST /novels ต้องมีการยืนยันสิทธิ์ ก่อนสร้างนิยาย
 	mux.Handle("/novels", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
-			middleware.RequireAuth(handlers.NovelsHandler(novel, writer, notificationService)).ServeHTTP(w, r)
+			middleware.RequireAuth(handlers.NovelsHandler(novel, writer, notificationService, audit)).ServeHTTP(w, r)
 			return
 		}
-		handlers.NovelsHandler(novel, writer, notificationService)(w, r)
+		handlers.NovelsHandler(novel, writer, notificationService, audit)(w, r)
 	})))
 
 	// 🚨 ท่อฝั่งคนอ่าน: ส่งรายงานนิยาย (บังคับล็อกอินถึงจะรายงานได้)
@@ -150,10 +152,14 @@ func RegisterRoutes(
 	// 🟢 ท่อฝั่งนักเขียน: ดึงสถิตินิยาย (GET /api/v1/writer/novels/:id/analytics & GET /api/v1/writer/novels/:id/analytics/scenes/:sceneId)
 	mux.Handle("/api/v1/writer/novels/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
-			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteNovelHandler(novel, writer))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteNovelHandler(novel, writer, audit))).ServeHTTP(w, r)
 			return
 		}
 		if r.Method == http.MethodGet {
+			if strings.HasSuffix(r.URL.Path, "/analytics/scenes") {
+				middleware.RequireAuth(handlers.AllScenesAnalyticsHandler(analytics, novel, writer)).ServeHTTP(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.Path, "/choices") && strings.Contains(r.URL.Path, "/analytics/scenes/") {
 				middleware.RequireAuth(handlers.SceneChoiceAnalyticsHandler(analytics, novel, writer)).ServeHTTP(w, r)
 				return
@@ -214,21 +220,23 @@ func RegisterRoutes(
 
 	// PATCH /api/admin/reports/:id/status -> อัปเดตสถานะรีพอร์ต
 	mux.Handle("/api/admin/reports/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.UpdateReportStatus))))
+	mux.Handle("/api/admin/audit-logs", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(auditHandler.List))))
+	mux.Handle("/api/admin/audit-logs/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(auditHandler.GetByID))))
 
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการหมวดหมู่นิยาย
 	adminCategoriesSubRouter := middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPatch:
-			handlers.AdminUpdateCategoryHandler(category)(w, r)
+			handlers.AdminUpdateCategoryHandler(category, audit)(w, r)
 		case http.MethodDelete:
-			handlers.AdminDeleteCategoryHandler(category)(w, r)
+			handlers.AdminDeleteCategoryHandler(category, audit)(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
 	mux.Handle("/api/admin/categories", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
-			handlers.AdminCreateCategoryHandler(category)(w, r)
+			handlers.AdminCreateCategoryHandler(category, audit)(w, r)
 			return
 		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -239,14 +247,14 @@ func RegisterRoutes(
 	// ------------------------------------------
 	mux.Handle("/categories", middleware.RequestLogger(handlers.GetAllCategoriesHandler(category)))
 
-	mux.Handle("/novels/", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(novelSubRouter(novel, scene, chapter, social, writer, reading, notificationService)))))
+	mux.Handle("/novels/", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(novelSubRouter(novel, scene, chapter, social, writer, reading, notificationService, audit)))))
 
 	// 🔒 POST /chapters ต้องมีการยืนยันตัวตนผู้ใช้ (JWT Token)
 	mux.Handle("/chapters", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/chapters" && r.Method == http.MethodPost {
 			// ครอบด้วย RequireAuth เพื่อตรวจสอบ Token และถอดสิทธิ์ผู้ใช้
 			middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				handlers.CreateChapterHandler(chapter, notificationService)(w, r)
+				handlers.CreateChapterHandler(chapter, notificationService, novel, writer, audit)(w, r)
 			})).ServeHTTP(w, r)
 			return
 		}
@@ -254,14 +262,14 @@ func RegisterRoutes(
 	})))
 
 	// 📖 GET /chapters/:id/scenes เปิดอ่านได้ทั่วไป (แต่ใช้ OptionalAuth เผื่อมี Token ของผู้ใช้/นักเขียน)
-	mux.Handle("/chapters/", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(chapterSubRouter(scene, chapter, novel, writer)))))
+	mux.Handle("/chapters/", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(chapterSubRouter(scene, chapter, novel, writer, audit)))))
 
 	// 🔒 POST /scenes ต้องมีการยืนยันตัวตนผู้ใช้ (JWT Token)
 	mux.Handle("/scenes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/scenes" && r.Method == http.MethodPost {
 			// ครอบด้วย RequireAuth เพื่อตรวจสอบ Token และถอดสิทธิ์ผู้ใช้
 			middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				handlers.CreateSceneHandler(scene, notificationService)(w, r)
+				handlers.CreateSceneHandler(scene, notificationService, chapter, novel, writer, audit)(w, r)
 			})).ServeHTTP(w, r)
 			return
 		}
@@ -269,16 +277,16 @@ func RegisterRoutes(
 	})))
 
 	// 📖 GET /scenes/:id เปิดอ่านได้ทั่วไป (แต่ใช้ OptionalAuth เผื่อมี Token ของผู้ใช้/นักเขียน)
-	mux.Handle("/scenes/", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(sceneSubRouter(scene, novel, writer, chapter, social, notificationService)))))
+	mux.Handle("/scenes/", middleware.RequestLogger(middleware.OptionalAuth(http.HandlerFunc(sceneSubRouter(scene, novel, writer, chapter, social, notificationService, audit)))))
 
-	mux.Handle("/choices", middleware.RequestLogger(middleware.RequireAuth(handlers.CreateChoiceHandler(scene))))
+	mux.Handle("/choices", middleware.RequestLogger(middleware.RequireAuth(handlers.CreateChoiceHandler(scene, chapter, novel, writer, audit))))
 	mux.Handle("/choices/", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPut {
-			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateChoiceHandler(scene))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateChoiceHandler(scene, chapter, novel, writer, audit))).ServeHTTP(w, r)
 			return
 		}
 		if r.Method == http.MethodDelete {
-			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteChoiceHandler(scene))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteChoiceHandler(scene, chapter, novel, writer, audit))).ServeHTTP(w, r)
 			return
 		}
 		http.NotFound(w, r)
@@ -404,7 +412,7 @@ func RegisterRoutes(
 // 🛠️ Sub-Routers โซนทำความสะอาด สับเปลี่ยน Logic ออกมาข้างนอกเพื่อไม่ให้โค้ดหลักบวม
 // =========================================================================
 
-func novelSubRouter(novel service.NovelService, scene service.SceneService, chapter service.ChapterService, social service.SocialService, writer service.WriterService, reading service.ReadingService, notificationService service.NotificationService) http.HandlerFunc {
+func novelSubRouter(novel service.NovelService, scene service.SceneService, chapter service.ChapterService, social service.SocialService, writer service.WriterService, reading service.ReadingService, notificationService service.NotificationService, audit service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/novels/"), "/")
 
@@ -425,9 +433,9 @@ func novelSubRouter(novel service.NovelService, scene service.SceneService, chap
 		case r.Method == http.MethodPost && strings.HasSuffix(path, "/restart"):
 			middleware.RequireAuth(http.HandlerFunc(handlers.RestartStoryHandler(scene, reading, novel, chapter, writer))).ServeHTTP(w, r)
 		case r.Method == http.MethodPut && isNumericIDPath(path):
-			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateNovelHandler(novel, scene, writer, notificationService))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateNovelHandler(novel, scene, writer, notificationService, audit))).ServeHTTP(w, r)
 		case r.Method == http.MethodDelete && isNumericIDPath(path):
-			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteNovelHandler(novel, writer))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteNovelHandler(novel, writer, audit))).ServeHTTP(w, r)
 		case r.Method == http.MethodGet && isNumericIDPath(path):
 			handlers.GetNovelDetailHandler(novel, scene, social, writer)(w, r)
 		default:
@@ -436,7 +444,7 @@ func novelSubRouter(novel service.NovelService, scene service.SceneService, chap
 	}
 }
 
-func chapterSubRouter(scene service.SceneService, chapter service.ChapterService, novel service.NovelService, writer service.WriterService) http.HandlerFunc {
+func chapterSubRouter(scene service.SceneService, chapter service.ChapterService, novel service.NovelService, writer service.WriterService, audit service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/chapters/"), "/")
 		switch {
@@ -445,17 +453,17 @@ func chapterSubRouter(scene service.SceneService, chapter service.ChapterService
 			handlers.GetScenesByChapterHandler(scene, chapter, novel, writer)(w, r)
 		// 🔒 PUT /chapters/:id - อัปเดตสถานะ/ชื่อบท
 		case r.Method == http.MethodPut && isNumericIDPath(path):
-			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateChapterHandler(chapter, scene))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateChapterHandler(chapter, scene, novel, writer, audit))).ServeHTTP(w, r)
 		// 🔒 DELETE /chapters/:id - ลบตอน พร้อม RequireAuth
 		case r.Method == http.MethodDelete && isNumericIDPath(path):
-			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteChapterHandler(chapter))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteChapterHandler(chapter, novel, writer, audit))).ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
 	}
 }
 
-func sceneSubRouter(scene service.SceneService, novel service.NovelService, writer service.WriterService, chapter service.ChapterService, social service.SocialService, notificationService service.NotificationService) http.HandlerFunc {
+func sceneSubRouter(scene service.SceneService, novel service.NovelService, writer service.WriterService, chapter service.ChapterService, social service.SocialService, notificationService service.NotificationService, audit service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
 		switch {
@@ -471,11 +479,11 @@ func sceneSubRouter(scene service.SceneService, novel service.NovelService, writ
 			handlers.GetSceneHandler(scene, chapter, novel, writer)(w, r)
 		// 🔒 PUT /scenes/:id - อัปเดตฉากนิยาย
 		case r.Method == http.MethodPut && isNumericIDPath(path):
-			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateSceneHandler(scene, notificationService))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.UpdateSceneHandler(scene, notificationService, chapter, novel, writer, audit))).ServeHTTP(w, r)
 			return
 		// 🔒 DELETE /scenes/:id - ลบฉากนิยาย
 		case r.Method == http.MethodDelete && isNumericIDPath(path):
-			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteSceneHandler(scene))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.DeleteSceneHandler(scene, chapter, novel, writer, audit))).ServeHTTP(w, r)
 			return
 		default:
 			http.NotFound(w, r)

@@ -13,7 +13,7 @@ import (
 	"novel-be/internal/service"
 )
 
-func NovelsHandler(novelService service.NovelService, writerService service.WriterService, notificationService service.NotificationService) http.HandlerFunc {
+func NovelsHandler(novelService service.NovelService, writerService service.WriterService, notificationService service.NotificationService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -62,6 +62,7 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 				WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
+			recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_NOVEL", TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: map[string]interface{}{"title": req.Title, "status": resolvedStatus}})
 			if isPublished {
 				if err := notificationService.NotifyNewNovelPublished(novelID); err != nil {
 					log.Printf("NotifyNewNovelPublished failed: %v", err)
@@ -74,7 +75,7 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 	}
 }
 
-func DeleteNovelHandler(novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
+func DeleteNovelHandler(novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -120,12 +121,13 @@ func DeleteNovelHandler(novelService service.NovelService, writerService service
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_NOVEL", TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: map[string]interface{}{"title": novelPtr.Title, "status": novelPtr.Status, "author_id": novelPtr.AuthorID}})
 
 		WriteJSON(w, http.StatusOK, map[string]string{"message": "novel deleted"})
 	}
 }
 
-func UpdateNovelHandler(novelService service.NovelService, sceneService service.SceneService, writerService service.WriterService, notificationService service.NotificationService) http.HandlerFunc {
+func UpdateNovelHandler(novelService service.NovelService, sceneService service.SceneService, writerService service.WriterService, notificationService service.NotificationService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -313,6 +315,8 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		action := novelAuditAction(oldIsPublished, finalIsPublished)
+		recordAudit(r, auditService, service.AuditEvent{Action: action, TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: novelAuditMetadata(novelPtr, updatedNovel)})
 
 		if updatedNovel.IsPublished && !novelPtr.IsPublished {
 			if err := notificationService.NotifyNewNovelPublished(novelID); err != nil {
@@ -329,6 +333,33 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 
 		WriteJSON(w, http.StatusOK, responsePayload)
 	}
+}
+
+func novelAuditAction(oldPublished, newPublished bool) string {
+	if !oldPublished && newPublished {
+		return "PUBLISH_NOVEL"
+	}
+	if oldPublished && !newPublished {
+		return "UNPUBLISH_NOVEL"
+	}
+	return "UPDATE_NOVEL"
+}
+
+func novelAuditMetadata(oldNovel *models.Novel, newNovel models.Novel) map[string]interface{} {
+	metadata := make(map[string]interface{})
+	if oldNovel.Status != newNovel.Status {
+		metadata["old_status"] = oldNovel.Status
+		metadata["new_status"] = newNovel.Status
+	}
+	if oldNovel.Title != newNovel.Title {
+		metadata["old_title"] = oldNovel.Title
+		metadata["new_title"] = newNovel.Title
+	}
+	if oldNovel.IsCompleted != newNovel.IsCompleted {
+		metadata["old_is_completed"] = oldNovel.IsCompleted
+		metadata["new_is_completed"] = newNovel.IsCompleted
+	}
+	return metadata
 }
 
 // UnbanNovelHandler allows an admin to unban a novel

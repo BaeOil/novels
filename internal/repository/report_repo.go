@@ -12,8 +12,15 @@ import (
 type ReportRepository interface {
 	CreateReport(ctx context.Context, report models.Report) error
 	GetPendingReports(ctx context.Context) ([]dto.ReportResponse, error)
+	GetStatus(ctx context.Context, reportID int) (string, error)
 	UpdateReportStatus(ctx context.Context, reportID int, status string) error
 	CreateAppeal(ctx context.Context, authorUserID int, appeal dto.CreateAppealRequest) error
+}
+
+func (r *sqlReportRepository) GetStatus(ctx context.Context, reportID int) (string, error) {
+	var status string
+	err := r.db.QueryRowContext(ctx, `SELECT status FROM reports WHERE report_id = $1`, reportID).Scan(&status)
+	return status, err
 }
 
 type sqlReportRepository struct {

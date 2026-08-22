@@ -673,7 +673,7 @@ func GetNotificationSettings(db *sql.DB, userID int) (*models.NotificationSettin
 		SELECT
 			user_id, novel_update_enabled, follower_enabled,
 			like_enabled, comment_enabled, system_enabled
-		FROM notification_settings
+		FROM user_notification_settings
 		WHERE user_id = $1
 	`
 	var s models.NotificationSettings
@@ -699,7 +699,7 @@ func GetNotificationSettings(db *sql.DB, userID int) (*models.NotificationSettin
 
 func UpsertNotificationSettings(db *sql.DB, userID int, settings models.NotificationSettings) error {
 	query := `
-		INSERT INTO notification_settings (
+		INSERT INTO user_notification_settings (
 			user_id, novel_update_enabled, follower_enabled,
 			like_enabled, comment_enabled, system_enabled
 		)
