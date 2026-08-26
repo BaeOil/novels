@@ -334,7 +334,7 @@ const Navbar = () => {
                                                 </span>
                                             </button>
                                         </li>
-                                        <li className="nav-item nav-item-divider-container">
+                                        <li className="nav-item-divider-container">
                                             <span className="nav-menu-divider"></span>
                                         </li>
                                         <li className="nav-item">
@@ -620,20 +620,26 @@ const Navbar = () => {
                                             </div>
                                             <hr className="nav-dropdown__divider" />
 
+                                            {userData.role === "writer" && (
+                                                <button
+                                                    type="button"
+                                                    className="nav-dropdown__link-btn"
+                                                    onClick={() => {
+                                                        setIsDropdownOpen(false);
+                                                        navigate("/writer/profile");
+                                                    }}
+                                                >
+                                                    👤 โปรไฟล์ของฉัน
+                                                </button>
+                                            )}
+
                                             <button
                                                 type="button"
                                                 className="nav-dropdown__link-btn"
-                                                onClick={() => { 
-                                                    setIsDropdownOpen(false); 
-                                                    navigate(userData.role === "writer" ? "/writer/profile" : "/settings"); 
+                                                onClick={() => {
+                                                    setIsDropdownOpen(false);
+                                                    navigate("/settings");
                                                 }}
-                                            >
-                                                👤 โปรไฟล์ของฉัน
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="nav-dropdown__link-btn"
-                                                onClick={() => { setIsDropdownOpen(false); navigate("/settings"); }}
                                             >
                                                 ⚙️ ตั้งค่า
                                             </button>
