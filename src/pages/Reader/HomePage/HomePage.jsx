@@ -33,11 +33,12 @@ const getTagClass = (cat) => {
 
 const HomePage = ({ onNavigate }) => {
   const [novels, setNovels] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [continueReadingNovels, setContinueReadingNovels] = useState([]);
 
-  const [activeGenre, setActiveGenre] = useState("romance");
+  const [activeGenre, setActiveGenre] = useState("");
   const [isFollowed, setIsFollowed] = useState(false);
   const [followerOffset, setFollowerOffset] = useState(0); // 🟢 ตัวจำค่าเพิ่ม/ลดผู้ติดตามทันที
   const [toast, setToast] = useState({ isOpen: false, message: "" });
@@ -48,12 +49,22 @@ const HomePage = ({ onNavigate }) => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`${API_BASE_URL}/novels`);
+        const [response, responseCats] = await Promise.all([
+          fetch(`${API_BASE_URL}/novels`),
+          fetch(`${API_BASE_URL}/categories`)
+        ]);
         const payload = await response.json().catch(() => null);
+        const payloadCats = await responseCats.json().catch(() => null);
 
         if (!response.ok) {
           throw new Error(payload?.error || payload?.message || "ดึงข้อมูลไม่สำเร็จ");
         }
+
+        const catRaw = payloadCats?.data || payloadCats || [];
+        const formattedCats = Array.isArray(catRaw)
+          ? catRaw.map(c => ({ id: c.category_id || c.id, name: String(c.name || c.title || "").trim() }))
+          : [];
+        setCategories(formattedCats);
 
         const raw = payload?.data?.novels ?? payload?.data ?? payload?.novels ?? payload;
         const candidates = Array.isArray(raw) ? raw : (Array.isArray(raw?.novels) ? raw.novels : []);
@@ -137,22 +148,24 @@ const HomePage = ({ onNavigate }) => {
     return [...novels].sort((a, b) => b.id - a.id).slice(0, 6);
   }, [novels]);
 
-  const GENRES_LIST = [
-    { key: "romance", name: "โรแมนติก", emoji: "🌸" },
-    { key: "fantasy", name: "แฟนตาซี", emoji: "⚡" },
-    { key: "mystery", name: "สืบสวน", emoji: "🔍" },
-    { key: "horror", name: "สยองขวัญ", emoji: "🩸" },
-    { key: "scifi", name: "ไซไฟ", emoji: "🚀" },
-    { key: "comedy", name: "คอมเมดี้", emoji: "😂" },
-    { key: "drama", name: "ดราม่า", emoji: "🌿" },
-  ];
+  const GENRES_LIST = useMemo(() => {
+    return categories.map(cat => ({
+      key: cat.name,
+      name: cat.name
+    }));
+  }, [categories]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !activeGenre) {
+      setActiveGenre(categories[0].name);
+    }
+  }, [categories, activeGenre]);
 
   const spotlightNovels = useMemo(() => {
-    const activeLabel = GENRES_LIST.find(g => g.key === activeGenre)?.name || "โรแมนติก";
+    if (!activeGenre) return novels.slice(0, 4);
     const filtered = novels.filter(n =>
       n.categories.some(cat =>
-        cat.toLowerCase().includes(activeGenre) ||
-        cat.includes(activeLabel)
+        cat.toLowerCase().includes(activeGenre.toLowerCase())
       )
     );
     return filtered.length > 0 ? filtered.slice(0, 4) : novels.slice(0, 4);
@@ -513,8 +526,7 @@ const HomePage = ({ onNavigate }) => {
             {GENRES_LIST.map((g) => {
               const count = novels.filter(n =>
                 n.categories.some(cat =>
-                  cat.toLowerCase().includes(g.key) ||
-                  cat.includes(g.name)
+                  cat.toLowerCase().includes(g.key.toLowerCase())
                 )
               ).length;
               return (
@@ -523,7 +535,6 @@ const HomePage = ({ onNavigate }) => {
                   className={`genre-pill-card ${activeGenre === g.key ? "on" : ""}`}
                   onClick={() => setActiveGenre(g.key)}
                 >
-                  <div className="gpc-emoji">{g.emoji}</div>
                   <div>
                     <div className="gpc-name">{g.name}</div>
                     <div className="gpc-count">{count} เรื่อง</div>

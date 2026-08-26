@@ -147,6 +147,10 @@ const Navbar = () => {
             navigate(`/writer/${novelId}/storytree`);
             return;
         }
+        if (target === "analytics") {
+            navigate(`/writer/${novelId}/analytics`);
+            return;
+        }
         if (target === "write") {
             // เดิมพยายามเดา sceneId แรกแล้วพาไปตรงๆ แต่ถ้า API คืนข้อมูลไม่ตรง
             // สมมุติฐาน หรือฉากนั้นถูกลบไปแล้ว จะพาไปเจอหน้า error ดิบๆ ทันที
@@ -334,18 +338,35 @@ const Navbar = () => {
                                             <span className="nav-menu-divider"></span>
                                         </li>
                                         <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("chapters")}>
-                                                จัดการตอน
-                                            </button>
+                                            <button 
+                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/chapters") ? "active" : ""}`} 
+                                                 onClick={() => handleNovelMenu("chapters")}
+                                             >
+                                                 จัดการตอน
+                                             </button>
                                         </li>
+                                         <li className="nav-item">
+                                             <button 
+                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/scene/") ? "active" : ""}`} 
+                                                 onClick={() => handleNovelMenu("write")}
+                                             >
+                                                 เขียนเนื้อหา
+                                             </button>
+                                         </li>
                                         <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("write")}>
-                                                เขียนเนื้อหา
-                                            </button>
-                                        </li>
-                                        <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("tree")}>
+                                            <button 
+                                                className={`nav-menu-btn--pink ${location.pathname.includes("/storytree") ? "active" : ""}`} 
+                                                onClick={() => handleNovelMenu("tree")}
+                                            >
                                                 โครงสร้างเนื้อเรื่อง
+                                            </button>
+                                        </li>
+                                        <li className="nav-item">
+                                            <button 
+                                                className={`nav-menu-btn--pink ${location.pathname.includes("/analytics") ? "active" : ""}`} 
+                                                onClick={() => handleNovelMenu("analytics")}
+                                            >
+                                                สถิติทางเลือก
                                             </button>
                                         </li>
                                     </>
@@ -602,7 +623,10 @@ const Navbar = () => {
                                             <button
                                                 type="button"
                                                 className="nav-dropdown__link-btn"
-                                                onClick={() => { setIsDropdownOpen(false); navigate("/profile"); }}
+                                                onClick={() => { 
+                                                    setIsDropdownOpen(false); 
+                                                    navigate(userData.role === "writer" ? "/writer/profile" : "/settings"); 
+                                                }}
                                             >
                                                 👤 โปรไฟล์ของฉัน
                                             </button>

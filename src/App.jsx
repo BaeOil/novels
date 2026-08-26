@@ -37,6 +37,7 @@ import StatisticsGraph from "./pages/Writer/StatisticsGraph/StatisticsGraph";
 import Manageusers from "./pages/Admin/Manageusers/Manageusers";
 import WriterRequestsPage from "./pages/Admin/WriterRequestsPage/WriterRequestsPage";
 import AdminReportsDashboard from "./pages/Admin/AdminReportsDashboard/AdminReportsDashboard"; // 🟢 1. นำเข้า AdminReportsDashboard
+import AdminCategoryPage from "./pages/Admin/AdminCategoryPage/AdminCategoryPage";
 
 import AuthPage from "./pages/Auth/AuthPage";
 import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
@@ -898,6 +899,7 @@ function App() {
         <Route path="/admin/manage-users" element={<RequireAdminRoute><WriterRequestsPage /></RequireAdminRoute>} />
         {/* 🟢 2. เพิ่ม Route หน้ารายงาน/แจ้งลบ */}
         <Route path="/admin/reports" element={<RequireAdminRoute><AdminReportsDashboard /></RequireAdminRoute>} />
+        <Route path="/admin/categories" element={<RequireAdminRoute><AdminCategoryPage /></RequireAdminRoute>} />
 
         {/* Auth Routes - ไม่มี Navbar */}
         <Route path="/login-register" element={<AuthPageRoute />} />

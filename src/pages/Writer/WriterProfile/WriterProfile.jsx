@@ -318,11 +318,35 @@ export default function WriterProfile() {
   const contactReq = contactObj.contact_required || contactObj.primary_contact || "";
   const contactOpt = contactObj.contact_optional || contactObj.secondary_contact || "";
   const hasContactInfo = Boolean(writerInfo.emailWriter || contactReq || contactOpt);
-
-  return (
+return (
     <div className="profile-wrapper" style={{ paddingTop: isAdmin ? 0 : undefined }}>
       {isAdmin && <AdminModeBanner page="โปรไฟล์นักเขียน" />}
       <div className="profile-container">
+        {/* Back Button */}
+        <div style={{ marginBottom: "16px", display: "flex", justifyContent: "flex-start" }}>
+          <button 
+            onClick={() => navigate(-1)} 
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "white",
+              border: "1px solid #e2e8f0",
+              padding: "8px 16px",
+              borderRadius: "20px",
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              color: "#475569",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = "#f8fafc"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
+            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = "white"; e.currentTarget.style.borderColor = "#e2e8f0"; }}
+          >
+            ← ย้อนกลับ
+          </button>
+        </div>
 
         {/* ============================================================== */}
         {/* 1. Header Card (Dek-D / ReadAWrite Style - Compact & Clean) */}

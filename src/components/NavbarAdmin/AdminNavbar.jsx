@@ -8,7 +8,8 @@ import {
     BadgeCheck,
     Flag,
     Shield,
-    LogOut
+    LogOut,
+    FolderTree
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -127,6 +128,13 @@ const AdminNavbar = () => {
                         <Link to="/admin/reports">
                             <Flag size={18} strokeWidth={2} />
                             <span>รายงาน/แจ้งลบ</span>
+                        </Link>
+                    </li>
+
+                    <li className={`admin-nav-item ${isActive("/admin/categories") ? "admin-nav-item--active" : ""}`}>
+                        <Link to="/admin/categories">
+                            <FolderTree size={18} strokeWidth={2} />
+                            <span>จัดการหมวดหมู่</span>
                         </Link>
                     </li>
 

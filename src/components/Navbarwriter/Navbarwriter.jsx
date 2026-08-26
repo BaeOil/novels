@@ -353,6 +353,10 @@ const Navbarwriter = () => {
             window.location.href = `/writer/${novelId}/storytree`;
             return;
         }
+        if (target === "analytics") {
+            window.location.href = `/writer/${novelId}/analytics`;
+            return;
+        }
         if (target === "write") {
             try {
                 const token = localStorage.getItem("token");
@@ -608,19 +612,36 @@ const Navbarwriter = () => {
                                         <li className="nav-item nav-item-divider-container">
                                             <span className="nav-menu-divider"></span>
                                         </li>
+                                         <li className="nav-item">
+                                             <button 
+                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/chapters") ? "active" : ""}`} 
+                                                 onClick={() => handleNovelMenu("chapters")}
+                                             >
+                                                 จัดการตอน
+                                             </button>
+                                         </li>
                                         <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("chapters")}>
-                                                จัดการตอน
-                                            </button>
-                                        </li>
-                                        <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("write")}>
+                                            <button 
+                                                className={`nav-menu-btn--pink ${location.pathname.includes("/scene/") ? "active" : ""}`} 
+                                                onClick={() => handleNovelMenu("write")}
+                                            >
                                                 เขียนเนื้อหา
                                             </button>
                                         </li>
                                         <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("tree")}>
+                                            <button 
+                                                className={`nav-menu-btn--pink ${location.pathname.includes("/storytree") ? "active" : ""}`} 
+                                                onClick={() => handleNovelMenu("tree")}
+                                            >
                                                 โครงสร้างเนื้อเรื่อง
+                                            </button>
+                                        </li>
+                                        <li className="nav-item">
+                                            <button 
+                                                className={`nav-menu-btn--pink ${location.pathname.includes("/analytics") ? "active" : ""}`} 
+                                                onClick={() => handleNovelMenu("analytics")}
+                                            >
+                                                สถิติทางเลือก
                                             </button>
                                         </li>
                                     </>
@@ -806,6 +827,19 @@ const Navbarwriter = () => {
                                         </p>
                                     </div>
                                     <hr className="nav-dropdown__divider" />
+
+                                    <button
+                                        type="button"
+                                        className="nav-dropdown__link-btn"
+                                        onClick={() => {
+                                            setIsDropdownOpen(false);
+                                            navigate("/writer/profile");
+                                        }}
+                                    >
+                                        👤 โปรไฟล์ของฉัน
+                                    </button>
+
+                                    <hr className="nav-dropdown__divider" style={{ marginTop: "4px", marginBottom: "10px" }} />
 
                                     <button
                                         type="button"

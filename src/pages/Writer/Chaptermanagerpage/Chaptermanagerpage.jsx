@@ -1138,8 +1138,22 @@ const SceneCard = ({
       {/* ข้อความ Preview เนื้อหาของฉาก + ปุ่มเขียนเนื้อหาเด่นสะดุดตา */}
       <div style={{ padding: '0 20px 16px 20px', borderTop: '1px dashed #f1f5f9', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
         {/* Preview ข้อความเนื้อเรื่องย่อ */}
-        <p style={{ margin: 0, fontSize: '13px', color: '#64748b', whiteSpace: 'normal', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', lineHeight: '1.5', textAlign: 'left', flex: 1 }}>
-          {cleanTextPreview ? cleanTextPreview.substring(0, 180) + "..." : "ฉากนี้ยังไม่มีรายละเอียดเนื้อเรื่อง กดปุ่มเขียนเนื้อหาเพื่อเริ่มสร้างสรรค์"}
+        <p style={{ 
+          margin: 0, 
+          fontSize: '13.5px', 
+          color: cleanTextPreview ? '#64748b' : '#d97706', 
+          fontWeight: cleanTextPreview ? 'normal' : '700',
+          whiteSpace: 'normal', 
+          overflow: 'hidden', 
+          textOverflow: 'ellipsis', 
+          display: '-webkit-box', 
+          WebkitLineClamp: 1, 
+          WebkitBoxOrient: 'vertical', 
+          lineHeight: '1.5', 
+          textAlign: 'left', 
+          flex: 1 
+        }}>
+          {cleanTextPreview ? cleanTextPreview.substring(0, 180) + "..." : "⚠️ ฉากนี้ยังไม่มีเนื้อหา กดปุ่ม 'เขียนเนื้อหา' เพื่อเริ่มเขียนฉากนี้"}
         </p>
 
         {/* ✏️ ปุ่มเขียนเนื้อหาดีไซน์มินิมอลสีน้ำเงินอ่อน สบายตาและเข้ากับระบบ */}
@@ -1926,9 +1940,38 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [expandedChapters, setExpandedChapters] = useState([]);
+  const [expandedChapters, setExpandedChapters] = useState({});
+  const [activeSceneId, setActiveSceneId] = useState(null);
   const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+
+  // Auto-expand the active chapter on load or switch
+  useEffect(() => {
+    if (activeChapterId) {
+      setExpandedChapters(prev => ({ ...prev, [String(activeChapterId)]: true }));
+    }
+  }, [activeChapterId]);
+
+  const handleSceneClick = (chId, scId) => {
+    const scKey = String(scId);
+    setActiveSceneId(scKey);
+    const isCurrent = String(activeChapterId) === String(chId);
+    if (!isCurrent) {
+      setActiveChapterId(chId);
+      sessionStorage.setItem("focusSceneTarget", scKey);
+    } else {
+      const element = document.getElementById(`scene-card-${scId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const originalBoxShadow = element.style.boxShadow;
+        element.style.transition = 'box-shadow 0.4s ease-out';
+        element.style.boxShadow = '0 0 0 3px #db2777, 0 0 15px rgba(219, 39, 119, 0.4)';
+        setTimeout(() => {
+          element.style.boxShadow = originalBoxShadow || '0 8px 20px rgba(0, 0, 0, 0.04)';
+        }, 2000);
+      }
+    }
+  };
 
   const fetchNovelAndChapters = async (isSilent = false) => {
     if (!currentNovelId) {
@@ -2434,7 +2477,8 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
             const scenes = ch.scenes || ch.Scenes || [];
             
             const isCurrentActive = String(activeChapterId) === chKey;
-            const isExpanded = isCurrentActive;
+            const hasScenes = scenes.length > 0;
+            const isExpanded = !!expandedChapters[chKey] && hasScenes;
 
             // ค้นหาลำดับดัชนีที่แท้จริงของตอนย่อยจากรายการตอนทั้งหมด (chapters)
             const realChapterIndex = chapters.findIndex(c => {
@@ -2458,7 +2502,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                   background: isCurrentActive ? "#fffdfd" : "#ffffff",
                   boxShadow: isCurrentActive ? "0 4px 12px rgba(236, 72, 153, 0.05)" : "0 2px 6px rgba(0, 0, 0, 0.015)",
                   transition: "all 0.2s ease",
-                  padding: "4px"
+                  padding: "0"
                 }}
               >
                 {/* Chapter Card Row */}
@@ -2471,14 +2515,16 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                     alignItems: "flex-start",
                     gap: "6px",
                     padding: "12px 14px",
-                    borderRadius: "12px",
+                    borderRadius: "14px",
                     cursor: "pointer",
                     userSelect: "none",
-                    textAlign: "left"
+                    textAlign: "left",
+                    border: "none",
+                    background: "transparent"
                   }}
                 >
-                  {/* แถวบน: ตัวเลขสีชมพูหนาคู่กับชื่อตอนย่อย */}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", width: "100%" }}>
+                  {/* แถวบน: ตัวเลขสีชมพูหนาคู่กับชื่อตอนย่อย และปุ่ม Toggle Dropdown ด้านขวา */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%" }}>
                     <span 
                       style={{ 
                         fontSize: "18px", 
@@ -2504,8 +2550,37 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                     >
                       {chTitle}
                     </span>
+                    {hasScenes && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedChapters(prev => ({ ...prev, [chKey]: !prev[chKey] }));
+                        }}
+                        style={{
+                          border: "none",
+                          background: isCurrentActive ? "#fce7f3" : "#f1f5f9",
+                          color: isCurrentActive ? "#db2777" : "#64748b",
+                          borderRadius: "50%",
+                          width: "28px",
+                          height: "28px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          marginLeft: "auto",
+                          padding: 0
+                        }}
+                        aria-label="แสดงรายการฉากย่อย"
+                      >
+                        <span style={{ fontSize: "11px", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", display: "inline-block" }}>
+                          ▼
+                        </span>
+                      </button>
+                    )}
                   </div>
-
+ 
                   {/* แถวล่าง: สถานะตอน และ จำนวนฉากย่อย */}
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px", width: "100%", paddingLeft: "26px" }}>
                     <span
@@ -2521,56 +2596,85 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                     >
                       {isChapterPublished ? "เผยแพร่" : "ร่าง"}
                     </span>
-
+ 
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "#64748b", fontWeight: "500" }}>
                       📄 {scenes.length} ฉาก
                     </span>
                   </div>
                 </div>
-
-                {/* Accordion List ฉากย่อย (แสดงรายการฉากเฉยๆ ไม่สามารถกดได้) */}
+ 
+                {/* Accordion List ฉากย่อย (สามารถคลิกเพื่อเลื่อนหน้าจอตรงกลางไปยังตำแหน่งฉากนั้นได้) */}
                 {isExpanded && (
                   <div 
                     className="cm-sidebar__scenes-list"
                     style={{
-                      paddingLeft: "16px",
-                      paddingRight: "10px",
+                      paddingLeft: "8px",
+                      paddingRight: "8px",
                       paddingBottom: "12px",
                       borderLeft: "1.5px solid #fbcfe8",
                       marginLeft: "40px",
                       marginTop: "4px",
                       display: "flex",
                       flexDirection: "column",
-                      gap: "6px"
+                      gap: "4px"
                     }}
                   >
+                    <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 700, paddingLeft: "8px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
+                      รายการฉากในตอนนี้
+                    </div>
                     {scenes.length > 0 ? (
                       scenes.map((sc, scIdx) => {
+                        const scId = sc.id ?? sc.ID ?? sc.scene_id ?? sc.SceneID;
+                        const scKey = String(scId);
                         const scDisplayNum = `${actualChapterNum}.${scIdx + 1}`;
                         const scTitle = sc.label || sc.title || sc.sceneTitle || "ฉากไม่มีชื่อ";
                         const isSceneMatch = searchTerm && scTitle.toLowerCase().includes(searchTerm.toLowerCase());
+                        const isSceneActive = String(activeSceneId) === scKey;
                         
                         return (
-                          <div
-                            key={`sc-item-${sc.id || scIdx}`}
+                          <button
+                            key={`sc-item-${scId || scIdx}`}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSceneClick(chId, scId);
+                            }}
                             style={{
                               fontSize: "12.5px",
-                              color: isSceneMatch ? "#db2777" : "#64748b",
-                              fontWeight: isSceneMatch ? "700" : "500",
-                              padding: "2px 0",
+                              color: isSceneActive ? "#db2777" : (isSceneMatch ? "#db2777" : "#64748b"),
+                              fontWeight: (isSceneActive || isSceneMatch) ? "700" : "500",
+                              padding: "6px 8px",
                               textAlign: "left",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis"
+                              background: isSceneActive ? "#fce7f3" : "transparent",
+                              border: "none",
+                              borderRadius: "8px",
+                              width: "100%",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              transition: "all 0.2s ease"
                             }}
+                            onMouseOver={(e) => { if (!isSceneActive) e.currentTarget.style.background = "#fff1f2"; }}
+                            onMouseOut={(e) => { if (!isSceneActive) e.currentTarget.style.background = "transparent"; }}
                             title={scTitle}
                           >
-                          •   {scDisplayNum} {scTitle}
-                          </div>
+                            <span style={{ color: isSceneActive ? "#db2777" : "#f472b6", fontWeight: "700", minWidth: "18px" }}>
+                              {scDisplayNum}
+                            </span>
+                            <span style={{
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              flex: 1
+                            }}>
+                              {scTitle}
+                            </span>
+                          </button>
                         );
                       })
                     ) : (
-                      <div style={{ fontSize: "12px", color: "#94a3b8", padding: "2px 0", fontStyle: "italic", textAlign: "left" }}>
+                      <div style={{ fontSize: "12px", color: "#94a3b8", padding: "2px 8px", fontStyle: "italic", textAlign: "left" }}>
                         • ไม่มีฉากในตอนนี้
                       </div>
                     )}

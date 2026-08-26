@@ -39,6 +39,22 @@ const IconEyeClosed = () => (
 );
 
 // ══════════════════════════════════════════════════════════
+//  Icons for Password strength rules
+// ══════════════════════════════════════════════════════════
+const IconCircleCheck = () => (
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+    <circle cx="10" cy="10" r="8" stroke="#16A34A" strokeWidth="2" fill="none" />
+    <path d="M6 10l3 3 5-6" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconCircle = () => (
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+    <circle cx="10" cy="10" r="8" stroke="#94A3B8" strokeWidth="2" fill="none" />
+  </svg>
+);
+
+// ══════════════════════════════════════════════════════════
 //  Sub: Password input with toggle
 // ══════════════════════════════════════════════════════════
 const PasswordInput = ({ id, value, onChange, placeholder, error }) => {
@@ -299,6 +315,137 @@ const RegisterForm = ({ onSwitchToLogin }) => {
   const [errors,         setErrors]         = useState({});
   const [isLoading,      setIsLoading]      = useState(false);
 
+  // Field validation and messages (เหมือนกับ ReaderSetting.jsx)
+  const [usernameMsg, setUsernameMsg] = useState({ type: "hint", text: "ใช้ได้เฉพาะตัวอักษรภาษาอังกฤษ ตัวเลข และ _ ความยาว 3–20 ตัว" });
+  const [emailMsg, setEmailMsg] = useState({ type: "hint", text: "" });
+  const [pwMatchMsg, setPwMatchMsg] = useState({ type: "none", text: "" });
+
+  // รายชื่อ Username และ Email ที่มีผู้อื่นใช้งานแล้วในระบบ (เริ่มต้นจากค่า seed มาตรฐานของระบบ)
+  const takenUsernames = [
+    "admin_master",
+    "dark_john",
+    "alice_reader",
+    "mi____kry",
+    "maymay",
+    "jane_writer"
+  ];
+
+  const takenEmails = [
+    "admin@novelverse.com",
+    "john@novelverse.com",
+    "alice@novelverse.com",
+    "mike@novelverse.com",
+    "testmay@gmail.com",
+    "jane@novelverse.com"
+  ];
+
+  const pwRules = [
+    { id: "r-len", label: "อย่างน้อย 8 ตัวอักษร", test: (v) => v.length >= 8 },
+    { id: "r-upper", label: "ตัวพิมพ์ใหญ่ (A–Z)", test: (v) => /[A-Z]/.test(v) },
+    { id: "r-num", label: "ตัวเลข (0–9)", test: (v) => /[0-9]/.test(v) },
+    { id: "r-sym", label: "อักขระพิเศษ (!@#$...) ", test: (v) => /[^A-Za-z0-9]/.test(v) },
+  ];
+
+  const pwLevels = [
+    { label: "อ่อนแอมาก", color: "#EF4444", cls: "active-weak" },
+    { label: "พอใช้", color: "#F59E0B", cls: "active-fair" },
+    { label: "ดี", color: "#22C55E", cls: "active-good" },
+    { label: "แข็งแกร่ง", color: "#16A34A", cls: "active-strong" },
+  ];
+
+  const getPwStrength = () => {
+    if (!password) return null;
+    const passed = pwRules.filter((r) => r.test(password)).length;
+    const level = pwLevels[Math.max(0, passed - 1)];
+    return { passed, level };
+  };
+
+  const handleUsernameChange = (val) => {
+    setUsername(val);
+    clearFieldError("username");
+    
+    if (!val) {
+      setUsernameMsg({ type: "hint", text: "ใช้ได้เฉพาะตัวอักษรภาษาอังกฤษ ตัวเลข และ _ ความยาว 3–20 ตัว" });
+      return;
+    }
+
+    if (takenUsernames.includes(val)) {
+      setUsernameMsg({ type: "err", text: "ชื่อบัญชีนี้มีคนใช้แล้ว" });
+      return;
+    }
+
+    const ok = /^[a-zA-Z0-9_]{3,20}$/.test(val);
+    if (ok) {
+      setUsernameMsg({ type: "ok", text: "รูปแบบชื่อผู้ใช้ถูกต้อง" });
+    } else {
+      setUsernameMsg({ type: "err", text: "ใช้ได้แค่ A–Z, a–z, 0–9, _ ความยาว 3–20 ตัว" });
+    }
+  };
+
+  const handleEmailChange = (val) => {
+    setEmail(val);
+    clearFieldError("email");
+
+    if (!val) {
+      setEmailMsg({ type: "hint", text: "" });
+      return;
+    }
+
+    if (takenEmails.includes(val)) {
+      setEmailMsg({ type: "err", text: "อีเมลนี้ถูกใช้งานโดยบัญชีอื่นแล้ว" });
+      return;
+    }
+
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+    if (ok) {
+      setEmailMsg({ type: "ok", text: "รูปแบบอีเมลถูกต้อง" });
+    } else {
+      setEmailMsg({ type: "err", text: "รูปแบบอีเมลไม่ถูกต้อง" });
+    }
+  };
+
+  const handlePasswordChange = (val) => {
+    setPassword(val);
+    clearFieldError("password");
+    
+    if (confirm) {
+      if (val === confirm) {
+        setPwMatchMsg({ type: "ok", text: "รหัสผ่านตรงกันเรียบร้อย" });
+      } else {
+        setPwMatchMsg({ type: "err", text: "รหัสผ่านไม่ตรงกัน" });
+      }
+    }
+  };
+
+  const handleConfirmChange = (val) => {
+    setConfirm(val);
+    clearFieldError("confirm");
+    if (!val) {
+      setPwMatchMsg({ type: "none", text: "" });
+      return;
+    }
+    if (password === val) {
+      setPwMatchMsg({ type: "ok", text: "รหัสผ่านตรงกันเรียบร้อย" });
+    } else {
+      setPwMatchMsg({ type: "err", text: "รหัสผ่านไม่ตรงกัน" });
+    }
+  };
+
+  const formatRegisterError = (msg) => {
+    if (!msg) return 'เกิดข้อผิดพลาดในการสมัครสมาชิก กรุณาลองใหม่อีกครั้ง';
+    const lower = msg.toLowerCase();
+    if (lower.includes("username already") || lower.includes("ชื่อผู้ใช้ซ้ำ") || lower.includes("username taken")) {
+      return "ชื่อผู้ใช้ซ้ำกับในระบบ: กรุณาแก้ไขช่อง 'ชื่อผู้ใช้' เป็นชื่ออื่นที่ยังไม่มีการใช้งาน";
+    }
+    if (lower.includes("email already") || lower.includes("อีเมลซ้ำ") || lower.includes("email taken")) {
+      return "อีเมลนี้ถูกใช้งานแล้ว: กรุณาแก้ไขช่อง 'อีเมล' หรือใช้หน้า 'เข้าสู่ระบบ' ด้วยบัญชีนี้";
+    }
+    if (lower.includes("password") && (lower.includes("weak") || lower.includes("short"))) {
+      return "รหัสผ่านไม่ปลอดภัย: กรุณากรอกรหัสผ่านที่มีความยาว 8 ตัวขึ้นไป และมีตัวพิมพ์ใหญ่ ตัวเลข และอักขระพิเศษตามเงื่อนไข";
+    }
+    return `ข้อผิดพลาดจากเซิร์ฟเวอร์: ${msg} (กรุณาตรวจสอบและแก้ไขข้อมูลที่กรอกให้ถูกต้อง)`;
+  };
+
   const handleProfileChange = (e) => {
     console.log("📸 Image selection triggered");
     const file = e.target.files?.[0];
@@ -347,13 +494,32 @@ const RegisterForm = ({ onSwitchToLogin }) => {
 
   const validate = () => {
     const e = {};
-    if (!username.trim())                 e.username = "กรุณากรอกชื่อผู้ใช้";
-    if (!email.trim())                    e.email    = "กรุณากรอกอีเมล";
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = "รูปแบบอีเมลไม่ถูกต้อง";
-    if (!password.trim())                 e.password = "กรุณากรอกรหัสผ่าน";
-    else if (password.length < 8)         e.password = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร";
-    if (!confirm.trim())                  e.confirm  = "กรุณายืนยันรหัสผ่าน";
-    else if (confirm !== password)        e.confirm  = "รหัสผ่านไม่ตรงกัน";
+    if (!username.trim()) {
+      e.username = "กรุณากรอกชื่อผู้ใช้";
+    } else if (usernameMsg.type === "err") {
+      e.username = usernameMsg.text;
+    }
+
+    if (!email.trim()) {
+      e.email = "กรุณากรอกอีเมล";
+    } else if (emailMsg.type === "err") {
+      e.email = emailMsg.text;
+    }
+
+    if (!password.trim()) {
+      e.password = "กรุณากรอกรหัสผ่าน";
+    } else {
+      const passed = pwRules.filter((r) => r.test(password)).length;
+      if (passed < 4) {
+        e.password = "รหัสผ่านไม่ปลอดภัย: กรุณากรอกรหัสผ่านให้ครบทุกเงื่อนไข";
+      }
+    }
+
+    if (!confirm.trim()) {
+      e.confirm = "กรุณายืนยันรหัสผ่าน";
+    } else if (confirm !== password) {
+      e.confirm = "รหัสผ่านไม่ตรงกัน";
+    }
     return e;
   };
 
@@ -409,7 +575,7 @@ const RegisterForm = ({ onSwitchToLogin }) => {
 
       const res = await fetch(apiEndpoint, {
         method: 'POST',
-        body: formData, // ปล่อยให้ Browser จัดการ Content-Type Boundary ของ Multipart เอง
+        body: formData, 
       });
 
       console.log("📥 Register Response Received! Status Code:", res.status);
@@ -421,7 +587,7 @@ const RegisterForm = ({ onSwitchToLogin }) => {
 
       if (!res.ok) {
         console.error(`❌ Register failed with status ${res.status}. Error Msg:`, data.message || data.error);
-        setErrors({ general: data.message || data.error || 'เกิดข้อผิดพลาดในการสมัคร' });
+        setErrors({ general: formatRegisterError(data.message || data.error) });
         setIsLoading(false);
         return;
       }
@@ -504,12 +670,15 @@ const RegisterForm = ({ onSwitchToLogin }) => {
             className="auth-input"
             placeholder="ตั้งชื่อผู้ใช้ของคุณ"
             value={username}
-            onChange={(e) => { setUsername(e.target.value); clearFieldError("username"); }}
+            onChange={(e) => handleUsernameChange(e.target.value)}
             autoComplete="username"
             aria-invalid={!!errors.username}
           />
         </div>
         {errors.username && <p className="auth-field__error" role="alert">{errors.username}</p>}
+        <div className={`field-msg ${usernameMsg.type}`}>
+          {usernameMsg.text}
+        </div>
       </div>
 
       {/* Email */}
@@ -525,12 +694,17 @@ const RegisterForm = ({ onSwitchToLogin }) => {
             className="auth-input"
             placeholder="you@example.com"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
+            onChange={(e) => handleEmailChange(e.target.value)}
             autoComplete="email"
             aria-invalid={!!errors.email}
           />
         </div>
         {errors.email && <p className="auth-field__error" role="alert">{errors.email}</p>}
+        {email && (
+          <div className={`field-msg ${emailMsg.type}`}>
+            {emailMsg.text}
+          </div>
+        )}
       </div>
 
       {/* Password */}
@@ -541,11 +715,41 @@ const RegisterForm = ({ onSwitchToLogin }) => {
         <PasswordInput
           id="reg-password"
           value={password}
-          onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
+          onChange={(e) => handlePasswordChange(e.target.value)}
           placeholder="ตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษร"
           error={errors.password}
         />
         {errors.password && <p className="auth-field__error" role="alert">{errors.password}</p>}
+        
+        {/* Password strength indicators */}
+        {password && (
+          <div className="pw-strength">
+            <div className="pw-bars">
+              {[1, 2, 3, 4].map((i) => {
+                const strengthInfo = getPwStrength();
+                return (
+                  <div 
+                    key={i} 
+                    className={`pw-bar ${strengthInfo && i <= strengthInfo.passed ? strengthInfo.level.cls : ""}`} 
+                  />
+                );
+              })}
+            </div>
+            
+            {/* Password requirements checklist */}
+            <div className="pw-rules">
+              {pwRules.map((rule) => {
+                const ok = rule.test(password);
+                return (
+                  <div key={rule.id} className={`pw-rule ${ok ? "pass" : "fail"}`}>
+                    {ok ? <IconCircleCheck /> : <IconCircle />}
+                    <span>{rule.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Confirm password */}
@@ -556,11 +760,16 @@ const RegisterForm = ({ onSwitchToLogin }) => {
         <PasswordInput
           id="confirm-password"
           value={confirm}
-          onChange={(e) => { setConfirm(e.target.value); clearFieldError("confirm"); }}
+          onChange={(e) => handleConfirmChange(e.target.value)}
           placeholder="กรอกรหัสผ่านอีกครั้ง"
           error={errors.confirm}
         />
         {errors.confirm && <p className="auth-field__error" role="alert">{errors.confirm}</p>}
+        {confirm && (
+          <div className={`field-msg ${pwMatchMsg.type}`}>
+            {pwMatchMsg.text}
+          </div>
+        )}
       </div>
 
       {/* Remember */}
