@@ -1288,7 +1288,7 @@ function StatisticsGraph() {
                           {selectedSceneDetails.label} - {selectedSceneDetails.title}
                         </h3>
                         <span className="wsg-scene-type-text">
-                          ประเภท: {selectedSceneDetails.sceneTypeLabel}
+                          ประเภท: {selectedSceneDetails.sceneType}
                         </span>
                       </div>
 

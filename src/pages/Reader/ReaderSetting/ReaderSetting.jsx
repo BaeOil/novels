@@ -315,23 +315,6 @@ export default function ReaderSetting() {
         console.warn("ไม่สามารถโหลดรายชื่อนักเขียนเพิ่มเติมจากนิยายได้:", e);
       }
 
-      // b) ดึงจากรายชื่อผู้ใช้ทั้งหมด (กรณีผู้ใช้ปัจจุบันเป็นผู้ดูแลระบบ / Admin)
-      try {
-        const adminUsersRes = await fetch(`${API_BASE_URL}/api/admin/users`, { headers });
-        if (adminUsersRes.ok) {
-          const adminUsersData = await adminUsersRes.json();
-          const list = adminUsersData || [];
-          if (Array.isArray(list)) {
-            const allUsernames = list.map(u => u.username).filter(Boolean);
-            const allEmails = list.map(u => u.email).filter(Boolean);
-            setTakenUsernames(prev => [...new Set([...prev, ...allUsernames])]);
-            setTakenEmails(prev => [...new Set([...prev, ...allEmails])]);
-          }
-        }
-      } catch (e) {
-        // เงียบไว้ในกรณีที่ไม่ใช่แอดมิน (403 Forbidden)
-      }
-
       // 2. GET /api/me/notification-settings - โหลดค่าความพึงพอใจการแจ้งเตือน
       try {
         const notifRes = await fetch(`${API_BASE_URL}/api/me/notification-settings`, { headers });
