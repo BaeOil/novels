@@ -81,11 +81,67 @@ func UpdateChapter(db *sql.DB, chapter models.Chapter) error {
 }
 
 func DeleteChapter(db *sql.DB, chapterID int) error {
-	_, err := db.Exec(`
-        DELETE FROM chapters
-        WHERE chapter_id = $1
-    `, chapterID)
-	return err
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var novelID, deletedEpisode int
+	if err = tx.QueryRow(`
+		SELECT novel_id, episode
+		FROM chapters
+		WHERE chapter_id = $1
+	`, chapterID).Scan(&novelID, &deletedEpisode); err != nil {
+		return err
+	}
+
+	if _, err = tx.Exec(`DELETE FROM chapters WHERE chapter_id = $1`, chapterID); err != nil {
+		return err
+	}
+
+	if _, err = tx.Exec(`
+		UPDATE chapters
+		SET episode = episode + 100000, updated_at = NOW()
+		WHERE novel_id = $1 AND episode > $2
+	`, novelID, deletedEpisode); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`
+		UPDATE chapters
+		SET episode = episode - 100001, updated_at = NOW()
+		WHERE novel_id = $1 AND episode > $2
+	`, novelID, deletedEpisode+100000); err != nil {
+		return err
+	}
+
+	if _, err = tx.Exec(`
+		UPDATE scenes
+		SET type = 'start', updated_at = NOW()
+		WHERE scene_id = (
+			SELECT s.scene_id
+			FROM scenes s
+			JOIN chapters c ON c.chapter_id = s.chapter_id
+			WHERE c.novel_id = $1
+			  AND NOT EXISTS (
+				  SELECT 1 FROM scenes existing_start
+				  WHERE existing_start.novel_id = $1 AND existing_start.type = 'start'
+			  )
+			ORDER BY c.episode ASC, s.scene_id ASC
+			LIMIT 1
+		)
+	`, novelID); err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ReorderChapters updates the episode/order of existing chapters according to

@@ -135,6 +135,13 @@ func CreateSceneHandler(sceneService service.SceneService, notificationService s
 			return
 		}
 
+		if req.Choices != nil {
+			if err := sceneService.SyncSceneChoices(sceneID, req.Choices); err != nil {
+				WriteError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
 		if err := notificationService.NotifySceneUpdated(req.NovelID, sceneID); err != nil {
 			log.Printf("NotifySceneUpdated failed: %v", err)
 		}

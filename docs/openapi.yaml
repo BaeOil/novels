@@ -547,6 +547,21 @@ paths:
                   type: string
                 ending_description:
                   type: string
+                choices:
+                  type: array
+                  description: Choices to create after the scene is created
+                  items:
+                    type: object
+                    required: [label, to_scene_id]
+                    properties:
+                      label:
+                        type: string
+                      text:
+                        type: string
+                      to_scene_id:
+                        type: integer
+                      targetSubScene:
+                        type: string
       responses:
         '201':
           description: Scene created successfully
