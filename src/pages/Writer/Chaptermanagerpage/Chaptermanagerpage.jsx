@@ -301,7 +301,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
   const fromSceneId = choice?.from_scene_id ?? choice?.fromSceneID;
   const isNew = choice?.temp === true || String(choiceId).startsWith("temp-");
 
-  const [text, setText] = useState(choiceText);
+  const [text, setText] = useState(choiceText || `ทางเลือกที่ ${choiceIndex}`);
   const [subScene, setSubScene] = useState(choiceTargetSceneId);
 
   // 📝 อาเรย์รวมฉากทั้งหมดพร้อมคำนวณลำดับจริง (เช่น 1.2)
@@ -327,7 +327,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
   const [scope, setScope] = useState(() => (targetScene ? (String(targetScene.chapterId) === String(currentChapterId) ? "same" : "other") : "same"));
   const [selectedChapterId, setSelectedChapterId] = useState(() => targetScene?.chapterId || currentChapterId);
   const [connectionMode, setConnectionMode] = useState("existing");
-  const [newSceneTitle, setNewSceneTitle] = useState("");
+  const [newSceneTitle, setNewSceneTitle] = useState(`ฉากใหม่ที่ ${choiceIndex}`);
   const [newSceneChapterId, setNewSceneChapterId] = useState(currentChapterId || "");
 
   const [isEditing, setIsEditing] = useState(isNew);
@@ -859,22 +859,14 @@ const SceneCard = ({
 
   const handleAddChoice = () => {
     if (!sceneId) return;
-    const availableTargets = (allChapters || []).flatMap((ch) => {
-      const chScenes = (ch.scenes ?? ch.Scenes) || [];
-      return chScenes.map((s) => ({
-        id: s.scene_id ?? s.id ?? s.ID ?? s.SceneID,
-        type: s.type ?? s.Type,
-      }));
-    }).filter((s) => String(s.id) !== String(sceneId));
-
-    const targetScene = availableTargets.find((s) => s.type !== "start") || availableTargets[0];
-    if (!targetScene) {
-      alert("ไม่พบฉากปลายทางที่ใช้สร้างทางเลือกได้ กรุณาสร้างฉากเพิ่มก่อน");
-      return;
-    }
-
     const uniqueTempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    setNewChoices((prev) => [...prev, { id: uniqueTempId, temp: true, from_scene_id: sceneId, label: "", to_scene_id: "" }]);
+    setNewChoices((prev) => [...prev, {
+      id: uniqueTempId,
+      temp: true,
+      from_scene_id: sceneId,
+      label: `ทางเลือกที่ ${prev.length + 1}`,
+      to_scene_id: "",
+    }]);
     setIsBodyOpen(true);
   };
 
@@ -2124,6 +2116,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     }
   }, [activeChapterId, currentNovelId]);
   const [isCreatingChapter, setIsCreatingChapter] = useState(false);
+  const [isSubmittingChapter, setIsSubmittingChapter] = useState(false);
   const [draftChapterTitle, setDraftChapterTitle] = useState("");
   const [draftChapterStatus, setDraftChapterStatus] = useState("draft");
   const [lockedChapterIds, setLockedChapterIds] = useState(new Set());
@@ -2321,6 +2314,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       alert('นิยายถูกระงับ ไม่สามารถเพิ่มตอนได้');
       return;
     }
+    setIsSubmittingChapter(true);
     try {
       const episodeNumber = (chapters?.length || 0) + 1;
       const title = draftChapterTitle?.trim() || `ตอนที่ ${episodeNumber}`;
@@ -2363,6 +2357,8 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     } catch (err) {
       console.error(err);
       alert("เชื่อมต่อ Backend ไม่สำเร็จ");
+    } finally {
+      setIsSubmittingChapter(false);
     }
   };
 
@@ -3091,6 +3087,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                 type="button"
                 className="se-modal-btn"
                 onClick={handleAddChapter}
+                disabled={isSubmittingChapter}
                 style={{
                   flex: 1,
                   background: "linear-gradient(135deg, #db2777 0%, #be185d 100%)",
@@ -3099,7 +3096,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                   fontWeight: "700"
                 }}
               >
-                สร้างตอน
+                {isSubmittingChapter ? "กำลังสร้างตอน..." : "สร้างตอน"}
               </button>
             </div>
           </div>

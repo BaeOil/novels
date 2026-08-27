@@ -101,14 +101,18 @@ const ChoiceCard = ({
 
   // States สำหรับโหมดเชื่อมฉากที่มีอยู่ หรือ สร้างฉากใหม่
   const [connectionMode, setConnectionMode] = useState("existing");
-  const [newSceneTitle, setNewSceneTitle] = useState("");
+  const [newSceneTitle, setNewSceneTitle] = useState(
+    choice.newSceneTitle || `ฉากใหม่ที่ ${index + 1}`
+  );
   const [newSceneChapterId, setNewSceneChapterId] = useState(currentChapterId || "");
   const [isCreatingNewScene, setIsCreatingNewScene] = useState(false);
   const [createdSceneId, setCreatedSceneId] = useState(null);
   const [isSavingChoice, setIsSavingChoice] = useState(false);
 
   // State ควบคุมโหมดการแก้ไข
-  const [isEditing, setIsEditing] = useState(!choice.text);
+  const [isEditing, setIsEditing] = useState(
+    !choice.text || String(choice.id).startsWith("choice-new-")
+  );
 
   useEffect(() => {
     setText(choice.text ?? choice.label ?? choice.Label ?? "");
@@ -1472,6 +1476,7 @@ const SceneEditorPage = ({
   const [showAddChapterDialog, setShowAddChapterDialog] = useState(false);
   const [isTreeSidebarOpen, setIsTreeSidebarOpen] = useState(false);
   const [showAddSceneDialog, setShowAddSceneDialog] = useState(false);
+  const [isCreatingStandaloneScene, setIsCreatingStandaloneScene] = useState(false);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState("");
   const [newSceneTitle, setNewSceneTitle] = useState("");
@@ -1785,8 +1790,9 @@ const SceneEditorPage = ({
         }
       } else {
         // กรณีเป็นฉากใหม่ชั่วคราวที่คลิกวางจาก Canvas
-        setSceneTitle(initialSceneTitle || "");
-        setSceneLabel(initialSceneTitle || "ยังไม่ได้ตั้งฉาก");
+        const defaultNewSceneTitle = initialSceneTitle?.trim() || `ฉากใหม่ ${Date.now()}`;
+        setSceneTitle(defaultNewSceneTitle);
+        setSceneLabel(defaultNewSceneTitle);
         setContent("");
         setSceneType("normal");
         setIsPublished(false);
@@ -1876,7 +1882,8 @@ const SceneEditorPage = ({
   }, [saveDraftToStorage]);
 
   const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null, overrideIsEnding = null, showToast = false) => {
-    if (!sceneTitle.trim()) {
+    const resolvedSceneTitle = sceneTitle.trim() || (isNewScene ? `ฉากใหม่ ${Date.now()}` : "");
+    if (!resolvedSceneTitle) {
       setErrorMsg("ยังไม่ได้กรอกชื่อฉาก ไม่สามารถกดบันทึกเพื่อสร้างฉากได้");
       setIsSaving(false);
       return;
@@ -1920,7 +1927,7 @@ const SceneEditorPage = ({
       const payload = {
         novel_id: parseInt(novelId, 10),
         chapter_id: parseInt(targetChapterId, 10),
-        title: sceneTitle.trim() || "ฉากไม่มีชื่อ",
+        title: resolvedSceneTitle,
         content: content,
         x: Math.round(coordinateX),
         y: Math.round(coordinateY),
@@ -2132,9 +2139,10 @@ const SceneEditorPage = ({
   const addChoice = () => {
     const newChoice = {
       id: `choice-new-${Date.now()}`,
-      text: "",
+      text: `ทางเลือกที่ ${choices.length + 1}`,
       targetType: "same",
       targetSubScene: "",
+      newSceneTitle: `ฉากใหม่ที่ ${choices.length + 1}`,
     };
     setChoices((prev) => [...prev, newChoice]);
   };
@@ -2188,8 +2196,8 @@ const SceneEditorPage = ({
   };
 
   const handleConfirmAddScene = async () => {
-    if (!novelId || !selectedChapterForNewScene || !newSceneTitle.trim()) {
-      setErrorMsg("กรุณากรอกชื่อฉาก");
+    if (!novelId || !selectedChapterForNewScene) {
+      setErrorMsg("ไม่พบข้อมูลสำหรับสร้างฉาก");
       return;
     }
 
@@ -2198,6 +2206,8 @@ const SceneEditorPage = ({
       return;
     }
 
+    const resolvedNewSceneTitle = newSceneTitle.trim() || "ฉากใหม่";
+    setIsCreatingStandaloneScene(true);
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -2205,7 +2215,7 @@ const SceneEditorPage = ({
       const payload = {
         novel_id: parseInt(novelId, 10),
         chapter_id: parseInt(selectedChapterForNewScene, 10),
-        title: newSceneTitle.trim(),
+        title: resolvedNewSceneTitle,
         content: "",
         x: 0,
         y: 0,
@@ -2230,7 +2240,7 @@ const SceneEditorPage = ({
       const createdSceneId = data.scene_id ?? data.id ?? data.data?.scene_id ?? data.data?.id;
 
       // Persist a toast to be shown after navigation
-      sessionStorage.setItem("toastMessage", `สร้างฉาก \"${newSceneTitle.trim()}\" สำเร็จ`);
+      sessionStorage.setItem("toastMessage", `สร้างฉาก \"${resolvedNewSceneTitle}\" สำเร็จ`);
       // set focus flag for scene title in the editor
       sessionStorage.setItem("focusSceneTitle", "true");
 
@@ -2255,6 +2265,8 @@ const SceneEditorPage = ({
     } catch (err) {
       console.error("Add scene error:", err);
       setErrorMsg("เกิดข้อผิดพลาดขณะเพิ่มฉาก");
+    } finally {
+      setIsCreatingStandaloneScene(false);
     }
   };
 
@@ -3015,8 +3027,9 @@ const SceneEditorPage = ({
                 type="button"
                 className="se-modal-btn se-modal-btn--save se-modal-btn--sm"
                 onClick={handleConfirmAddScene}
+                disabled={isCreatingStandaloneScene}
               >
-                สร้าง
+                {isCreatingStandaloneScene ? "กำลังสร้าง..." : "สร้าง"}
               </button>
             </div>
           </div>
