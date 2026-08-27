@@ -9,50 +9,51 @@
   --white: #ffffff;
 }
 
-/* ปุ่ม Ribbon ลอยข้างจอ */
+/* ปุ่มลอยมุมขวาล่าง เพื่อไม่ให้กลืนไปกับขอบหน้าจอ */
 .report-ribbon-btn {
   position: fixed;
-  right: 0;
-  top: 40%;
-  transform: translateY(-50%);
+  right: 24px;
+  bottom: 24px;
   background-color: var(--pink-primary);
   color: var(--white);
   border: none;
-  border-radius: 12px 0 0 12px;
-  padding: 12px 10px;
+  border-radius: 999px;
+  padding: 11px 17px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
-  box-shadow: -3px 4px 12px rgba(255, 105, 180, 0.3);
+  box-shadow: 0 6px 18px rgba(255, 105, 180, 0.35);
   z-index: 40;
   transition: all 0.2s ease;
 }
 
 .report-ribbon-btn:hover {
-  transform: translateY(-50%) translateX(-4px);
+  transform: translateY(-3px);
   background-color: var(--pink-hover);
+  box-shadow: 0 9px 22px rgba(255, 105, 180, 0.4);
 }
 
 .report-ribbon-text {
-  writing-mode: vertical-rl;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 1px;
 }
 
 /* Modal Background Overlay */
 .report-modal-overlay {
   position: fixed;
-  inset: 0;
+  top: 82px;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background-color: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  z-index: 1000;
   padding: 16px;
+  overflow-y: auto;
 }
 
 /* Modal Card */
@@ -236,6 +237,23 @@
 .report-success-box {
   padding: 36px 24px;
   text-align: center;
+}
+
+@media (max-width: 600px) {
+  .report-ribbon-btn {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .report-modal-overlay {
+    top: 70px;
+    align-items: flex-start;
+    padding: 16px 12px 24px;
+  }
+
+  .report-modal-card {
+    margin: auto 0;
+  }
 }
 
 .report-success-icon {

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom"; 
 import "react-quill-new/dist/quill.snow.css";
-import "./ReadingPage.css";
+import "./Readingpage.css";
 import ReadingBreadcrumb from "../../../components/ReadingBreadcrumb/ReadingBreadcrumb";
 import ChoiceButtons from "../../../components/ChoiceButtons/ChoiceButtons";
 import RestartReadingButton from "../../../components/RestartReadingButton/RestartReadingButton";
@@ -10,6 +10,7 @@ import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import Comments from "../../../components/Comments/Comments";
 import EndingUnlockedModal from "../../../components/EndingUnlockedModal/EndingUnlockedModal";
 import AdminModeBanner from "../../../components/AdminModeBanner/AdminModeBanner";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
 const BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -98,10 +99,11 @@ const ReadingPage = ({
     return false;
   };
 
-  const isAdmin = checkIsAdmin();
-  const effectiveUserId = getCurrentUserId() || userId;
+  // เดิม checkIsAdmin()/getCurrentUserId() ถูกเรียกตรงๆ ทุก render (parse JSON + decode JWT
+  // ซ้ำทุกครั้งที่ state ไหนๆ ในหน้าเปลี่ยน) ครอบด้วย useMemo ให้คำนวณใหม่เฉพาะตอน mount
+  const isAdmin = useMemo(() => checkIsAdmin(), []);
+  const effectiveUserId = useMemo(() => getCurrentUserId() || userId, [userId]);
 
-  const [currentView, setCurrentView] = useState("reading");
   const [currentSceneId, setCurrentSceneId] = useState(initialSceneId || sceneId || null);
   const [sceneData, setSceneData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -111,6 +113,7 @@ const ReadingPage = ({
   const [readProgress, setReadProgress] = useState(0);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkProcessing, setBookmarkProcessing] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [commentText, setCommentText] = useState("");
   const [sceneComments, setSceneComments] = useState({});
@@ -153,7 +156,7 @@ const ReadingPage = ({
         fontSize: stored?.fontSize || 18,
         theme: stored?.theme || "light",
       };
-    } catch (err) {
+    } catch {
       return {
         fontFamily: "Sarabun",
         fontSize: 18,
@@ -306,6 +309,11 @@ useEffect(() => {
     // 🎯 ดึงไอดีที่ส่งมาจาก URL หรือประวัติโดยตรง ณ วินาทีนั้น ไม่พึ่งพา State ภายในเพื่อป้องกันการหน่วง
     const activeSceneId = sceneId || initialSceneId || currentSceneId;
 
+    // 🎯 กันปัญหา race condition: ถ้าผู้ใช้กดเลือกทางเลือกรัวๆ อาจมี fetch เก่าค้างตอบกลับ
+    // มาทีหลัง fetch ใหม่แล้วทับข้อมูลฉากปัจจุบันด้วยข้อมูลฉากที่ไม่ใช่ฉากล่าสุดจริง
+    // ใช้ flag นี้เช็คก่อน setState ทุกจุดว่า effect รอบนี้ยังเป็นรอบล่าสุดอยู่ไหม
+    let isStale = false;
+
     const fetchScene = async () => {
       setLoading(true);
       setError(null);
@@ -331,7 +339,6 @@ useEffect(() => {
         }
 
         const token = localStorage.getItem("token");
-        console.log("Loading scene:", activeSceneId);
 
         const headers = {};
         if (token) {
@@ -339,7 +346,8 @@ useEffect(() => {
         }
 
         const response = await fetch(url, { headers });
-        
+        if (isStale) return;
+
         if (response.status === 404) {
           setError("EMPTY_SCENE"); 
           setLoading(false);
@@ -351,6 +359,7 @@ useEffect(() => {
         }
 
         const resData = await response.json();
+        if (isStale) return;
 
         if (resData && resData.data) {
           const loadedNovelId = resData.data.novel_id || resData.data.novelId;
@@ -376,39 +385,81 @@ useEffect(() => {
           setError("EMPTY_SCENE");
         }
       } catch (err) {
+        if (isStale) return;
         console.error("Fetch error:", err);
         setError(err.message);
       } finally {
-        setLoading(false);
+        if (!isStale) setLoading(false);
       }
     };
 
     fetchScene();
     window.scrollTo({ top: 0, behavior: "smooth" });
-    
-  // 🎯 เฝ้าดูเฉพาะ novelId และ sceneId ที่มาจาก URL เท่านั้น เมื่อเปลี่ยนปุ๊บเคลียร์ฉากใหม่ปั๊บ
+
+    // 🎯 เฝ้าดูเฉพาะ novelId และ sceneId ที่มาจาก URL เท่านั้น เมื่อเปลี่ยนปุ๊บเคลียร์ฉากใหม่ปั๊บ
+    return () => {
+      isStale = true;
+    };
   }, [novelId, sceneId, initialSceneId]);
 
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const endingModalTriggeredRef = useRef(false);
+
+  // ฉากเปลี่ยน -> รีเซ็ต flag กันเด้ง modal ซ้ำ เพื่อให้ฉากจบถัดไปเด้งเตือนใหม่ได้
   useEffect(() => {
-    const handleScroll = () => {
+    endingModalTriggeredRef.current = false;
+  }, [currentSceneId]);
+
+  useEffect(() => {
+    // 🎯 เดิมคำนวณ % สกรอลล์ + setState ทุกๆ scroll event (ยิงถี่มากตอนลากเมาส์/แตะจอ)
+    // ครอบด้วย requestAnimationFrame ให้คำนวณอย่างมากแค่ 1 ครั้งต่อเฟรม ลดการ re-render รัวๆ
+    let ticking = false;
+
+    const computeScroll = () => {
+      ticking = false;
       const el = document.documentElement;
       const scrolled = el.scrollTop;
       const total = el.scrollHeight - el.clientHeight;
+
+      setShowScrollTop(scrolled > 480);
+
       if (total > 0) {
         const pct = Math.round((scrolled / total) * 100);
         setReadProgress(pct);
 
-        // 🎯 หากอยู่ในฉากจบ และสกรอลล์อ่านลงมาถึงก้นหน้า (92% ขึ้นไป) -> เด้ง Pop-up ค้นพบฉากจบใหม่ (ปิดถ้าอยู่ใน preview mode)
-        if (!isPreviewMode && sceneData && (sceneData.type === "ending" || sceneData.type === "Ending") && pct >= 90) {
+        // 🎯 หากอยู่ในฉากจบ และสกรอลล์อ่านลงมาถึงก้นหน้า (90% ขึ้นไป) -> เด้ง Pop-up ค้นพบฉากจบใหม่ (ปิดถ้าอยู่ใน preview mode)
+        // เดิมเรียก setShowEndingModal(true) ทุก tick ที่ผ่าน 90% แม้เปิดอยู่แล้ว/ผู้ใช้เพิ่งปิดเอง
+        // เลยเด้งกลับมาเปิดซ้ำทันทีที่ขยับสกรอลล์นิดเดียว ใช้ ref เช็คว่าเคย trigger รอบนี้ไปแล้วหรือยัง
+        if (
+          !isPreviewMode &&
+          !endingModalTriggeredRef.current &&
+          sceneData &&
+          (sceneData.type === "ending" || sceneData.type === "Ending") &&
+          pct >= 90
+        ) {
+          endingModalTriggeredRef.current = true;
           setShowEndingModal(true);
         }
       }
     };
+
+    const handleScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        window.requestAnimationFrame(computeScroll);
+      }
+    };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [sceneData, isPreviewMode]);
 
+  const handleScrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   const handleChoose = async (choice) => {
+    if (isTransitioning) return;
     // Reader ปกติ: เส้นทางยังมีอยู่ แต่ฉากปลายทางยังไม่พร้อมอ่าน
     // ต้องให้ feedback โดยไม่บันทึก choice history / navigate / update progress
     if (!isPreviewMode && choice.is_published === false) {
@@ -617,6 +668,7 @@ useEffect(() => {
       return;
     }
 
+    setCommentSubmitting(true);
     try {
       const bodyPayload = {
         novel_id: parseInt(novelId, 10),
@@ -644,6 +696,8 @@ useEffect(() => {
     } catch (err) {
       console.error("Failed to post comment:", err);
       showToast("ไม่สามารถส่งความคิดเห็นได้ในขณะนี้");
+    } finally {
+      setCommentSubmitting(false);
     }
   };
 
@@ -678,38 +732,23 @@ useEffect(() => {
   };
 
   if (loading) {
-    return (
-      <div className="rp__loading" aria-live="polite">
-        <div className="rp__loading-spinner" aria-label="กำลังโหลด" />
-        <p>กำลังดึงเนื้อหาฉากจริงจากระบบฐานข้อมูล...</p>
-      </div>
-    );
+    return <LoadingScreen message="กำลังดึงเนื้อหาฉากจริงจากระบบฐานข้อมูล..." />;
   }
 
   if (error) {
     if (error === "EMPTY_SCENE") {
       return (
-        <div style={{ padding: "50px 20px", textAlign: "center", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", background: "#f8fafc" }}>
-          <div style={{ fontSize: "64px", marginBottom: "20px" }}>🚧</div>
-          <h2 style={{ fontSize: "26px", color: "#334155", marginBottom: "12px", fontFamily: "'Sarabun', sans-serif", fontWeight: "bold" }}>
+        <div className="rp__empty-state">
+          <div className="rp__empty-state-icon">🚧</div>
+          <h2 className="rp__empty-state-title">
             ยังไม่มีเนื้อหาในนิยายเรื่องนี้
           </h2>
-          <p style={{ color: "#64748b", marginBottom: "32px", fontSize: "16px", maxWidth: "400px", lineHeight: "1.6" }}>
+          <p className="rp__empty-state-text">
             นักเขียนกำลังเรียบเรียงและยังไม่ได้เผยแพร่ฉากแรก โปรดรอติดตามและกลับมาดูใหม่ในภายหลัง
           </p>
           <button
             onClick={() => handleLocalNavigate("novel-detail")}
-            style={{ 
-              padding: "12px 28px", 
-              background: "var(--pink-500)", 
-              color: "#fff", 
-              border: "none", 
-              borderRadius: "8px", 
-              fontSize: "16px", 
-              fontWeight: "600",
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(233, 30, 140, 0.2)" 
-            }}
+            className="rp__empty-state-button"
           >
             กลับหน้ารายละเอียดนิยาย
           </button>
@@ -718,12 +757,12 @@ useEffect(() => {
     }
 
     return (
-      <div style={{ padding: "50px", textAlign: "center", color: "red", background: "#fff5f5", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-        <h3 style={{ fontSize: "1.5rem", marginBottom: "10px" }}>เกิดข้อผิดพลาดในการโหลดเนื้อหา</h3>
-        <p style={{ color: "#555", marginBottom: "20px" }}>{error}</p>
+      <div className="rp__error-state">
+        <h3 className="rp__error-state-title">เกิดข้อผิดพลาดในการโหลดเนื้อหา</h3>
+        <p className="rp__error-state-text">{error}</p>
         <button
           onClick={() => handleLocalNavigate("novel-detail")}
-          style={{ padding: "8px 20px", cursor: "pointer", background: "#f44336", color: "#fff", border: "none", borderRadius: "4px" }}
+          className="rp__error-state-button"
         >
           กลับไปหน้ารายละเอียดนิยาย
         </button>
@@ -908,6 +947,7 @@ useEffect(() => {
                 };
               })}
               onChoose={handleChoose}
+              disabled={isTransitioning}
             />
           )}
 
@@ -927,17 +967,23 @@ useEffect(() => {
 
               <div className="rp__ending-actions">
                 {!isAdmin && (
-                  <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => setShowEndingModal(true)}>
-                    ✨ คลังฉากจบของคุณ
-                  </button>
+                  <div className="rp__ending-actions-primary">
+                    <button className="rp__ending-btn rp__ending-btn--primary" onClick={() => setShowEndingModal(true)}>
+                      ✨ คลังฉากจบของคุณ
+                    </button>
+                  </div>
                 )}
-                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree")}>
-                  ดูแผนผังการอ่าน
-                </button>
-                {!isAdmin && <RestartReadingButton onRestart={handleRestartReading} />}
-                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail")}>
-                  ⭠ กลับหน้ารายละเอียด
-                </button>
+                <div className="rp__ending-actions-secondary">
+                  <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree")}>
+                    ดูแผนผังการอ่าน
+                  </button>
+                  {!isAdmin && <RestartReadingButton onRestart={handleRestartReading} />}
+                </div>
+                <div className="rp__ending-actions-exit">
+                  <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail")}>
+                    ⭠ กลับหน้ารายละเอียด
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -957,13 +1003,17 @@ useEffect(() => {
               </p>
 
               <div className="rp__ending-actions">
-                <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree")}>
-                  ดูแผนผังการอ่าน
-                </button>
-                {!isAdmin && <RestartReadingButton onRestart={handleRestartReading} />}
-                <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail")}>
-                  ⭠ กลับหน้ารายละเอียด
-                </button>
+                <div className="rp__ending-actions-secondary">
+                  <button className="rp__ending-btn rp__ending-btn--secondary" onClick={() => handleLocalNavigate("story-tree")}>
+                    ดูแผนผังการอ่าน
+                  </button>
+                  {!isAdmin && <RestartReadingButton onRestart={handleRestartReading} />}
+                </div>
+                <div className="rp__ending-actions-exit">
+                  <button className="rp__ending-btn rp__ending-btn--ghost" onClick={() => handleLocalNavigate("novel-detail")}>
+                    ⭠ กลับหน้ารายละเอียด
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -976,6 +1026,7 @@ useEffect(() => {
               onCommentTextChange={(e) => setCommentText(e.target.value)}
               onSubmit={handleCommentSubmit}
               onDeleteComment={handleDeleteComment}
+              isSubmitting={commentSubmitting}
               readOnly={isAdmin}
             />
           </div>
@@ -1022,6 +1073,8 @@ useEffect(() => {
               showRead={false}
               showLike={false}
               isBookmarked={isBookmarked}
+              bookmarkDisabled={bookmarkProcessing}
+              bookmarkLabel={bookmarkProcessing ? "กำลังบันทึก..." : "เพิ่มเข้าชั้นหนังสือ"}
               onBookmark={(nextValue) => {
                 handleToggleBookmark(nextValue);
                 setBookmarkNudgeDismissed(true);
@@ -1038,11 +1091,17 @@ useEffect(() => {
         </div>
       )}
 
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-[120] rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-xl shadow-slate-900/20">
-          {toastMessage}
-        </div>
-      )}
+      <button
+        type="button"
+        className={`rp__scroll-top ${showScrollTop ? "rp__scroll-top--visible" : ""}`}
+        onClick={handleScrollToTop}
+        aria-label="เลื่อนกลับขึ้นบนสุด"
+        tabIndex={showScrollTop ? 0 : -1}
+      >
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 15V5M10 5L5 10M10 5l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
     </div>
   );
 };

@@ -287,9 +287,25 @@
   color: var(--status-finished-text);
 }
 
-.history-card__delete-btn {
+.history-card__novel-status {
   position: absolute;
   top: 10px;
+  right: 10px;
+  z-index: 2;
+  padding: 4px 9px;
+  border: 1px solid #bbf7d0;
+  border-radius: 9999px;
+  background: #ecfdf5;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.14);
+}
+
+.history-card__delete-btn {
+  position: absolute;
+  top: 48px;
   right: 10px;
   z-index: 2;
   width: 30px;
@@ -304,6 +320,10 @@
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.history-card__delete-btn:not(.history-card__delete-btn--below-status) {
+  top: 10px;
 }
 
 .history-card__delete-btn:hover {
@@ -487,6 +507,35 @@
     flex-direction: row;
     justify-content: space-between;
     margin-top: 6px;
+  }
+}
+
+@media (max-width: 420px) {
+  .history-page {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .history-page__top,
+  .history-page__container {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .history-card {
+    padding: 12px;
+    gap: 12px;
+    border-radius: 18px;
+  }
+
+  .history-card__cover {
+    aspect-ratio: 3 / 2;
+  }
+
+  .history-card__novel-status {
+    right: 8px;
+    padding: 3px 7px;
+    font-size: 9px;
   }
 }
 

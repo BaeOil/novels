@@ -69,6 +69,7 @@ const Comments = ({
   onCommentTextChange = () => {},
   onSubmit = () => {},
   onDeleteComment = () => {},
+  isSubmitting = false,
   title = "แสดงความคิดเห็น",
   subtitle = "แบ่งปันความรู้สึกของคุณได้ที่นี่",
   readOnly = false,
@@ -99,8 +100,9 @@ const Comments = ({
             placeholder="เขียนความรู้สึกของคุณที่นี่..."
           />
           <div className="novel-detail__comment-actions">
-            <button type="submit" className="novel-detail__comment-button">
-              <span>💬</span> ส่งความคิดเห็น
+            <button type="submit" className="novel-detail__comment-button" disabled={isSubmitting}>
+              <span aria-hidden="true">{isSubmitting ? "⏳" : "💬"}</span>
+              {isSubmitting ? "กำลังส่งความคิดเห็น..." : "ส่งความคิดเห็น"}
             </button>
           </div>
         </form>

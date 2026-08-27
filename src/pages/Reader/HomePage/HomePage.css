@@ -431,6 +431,18 @@
   font-size: 40px;
   position: relative;
   background-color: var(--pink-pale);
+  overflow: hidden;
+}
+
+.dnc-cover {
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  background-color: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  position: relative;
 }
 
 .tc-rank {
@@ -448,6 +460,7 @@
   font-size: 11px;
   font-weight: 700;
   color: #fff;
+  z-index: 2;
 }
 
 .tc-rank.gold {
@@ -465,16 +478,49 @@
   color: #fff;
 }
 
-.tc-hot {
+.tc-badges-top {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+
+.tc-finished-badge {
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 0.5px solid #a7f3d0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  white-space: nowrap;
+}
+
+.nrc-cover .tc-finished-badge,
+.dnc-cover .tc-finished-badge,
+.ww-cover .tc-finished-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+
+.tc-badges-top .tc-finished-badge {
+  position: static;
+}
+
+.tc-hot {
   padding: 2px 7px;
   border-radius: 999px;
   background: rgba(233,30,140,.85);
   color: #fff;
   font-size: 10px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .tc-body {
@@ -588,6 +634,8 @@
   width: 72px;
   height: 96px;
   border-radius: 10px;
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -722,15 +770,26 @@
   overflow-x: auto;
   padding-bottom: 12px;
   scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch; /* Kinetic scrolling on iOS/mobile */
 }
 
 .genre-scroll::-webkit-scrollbar {
-  height: 4px;
+  height: 6px;
+}
+
+.genre-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
 }
 
 .genre-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.genre-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(236, 72, 153, 0.7) !important; /* Beautiful distinct pink on hover */
 }
 
 .genre-pill-card {
@@ -786,12 +845,13 @@
 
 .dark-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, 200px);
   gap: 16px;
   margin-top: 24px;
 }
 
 .dark-novel-card {
+  width: 200px;
   background: rgba(255,255,255,.06);
   border: 0.5px solid rgba(255,255,255,.1);
   border-radius: 14px;
@@ -810,7 +870,8 @@
 }
 
 .dnc-cover {
-  height: 120px;
+  height: 130px;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1000,6 +1061,11 @@
   background: var(--pink-mid);
 }
 
+.follow-btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .follow-btn i {
   font-size: 15px;
 }
@@ -1031,6 +1097,8 @@
   width: 56px;
   height: 74px;
   border-radius: 8px;
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1230,6 +1298,15 @@
   .new-grid {
     grid-template-columns: 1fr;
   }
+  .dark-cards {
+    grid-template-columns: repeat(auto-fill, 160px);
+  }
+  .trending-card {
+    width: 160px;
+  }
+  .dark-novel-card {
+    width: 160px;
+  }
   .section {
     padding: 0 16px;
   }
@@ -1238,5 +1315,40 @@
   }
   .hero {
     padding: 40px 16px;
+  }
+  .sec-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media(max-width: 420px) {
+  .section {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .hero {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .dark-cards,
+  .new-grid {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 980px) {
+  .hero-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-right {
+    display: none;
+  }
+
+  .hero {
+    min-height: auto;
   }
 }

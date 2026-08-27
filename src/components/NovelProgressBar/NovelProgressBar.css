@@ -219,6 +219,15 @@
   color: #fff;
 }
 
+.btn-continue-read:disabled,
+.btn-continue-read.primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: #fff0f6;
+  color: #e91e8c;
+  transform: none;
+}
+
 /* ── Discovered List Section ── */
 .timeline-list-section {
   background: #fff;
@@ -271,6 +280,50 @@
   padding: 10px 14px;
   border-radius: 12px;
   background: #f8fafc;
+}
+
+/* ── Clickable-row affordance ──
+   แถวพวกนี้เป็น <li onClick> ไม่ใช่ <button> จริงๆ ถ้าไม่มีอะไรบอกเลยผู้ใช้จะไม่รู้ว่ากดได้
+   จึงเพิ่ม hover/focus ที่ชัดเจน + ลูกศรโผล่ตอน hover เป็นตัวช่วยบอกใบ้ */
+.timeline-item--clickable {
+  cursor: pointer;
+  position: relative;
+  padding-right: 30px;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timeline-item--clickable::after {
+  content: "→";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translate(-4px, -50%);
+  color: #e91e8c;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.timeline-item--clickable:hover,
+.timeline-item--clickable:focus-visible {
+  background: #fdf2f8;
+  box-shadow: 0 2px 8px rgba(233, 30, 140, 0.1);
+}
+
+.timeline-item--clickable:hover::after,
+.timeline-item--clickable:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.timeline-item--clickable.active:hover,
+.timeline-item--clickable.active:focus-visible {
+  background: #fce7f3;
+}
+
+.timeline-item--clickable:focus-visible {
+  outline: 2px solid #e91e8c;
+  outline-offset: 2px;
 }
 
 .timeline-item.active {
@@ -328,6 +381,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .ending-inline-tag {
@@ -436,8 +491,33 @@
   .timeline-latest-actions {
     width: 100%;
     justify-content: space-between;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
   }
   .timeline-actions-row {
     flex-direction: column;
+  }
+
+  .timeline-stats {
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .timeline-list-section {
+    padding: 16px;
+  }
+
+  .timeline-header-flex {
+    gap: 10px;
+  }
+
+  .timeline-item {
+    align-items: flex-start;
+  }
+
+  .timeline-item-title {
+    overflow-wrap: anywhere;
   }
 }

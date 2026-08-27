@@ -7,28 +7,233 @@
 }
 
 .rp--theme-light {
+    --reader-surface: #ffffff;
+    --reader-surface-soft: #f9fafb;
+    --reader-border: #e5e7eb;
+    --reader-text: #111827;
+    --reader-muted: #6b7280;
+    --reader-accent: #e91e8c;
+    --reader-accent-soft: #fff0f6;
     background: #fff;
     color: #111827;
 }
 
 .rp--theme-cream {
+    --reader-surface: #fffaf3;
+    --reader-surface-soft: #f7ecdf;
+    --reader-border: #e8d4bf;
+    --reader-text: #3f3025;
+    --reader-muted: #7c6655;
+    --reader-accent: #b45309;
+    --reader-accent-soft: #fff1df;
     background: #f9f2e9;
     color: #1f2937;
 }
 
 .rp--theme-slate {
+    --reader-surface: #263247;
+    --reader-surface-soft: #1f293b;
+    --reader-border: #52627a;
+    --reader-text: #f8fafc;
+    --reader-muted: #cbd5e1;
+    --reader-accent: #f9a8d4;
+    --reader-accent-soft: rgba(244, 114, 182, 0.14);
     background: #1f293b;
     color: #f8fafc;
 }
 
 .rp--theme-dark {
+    --reader-surface: #172033;
+    --reader-surface-soft: #0f172a;
+    --reader-border: #475569;
+    --reader-text: #f8fafc;
+    --reader-muted: #cbd5e1;
+    --reader-accent: #f9a8d4;
+    --reader-accent-soft: rgba(244, 114, 182, 0.14);
     background: #0f172a;
     color: #f8fafc;
+}
+
+.rp--theme-slate .rp__ending-card--tbc,
+.rp--theme-dark .rp__ending-card--tbc {
+    background: var(--reader-surface);
+    border-color: var(--reader-border);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.rp--theme-slate .rp__ending-card--tbc .rp__ending-title,
+.rp--theme-dark .rp__ending-card--tbc .rp__ending-title {
+    color: var(--reader-text);
+}
+
+.rp--theme-slate .rp__ending-card--tbc .rp__ending-subtitle,
+.rp--theme-dark .rp__ending-card--tbc .rp__ending-subtitle {
+    color: var(--reader-muted);
+}
+
+.rp__empty-state,
+.rp__error-state {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 50px 20px;
+    text-align: center;
+    background: var(--reader-surface, #f8fafc);
+    color: var(--reader-text, #334155);
+}
+
+.rp__empty-state-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.rp__empty-state-title,
+.rp__error-state-title {
+    margin-bottom: 12px;
+    color: var(--reader-text, #334155);
+    font-family: 'Sarabun', sans-serif;
+    font-weight: 700;
+}
+
+.rp__empty-state-title {
+    font-size: 26px;
+}
+
+.rp__empty-state-text {
+    max-width: 400px;
+    margin-bottom: 32px;
+    color: var(--reader-muted, #64748b);
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.rp__empty-state-button,
+.rp__error-state-button {
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    font-family: 'Sarabun', sans-serif;
+    font-weight: 600;
+}
+
+.rp__empty-state-button {
+    padding: 12px 28px;
+    background: var(--reader-accent, var(--pink-500));
+    box-shadow: 0 4px 12px rgba(233, 30, 140, 0.2);
+    font-size: 16px;
+}
+
+.rp__error-state {
+    background: var(--reader-surface-soft, #fff5f5);
+}
+
+.rp__error-state-title {
+    font-size: 1.5rem;
+}
+
+.rp__error-state-text {
+    margin-bottom: 20px;
+    color: var(--reader-muted, #64748b);
+}
+
+.rp__error-state-button {
+    padding: 8px 20px;
+    background: #dc2626;
+    font-size: 14px;
+}
+
+.rp .novel-detail__section-title {
+    color: var(--reader-text, var(--ink));
+    border-bottom-color: var(--reader-border, var(--gray-100));
 }
 
 .rp--theme-slate .rp__container,
 .rp--theme-dark .rp__container {
     background: transparent;
+}
+
+/* ── Dark/slate theme text-contrast fixes ──
+   ปัญหาเดิม: .rp__title, .rp__meta, breadcrumb, choices__prompt ฯลฯ
+   ใช้ var(--ink)/var(--gray-*) ซึ่งเป็นโทนสีเข้มของธีมสว่างตายตัว
+   พอสลับเป็นธีม slate/dark (พื้นหลังเข้ม) ตัวอักษรพวกนี้เลยกลืนไปกับพื้น
+   ในขณะที่เนื้อหาจริง (.rp__body--dark) ถูก override เป็นสีขาวไว้แล้ว
+   จึงต้อง override เฉพาะกลุ่ม UI ที่เหลือให้ตามธีมด้วยเช่นกัน */
+.rp--theme-slate .rp__title,
+.rp--theme-dark .rp__title,
+.rp--theme-slate .rp__meta-chapter,
+.rp--theme-dark .rp__meta-chapter,
+.rp--theme-slate .rp__novel-subtitle,
+.rp--theme-dark .rp__novel-subtitle,
+.rp--theme-slate .rp__ending-title,
+.rp--theme-dark .rp__ending-title,
+.rp--theme-slate .eum-hero-title,
+.rp--theme-dark .eum-hero-title {
+    color: #f8fafc;
+}
+
+.rp--theme-slate .rp__meta-sep,
+.rp--theme-dark .rp__meta-sep,
+.rp--theme-slate .rp__orn-dot,
+.rp--theme-dark .rp__orn-dot {
+    color: rgba(248, 250, 252, 0.35);
+}
+
+.rp--theme-slate .rp__orn-line,
+.rp--theme-dark .rp__orn-line {
+    background: linear-gradient(90deg, transparent, rgba(248, 250, 252, 0.3), transparent);
+}
+
+.rp--theme-slate .rp__ending-subtitle,
+.rp--theme-dark .rp__ending-subtitle {
+    color: #cbd5e1;
+}
+
+/* Breadcrumb (กลับ / ชื่อนิยาย / ชื่อตอน / แผนผังการอ่าน) */
+.rp--theme-slate .rbreadcrumb__back,
+.rp--theme-dark .rbreadcrumb__back,
+.rp--theme-slate .rbreadcrumb__map,
+.rp--theme-dark .rbreadcrumb__map {
+    background: rgba(248, 250, 252, 0.06);
+    border-color: rgba(248, 250, 252, 0.18);
+    color: #e2e8f0;
+}
+
+.rp--theme-slate .rbreadcrumb__back:hover,
+.rp--theme-dark .rbreadcrumb__back:hover,
+.rp--theme-slate .rbreadcrumb__map:hover,
+.rp--theme-dark .rbreadcrumb__map:hover {
+    border-color: var(--pink-300);
+    color: var(--pink-300);
+    background: rgba(236, 72, 153, 0.12);
+}
+
+.rp--theme-slate .rbreadcrumb__novel,
+.rp--theme-dark .rbreadcrumb__novel {
+    color: #e2e8f0;
+}
+
+.rp--theme-slate .rbreadcrumb__chapter,
+.rp--theme-dark .rbreadcrumb__chapter {
+    color: #94a3b8;
+}
+
+.rp--theme-slate .rbreadcrumb__path svg,
+.rp--theme-dark .rbreadcrumb__path svg {
+    color: #64748b;
+}
+
+/* "คุณจะเลือกเส้นทางดำเนินเรื่องอย่างไรต่อไป?" + ตกแต่งรอบๆ */
+.rp--theme-slate .choices,
+.rp--theme-dark .choices {
+    border-top-color: rgba(248, 250, 252, 0.12);
+}
+
+.rp--theme-slate .choices__prompt,
+.rp--theme-dark .choices__prompt {
+    color: #f1f5f9;
 }
 
 /* ── Sticky progress bar ── */
@@ -344,6 +549,28 @@
 .rp__bookmark-modal .action-buttons {
     justify-content: center;
     margin-bottom: 14px;
+    width: 100%;
+}
+
+.rp__bookmark-modal .action-buttons__bookmark {
+    min-width: 200px;
+    width: 100%;
+    justify-content: center;
+    background: linear-gradient(135deg, #fff0f6 0%, #ffe4f1 100%);
+    border: 1.5px solid #f9a8d4;
+    color: #be185d;
+    box-shadow: 0 10px 20px rgba(236, 72, 153, 0.12);
+}
+
+.rp__bookmark-modal .action-buttons__bookmark:hover {
+    background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+    color: #9d174d;
+}
+
+.rp__bookmark-modal .action-buttons__bookmark--active {
+    background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+    border-color: #ec4899;
+    color: #9d174d;
 }
 
 .rp__bookmark-modal-skip {
@@ -519,6 +746,20 @@
   align-items: center;
 }
 
+.rp__ending-actions-primary,
+.rp__ending-actions-secondary,
+.rp__ending-actions-exit {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+}
+
+.rp__ending-actions-secondary {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
 .rp__ending-btn {
   display: inline-flex;
   align-items: center;
@@ -592,6 +833,139 @@
     .rp__body.ql-editor p:first-child::first-letter {
         font-size: 3.2em;
     }
+
+    .rp__meta {
+        gap: 6px;
+        margin-bottom: 28px;
+    }
+
+    .rp__ending-card {
+        padding: 32px 18px 26px;
+    }
+}
+
+@media (max-width: 400px) {
+    .rp__container {
+        padding: 16px 14px 52px;
+    }
+
+    .rp__title {
+        font-size: clamp(20px, 6vw, 26px);
+    }
+
+    .rp__meta {
+        font-size: 0.92rem;
+    }
+
+    .rp__meta-tag {
+        font-size: 0.78rem;
+        padding: 2px 9px;
+    }
+}
+
+.rp--theme-slate .choices__btn,
+.rp--theme-dark .choices__btn {
+    background: linear-gradient(145deg, rgba(248, 250, 252, 0.06) 0%, rgba(248, 250, 252, 0.03) 100%);
+    border-color: rgba(248, 250, 252, 0.14);
+    color: #f1f5f9;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.rp--theme-slate .choices__btn:hover,
+.rp--theme-dark .choices__btn:hover {
+    border-color: var(--pink-300);
+    background: linear-gradient(145deg, rgba(236, 72, 153, 0.16) 0%, rgba(236, 72, 153, 0.08) 100%);
+    color: #ffffff;
+    box-shadow: 0 10px 26px rgba(236, 72, 153, 0.2);
+}
+
+.rp--theme-slate .choices__hint,
+.rp--theme-dark .choices__hint {
+    background: rgba(251, 146, 60, 0.12);
+    color: #fdba74;
+}
+
+.rp--theme-slate .choices__status,
+.rp--theme-dark .choices__status {
+    background: rgba(15, 23, 42, 0.4);
+    border-color: rgba(253, 186, 116, 0.5);
+    color: #fdba74;
+}
+
+/* ── Scroll-to-top button ──
+   ปุ่มลอยมุมล่างขวา โผล่มาเมื่อเลื่อนลงมาระดับหนึ่งแล้ว
+   กดแล้วเลื่อนกลับขึ้นบนสุดแบบนุ่มนวล */
+.rp__scroll-top {
+    position: fixed;
+    right: 20px;
+    bottom: 28px;
+    z-index: 90;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1.5px solid var(--pink-100);
+    background: #ffffff;
+    color: var(--pink-500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rp__scroll-top--visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.rp__scroll-top:hover {
+    background: var(--pink-50);
+    box-shadow: 0 10px 26px rgba(236, 72, 153, 0.22);
+}
+
+.rp--theme-slate .rp__scroll-top,
+.rp--theme-dark .rp__scroll-top {
+    background: #1e293b;
+    border-color: rgba(248, 250, 252, 0.16);
+    color: #f1f5f9;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+.rp--theme-slate .rp__scroll-top:hover,
+.rp--theme-dark .rp__scroll-top:hover {
+    background: rgba(236, 72, 153, 0.18);
+    border-color: var(--pink-300);
+}
+
+@media (max-width: 600px) {
+    .rp__scroll-top {
+        right: 14px;
+        bottom: 18px;
+        width: 40px;
+        height: 40px;
+    }
 }
 
 /* ── Reader toast ── */
+
+@media (max-width: 420px) {
+    .rp__container {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
+    .rp__choices,
+    .rp__ending-actions {
+        width: 100%;
+    }
+
+    .rp__choice-btn,
+    .rp__ending-btn {
+        width: 100%;
+    }
+}

@@ -45,7 +45,7 @@ align-self: start;
    แก้จาก 1/1 → 2/3 เป็นสัดส่วนหนังสือจริง
    cover จะ scale ตาม column width แต่สัดส่วนคงที่ทุกหน้า */
 .novel-card__cover {
-  aspect-ratio: 4 / 5;           /* ← แก้จาก 1/1 */
+  aspect-ratio: 4 / 5;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;

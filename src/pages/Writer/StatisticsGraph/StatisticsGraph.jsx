@@ -24,9 +24,9 @@ const NODE_HORIZONTAL_GAP = 360;
 const NODE_VERTICAL_GAP = 250;
 
 const VISITOR_SHADES = {
-  HIGH: { bg: "#F472B6", border: "#ec4899", text: "#1F2937", label: "ผู้ชมสูง" },
-  MEDIUM: { bg: "#F9A8D4", border: "#f472b6", text: "#1F2937", label: "ผู้ชมปานกลาง" },
-  LOW: { bg: "#FCE7F3", border: "#fbcfe8", text: "#1F2937", label: "ผู้ชมน้อย" },
+  HIGH: { bg: "#FCE7F3", border: "#EC4899", text: "#9D174D", label: "ผู้ชมสูง" },
+  MEDIUM: { bg: "#FFF1F2", border: "#FDA4AF", text: "#BE185D", label: "ผู้ชมปานกลาง" },
+  LOW: { bg: "#F8FAFC", border: "#E2E8F0", text: "#475569", label: "ผู้ชมน้อย" },
 };
 
 // 🟢 Custom Node Component
@@ -152,9 +152,8 @@ const AnalyticsNode = ({ data }) => {
   );
 };
 
-const nodeTypes = {
-  analyticsNode: AnalyticsNode,
-};
+// nodeTypes is memoized inside the component to prevent React Flow warnings
+
 
 const CANVAS_MARGIN = 80;
 
@@ -169,27 +168,39 @@ const stripHtml = (value) => {
 };
 
 const getNodeId = (node) => normalizeId(node?.ID ?? node?.id ?? node?.SceneID ?? node?.scene_id);
-const getNodeType = (node) => stripHtml((node?.Type ?? node?.type ?? "")).toLowerCase();
+const getNodeType = (node) => {
+  const type = stripHtml((node?.Type ?? node?.type ?? "")).toLowerCase();
+  if (type === "start" || type === "starting" || node?.is_start_scene || node?.isStart || node?.isStartScene) {
+    return "start";
+  }
+  if (type === "ending" || type === "end" || Boolean(node?.ending_title || node?.EndingTitle || node?.endingTitle || node?.isEnding)) {
+    return "ending";
+  }
+  return "normal";
+};
 const getNodeTitle = (node) => stripHtml(node?.Title || node?.title || node?.Label || node?.label || `ฉากที่ ${getNodeId(node)}`);
 const getNodeChapter = (node) => stripHtml(node?.ChapterTitle || node?.chapter_title || node?.chapter || node?.chapterName || node?.chapter_name || "");
 
 const getSceneTypeBadge = (typeStr) => {
   const type = stripHtml(typeStr || "").toLowerCase();
   
-  const typeLabel = type === "start" || type === "starting" ? "จุดเริ่มต้น"
-    : type === "ending" || type === "end" ? "ฉากจบ"
+  const isStart = type === "start" || type === "starting" || type.includes("เริ่มต้น");
+  const isEnding = type === "ending" || type === "end" || type.includes("จบ");
+
+  const typeLabel = isStart ? "จุดเริ่มต้น"
+    : isEnding ? "ฉากจบ"
       : "ฉากทั่วไป";
 
-  const typeColor = type === "start" || type === "starting" ? "#16A34A"
-    : type === "ending" || type === "end" ? "#EF4444"
+  const typeColor = isStart ? "#16A34A"
+    : isEnding ? "#EF4444"
       : "#38BDF8";
 
-  const typeBgColor = type === "start" || type === "starting" ? "#DCFCE7"
-    : type === "ending" || type === "end" ? "#FEE2E2"
+  const typeBgColor = isStart ? "#DCFCE7"
+    : isEnding ? "#FEE2E2"
       : "#E0F2FE";
 
-  const typeIcon = type === "start" || type === "starting" ? "▶"
-    : type === "ending" || type === "end" ? "🏆"
+  const typeIcon = isStart ? "▶"
+    : isEnding ? "🏆"
       : "📖";
 
   return (
@@ -217,6 +228,10 @@ const getSceneTypeBadge = (typeStr) => {
 function StatisticsGraph() {
   const { novelId } = useParams();
   const navigate = useNavigate();
+
+  const nodeTypes = useMemo(() => ({
+    analyticsNode: AnalyticsNode,
+  }), []);
   
   const [novelTitle, setNovelTitle] = useState("นิยายของฉัน");
   const [treeData, setTreeData] = useState(null);
@@ -228,6 +243,7 @@ function StatisticsGraph() {
   const [overallAnalytics, setOverallAnalytics] = useState(null);
   const [sceneAnalytics, setSceneAnalytics] = useState(null);
   const [choiceAnalytics, setChoiceAnalytics] = useState(null);
+  const [allScenesAnalytics, setAllScenesAnalytics] = useState([]);
   const [isSceneLoading, setIsSceneLoading] = useState(false);
   const [isChoiceLoading, setIsChoiceLoading] = useState(false);
   
@@ -245,22 +261,25 @@ function StatisticsGraph() {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const [treeRes, chaptersRes, novelRes, analyticsRes] = await Promise.all([
+      const [treeRes, chaptersRes, novelRes, analyticsRes, scenesAnalyticsRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`),
         axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`),
         axios.get(`${API_BASE_URL}/novels/${novelId}`),
-        axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics`, { headers })
+        axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics`, { headers }),
+        axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes`, { headers })
       ]);
       
-      setTreeData(treeRes.data?.data || treeRes.data || null);
+      const tree = treeRes.data?.data || treeRes.data || null;
+      setTreeData(tree);
       
       const chaptersList = chaptersRes.data?.data?.chapters || chaptersRes.data?.chapters || chaptersRes.data?.data || [];
       setNovelChapters(Array.isArray(chaptersList) ? chaptersList : []);
       
-      const title = novelRes.data?.data?.title || novelRes.data?.title || novelRes.data?.data?.Title || novelRes.data?.Title;
+      const title = tree?.NovelTitle || tree?.novel_title || novelRes.data?.data?.title || novelRes.data?.title || novelRes.data?.data?.Title || novelRes.data?.Title;
       if (title) setNovelTitle(title);
 
       setOverallAnalytics(analyticsRes.data?.data || analyticsRes.data || null);
+      setAllScenesAnalytics(scenesAnalyticsRes.data?.data || scenesAnalyticsRes.data || []);
     } catch (err) {
       console.error("Error fetching analytics data:", err);
       setError("ไม่สามารถดึงข้อมูลนิยายและสถิติได้ กรุณาลองใหม่อีกครั้ง");
@@ -521,6 +540,15 @@ function StatisticsGraph() {
       let exitRate = 2 + (index * 5) % 15;
       let returnRate = Math.floor(5 + (index * 3) % 15);
 
+      // Match with real data from get all scenes endpoint
+      if (Array.isArray(allScenesAnalytics)) {
+        const sceneData = allScenesAnalytics.find(s => normalizeId(s.scene_id) === id);
+        if (sceneData) {
+          visitors = sceneData.unique_readers || sceneData.visit_count || visitors;
+          exitRate = Math.round(sceneData.drop_off_rate) ?? exitRate;
+        }
+      }
+
       if (overallAnalytics?.top_drop_off_scenes) {
         const dropData = overallAnalytics.top_drop_off_scenes.find(d => normalizeId(d.scene_id) === id);
         if (dropData) {
@@ -548,7 +576,7 @@ function StatisticsGraph() {
       });
     });
     return analytics;
-  }, [uniqueNodes, overallAnalytics, selectedSceneId, sceneAnalytics]);
+  }, [uniqueNodes, overallAnalytics, selectedSceneId, sceneAnalytics, allScenesAnalytics]);
 
   // Edge Selection Map from API
   const edgeSelectionMap = useMemo(() => {
@@ -1101,8 +1129,6 @@ function StatisticsGraph() {
                           {selectedSceneDetails.label} {selectedSceneDetails.title}
                         </h3>
                         <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
-                          <span>ID ฉาก: {sceneAnalytics?.scene_id || selectedSceneId}</span>
-                          <span>|</span>
                           <span>ประเภท:</span>
                           {getSceneTypeBadge(selectedSceneDetails.sceneType)}
                         </span>
@@ -1197,79 +1223,38 @@ function StatisticsGraph() {
                         </div>
                       </div>
 
-                      {/* มาจากทางเลือกก่อนหน้า */}
+                      {/* มาจากฉากก่อนหน้า */}
                       <div style={{ marginTop: "20px" }}>
                         <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a", margin: "0 0 12px 0", textAlign: "left" }}>
-                          มาจากทางเลือกก่อนหน้า
+                          มาจากฉากก่อนหน้า
                         </h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                           {(() => {
                             const prevList = sceneAnalytics?.previous_scenes || [];
                             if (prevList.length > 0) {
                               return prevList.map((item, idx) => {
                                 const scId = normalizeId(item.scene_id);
-                                const edge = rawEdges.find(e => 
-                                  normalizeId(e.FromID || e.from_id || e.from || e.source) === scId && 
-                                  normalizeId(e.ToID || e.to_id || e.to || e.target) === selectedSceneId
-                                );
-                                const choiceText = edge ? (edge.Label || edge.label || edge.choice_text || edge.text) : "ทางเลือกเพื่อเข้าสู่ฉากนี้";
                                 const displayLabel = chapterAndSceneDisplayMap.get(scId)?.display || `ฉากที่ ${scId}`;
 
                                 return (
-                                  <div key={idx} style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
-                                    <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1e293b" }}>
-                                      "{choiceText}" <span style={{ color: "#64748b", fontWeight: 500 }}>(จาก {displayLabel} - {item.title})</span>
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                      <div style={{ flex: 1, height: "8px", backgroundColor: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
-                                        <div style={{ width: `${item.percentage}%`, height: "100%", backgroundColor: "#db2777", borderRadius: "4px" }} />
-                                      </div>
-                                      <div style={{ display: "flex", gap: "10px", alignItems: "center", minWidth: "90px", justifyContent: "flex-end" }}>
-                                        <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#0f172a" }}>{Math.round(item.percentage)}%</span>
-                                        <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{item.transition_count.toLocaleString()} คน</span>
-                                      </div>
-                                    </div>
+                                  <div 
+                                    key={idx} 
+                                    style={{ 
+                                      padding: "10px 14px", 
+                                      backgroundColor: "#f8fafc", 
+                                      borderRadius: "8px", 
+                                      border: "1px solid #e2e8f0", 
+                                      fontSize: "0.85rem", 
+                                      color: "#334155",
+                                      textAlign: "left" 
+                                    }}
+                                  >
+                                    มาจาก <strong>{displayLabel}</strong> - {item.title || "ไม่มีชื่อฉาก"}
                                   </div>
                                 );
                               });
                             }
                             return <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0, textAlign: "left" }}>ไม่มีฉากก่อนหน้า (ฉากนี้เป็นฉากเริ่มต้น)</p>;
-                          })()}
-                        </div>
-                      </div>
-
-                      {/* ผู้อ่านเลือกอะไรต่อ */}
-                      <div style={{ marginTop: "24px" }}>
-                        <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a", margin: "0 0 12px 0", textAlign: "left" }}>
-                          ผู้อ่านเลือกอะไรต่อ
-                        </h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                          {(() => {
-                            const nextList = sceneAnalytics?.next_scenes || [];
-                            if (nextList.length > 0) {
-                              return nextList.map((item, idx) => {
-                                const scId = normalizeId(item.scene_id);
-                                const displayLabel = chapterAndSceneDisplayMap.get(scId)?.display || `ฉากที่ ${scId}`;
-
-                                return (
-                                  <div key={idx} style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
-                                    <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1e293b" }}>
-                                      "{item.choice_label || "เลือกทางเลือกนี้"}" <span style={{ color: "#64748b", fontWeight: 500 }}>(ไปยัง {displayLabel} - {item.title})</span>
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                      <div style={{ flex: 1, height: "8px", backgroundColor: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
-                                        <div style={{ width: `${item.percentage}%`, height: "100%", backgroundColor: "#db2777", borderRadius: "4px" }} />
-                                      </div>
-                                      <div style={{ display: "flex", gap: "10px", alignItems: "center", minWidth: "90px", justifyContent: "flex-end" }}>
-                                        <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#0f172a" }}>{Math.round(item.percentage)}%</span>
-                                        <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{item.transition_count.toLocaleString()} คน</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              });
-                            }
-                            return <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0, textAlign: "left" }}>ไม่มีฉากถัดไป (ฉากจบ)</p>;
                           })()}
                         </div>
                       </div>

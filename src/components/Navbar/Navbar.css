@@ -207,6 +207,15 @@
   color: #be185d !important;
 }
 
+.nav-menu-btn--pink.active {
+  color: #db2777 !important;
+  font-weight: 700;
+  text-decoration: underline !important;
+  text-decoration-color: #db2777 !important;
+  text-decoration-thickness: 3px !important;
+  text-underline-offset: 6px !important;
+}
+
 @keyframes slideExpandRight {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: translateX(0); }

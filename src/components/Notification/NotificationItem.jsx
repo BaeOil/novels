@@ -59,6 +59,7 @@ export default function NotificationItem({
   notification,
   onClick,
   onDelete,
+  isDeleting = false,
 }) {
   const type = TYPE_CONFIG[notification.type] || TYPE_CONFIG.system;
   const actorName = notification.actor?.name || "StoryVerse";
@@ -75,86 +76,78 @@ export default function NotificationItem({
     <div
       className={`notification-item ${notification.read ? "" : "unread"}`}
       style={{ "--type-accent": type.accent, "--type-accent-soft": type.accentSoft }}
-      onClick={handleActivate}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleActivate();
-        }
-      }}
     >
-      <div className="notification-avatar-wrapper">
-        <div
-          className="notification-avatar"
-          style={{
-            background: notification.actor?.avatarColor || "#E91E8C",
-          }}
-        >
-          {actorName.charAt(0)}
-        </div>
-
-        <span className="notification-type-badge">
-          {type.icon}
-        </span>
-      </div>
-
-      <div className="notification-main">
-        <div className="notification-top">
-          <div className="notification-user">
-            <strong>{actorName}</strong>
-            <span>{type.action}</span>
-          </div>
-
-          <div className="notification-meta">
-            {!notification.read && (
-              <span className="notification-dot" aria-label="ยังไม่ได้อ่าน" />
-            )}
-            <span className="notification-time">{displayTime}</span>
-          </div>
-        </div>
-
-        {showPreview && (notification.novelCover || notification.title || notification.body) && (
-          <div className="notification-preview">
-            {notification.novelCover && (
-              <img
-                src={notification.novelCover}
-                alt=""
-                className="notification-cover"
-              />
-            )}
-
-            <div className="notification-preview-text">
-              {notification.title && (
-                <div className="notification-title">
-                  {notification.title}
-                </div>
-              )}
-
-              {notification.body && (
-                <div className="notification-message">
-                  {notification.body}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="notification-footer">
-          <button
-            type="button"
-            className="notification-delete"
-            aria-label="ลบการแจ้งเตือนนี้"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete?.(notification.id);
+      <button type="button" className="notification-item__open" onClick={handleActivate}>
+        <div className="notification-avatar-wrapper">
+          <div
+            className="notification-avatar"
+            style={{
+              background: notification.actor?.avatarColor || "#E91E8C",
             }}
           >
-            <span className="notification-delete-icon" aria-hidden="true">🗑</span>
-            ลบ
-          </button>
+            {actorName.charAt(0)}
+          </div>
+
+          <span className="notification-type-badge">
+            {type.icon}
+          </span>
         </div>
+
+        <div className="notification-main">
+          <div className="notification-top">
+            <div className="notification-user">
+              <strong>{actorName}</strong>
+              <span>{type.action}</span>
+            </div>
+
+            <div className="notification-meta">
+              {!notification.read && (
+                <span className="notification-dot" aria-label="ยังไม่ได้อ่าน" />
+              )}
+              <span className="notification-time">{displayTime}</span>
+            </div>
+          </div>
+
+          {showPreview && (notification.novelCover || notification.title || notification.body) && (
+            <div className="notification-preview">
+              {notification.novelCover && (
+                <img
+                  src={notification.novelCover}
+                  alt=""
+                  className="notification-cover"
+                />
+              )}
+
+              <div className="notification-preview-text">
+                {notification.title && (
+                  <div className="notification-title">
+                    {notification.title}
+                  </div>
+                )}
+
+                {notification.body && (
+                  <div className="notification-message">
+                    {notification.body}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </button>
+
+      <div className="notification-footer">
+        <button
+          type="button"
+          className="notification-delete"
+          aria-label="ลบการแจ้งเตือนนี้"
+          onClick={() => onDelete?.(notification.id)}
+          disabled={isDeleting}
+          aria-busy={isDeleting}
+        >
+          <span className="notification-delete-icon" aria-hidden="true">{isDeleting ? "⏳" : "🗑"}</span>
+          {isDeleting ? "กำลังลบ..." : "ลบ"}
+        </button>
       </div>
     </div>
   );

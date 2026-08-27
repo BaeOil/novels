@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
 import { Eye, Heart, GitBranch, BookmarkPlus, SlidersHorizontal, Check } from "lucide-react";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./SearchPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -10,11 +11,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 const normalizeNovel = (data) => {
   const rawCats = data.categories ?? data.Categories ?? data.category_ids ?? data.CategoryIDs ?? [];
   const statusInfo = getNovelStatusInfo(data);
-  
-  const isActuallyPublished = data.status?.toLowerCase() === "published" || 
-                              data.is_published === true || 
-                              statusInfo.isPublished || 
-                              statusInfo.mode === "published";
 
   const cleanCategories = Array.isArray(rawCats) 
     ? rawCats.map(c => {
@@ -40,7 +36,8 @@ const normalizeNovel = (data) => {
       bookshelfCount: data.bookshelf_count || data.bookshelfCount || data.saved_count || data.added_count || 0,
     },
     status: data.status || "draft",
-    isPublished: isActuallyPublished,
+    isPublished: statusInfo.isPublished,
+    isCompleted: statusInfo.isCompleted,
   };
 };
 
@@ -195,13 +192,15 @@ const SearchPage = () => {
         <div className="filter-bar">
           
           {/* ส่วนซ้าย: การเลือกประเภทที่ค้นหา (แทนที่หมวดหมู่เดิม) */}
-          <div className="search-type-tabs">
+          <div className="search-type-tabs" role="tablist" aria-label="ประเภทการค้นหา">
             {searchTypeTabs.map((tab, idx) => {
               const isActive = searchType === tab.value;
               return (
                 <button
                   key={idx}
                   type="button"
+                  role="tab"
+                  aria-selected={isActive}
                   className={`search-type-tab-btn ${isActive ? "active" : ""}`}
                   onClick={() => setSearchType(tab.value)}
                 >
@@ -211,11 +210,29 @@ const SearchPage = () => {
             })}
           </div>
 
+          {(searchQuery || activeCategory || sortBy !== "relevant" || searchType !== "all") && (
+            <button
+              type="button"
+              className="btn-clear-filters"
+              onClick={() => {
+                setSearchQuery("");
+                setActiveCategory(null);
+                setSearchType("all");
+                setSortBy("relevant");
+                setShowFilterPanel(false);
+              }}
+            >
+              ล้างตัวกรอง
+            </button>
+          )}
+
           {/* ส่วนขวา: ปุ่มเปิด-ปิด จัดเรียง/ตัวกรอง */}
           <div className="filter-toggle-wrap">
             <button 
               type="button"
               className={`btn-toggle-filters ${showFilterPanel ? "panel-open" : ""}`}
+              aria-expanded={showFilterPanel}
+              aria-controls="search-filter-panel"
               onClick={() => setShowFilterPanel(!showFilterPanel)}
             >
               <SlidersHorizontal size={16} />
@@ -226,7 +243,7 @@ const SearchPage = () => {
 
         {/* แผงควบคุมจัดเรียง/ตัวกรอง Dropdown Panel */}
         {showFilterPanel && (
-          <div className="dropdown-filters-panel">
+          <div id="search-filter-panel" className="dropdown-filters-panel">
             <div className="filter-panel-grid">
               
               {/* คอลัมน์เลือกหมวดหมู่ */}
@@ -277,6 +294,18 @@ const SearchPage = () => {
                     </button>
                   ))}
                 </div>
+                <button
+                  type="button"
+                  className="panel-clear-btn"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setActiveCategory(null);
+                    setSearchType("all");
+                    setSortBy("relevant");
+                  }}
+                >
+                  ล้างตัวกรองทั้งหมด
+                </button>
               </div>
 
             </div>
@@ -288,7 +317,7 @@ const SearchPage = () => {
           
           <main className="search-results-area-full">
             {loading ? (
-              <div className="search-loading">กำลังค้นหานิยาย...</div>
+              <LoadingScreen compact message="กำลังค้นหานิยาย..." />
             ) : error ? (
               <div className="search-error">{error}</div>
             ) : filteredAndSortedNovels.length === 0 ? (
@@ -300,14 +329,21 @@ const SearchPage = () => {
             ) : (
               <div className="novel-list-vertical-full">
                 {filteredAndSortedNovels.map((novel) => {
-                  const statusInfo = getNovelStatusInfo(novel);
-                  const isFinished = statusInfo.mode === "published" || novel.status?.toLowerCase() === "published" || statusInfo.isPublished;
+                  const isFinished = novel.isCompleted;
 
                   return (
                     <article 
                       key={novel.id} 
                       className="novel-horiz-card-full"
                       onClick={() => navigate(`/novel/${novel.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          navigate(`/novel/${novel.id}`);
+                        }
+                      }}
+                      role="link"
+                      tabIndex={0}
                     >
                       {/* หน้าปก */}
                       <div className="novel-horiz-cover-full">

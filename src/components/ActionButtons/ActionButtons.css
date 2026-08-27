@@ -41,6 +41,12 @@
     border-radius:999px !important;
 }
 
+.action-buttons button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+  transform: none;
+}
+
 /* Read — filled pink */
 .action-buttons__read {
   background: #e91e8c !important; /* บังคับเป็นสีชมพูทันที */

@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Bell, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import "./Navbar.css";
 import { useAuthUser, useNotifications, useNavSearch } from "../../hooks/useNavbar.jsx";
+import NotificationDropdown from "../NotificationDropdown/NotificationDropdown";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -147,6 +148,10 @@ const Navbar = () => {
             navigate(`/writer/${novelId}/storytree`);
             return;
         }
+        if (target === "analytics") {
+            navigate(`/writer/${novelId}/analytics`);
+            return;
+        }
         if (target === "write") {
             // เดิมพยายามเดา sceneId แรกแล้วพาไปตรงๆ แต่ถ้า API คืนข้อมูลไม่ตรง
             // สมมุติฐาน หรือฉากนั้นถูกลบไปแล้ว จะพาไปเจอหน้า error ดิบๆ ทันที
@@ -219,6 +224,7 @@ const Navbar = () => {
     const getCurrentNovelSection = () => {
         if (/^\/writer\/[^/]+\/chapters/.test(location.pathname)) return "chapters";
         if (/^\/writer\/[^/]+\/storytree/.test(location.pathname)) return "tree";
+        if (/^\/writer\/[^/]+\/analytics/.test(location.pathname)) return "analytics";
         if (/^\/writer\/[^/]+\/scene\//.test(location.pathname)) return "write";
         return null;
     };
@@ -330,22 +336,39 @@ const Navbar = () => {
                                                 </span>
                                             </button>
                                         </li>
-                                        <li className="nav-item nav-item-divider-container">
+                                        <li className="nav-item-divider-container">
                                             <span className="nav-menu-divider"></span>
                                         </li>
                                         <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("chapters")}>
-                                                จัดการตอน
-                                            </button>
+                                            <button 
+                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/chapters") ? "active" : ""}`} 
+                                                 onClick={() => handleNovelMenu("chapters")}
+                                             >
+                                                 จัดการตอน
+                                             </button>
                                         </li>
+                                         <li className="nav-item">
+                                             <button 
+                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/scene/") ? "active" : ""}`} 
+                                                 onClick={() => handleNovelMenu("write")}
+                                             >
+                                                 เขียนเนื้อหา
+                                             </button>
+                                         </li>
                                         <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("write")}>
-                                                เขียนเนื้อหา
-                                            </button>
-                                        </li>
-                                        <li className="nav-item">
-                                            <button className="nav-menu-btn--pink" onClick={() => handleNovelMenu("tree")}>
+                                            <button 
+                                                className={`nav-menu-btn--pink ${location.pathname.includes("/storytree") ? "active" : ""}`} 
+                                                onClick={() => handleNovelMenu("tree")}
+                                            >
                                                 โครงสร้างเนื้อเรื่อง
+                                            </button>
+                                        </li>
+                                        <li className="nav-item">
+                                            <button 
+                                                className={`nav-menu-btn--pink ${location.pathname.includes("/analytics") ? "active" : ""}`} 
+                                                onClick={() => handleNovelMenu("analytics")}
+                                            >
+                                                สถิติทางเลือก
                                             </button>
                                         </li>
                                     </>
@@ -541,21 +564,9 @@ const Navbar = () => {
                             </div>
                         )}
 
-                        {/* กระดิ่งแจ้งเตือน — ตัวเดียวทั้งเว็บ (มาจาก useNotifications) */}
+                        {/* กระดิ่งแจ้งเตือน — เปิดรายการล่าสุดใน dropdown */}
                         {isLoggedIn && (
-                            <button
-                                type="button"
-                                className="navbar__notification-btn"
-                                onClick={() => navigate("/notifications")}
-                                aria-label="การแจ้งเตือน"
-                            >
-                                <Bell size={20} strokeWidth={2.2} />
-                                {unreadCount > 0 && (
-                                    <span className="navbar__notification-badge">
-                                        {unreadCount > 99 ? "99+" : unreadCount}
-                                    </span>
-                                )}
-                            </button>
+                            <NotificationDropdown unreadCount={unreadCount} />
                         )}
 
                         {/* ปุ่ม "สตูดิโอนักเขียน" — โชว์เฉพาะบัญชีนักเขียนที่กำลังอยู่โหมดนักอ่าน */}
@@ -599,17 +610,26 @@ const Navbar = () => {
                                             </div>
                                             <hr className="nav-dropdown__divider" />
 
+                                            {userData.role === "writer" && (
+                                                <button
+                                                    type="button"
+                                                    className="nav-dropdown__link-btn"
+                                                    onClick={() => {
+                                                        setIsDropdownOpen(false);
+                                                        navigate("/writer/profile");
+                                                    }}
+                                                >
+                                                    👤 โปรไฟล์ของฉัน
+                                                </button>
+                                            )}
+
                                             <button
                                                 type="button"
                                                 className="nav-dropdown__link-btn"
-                                                onClick={() => { setIsDropdownOpen(false); navigate("/profile"); }}
-                                            >
-                                                👤 โปรไฟล์ของฉัน
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="nav-dropdown__link-btn"
-                                                onClick={() => { setIsDropdownOpen(false); navigate("/settings"); }}
+                                                onClick={() => {
+                                                    setIsDropdownOpen(false);
+                                                    navigate("/settings");
+                                                }}
                                             >
                                                 ⚙️ ตั้งค่า
                                             </button>

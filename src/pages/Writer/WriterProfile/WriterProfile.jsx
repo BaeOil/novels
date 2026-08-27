@@ -318,11 +318,21 @@ export default function WriterProfile() {
   const contactReq = contactObj.contact_required || contactObj.primary_contact || "";
   const contactOpt = contactObj.contact_optional || contactObj.secondary_contact || "";
   const hasContactInfo = Boolean(writerInfo.emailWriter || contactReq || contactOpt);
-
-  return (
+return (
     <div className="profile-wrapper" style={{ paddingTop: isAdmin ? 0 : undefined }}>
       {isAdmin && <AdminModeBanner page="โปรไฟล์นักเขียน" />}
       <div className="profile-container">
+        {/* Back Button */}
+        <div style={{ marginBottom: "16px", display: "flex", justifyContent: "flex-start" }}>
+          <button
+            type="button"
+            className="profile-back-button"
+            onClick={() => navigate(-1)}
+            aria-label="ย้อนกลับ"
+          >
+            ← ย้อนกลับ
+          </button>
+        </div>
 
         {/* ============================================================== */}
         {/* 1. Header Card (Dek-D / ReadAWrite Style - Compact & Clean) */}
@@ -381,6 +391,7 @@ export default function WriterProfile() {
               <div className="profile-actions-row">
                 {isOwner ? (
                   <button
+                    type="button"
                     className="btn-edit-profile"
                     onClick={() => setShowEditModal(true)}
                   >
@@ -397,6 +408,7 @@ export default function WriterProfile() {
                 ) : null}
 
                 <button
+                  type="button"
                   className="btn-share-profile"
                   onClick={() => {
                     navigator.clipboard.writeText(window.location.href);
@@ -488,21 +500,30 @@ export default function WriterProfile() {
               <span className="works-count-badge">{filteredNovels.length} เรื่อง</span>
             </div>
 
-            <div className="profile-tabs">
+            <div className="profile-tabs" role="tablist" aria-label="กรองผลงานนิยาย">
               <button
+                type="button"
+                role="tab"
                 className={`profile-tab-btn ${activeTab === "all" ? "active" : ""}`}
+                aria-selected={activeTab === "all"}
                 onClick={() => setActiveTab("all")}
               >
                 ทั้งหมด
               </button>
               <button
+                type="button"
+                role="tab"
                 className={`profile-tab-btn ${activeTab === "ongoing" ? "active" : ""}`}
+                aria-selected={activeTab === "ongoing"}
                 onClick={() => setActiveTab("ongoing")}
               >
                 กำลังเขียน
               </button>
               <button
+                type="button"
+                role="tab"
                 className={`profile-tab-btn ${activeTab === "completed" ? "active" : ""}`}
+                aria-selected={activeTab === "completed"}
                 onClick={() => setActiveTab("completed")}
               >
                 จบแล้ว

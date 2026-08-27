@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./NotificationPage.css";
 import NotificationItem from "../../../components/Notification/NotificationItem";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -97,8 +98,11 @@ export default function NotificationPage() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState("all");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
+  const [deletingNotificationId, setDeletingNotificationId] = useState(null);
   const [notifSettings, setNotifSettings] = useState(null);
   const settingsRef = useRef(null);
+  const clearModalCancelRef = useRef(null);
 
   const userObj = JSON.parse(localStorage.getItem("user") || "{}");
   const isWriter = userObj.role === "writer" || userObj.role === "admin";
@@ -139,6 +143,17 @@ export default function NotificationPage() {
   }, [notifSettings, isWriter]);
 
   const unreadCount = items.filter((i) => !i.read).length;
+
+  useEffect(() => {
+    if (!showClearConfirm) return undefined;
+
+    clearModalCancelRef.current?.focus();
+    const handleModalKeyDown = (event) => {
+      if (event.key === "Escape" && !actionLoading) setShowClearConfirm(false);
+    };
+    document.addEventListener("keydown", handleModalKeyDown);
+    return () => document.removeEventListener("keydown", handleModalKeyDown);
+  }, [showClearConfirm, actionLoading]);
 
   const loadNotifications = async () => {
     const token = localStorage.getItem("token");
@@ -260,9 +275,16 @@ export default function NotificationPage() {
     try {
       await requestJson(`/notifications/${id}/read`, { method: "PATCH" });
       setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
+      const status = document.getElementById("notification-status");
+      if (status) status.textContent = "อ่านแล้ว";
       window.dispatchEvent(new Event("notifications-updated"));
     } catch (err) {
       console.error("mark read failed", err);
+    } finally {
+      window.setTimeout(() => {
+        const status = document.getElementById("notification-status");
+        if (status) status.textContent = "";
+      }, 1800);
     }
   };
 
@@ -295,26 +317,42 @@ export default function NotificationPage() {
   };
 
   const markAllRead = async () => {
+    if (actionLoading) return;
+    setActionLoading("mark-all");
     try {
       await requestJson(`/notifications/read-all`, { method: "PATCH" });
       setItems((prev) => prev.map((item) => ({ ...item, read: true })));
       window.dispatchEvent(new Event("notifications-updated"));
     } catch (err) {
       console.error("mark all read failed", err);
+    } finally {
+      setActionLoading("");
     }
   };
 
   const deleteNotification = async (id) => {
+    if (!id || deletingNotificationId) return;
+    setDeletingNotificationId(id);
     try {
       await requestJson(`/notifications/${id}`, { method: "DELETE" });
       setItems((prev) => prev.filter((item) => item.id !== id));
+      const status = document.getElementById("notification-status");
+      if (status) status.textContent = "ลบการแจ้งเตือนสำเร็จ";
       window.dispatchEvent(new Event("notifications-updated"));
     } catch (err) {
       console.error("delete notification failed", err);
+    } finally {
+      setDeletingNotificationId(null);
+      window.setTimeout(() => {
+        const status = document.getElementById("notification-status");
+        if (status) status.textContent = "";
+      }, 1800);
     }
   };
 
   const confirmClearAll = async () => {
+    if (actionLoading) return;
+    setActionLoading("clear-all");
     try {
       await requestJson(`/notifications`, { method: "DELETE" });
       setItems([]);
@@ -322,6 +360,7 @@ export default function NotificationPage() {
     } catch (err) {
       console.error("clear all failed", err);
     } finally {
+      setActionLoading("");
       setShowClearConfirm(false);
     }
   };
@@ -339,18 +378,23 @@ export default function NotificationPage() {
             <div className="notification-page__labels">
               <div className="notification-page__eyebrow">การแจ้งเตือน</div>
               <div className="notification-page__title">🔔 ศูนย์การแจ้งเตือน</div>
-              <p>
+              <p aria-live="polite" aria-atomic="true">
                 {unreadCount > 0
                   ? `${unreadCount} รายการที่ยังไม่ได้อ่าน`
                   : "อ่านครบทุกรายการแล้ว"}
               </p>
+              <div id="notification-status" className="notification-page__live-status" aria-live="polite" aria-atomic="true" />
             </div>
+          </div>
+
+          <div className="notification-page__sr-only" aria-live="polite" aria-atomic="true">
+            {`${unreadCount} รายการที่ยังไม่ได้อ่าน`}
           </div>
 
           <div className="notification-page__actions">
             {unreadCount > 0 && (
-              <button type="button" className="read-all-button" onClick={markAllRead}>
-                อ่านทั้งหมด
+              <button type="button" className="read-all-button" onClick={markAllRead} disabled={actionLoading !== ""}>
+                {actionLoading === "mark-all" ? "กำลังอ่านทั้งหมด..." : "อ่านทั้งหมด"}
               </button>
             )}
 
@@ -388,6 +432,7 @@ export default function NotificationPage() {
               <button
                 type="button"
                 className="confirm-modal-cancel"
+                ref={clearModalCancelRef}
                 onClick={() => setShowClearConfirm(false)}
               >
                 ยกเลิก
@@ -396,8 +441,9 @@ export default function NotificationPage() {
                 type="button"
                 className="confirm-modal-confirm"
                 onClick={confirmClearAll}
+                disabled={actionLoading !== ""}
               >
-                ล้างทั้งหมด
+                {actionLoading === "clear-all" ? "กำลังล้าง..." : "ล้างทั้งหมด"}
               </button>
             </div>
           </div>
@@ -419,7 +465,9 @@ export default function NotificationPage() {
               type="button"
               key={tabItem.key}
               role="tab"
+              id={`notification-tab-${tabItem.key}`}
               aria-selected={tab === tabItem.key}
+              aria-controls={`notification-panel-${tabItem.key}`}
               className={tab === tabItem.key ? "tab active" : "tab"}
               onClick={() => setTab(tabItem.key)}
             >
@@ -431,7 +479,7 @@ export default function NotificationPage() {
       </div>
 
       {/* ================= CONTENT ================= */}
-      <div className="notification-content">
+      <div id={`notification-panel-${tab}`} className="notification-content" role="tabpanel" aria-labelledby={`notification-tab-${tab}`}>
         {isCurrentTabDisabled ? (
           <div className="notification-empty" style={{ padding: "40px 20px" }}>
             <div className="empty-icon">⚠️</div>
@@ -457,10 +505,7 @@ export default function NotificationPage() {
             </button>
           </div>
         ) : loading ? (
-          <div className="notification-empty">
-            <div className="empty-icon notification-spinner">⏳</div>
-            <h2>กำลังโหลดการแจ้งเตือน…</h2>
-          </div>
+          <LoadingScreen compact message="กำลังโหลดการแจ้งเตือน..." />
         ) : error ? (
           <div className="notification-empty notification-empty-error">
             <div className="empty-icon">⚠️</div>
@@ -550,6 +595,7 @@ export default function NotificationPage() {
                           notification={notification}
                           onClick={handleNotificationClick}
                           onDelete={deleteNotification}
+                          isDeleting={deletingNotificationId === notification.id}
                         />
                       ))}
                     </div>

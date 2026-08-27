@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
 import { Eye, Heart, GitBranch, BookmarkPlus } from "lucide-react";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./CategoriesPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -17,18 +18,7 @@ function resolveCoverUrl(url) {
   return url.replace(MEDIA_INTERNAL_HOST, MEDIA_PUBLIC_HOST);
 }
 
-// ปรับแต่งคีย์สีอ่อนจางๆ สไตล์พาสเทลพรีเมียมตามข้อกำหนดใหม่ของผู้ใช้งาน
-// (คีย์ต้องตรงกับชื่อหมวดหมู่จริงในตาราง categories เท่านั้น — เดิมมี alias เผื่อไว้หลายชื่อที่ไม่มีจริงและใช้ไม่ถึงเลย)
-const CATEGORY_THEMES = {
-  "โรแมนติก":   { emoji: "🌸", bg: "#FFF1F2", border: "#FFE4E6", text: "#E11D48" },
-  "แฟนตาซี":   { emoji: "⚡", bg: "#F5F3FF", border: "#EDE9FE", text: "#7C3AED" },
-  "สืบสวน":    { emoji: "🔍", bg: "#F8FAFC", border: "#E2E8F0", text: "#475569" },
-  "สยองขวัญ":  { emoji: "🩸", bg: "#FEF2F2", border: "#FEE2E2", text: "#DC2626" },
-  "ไซไฟ":      { emoji: "🚀", bg: "#F0F9FF", border: "#E0F2FE", text: "#0284C7" },
-  "คอมเมดี้":   { emoji: "😂", bg: "#FEFCE8", border: "#FEF9C3", text: "#CA8A04" },
-  "ดราม่า":    { emoji: "🎭", bg: "#FFF5F5", border: "#FFE3E3", text: "#E03131" },
-  "ผจญภัย":    { emoji: "🌿", bg: "#F0FDF4", border: "#DCFCE7", text: "#16A34A" },
-};
+
 
 const normalizeNovel = (data) => {
   const rawCats = data.categories ?? data.Categories ?? data.category_ids ?? data.CategoryIDs ?? [];
@@ -252,22 +242,24 @@ const CategoriesPage = () => {
 
           <div className="categories-theme-grid">
             {categories.map((cat) => {
-              const theme = CATEGORY_THEMES[cat.name] || { emoji: "📖", bg: "#FFFbeb", border: "#FDE047", text: "#854D0E" };
               const isSelected = selectedCategories.includes(cat.name);
 
               return (
                 <div
                   key={cat.id}
                   className={`theme-card ${isSelected ? "selected" : ""}`}
-                  style={{
-                    "--theme-bg": theme.bg,
-                    "--theme-border": theme.border,
-                    "--theme-text": theme.text,
-                  }}
                   onClick={() => handleCategorySelect(cat.name)}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleCategorySelect(cat.name);
+                    }
+                  }}
                 >
                   {isSelected && <span className="card-check-badge">✓</span>}
-                  <span className="theme-emoji">{theme.emoji}</span>
                   <div className="theme-card-info">
                     <span className="theme-name">{cat.name}</span>
                     <span className="theme-count">{cat.count.toLocaleString()} เรื่อง</span>
@@ -286,6 +278,7 @@ const CategoriesPage = () => {
               <button 
                 type="button" 
                 className={`status-tab-btn ${statusFilter === "all" ? "active" : ""}`}
+                aria-pressed={statusFilter === "all"}
                 onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}
               >
                 ทั้งหมด
@@ -293,6 +286,7 @@ const CategoriesPage = () => {
               <button 
                 type="button" 
                 className={`status-tab-btn ${statusFilter === "writing" ? "active" : ""}`}
+                aria-pressed={statusFilter === "writing"}
                 onClick={() => { setStatusFilter("writing"); setCurrentPage(1); }}
               >
                 กำลังเขียน
@@ -300,6 +294,7 @@ const CategoriesPage = () => {
               <button 
                 type="button" 
                 className={`status-tab-btn ${statusFilter === "finished" ? "active" : ""}`}
+                aria-pressed={statusFilter === "finished"}
                 onClick={() => { setStatusFilter("finished"); setCurrentPage(1); }}
               >
                 จบแล้ว
@@ -328,6 +323,8 @@ const CategoriesPage = () => {
               <button 
                 type="button" 
                 className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+                aria-label="มุมมองตาราง"
+                aria-pressed={viewMode === "grid"}
                 onClick={() => setViewMode("grid")}
                 title="มุมมองตาราง"
               >
@@ -336,6 +333,8 @@ const CategoriesPage = () => {
               <button 
                 type="button" 
                 className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+                aria-label="มุมมองรายการ"
+                aria-pressed={viewMode === "list"}
                 onClick={() => setViewMode("list")}
                 title="มุมมองรายการ"
               >
@@ -347,7 +346,7 @@ const CategoriesPage = () => {
 
         {/* 4. แสดงผลการ์ดนิยาย */}
         {loading ? (
-          <div className="search-loading">กำลังโหลดนิยาย...</div>
+          <LoadingScreen compact message="กำลังโหลดนิยาย..." />
         ) : error ? (
           <div className="search-error">{error}</div>
         ) : paginatedNovels.length === 0 ? (
@@ -369,6 +368,14 @@ const CategoriesPage = () => {
                   key={novel.id} 
                   className="novel-grid-card"
                   onClick={() => navigate(`/novel/${novel.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      navigate(`/novel/${novel.id}`);
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
                 >
                   <span className={`card-status-tag ${isFinished ? "finished" : "writing"}`}>
                     {isFinished ? "จบแล้ว" : "กำลังเขียน"}
@@ -434,6 +441,14 @@ const CategoriesPage = () => {
                   key={novel.id} 
                   className="novel-horiz-card"
                   onClick={() => navigate(`/novel/${novel.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      navigate(`/novel/${novel.id}`);
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
                 >
                   <div className="novel-horiz-cover">
                     {novel.coverImage ? (

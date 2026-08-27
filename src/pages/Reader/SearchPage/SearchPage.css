@@ -105,6 +105,26 @@
   box-shadow: 0 4px 10px rgba(219, 39, 119, 0.2);
 }
 
+.btn-clear-filters,
+.panel-clear-btn {
+  border: 1px solid rgba(219, 39, 119, 0.15);
+  background: #fff7fb;
+  color: var(--pink-600);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-filters:hover,
+.panel-clear-btn:hover {
+  background: var(--pink-600);
+  color: var(--white);
+  border-color: var(--pink-600);
+}
+
 /* ปุ่ม จัดเรียง / ตัวกรอง */
 .filter-toggle-wrap {
   display: flex;
@@ -394,6 +414,42 @@
 
 .novel-horiz-card-full:hover .novel-horiz-title-full {
   color: var(--pink-600);
+}
+
+@media (max-width: 560px) {
+  .search-page {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .novel-horiz-card-full {
+    flex-direction: column;
+  }
+
+  .novel-horiz-cover-full {
+    width: 100%;
+    min-width: 0;
+    height: min(58vw, 220px);
+  }
+
+  .novel-horiz-details-full {
+    padding: 16px;
+  }
+
+  .novel-horiz-header-full {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .novel-horiz-title-full {
+    white-space: normal;
+  }
+
+  .novel-meta-info-full {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
 }
 
 .novel-horiz-author-full {

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactFlow, {
   Handle,
   Position,
@@ -35,40 +35,42 @@ const WRITER_NODE_STATUS = {
 };
 
 const WRITER_NODE_STYLE = {
-  // จุดเริ่มต้น = เขียว
+  // จุดเริ่มต้น = เขียวมรกต (Emerald Green)
   [WRITER_NODE_STATUS.START]: {
-    stroke: "#16A34A",
-    fill: "#DCFCE7",
-    text: "#166534",
+    stroke: "#059669",
+    fill: "#ECFDF5",
+    text: "#065F46",
   },
 
-  // ฉากทั่วไป = ฟ้าอ่อน
+  // ฉากทั่วไป = ฟ้าคราม (Sky Blue)
   [WRITER_NODE_STATUS.NORMAL]: {
-    stroke: "#38BDF8",
-    fill: "#E0F2FE",
+    stroke: "#0EA5E9",
+    fill: "#F0F9FF",
     text: "#0369A1",
   },
 
-  // ฉากจบ = แดง
+  // ฉากจบ = ม่วงแดง/กุหลาบ (Rose Red)
   [WRITER_NODE_STATUS.ENDING]: {
-    stroke: "#EF4444",
-    fill: "#FEE2E2",
-    text: "#991B1B",
+    stroke: "#E11D48",
+    fill: "#FFF1F2",
+    text: "#9F1239",
   },
 
-  // ฉากไม่มีการเชื่อมต่อ
+  // ฉากไม่มีการเชื่อมต่อ = ส้มทอง/อำพัน (Amber/Orange) - แยกชัดเจนจากสีเทาของฉบับร่าง
   [WRITER_NODE_STATUS.ORPHAN]: {
-    stroke: "#94A3B8",
-    fill: "#F1F5F9",
-    text: "#475569",
+    stroke: "#F59E0B",
+    fill: "#FEF3C7",
+    text: "#92400E",
   },
 };
 
 const WRITER_LEGEND = [
-  { label: "จุดเริ่มต้น", color: "#16A34A" },
-  { label: "ฉากทั่วไป", color: "#38BDF8" },
-  { label: "ฉากจบ", color: "#EF4444" },
-  { label: "ฉากยังไม่เชื่อมต่อ", color: "#94A3B8" },
+  { label: "จุดเริ่มต้น", color: "#059669" },
+  { label: "ฉากทั่วไป", color: "#0EA5E9" },
+  { label: "ฉากจบ", color: "#E11D48" },
+  { label: "ยังไม่เชื่อมต่อ", color: "#F59E0B" },
+  { label: "เผยแพร่แล้ว", color: "#2563EB", isBadge: true },
+  { label: "ฉบับร่าง", color: "#94A3B8", isBadge: true },
 ];
 
 const normalizeId = (value) => {
@@ -221,10 +223,33 @@ const StoryNode = ({ data }) => {
     cursor: connectTargetStatus === "invalid" ? "not-allowed" : undefined,
   };
 
+  // ดึงข้อมูลสถานะการเผยแพร่ของฉาก (published หรือ draft)
+  const isPublished = (() => {
+    // 1. ตรวจสอบจาก data.is_published, isPublished boolean
+    if (data.is_published === true || data.isPublished === true || data.is_published === 1) return true;
+    if (data.is_published === false || data.isPublished === false || data.is_published === 0) return false;
+
+    // 2. ตรวจสอบจาก sceneStatus, publish_status, publishStatus, status
+    const rawStatus = String(data.sceneStatus || data.publish_status || data.publishStatus || data.status || "").toLowerCase().trim();
+    if (rawStatus === "published" || rawStatus === "active" || rawStatus === "publish") return true;
+    if (rawStatus === "draft" || rawStatus === "inactive") return false;
+
+    // 3. ถ้าเป็นโหนดที่มีการเผยแพร่ตอน (Chapter Status)
+    if (data.chapter_status === "published" || data.chapterStatus === "published") return true;
+
+    return false;
+  })();
+
   return (
     <div className={cardClassName} style={nodeCustomStyle}>
       <Handle type="target" position={Position.Top} />
       
+      {/* ป้ายแสดงสถานะ เผยแพร่ / ฉบับร่าง ที่มุมบนขวา */}
+      <div className={`wst-node-card__publish-badge ${isPublished ? "wst-node-card__publish-badge--published" : "wst-node-card__publish-badge--draft"}`}>
+        <span className="wst-node-card__publish-dot"></span>
+        {isPublished ? "เผยแพร่แล้ว" : "ฉบับร่าง"}
+      </div>
+
       {/* ตอนที่ [เลขตอน] [ชื่อตอน] */}
       <div className="wst-node-card__badge">
         ตอนที่ {chapterNo} {chapterTitle}
@@ -938,6 +963,13 @@ let orphanCounter = 0;
       const pos = scenePositionMap.get(sceneId);
       const isSelectedNode = selectedSceneId && String(n.id) === String(selectedSceneId);
 
+      const sceneChapterId = n.scene?.ChapterID ?? n.scene?.chapter_id ?? n.scene?.chapterId;
+      const matchedChapter = novelChapters.find((ch) => {
+        const chId = ch.id ?? ch.ID ?? ch.chapter_id ?? ch.ChapterID;
+        return String(chId) === String(sceneChapterId);
+      });
+      const chapterPublishStatus = matchedChapter?.status || matchedChapter?.Status || "";
+
       return {
         id: String(n.id),
         type: "writerNode",
@@ -945,6 +977,10 @@ let orphanCounter = 0;
         zIndex: isSelectedNode ? 10 : 1, // โหนดที่ถูกเลือกจะมีความสำคัญระนาบลอยตัวเหนือโหนดอื่น
         data: {
           ...n.scene,
+          sceneStatus: n.scene?.status ?? n.scene?.Status ?? n.scene?.publish_status ?? n.scene?.publishStatus ?? n.scene?.is_published,
+          chapter_status: chapterPublishStatus,
+          chapterStatus: chapterPublishStatus,
+          graphStatus: n.status,
           status: n.status,
           isSelectedNode,
           hasActiveSelection: hasSelection,
@@ -3511,16 +3547,35 @@ const SceneDetailsCard = ({
       {/* Header Section */}
       <div className="wst-scene-details__header">
         <h4 className="wst-scene-details__scene-number">ฉากที่ {sceneNumber}</h4>
-        <span
-          className="wst-scene-details__type-badge"
-          style={{
-            borderColor: typeColor,
-            color: typeColor,
-            backgroundColor: typeBgColor
-          }}
-        >
-          {typeIcon} {typeLabel}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span
+            className={`wst-node-card__publish-badge ${
+              scene.is_published === true || 
+              scene.isPublished === true || 
+              String(scene.status || scene.publish_status || scene.publishStatus || "").toLowerCase() === "published"
+                ? "wst-node-card__publish-badge--published"
+                : "wst-node-card__publish-badge--draft"
+            }`}
+            style={{ position: "static" }}
+          >
+            <span className="wst-node-card__publish-dot"></span>
+            {scene.is_published === true || 
+            scene.isPublished === true || 
+            String(scene.status || scene.publish_status || scene.publishStatus || "").toLowerCase() === "published"
+              ? "เผยแพร่แล้ว"
+              : "ฉบับร่าง"}
+          </span>
+          <span
+            className="wst-scene-details__type-badge"
+            style={{
+              borderColor: typeColor,
+              color: typeColor,
+              backgroundColor: typeBgColor
+            }}
+          >
+            {typeIcon} {typeLabel}
+          </span>
+        </div>
       </div>
 
       {/* Title */}

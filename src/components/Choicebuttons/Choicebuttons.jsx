@@ -2,11 +2,11 @@
 import React, { useState } from "react";
 import "./ChoiceButtons.css";
 
-const ChoiceButtons = ({ prompt, choices = [], onChoose }) => {
+const ChoiceButtons = ({ prompt, choices = [], onChoose, disabled = false }) => {
   const [selected, setSelected] = useState(null);
 
   const handleChoose = (choice) => {
-    if (selected !== null) return;
+    if (selected !== null || disabled) return;
 
     if (choice.is_unavailable) {
       onChoose?.(choice);
@@ -43,10 +43,12 @@ const ChoiceButtons = ({ prompt, choices = [], onChoose }) => {
               className={`choices__btn${isSelected ? " choices__btn--selected" : ""}${isUnavailable ? " choices__btn--unavailable" : ""}`}
               onClick={() => handleChoose(choice)}
               aria-label={`${choice.text}${isUnavailable ? " กำลังเขียน" : ""}`}
-              disabled={selected !== null}
+              disabled={selected !== null || disabled}
             >
               <span className="choices__btn-content">
-                <span className="choices__btn-text">{choice.text}</span>
+                <span className="choices__btn-text">
+                  {isSelected && !isUnavailable ? "กำลังเปิดฉาก..." : choice.text}
+                </span>
                 {isUnavailable && (
                   <span className="choices__status" aria-label="ปลายทางกำลังเขียน">
                     <span className="choices__status-dot" aria-hidden="true" />

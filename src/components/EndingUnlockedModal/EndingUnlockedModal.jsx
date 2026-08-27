@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import "./EndingUnlockedModal.css";
 
 // นิยามโครงสร้าง 4 ประเภทฉากจบหลัก (ENDING DEFINITIONS)
@@ -96,6 +96,18 @@ export default function EndingUnlockedModal({
   onRestartReading,
 }) {
   const [isNewUnlock, setIsNewUnlock] = useState(false);
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    closeButtonRef.current?.focus();
+    const handleModalKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleModalKeyDown);
+    return () => document.removeEventListener("keydown", handleModalKeyDown);
+  }, [isOpen, onClose]);
 
   // ดึงประเภทฉากจบปัจจุบัน (good | bad | true | secret)
   const rawType = (
@@ -149,8 +161,8 @@ export default function EndingUnlockedModal({
         };
         localStorage.setItem(detailsKey, JSON.stringify(savedDetails));
       }
-    } catch (e) {
-      console.warn("Failed tracking ending history:", e);
+    } catch {
+      console.warn("Failed tracking ending history");
       setIsNewUnlock(false);
     }
   }, [isOpen, novelId, currentScene, rawType, currentTheme]);
@@ -239,10 +251,10 @@ export default function EndingUnlockedModal({
     currentTheme.defaultDesc;
 
   return (
-    <div className="eum-overlay" onClick={(e) => e.target.classList.contains("eum-overlay") && onClose()}>
-      <div className="eum-card" style={{ "--theme-accent": currentTheme.accentColor }}>
+    <div className="eum-overlay" role="dialog" aria-modal="true" aria-labelledby="ending-modal-title" onClick={(e) => e.target.classList.contains("eum-overlay") && onClose()}>
+      <div className="eum-card">
         {/* ปุ่ม ✕ ปิดมุมขวาบน */}
-        <button type="button" className="eum-close-btn" onClick={onClose} aria-label="ปิด">
+        <button type="button" className="eum-close-btn" ref={closeButtonRef} onClick={onClose} aria-label="ปิด">
           ✕
         </button>
 
@@ -257,7 +269,7 @@ export default function EndingUnlockedModal({
           <div className="eum-hero-type" style={{ color: currentTheme.accentColor }}>
             {currentTheme.typeLabel}
           </div>
-          <h2 className="eum-hero-title">{currentTitle}</h2>
+          <h2 id="ending-modal-title" className="eum-hero-title">{currentTitle}</h2>
           {currentDesc && <p className="eum-hero-desc">{currentDesc}</p>}
         </div>
 

@@ -994,3 +994,34 @@
 .nav-item.active-menu a:hover::after {
     display: none !important;
 }
+
+/* Active style for writer top menu buttons */
+.nav-menu-btn--pink.active {
+    color: #be185d !important;
+    font-weight: 800 !important;
+    text-decoration: underline !important;
+    text-decoration-color: #be185d !important;
+    text-decoration-thickness: 3px !important;
+    text-underline-offset: 6px !important;
+}
+
+/* Dropdown Link Button */
+.nav-dropdown__link-btn {
+    width: 100%;
+    padding: 10px 14px;
+    text-align: left;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    color: #374151;
+    cursor: pointer;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    display: block;
+    font-weight: 600;
+    transition: background-color 0.15s ease;
+}
+
+.nav-dropdown__link-btn:hover {
+    background-color: #f3f4f6;
+}

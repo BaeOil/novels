@@ -9,7 +9,7 @@
 .novel-detail__container {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 24px 24px 0;
+  padding: 24px clamp(16px, 4vw, 24px) 0;
 }
 
 /* ── Back button ── */
@@ -100,7 +100,7 @@
   font-weight: 700;
   color: var(--ink);
   line-height: 1.15;
-  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
   margin-bottom: 14px;
 }
 
@@ -125,6 +125,8 @@
   font-size: 16px;
   overflow: hidden;
   flex-shrink: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
 .novel-detail__author-avatar img {
@@ -134,10 +136,28 @@
 }
 
 .novel-detail__author-name {
+  padding: 0;
+  border: none;
+  background: transparent;
   font-family: 'Sarabun', sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: var(--gray-600);
+  transition: color 0.15s ease;
+}
+
+.novel-detail__author-avatar:disabled,
+.novel-detail__author-name:disabled {
+  cursor: default;
+}
+
+.novel-detail__author-name:hover {
+  color: var(--pink-500);
+  text-decoration: underline;
+}
+
+.novel-detail__author-avatar:hover {
+  border-color: var(--pink-300);
 }
 
 /* Synopsis */
@@ -157,6 +177,12 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 20px;
+}
+
+.novel-detail__primary-actions,
+.novel-detail__secondary-actions {
+  display: flex;
+  align-items: center;
 }
 
 .novel-detail__progress {
@@ -276,6 +302,7 @@
   color: var(--gray-600);
   line-height: 1.85;
   margin-bottom: 20px;
+  overflow-wrap: anywhere;
 }
 
 /* ── Responsive ── */
@@ -301,6 +328,59 @@
   .novel-detail__synopsis-section {
     padding: 20px;
   }
+
+  .novel-detail__action-group {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .novel-detail__primary-actions,
+  .novel-detail__secondary-actions,
+  .novel-detail__primary-actions .action-buttons {
+    width: 100%;
+  }
+
+  .novel-detail__primary-actions .action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .novel-detail__primary-actions .action-buttons__read {
+    grid-column: 1 / -1;
+  }
+
+  .novel-detail__primary-actions .action-buttons__bookmark,
+  .novel-detail__primary-actions .action-buttons__like {
+    min-width: 0;
+    width: 100%;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .novel-detail__secondary-actions {
+    padding-top: 4px;
+    border-top: 1px solid var(--gray-100);
+  }
+
+  .novel-detail__action-group > * {
+    width: 100%;
+  }
+
+  .novel-detail__restart-button {
+    width: 100%;
+  }
+
+  .novel-detail__preview-banner {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 12px 16px;
+  }
+
+  .novel-detail__preview-banner-btn {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -312,6 +392,24 @@
     font-size: 26px;
   }
 
+  .novel-detail__header-card,
+  .novel-detail__synopsis-section {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .novel-detail__back {
+    margin-bottom: 20px;
+  }
+
+  .novel-detail__guest-cta {
+    padding: 16px;
+  }
+
+  .novel-detail__modal-box {
+    padding: 24px 18px;
+  }
+
   .novel-detail__guest-cta {
     flex-direction: column;
     align-items: stretch;
@@ -319,6 +417,23 @@
 
   .novel-detail__guest-cta-btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .novel-detail__container {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .novel-detail__header-card,
+  .novel-detail__synopsis-section {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .novel-detail__title {
+    font-size: 24px;
   }
 }
 

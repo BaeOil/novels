@@ -167,6 +167,7 @@
   padding: 32px; /* Uniform interior padding */
   box-shadow: var(--shadow-sm);
   position: relative;
+  scroll-margin-top: 100px; /* ป้องกัน Navbar ความสูง 82px บดบังหัวข้อเวลาเลื่อน */
 }
 
 .wst-page-container .card-header {
@@ -939,5 +940,30 @@
   .wst-page-container .profile-row {
     flex-direction: column;
     text-align: center;
+  }
+}
+
+@media(max-width: 420px) {
+  .wst-page-container .page-wrap {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .wst-page-container .modal {
+    max-width: calc(100vw - 24px);
+  }
+
+  .wst-page-container .modal-body,
+  .wst-page-container .modal-header {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .wst-page-container .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .wst-page-container .modal-actions button {
+    width: 100%;
   }
 }

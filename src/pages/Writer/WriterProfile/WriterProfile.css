@@ -16,6 +16,41 @@
   gap: 1.5rem;
 }
 
+.profile-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.profile-back-button:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.profile-back-button:focus-visible,
+.btn-edit-profile:focus-visible,
+.btn-share-profile:focus-visible,
+.profile-tab-btn:focus-visible,
+.btn-back-home:focus-visible,
+.modal-close-btn:focus-visible,
+.btn-cancel:focus-visible,
+.btn-save-profile:focus-visible {
+  outline: 3px solid rgba(236, 72, 153, 0.3);
+  outline-offset: 2px;
+}
+
 /* ==========================================
  * Profile Header Card (Dek-D / ReadAWrite Inspired Layout)
  * ========================================== */
@@ -432,6 +467,8 @@
   border-radius: 999px;
   border: 1.5px solid var(--pink-100, #fce7f3);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 .profile-tab-btn {
@@ -450,6 +487,10 @@
   background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+}
+
+.profile-tab-btn {
+  white-space: nowrap;
 }
 
 /* Novels Grid */
@@ -820,4 +861,125 @@
 
 .btn-save-profile:hover {
   box-shadow: 0 6px 16px rgba(236, 72, 153, 0.35);
+}
+
+@media (max-width: 639px) {
+  .profile-wrapper {
+    padding: 1rem 0.75rem 2rem;
+  }
+
+  .profile-container {
+    gap: 1rem;
+  }
+
+  .profile-header-card,
+  .profile-stats-card,
+  .profile-contact-card {
+    border-radius: 16px;
+  }
+
+  .profile-header-banner {
+    height: 104px;
+  }
+
+  .profile-header-content {
+    padding: 0 1rem 1.25rem;
+  }
+
+  .profile-avatar-wrapper,
+  .profile-avatar-img {
+    width: 88px;
+    height: 88px;
+  }
+
+  .profile-avatar-wrapper {
+    margin-top: -44px;
+  }
+
+  .profile-writer-name {
+    font-size: 1.3rem;
+  }
+
+  .profile-actions-row {
+    align-items: stretch;
+  }
+
+  .profile-actions-row > * {
+    flex: 1 1 100%;
+  }
+
+  .profile-actions-row button {
+    width: 100%;
+  }
+
+  .profile-stats-card,
+  .profile-contact-card {
+    padding: 1rem;
+  }
+
+  .profile-stat-box {
+    min-width: 0;
+    padding: 0.55rem 0.35rem;
+  }
+
+  .profile-stat-value {
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .profile-contact-items {
+    gap: 0.6rem;
+  }
+
+  .profile-contact-item {
+    width: 100%;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .contact-value {
+    overflow-wrap: anywhere;
+  }
+
+  .works-section {
+    gap: 1rem;
+  }
+
+  .works-title {
+    font-size: 1.2rem;
+  }
+
+  .works-title-group {
+    justify-content: space-between;
+  }
+
+  .profile-tabs {
+    width: 100%;
+    justify-content: flex-start;
+    border-radius: 14px;
+  }
+
+  .profile-tab-btn {
+    flex: 1 0 auto;
+    padding: 0.55rem 0.8rem;
+  }
+
+  .profile-novels-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .profile-novels-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
 }

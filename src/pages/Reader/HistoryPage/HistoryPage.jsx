@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ArrowLeft, ChevronDown, ChevronUp, Trash2, X } from "lucide-react";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./HistoryPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -53,7 +54,15 @@ const getProgressLabels = (book) => {
 
 // นิยายจะถือว่า "จบ" ก็ต่อเมื่อตัวนิยายเองถูกทำเครื่องหมายว่าจบแล้วเท่านั้น
 // การอ่านไปถึงฉากล่าสุดที่มีอยู่ตอนนี้ไม่ได้แปลว่านิยายจบ (นิยายอาจยังเขียนไม่จบ)
-const NOVEL_COMPLETED_VALUES = new Set(["completed", "complete", "finished", "end", "จบแล้ว"]);
+const NOVEL_COMPLETED_VALUES = new Set([
+  "completed",
+  "complete",
+  "finished",
+  "end",
+  "completed-published",
+  "completed-draft",
+  "จบแล้ว",
+]);
 
 const isNovelCompleted = (novelStatus) =>
   NOVEL_COMPLETED_VALUES.has(String(novelStatus || "").trim().toLowerCase());
@@ -88,7 +97,8 @@ const normalizeBook = (item) => {
   const maxScTitle = item.last_read_scene_name || item.last_read_scene_title;
 
   // สถานะของ "ตัวนิยาย" เอง (จบแล้ว/ยังเขียนอยู่) แยกจากความคืบหน้าการอ่านของผู้ใช้
-  const novelStatus = item.novel_status || item.novel?.status || item.novel_completion_status;
+  const novelStatus = item.status || item.novel_status || item.novel?.status || item.novel_completion_status;
+  const novelCompleted = item.is_completed === true || item.novel?.is_completed === true || isNovelCompleted(novelStatus);
 
   // ผู้ใช้อ่านไปถึงฉากจบจริงๆ หรือไม่ ต้องเป็นสัญญาณเฉพาะจุด ไม่ใช่แค่ "มีฉากล่าสุดอยู่"
   const reachedEnding = Boolean(
@@ -124,6 +134,7 @@ const normalizeBook = (item) => {
       novelStatus,
       reachedEnding,
     }),
+    novelCompleted,
     routeFound: item.visited_count || 0,
     totalRoutes: item.total_scenes || item.scene_count || 0,
     endingCount: item.ending_count || 0,
@@ -168,9 +179,12 @@ const HistoryCard = ({ book, onContinue, onRequestDelete }) => {
         <span className={`history-card__status history-card__status--${book.reading_status}`}>
           {status.label}
         </span>
+        {book.novelCompleted && (
+          <span className="history-card__novel-status">จบ</span>
+        )}
         <button
           type="button"
-          className="history-card__delete-btn"
+          className={`history-card__delete-btn${book.novelCompleted ? " history-card__delete-btn--below-status" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
             onRequestDelete(book);
@@ -267,6 +281,18 @@ const HistoryPage = () => {
   const [deleteTarget, setDeleteTarget] = useState(null); // { type: "single", book } | { type: "bulk" }
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const deleteModalCloseRef = useRef(null);
+
+  useEffect(() => {
+    if (!deleteTarget) return undefined;
+
+    deleteModalCloseRef.current?.focus();
+    const handleModalKeyDown = (event) => {
+      if (event.key === "Escape" && !deleting) handleCancelDelete();
+    };
+    document.addEventListener("keydown", handleModalKeyDown);
+    return () => document.removeEventListener("keydown", handleModalKeyDown);
+  }, [deleteTarget, deleting]);
 
   useEffect(() => {
     let active = true;
@@ -452,6 +478,8 @@ const HistoryPage = () => {
               key={option.key}
               type="button"
               className={`history-page__filter-button ${filter === option.key ? "active" : ""}`}
+              role="tab"
+              aria-selected={filter === option.key}
               onClick={() => setFilter(option.key)}
             >
               {option.label}
@@ -461,7 +489,7 @@ const HistoryPage = () => {
         </div>
 
         {loading ? (
-          <div className="history-page__loading">กำลังโหลดประวัติการอ่าน...</div>
+          <LoadingScreen compact message="กำลังโหลดประวัติการอ่าน..." />
         ) : filteredBooks.length === 0 ? (
           <div className="history-page__empty">
             <div className="history-page__empty-emoji">📚</div>
@@ -494,6 +522,7 @@ const HistoryPage = () => {
             <button
               type="button"
               className="history-delete-modal__close"
+              ref={deleteModalCloseRef}
               onClick={handleCancelDelete}
               aria-label="ปิด"
               disabled={deleting}

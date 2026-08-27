@@ -34,6 +34,23 @@ const NovelProgressBar = ({
   const [latestNode, setLatestNode] = useState(null);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  // ตอนกด "อ่านเลย/อ่านต่อ" ต้องยิง API เช็กฉากก่อน navigate (ดู handleRead ที่ NovelDetailPage)
+  // ถ้าไม่มี loading ตรงนี้ผู้ใช้จะกดแล้วเห็นปุ่มนิ่งเฉยๆ ไม่รู้ว่ากำลังทำงานอยู่
+  const [navLoading, setNavLoading] = useState(false);
+
+  const handleContinueClick = async (sceneId) => {
+    if (navLoading) return;
+    setNavLoading(true);
+    try {
+      if (sceneId && onSceneClick) {
+        await onSceneClick(sceneId);
+      } else if (onContinueRead) {
+        await onContinueRead();
+      }
+    } finally {
+      setNavLoading(false);
+    }
+  };
 
   const getCurrentUserId = () => {
     const userJson = localStorage.getItem("user");
@@ -148,6 +165,11 @@ const NovelProgressBar = ({
           const startNode = rawNodes.find((n) => n.type === "start") || rawNodes[0];
           const startNodeIdStr = startNode ? String(startNode.id) : null;
           const hasBackendCurrent = rawNodes.some((n) => n.is_current === true);
+          // ถ้า backend ไม่เคยส่ง current_scene_id หรือ is_current มาเลย แปลว่าผู้ใช้ยังไม่เคย
+          // เริ่มอ่านจริงๆ — โค้ดด้านล่างจะ fallback ให้ "ฉากเริ่มต้น" เป็น current เพื่อประโยชน์
+          // ของแผนผังการอ่าน (StoryMap) เท่านั้น ห้ามเอา fallback นี้มานับเป็น "ความคืบหน้าจริง"
+          // ไม่งั้นจะเห็นแถบ "อ่านล่าสุด" + "1 ฉากที่ค้นพบ" ทั้งที่ยังไม่เคยกดอ่านเลย
+          const hasRealProgress = Boolean(currentSceneIdStr) || hasBackendCurrent;
 
           const computedNodes = rawNodes.map((node) => {
             const nodeIdStr = String(node.id);
@@ -188,19 +210,23 @@ const NovelProgressBar = ({
                     ? NODE_STATUS.ENDING_UNLOCKED
                     : n.computedStatus,
               }))
-            : computedNodes.filter(
-                (n) =>
+            : !hasRealProgress
+            ? []
+            : computedNodes.filter((n) => {
+                return (
                   n.computedStatus === NODE_STATUS.CURRENT ||
                   n.computedStatus === NODE_STATUS.VISITED ||
                   n.computedStatus === NODE_STATUS.ENDING_UNLOCKED
-              );
+                );
+              });
 
           setVisitedNodes(discovered);
 
-          const current =
-            computedNodes.find((n) => n.computedStatus === NODE_STATUS.CURRENT) ||
-            discovered[discovered.length - 1] ||
-            null;
+          const current = hasRealProgress
+            ? computedNodes.find((n) => n.computedStatus === NODE_STATUS.CURRENT) ||
+              discovered[discovered.length - 1] ||
+              null
+            : null;
 
           setLatestNode(current);
         }
@@ -299,9 +325,16 @@ const NovelProgressBar = ({
             {paginatedNodes.map((node) => (
               <li
                 key={node.id}
-                className="timeline-item preview-toc-item"
-                style={{ cursor: "pointer" }}
+                className="timeline-item timeline-item--clickable preview-toc-item"
+                role="button"
+                tabIndex={0}
                 onClick={() => onSceneClick && onSceneClick(node.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSceneClick && onSceneClick(node.id);
+                  }
+                }}
               >
                 <div className="timeline-item-icon">
                   {node.type === "start" ? "▶" : node.type === "ending" ? "🏁" : "•"}
@@ -377,8 +410,13 @@ const NovelProgressBar = ({
           </div>
         </div>
         <div className="timeline-actions-row">
-          <button type="button" className="btn-continue-read primary" onClick={onContinueRead}>
-            เริ่มอ่านตอนแรก →
+          <button
+            type="button"
+            className="btn-continue-read primary"
+            onClick={() => handleContinueClick()}
+            disabled={navLoading}
+          >
+            {navLoading ? "กำลังเปิดฉาก..." : "เริ่มอ่านตอนแรก →"}
           </button>
           <button type="button" className="btn-view-map" onClick={onStoryMapClick}>
             แผนผังการอ่าน →
@@ -411,14 +449,13 @@ const NovelProgressBar = ({
             <strong>{visitedNodes.length}</strong> 
             <span>ฉากที่ค้นพบ</span>
           </div>
-          <button type="button" className="btn-continue-read" onClick={() => {
-            if (onSceneClick && latestNode?.id) {
-              onSceneClick(latestNode.id);
-            } else if (onContinueRead) {
-              onContinueRead();
-            }
-          }}>
-            อ่านต่อ →
+          <button
+            type="button"
+            className="btn-continue-read"
+            onClick={() => handleContinueClick(latestNode?.id)}
+            disabled={navLoading}
+          >
+            {navLoading ? "กำลังเปิดฉาก..." : "อ่านต่อ →"}
           </button>
         </div>
       </div>
@@ -439,13 +476,24 @@ const NovelProgressBar = ({
             return (
               <li
                 key={node.id}
-                className={`timeline-item ${isCurrent ? "active" : ""}`}
-                style={{ cursor: "pointer" }}
+                className={`timeline-item timeline-item--clickable ${isCurrent ? "active" : ""}`}
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   if (onSceneClick) {
                     onSceneClick(node.id);
                   } else if (onContinueRead) {
                     onContinueRead(node.id);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    if (onSceneClick) {
+                      onSceneClick(node.id);
+                    } else if (onContinueRead) {
+                      onContinueRead(node.id);
+                    }
                   }
                 }}
               >

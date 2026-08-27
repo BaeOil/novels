@@ -21,6 +21,11 @@ const ActionButtons = ({
   showRead = true,
   showBookmark = true,
   showLike = true,
+  readDisabled = false,
+  bookmarkDisabled = false,
+  likeDisabled = false,
+  bookmarkLabel = "เพิ่มเข้าชั้นหนังสือ",
+  likeLabel = "ถูกใจ",
 }) => {
   const handleBookmark = () => {
     onBookmark?.(!isBookmarked);
@@ -38,6 +43,7 @@ const ActionButtons = ({
           type="button"
           className="action-buttons__read"
           onClick={onRead}
+          disabled={readDisabled}
           aria-label={readAriaLabel}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -53,6 +59,7 @@ const ActionButtons = ({
           type="button"
           className={`action-buttons__bookmark ${isBookmarked ? "action-buttons__bookmark--active" : ""}`}
           onClick={handleBookmark}
+          disabled={bookmarkDisabled}
           aria-label={isBookmarked ? "ลบออกจากชั้นหนังสือ" : "เพิ่มเข้าชั้นหนังสือ"}
           aria-pressed={isBookmarked}
         >
@@ -64,7 +71,7 @@ const ActionButtons = ({
             fill={isBookmarked ? "currentColor" : "none"}
           />
         </svg>
-        เพิ่มเข้าชั้นหนังสือ
+        {bookmarkLabel}
         </button>
       )}
 
@@ -74,6 +81,7 @@ const ActionButtons = ({
           type="button"
           className={`action-buttons__like ${isLiked ? "action-buttons__like--active" : ""}`}
           onClick={handleLike}
+          disabled={likeDisabled}
           aria-label={isLiked ? "ยกเลิกถูกใจ" : "กดถูกใจ"}
           aria-pressed={isLiked}
         >
@@ -85,7 +93,7 @@ const ActionButtons = ({
               fill={isLiked ? "currentColor" : "none"}
             />
           </svg>
-          ถูกใจ
+          {likeLabel}
         </button>
       )}
     </div>

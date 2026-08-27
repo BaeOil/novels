@@ -116,8 +116,8 @@
 }
 
 .theme-card {
-  background-color: var(--theme-bg);
-  border: 2px solid var(--theme-border);
+  background-color: #FDF3F8;
+  border: 2px solid #F8D6E5;
   border-radius: 20px;
   padding: 18px;
   display: flex;
@@ -131,13 +131,13 @@
 
 .theme-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 10px 20px rgba(219, 39, 119, 0.05);
 }
 
 .theme-card.selected {
-  background-color: var(--theme-bg);
-  border-color: var(--theme-text);
-  box-shadow: 0 0 0 2px var(--theme-text);
+  background-color: #db2777;
+  border-color: #db2777;
+  box-shadow: 0 4px 14px rgba(219, 39, 119, 0.25);
 }
 
 .card-check-badge {
@@ -147,8 +147,8 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background-color: var(--theme-text);
-  color: var(--white);
+  background-color: #ffffff;
+  color: #db2777;
   font-size: 10px;
   font-weight: bold;
   display: flex;
@@ -169,14 +169,24 @@
 .theme-name {
   font-size: 1rem;
   font-weight: 700;
-  color: var(--slate-900);
+  color: #1F2937;
+  transition: color 0.2s;
+}
+
+.theme-card.selected .theme-name {
+  color: #ffffff;
 }
 
 .theme-count {
   font-size: 0.78rem;
-  color: var(--slate-500);
+  color: #E91E7B;
   margin-top: 2px;
   font-weight: 600;
+  transition: color 0.2s;
+}
+
+.theme-card.selected .theme-count {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 /* ── 3. Toolbar Bar ── */
@@ -665,4 +675,20 @@
   color: var(--slate-500);
   font-size: 0.88rem;
   margin: 0;
+}
+
+@media (max-width: 560px) {
+  .search-page {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .categories-theme-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .theme-card {
+    padding: 12px;
+  }
 }

@@ -58,9 +58,10 @@ const ReadingSettings = ({
         className="reading-settings__toggle"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
-        aria-label="เปิดเมนูการตั้งค่าการอ่าน"
+        aria-label="เปิดเมนูตั้งค่าการอ่านและธีม"
       >
         <span className="reading-settings__toggle-icon">Aa</span>
+        <span className="reading-settings__toggle-text">ธีม</span>
       </button>
 
       {isOpen && (
@@ -120,9 +121,13 @@ const ReadingSettings = ({
                     borderColor: option.border,
                     color: option.text,
                   }}
+                  aria-label={`เลือกธีม ${option.label}`}
                   aria-pressed={theme === option.value}
                 >
-                  T
+                  <span className="reading-settings__theme-item-content">
+                    <span className="reading-settings__theme-item-swatch">A</span>
+                    <span className="reading-settings__theme-item-label">{option.label}</span>
+                  </span>
                 </button>
               ))}
             </div>

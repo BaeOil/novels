@@ -11,6 +11,7 @@ import EndingCollection from "../../../components/EndingCollection/EndingCollect
 import Comments from "../../../components/Comments/Comments";
 import ReaderReportButton from "../../../components/ReaderReportButton/ReaderReportButton";
 import AdminModeBanner from "../../../components/AdminModeBanner/AdminModeBanner";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 // Removed authUtils import per user request
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -122,6 +123,10 @@ const NovelDetailPage = () => {
   const [restartError, setRestartError] = useState(null);
   const [bookmarkProcessing, setBookmarkProcessing] = useState(false);
   const [likeProcessing, setLikeProcessing] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  // handleRead ยิง API เช็กฉากก่อน navigate เสมอ (ดู fetchFirstSceneAndNavigate ด้านล่าง) —
+  // ถ้าไม่มี state นี้ ปุ่ม "อ่านเลย/อ่านต่อ" จะดูนิ่งเฉยๆ ระหว่างรอ ทำให้ผู้ใช้กดซ้ำหรืองงว่าใช้งานได้ไหม
+  const [readLoading, setReadLoading] = useState(false);
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
 
   const getCurrentUser = () => {
@@ -409,7 +414,13 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
       const treePayload = await treeResponse.json().catch(() => null);
       const treeData = treePayload?.data || treePayload || {};
 
-      const firstScene = treeData.first_scene_id ?? treeData.current_scene_id ?? treeData.CurrentSceneID ?? treeData.currentSceneId ?? null;
+      const firstScene =
+        treeData.first_scene_id ||
+        treeData.current_scene_id ||
+        treeData.CurrentSceneID ||
+        treeData.currentSceneId ||
+        treeData.nodes?.find((node) => node.type === "start")?.id ||
+        null;
 
       if (firstScene) {
         // ✅ ยิง API ไปโหลดข้อมูลฉากเพื่อแกะดูสถานะข้างใน
@@ -442,54 +453,54 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
   };
 
   const handleRead = async () => {
-    const hasNoContent = novel.userProgress?.totalChapters === 0;
-
-    if (hasNoContent) {
-      setShowNoContentDialog(true);
-      return;
-    }
+    if (readLoading) return;
 
     if (!novel.id) return;
     const previewSuffix = isPreview ? "?preview=true" : "";
 
-    if (isAdmin) {
-      await fetchFirstSceneAndNavigate(previewSuffix);
-      return;
-    }
+    setReadLoading(true);
+    try {
+      if (isAdmin) {
+        await fetchFirstSceneAndNavigate(previewSuffix);
+        return;
+      }
 
-    // 🟢 preview mode ต้องไม่เข้าทางนี้เลย ต้องเริ่มฉากแรกเสมอผ่าน fetchFirstSceneAndNavigate() ด้านล่าง
-    if (nextSceneId && !isPreview) {
-      try {
-        const headers = { "Content-Type": "application/json" };
-        const token = localStorage.getItem("token");
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        
-        // ✅ ยิง API เช็กฉากถัดไปเหมือนกัน
-        const checkResp = await fetch(`${API_BASE_URL}/scenes/${nextSceneId}`, { headers });
-        if (checkResp.ok) {
-          const scenePayload = await checkResp.json().catch(() => null);
-          const sceneData = scenePayload?.data || scenePayload || {};
-          
-          // ✅ เช็กสถานะ Publish จริงๆ ไม่พึ่งแค่ HTTP 200 OK
-          const isPub = (typeof sceneData.is_published === "boolean") 
-            ? sceneData.is_published === true 
-            : String(sceneData.status ?? sceneData.Status ?? "").toLowerCase() === "published";
+      // 🟢 preview mode ต้องไม่เข้าทางนี้เลย ต้องเริ่มฉากแรกเสมอผ่าน fetchFirstSceneAndNavigate() ด้านล่าง
+      if (nextSceneId && !isPreview) {
+        try {
+          const headers = { "Content-Type": "application/json" };
+          const token = localStorage.getItem("token");
+          if (token) headers["Authorization"] = `Bearer ${token}`;
 
-          if (isPub || isPreview || isAdmin) {
-            navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
+          // ✅ ยิง API เช็กฉากถัดไปเหมือนกัน
+          const checkResp = await fetch(`${API_BASE_URL}/scenes/${nextSceneId}`, { headers });
+          if (checkResp.ok) {
+            const scenePayload = await checkResp.json().catch(() => null);
+            const sceneData = scenePayload?.data || scenePayload || {};
+
+            // ✅ เช็กสถานะ Publish จริงๆ ไม่พึ่งแค่ HTTP 200 OK
+            const isPub = (typeof sceneData.is_published === "boolean")
+              ? sceneData.is_published === true
+              : String(sceneData.status ?? sceneData.Status ?? "").toLowerCase() === "published";
+
+            if (isPub || isPreview || isAdmin) {
+              navigate(`/reading/${novel.id}/${nextSceneId}${previewSuffix}`);
+            } else {
+              setShowNoContentDialog(true);
+            }
           } else {
             setShowNoContentDialog(true);
           }
-        } else {
+        } catch (err) {
           setShowNoContentDialog(true);
         }
-      } catch (err) {
-        setShowNoContentDialog(true);
+        return;
       }
-      return;
-    }
 
-    await fetchFirstSceneAndNavigate(previewSuffix);
+      await fetchFirstSceneAndNavigate(previewSuffix);
+    } finally {
+      setReadLoading(false);
+    }
   };
 
   const handleBookmark = async (isBookmarked) => {
@@ -645,6 +656,7 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
   };
 
   const handleSendComment = async (text) => {
+    if (commentSubmitting) return;
     const value = typeof text === "string" ? text : commentText;
     if (!value.trim()) return;
 
@@ -654,6 +666,7 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
       return;
     }
 
+    setCommentSubmitting(true);
     try {
       const response = await fetch(`${API_BASE_URL}/comments`, {
         method: "POST",
@@ -677,6 +690,8 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
     } catch (err) {
       console.error("Failed to post comment:", err);
       alert(`ไม่สามารถส่งความคิดเห็นได้: ${err.message || "ระบบขัดข้อง"}`);
+    } finally {
+      setCommentSubmitting(false);
     }
   };
 
@@ -700,16 +715,7 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
   };
 
   if (loading) {
-    return (
-      <div className="novel-detail">
-        <div className="novel-detail__container">
-          <div className="novel-detail__state-card">
-            <div className="novel-detail__state-spinner" aria-hidden="true" />
-            <p className="novel-detail__state-text">กำลังโหลดข้อมูลนิยาย...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error) {
@@ -808,9 +814,11 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
             <h1 className="novel-detail__title">{novel.title}</h1>
 
             <div className="novel-detail__author" aria-label={`ผู้แต่ง: ${novel.author.displayName}`}>
-              <div
+              <button
+                type="button"
                 className="novel-detail__author-avatar"
-                aria-hidden="true"
+                aria-label={`ดูโปรไฟล์ผู้แต่ง ${novel.author.displayName}`}
+                disabled={!authorId}
                 style={{ cursor: authorId ? "pointer" : "default" }}
                 onClick={handleAuthorClick}
               >
@@ -819,14 +827,17 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
                 ) : (
                   <span>👤</span>
                 )}
-              </div>
-              <span
+              </button>
+              <button
+                type="button"
                 className="novel-detail__author-name"
+                aria-label={`ดูโปรไฟล์ผู้แต่ง ${novel.author.displayName}`}
+                disabled={!authorId}
                 style={{ cursor: authorId ? "pointer" : "default" }}
                 onClick={handleAuthorClick}
               >
                 {novel.author.displayName}
-              </span>
+              </button>
 
               {!isPreview && !isAdmin && !isOwnNovel && authorId ? (
                 <FollowButton
@@ -843,26 +854,39 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
             </div>
 
             <div className="novel-detail__action-group">
-              <ActionButtons
-                isBookmarked={novel.isBookmarked}
-                isLiked={novel.isLiked}
-                readLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
-                readAriaLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
-                onRead={handleRead}
-                onBookmark={isPreview || isAdmin ? undefined : handleBookmark}
-                onLike={isPreview || isAdmin ? undefined : handleLike}
-                showBookmark={!isPreview && !isAdmin}
-                showLike={!isPreview && !isAdmin}
-              />
+              <div className="novel-detail__primary-actions">
+                <ActionButtons
+                  isBookmarked={novel.isBookmarked}
+                  isLiked={novel.isLiked}
+                  readLabel={
+                    readLoading
+                      ? "กำลังเปิด..."
+                      : (nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"
+                  }
+                  readAriaLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
+                  onRead={handleRead}
+                  readDisabled={readLoading}
+                  bookmarkDisabled={bookmarkProcessing}
+                  likeDisabled={likeProcessing}
+                  bookmarkLabel={bookmarkProcessing ? "กำลังบันทึก..." : "เพิ่มเข้าชั้นหนังสือ"}
+                  likeLabel={likeProcessing ? "กำลังบันทึก..." : "ถูกใจ"}
+                  onBookmark={isPreview || isAdmin ? undefined : handleBookmark}
+                  onLike={isPreview || isAdmin ? undefined : handleLike}
+                  showBookmark={!isPreview && !isAdmin}
+                  showLike={!isPreview && !isAdmin}
+                />
+              </div>
               {!isPreview && isLoggedIn && !isAdmin && (
-                <button
-                  className="novel-detail__restart-button"
-                  type="button"
-                  onClick={handleRestartConfirmOpen}
-                  title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
-                >
-                  ⭮ เริ่มอ่านใหม่
-                </button>
+                <div className="novel-detail__secondary-actions">
+                  <button
+                    className="novel-detail__restart-button"
+                    type="button"
+                    onClick={handleRestartConfirmOpen}
+                    title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
+                  >
+                    ⭮ เริ่มอ่านใหม่
+                  </button>
+                </div>
               )}
             </div>
 
@@ -944,6 +968,7 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
           comments={comments}
           currentUserId={getCurrentUserId()}
           commentText={commentText}
+          isSubmitting={commentSubmitting}
           onCommentTextChange={(e) => setCommentText(e.target.value)}
           onSubmit={isPreview ? undefined : (text) => handleSendComment(text)}
           readOnly={isAdmin || isPreview}

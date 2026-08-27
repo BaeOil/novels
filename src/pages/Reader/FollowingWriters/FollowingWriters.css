@@ -254,3 +254,27 @@
     margin-top: 6px;
   }
 }
+
+@media (max-width: 420px) {
+  .following-page__top,
+  .following-page__container {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .filterRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sortTrigger {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .dropdownMenu {
+    right: 0;
+    left: 0;
+    min-width: 0;
+  }
+}

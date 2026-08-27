@@ -17,9 +17,10 @@ import ReactFlow, {
   getNodesBounds,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import "./StoryTreePage.css";
+import "./Storytreepage.css";
 
 import EndingCollection from "../../../components/EndingCollection/EndingCollection";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -276,6 +277,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [restartLoading, setRestartLoading] = useState(false);
   const [restartError, setRestartError] = useState(null);
+  const [storyView, setStoryView] = useState("map");
 
   const [hoveredNode, setHoveredNode] = useState(null);
   const hoverTimerRef = useRef(null);
@@ -818,10 +820,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
   if (loading) {
     return (
       <StoryTreeShell>
-        <div className="stp__loading-state">
-          <div className="stp__spinner" />
-          <p>กำลังเตรียมข้อมูลแผนผังการอ่าน...</p>
-        </div>
+        <LoadingScreen compact message="กำลังเตรียมข้อมูลแผนผังการอ่าน..." />
       </StoryTreeShell>
     );
   }
@@ -851,6 +850,24 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
             <button className="stp__back" onClick={handleGoToDetail}>← กลับรายละเอียด</button>
           </div>
           <div className="stp__actions-group">
+            <div className="stp__view-toggle" role="group" aria-label="รูปแบบการแสดงผล">
+              <button
+                type="button"
+                className={`stp__view-toggle-btn ${storyView === "map" ? "is-active" : ""}`}
+                aria-pressed={storyView === "map"}
+                onClick={() => setStoryView("map")}
+              >
+                ผังเรื่อง
+              </button>
+              <button
+                type="button"
+                className={`stp__view-toggle-btn ${storyView === "list" ? "is-active" : ""}`}
+                aria-pressed={storyView === "list"}
+                onClick={() => setStoryView("list")}
+              >
+                รายการฉาก
+              </button>
+            </div>
             <button className="stp__focus-btn" type="button" onClick={handleFocusCurrent} disabled={!nodesInitialized}>🎯 โฟกัสจุดปัจจุบัน</button>
             {stats.unlockedEndings > 0 && (
               <button className="stp__ending-btn" type="button" onClick={handleOpenEndingModal}>🏆 ดูคลังฉากจบ</button>
@@ -883,6 +900,56 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
             </div>
           </div>
 
+          {storyView === "list" ? (
+            <div className="stp__scene-list" aria-label="รายการฉากในนิยาย">
+              {computedNodes.length > 0 ? computedNodes.map((node) => {
+                const nodeStatus = node.data?.computedStatus;
+                const isLocked = !isAdmin && (nodeStatus === NODE_STATUS.LOCKED || nodeStatus === NODE_STATUS.ENDING_LOCKED);
+                const sceneTitle = stripHtml(node.data?.title || "");
+                const isIntroduction = sceneTitle.toLowerCase().startsWith("บทนำ");
+                const outgoingChoices = computedEdges.filter((edge) => edge.source === node.id).length;
+                const statusLabel = nodeStatus === NODE_STATUS.CURRENT ? "จุดปัจจุบัน"
+                  : nodeStatus === NODE_STATUS.VISITED ? "ค้นพบแล้ว"
+                    : nodeStatus === NODE_STATUS.ENDING_UNLOCKED ? "ฉากจบที่ค้นพบ"
+                      : isLocked ? "ยังไม่ค้นพบ" : "ฉากจบ";
+
+                return (
+                  <article key={node.id} className={`stp__scene-list-item ${isLocked ? "is-locked" : ""}`}>
+                    <div className="stp__scene-list-main">
+                      <span className="stp__scene-list-number">{node.data?.labelNum || "ฉาก"}</span>
+                      <div className="stp__scene-list-copy">
+                        {!isIntroduction && <h2>{isLocked ? "เนื้อเรื่องยังไม่เปิดเผย" : sceneTitle || "ไม่มีชื่อฉาก"}</h2>}
+                        {!isLocked && !isIntroduction && (
+                          <span>
+                            {node.data?.chapter_episode ? `ตอนที่ ${node.data.chapter_episode} · ` : ""}
+                            {node.data?.chapter_title || node.data?.chapter_name || "ไม่ระบุตอน"}
+                          </span>
+                        )}
+                        {!isLocked && !isIntroduction && node.data?.content && <p>{stripHtml(node.data.content)}</p>}
+                      </div>
+                    </div>
+                    <div className="stp__scene-list-meta">
+                      <span className={`stp__scene-list-status stp__scene-list-status--${nodeStatus}`}>{statusLabel}</span>
+                      <span className="stp__scene-list-choice-count">{outgoingChoices} ทางเลือก</span>
+                      {node.data?.finalVisitedDate && (
+                        <span className="stp__scene-list-date">ค้นพบเมื่อ {formatDate(node.data.finalVisitedDate)}</span>
+                      )}
+                      {!isLocked && (
+                        <button type="button" onClick={() => handleNodeClick(null, node)}>
+                          อ่านอีกครั้ง
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              }) : (
+                <div className="stp__empty-state">
+                  <div className="stp__empty-icon">📖</div>
+                  <div className="stp__empty-title">ยังไม่มีฉากให้แสดง</div>
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="stp__flow-wrapper" ref={flowWrapperRef}>
             {computedNodes.length > 0 ? (
               <ReactFlow
@@ -993,6 +1060,7 @@ const StoryTreeInner = ({ activeNovelId, effectiveUserId, onNavigate }) => {
               </div>
             )}
           </div>
+          )}
         </div>
 
         <EndingCollection

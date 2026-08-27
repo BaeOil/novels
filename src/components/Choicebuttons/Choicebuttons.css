@@ -45,26 +45,28 @@
   gap: 8px;
   width: 100%;
   min-height: 54px;
-  padding: 12px 18px;
+  padding: 12px 18px 12px 22px;
   overflow: hidden;
-  border: 1.5px solid var(--gray-100);
+  border: 1.5px solid var(--pink-100, #fbcfe8);
+  border-left: 4px solid var(--pink-200, #f9a8d4);
   border-radius: 12px;
-  background: #ffffff;
+  background: linear-gradient(180deg, #fffdfe 0%, #fff7fb 100%);
   color: var(--ink);
   font-family: 'Sarabun', sans-serif;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  box-shadow: 0 3px 12px rgba(236, 72, 153, 0.06);
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .choices__btn:hover {
   border-color: var(--pink-300);
+  border-left-color: var(--pink-500);
   background: var(--pink-50);
   color: var(--pink-500);
-  box-shadow: 0 8px 22px rgba(236, 72, 153, 0.08);
-  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(236, 72, 153, 0.16);
+  transform: translateY(-2px);
 }
 
 .choices__btn:focus-visible {

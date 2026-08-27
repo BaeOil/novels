@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import "./HomePage.css";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -33,12 +34,14 @@ const getTagClass = (cat) => {
 
 const HomePage = ({ onNavigate }) => {
   const [novels, setNovels] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [continueReadingNovels, setContinueReadingNovels] = useState([]);
 
-  const [activeGenre, setActiveGenre] = useState("romance");
+  const [activeGenre, setActiveGenre] = useState("");
   const [isFollowed, setIsFollowed] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [followerOffset, setFollowerOffset] = useState(0); // 🟢 ตัวจำค่าเพิ่ม/ลดผู้ติดตามทันที
   const [toast, setToast] = useState({ isOpen: false, message: "" });
   const navigate = useNavigate();
@@ -48,12 +51,22 @@ const HomePage = ({ onNavigate }) => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`${API_BASE_URL}/novels`);
+        const [response, responseCats] = await Promise.all([
+          fetch(`${API_BASE_URL}/novels`),
+          fetch(`${API_BASE_URL}/categories`)
+        ]);
         const payload = await response.json().catch(() => null);
+        const payloadCats = await responseCats.json().catch(() => null);
 
         if (!response.ok) {
           throw new Error(payload?.error || payload?.message || "ดึงข้อมูลไม่สำเร็จ");
         }
+
+        const catRaw = payloadCats?.data || payloadCats || [];
+        const formattedCats = Array.isArray(catRaw)
+          ? catRaw.map(c => ({ id: c.category_id || c.id, name: String(c.name || c.title || "").trim() }))
+          : [];
+        setCategories(formattedCats);
 
         const raw = payload?.data?.novels ?? payload?.data ?? payload?.novels ?? payload;
         const candidates = Array.isArray(raw) ? raw : (Array.isArray(raw?.novels) ? raw.novels : []);
@@ -129,6 +142,12 @@ const HomePage = ({ onNavigate }) => {
     }
   };
 
+  const activateCardAction = (event, handler) => {
+    if (event.type === "keydown" && !(event.key === "Enter" || event.key === " ")) return;
+    if (event.type === "keydown") event.preventDefault();
+    handler();
+  };
+
   const trendingNovels = useMemo(() => {
     return [...novels].sort((a, b) => b.views - a.views).slice(0, 8);
   }, [novels]);
@@ -137,22 +156,24 @@ const HomePage = ({ onNavigate }) => {
     return [...novels].sort((a, b) => b.id - a.id).slice(0, 6);
   }, [novels]);
 
-  const GENRES_LIST = [
-    { key: "romance", name: "โรแมนติก", emoji: "🌸" },
-    { key: "fantasy", name: "แฟนตาซี", emoji: "⚡" },
-    { key: "mystery", name: "สืบสวน", emoji: "🔍" },
-    { key: "horror", name: "สยองขวัญ", emoji: "🩸" },
-    { key: "scifi", name: "ไซไฟ", emoji: "🚀" },
-    { key: "comedy", name: "คอมเมดี้", emoji: "😂" },
-    { key: "drama", name: "ดราม่า", emoji: "🌿" },
-  ];
+  const GENRES_LIST = useMemo(() => {
+    return categories.map(cat => ({
+      key: cat.name,
+      name: cat.name
+    }));
+  }, [categories]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !activeGenre) {
+      setActiveGenre(categories[0].name);
+    }
+  }, [categories, activeGenre]);
 
   const spotlightNovels = useMemo(() => {
-    const activeLabel = GENRES_LIST.find(g => g.key === activeGenre)?.name || "โรแมนติก";
+    if (!activeGenre) return novels.slice(0, 4);
     const filtered = novels.filter(n =>
       n.categories.some(cat =>
-        cat.toLowerCase().includes(activeGenre) ||
-        cat.includes(activeLabel)
+        cat.toLowerCase().includes(activeGenre.toLowerCase())
       )
     );
     return filtered.length > 0 ? filtered.slice(0, 4) : novels.slice(0, 4);
@@ -220,6 +241,7 @@ const HomePage = ({ onNavigate }) => {
         const historyData = Array.isArray(historyPayload) ? historyPayload : [];
 
         const formattedHistory = historyData.slice(0, 4).map((novel) => {
+          const statusInfo = getNovelStatusInfo(novel);
           const total = novel.total_scenes > 0 ? novel.total_scenes : 1;
           const visited = novel.visited_count || 0;
           const progressPercent = Math.min(Math.round((visited / total) * 100), 100);
@@ -233,6 +255,7 @@ const HomePage = ({ onNavigate }) => {
             categories: novel.categories?.map(c => c.name || c) || ["ทั่วไป"],
             progress: progressPercent,
             lastReadLocation: novel.last_read_scene_name || novel.last_read_scene_title || "อ่านล่าสุด",
+            is_completed: statusInfo.isCompleted,
           };
         });
 
@@ -249,6 +272,12 @@ const HomePage = ({ onNavigate }) => {
     // 🟢 ลบข้อมูล "เอลฟ์" ตัวปลอมออกไป ดึงจากข้อมูลจริง ถ้าไม่มีก็คืนค่า null
     return trendingNovels.length > 0 ? trendingNovels[0] : null;
   }, [trendingNovels]);
+
+  const primaryReadTarget = useMemo(() => {
+    if (continueReadingNovels.length > 0) return continueReadingNovels[0];
+    if (heroFeaturedNovel) return heroFeaturedNovel;
+    return novels[0] || null;
+  }, [continueReadingNovels, heroFeaturedNovel, novels]);
 
   useEffect(() => {
     if (!featuredWriter?.id) return;
@@ -295,8 +324,8 @@ const HomePage = ({ onNavigate }) => {
               <button
                 className="btn-hero-primary"
                 onClick={() => {
-                  if (novels.length > 0) {
-                    handleReadNovel(novels[0].id);
+                  if (primaryReadTarget) {
+                    handleReadNovel(primaryReadTarget.id);
                   } else {
                     showToast("ยินดีต้อนรับสู่โลก StoryVerse!");
                   }
@@ -317,6 +346,12 @@ const HomePage = ({ onNavigate }) => {
                 <div className="book-card-float book-behind1"></div>
                 <div
                   className="book-card-float book-main"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => activateCardAction(event, () => {
+                    handleReadNovel(heroFeaturedNovel.id);
+                    showToast(`เปิดเรื่อง: ${heroFeaturedNovel.title}`);
+                  })}
                   onClick={() => {
                     handleReadNovel(heroFeaturedNovel.id);
                     showToast(`เปิดเรื่อง: ${heroFeaturedNovel.title}`);
@@ -371,7 +406,7 @@ const HomePage = ({ onNavigate }) => {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>กำลังโหลดนิยายยอดนิยม...</div>
+          <LoadingScreen compact message="กำลังโหลดนิยายยอดนิยม..." />
         ) : trendingNovels.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>ไม่มีนิยายยอดนิยมในขณะนี้</div>
         ) : (
@@ -383,6 +418,9 @@ const HomePage = ({ onNavigate }) => {
                 <div
                   key={novel.id}
                   className="trending-card"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => activateCardAction(event, () => handleReadNovel(novel.id))}
                   onClick={() => handleReadNovel(novel.id)}
                 >
                   <div className="tc-cover" style={{ background: novel.bg }}>
@@ -396,7 +434,10 @@ const HomePage = ({ onNavigate }) => {
                       novel.coverEmoji
                     )}
                     <div className={`tc-rank ${rankClass}`}>{rank}</div>
-                    {rank <= 3 && <div className="tc-hot">🔥 กำลังฮอต</div>}
+                    <div className="tc-badges-top">
+                      {rank <= 3 && <div className="tc-hot">🔥 กำลังฮอต</div>}
+                      {novel.is_completed && <div className="tc-finished-badge">จบแล้ว</div>}
+                    </div>
                   </div>
 
                   <div className="tc-body">
@@ -437,7 +478,7 @@ const HomePage = ({ onNavigate }) => {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>กำลังโหลดนิยายใหม่...</div>
+          <LoadingScreen compact message="กำลังโหลดนิยายใหม่..." />
         ) : newReleases.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>ไม่มีนิยายใหม่ในขณะนี้</div>
         ) : (
@@ -454,9 +495,12 @@ const HomePage = ({ onNavigate }) => {
                 <div
                   key={novel.id}
                   className="novel-row-card"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => activateCardAction(event, () => handleReadNovel(novel.id))}
                   onClick={() => handleReadNovel(novel.id)}
                 >
-                  <div className="nrc-cover" style={{ background: novel.bg }}>
+                  <div className="nrc-cover" style={{ background: novel.bg, position: 'relative' }}>
                     {novel.coverImage ? (
                       <img
                         src={novel.coverImage}
@@ -466,6 +510,7 @@ const HomePage = ({ onNavigate }) => {
                     ) : (
                       novel.coverEmoji
                     )}
+                    {novel.is_completed && <div className="tc-finished-badge">จบแล้ว</div>}
                   </div>
 
                   <div className="nrc-body">
@@ -513,17 +558,18 @@ const HomePage = ({ onNavigate }) => {
             {GENRES_LIST.map((g) => {
               const count = novels.filter(n =>
                 n.categories.some(cat =>
-                  cat.toLowerCase().includes(g.key) ||
-                  cat.includes(g.name)
+                  cat.toLowerCase().includes(g.key.toLowerCase())
                 )
               ).length;
               return (
                 <div
                   key={g.key}
                   className={`genre-pill-card ${activeGenre === g.key ? "on" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => activateCardAction(event, () => setActiveGenre(g.key))}
                   onClick={() => setActiveGenre(g.key)}
                 >
-                  <div className="gpc-emoji">{g.emoji}</div>
                   <div>
                     <div className="gpc-name">{g.name}</div>
                     <div className="gpc-count">{count} เรื่อง</div>
@@ -534,16 +580,19 @@ const HomePage = ({ onNavigate }) => {
           </div>
 
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.4)' }}>กำลังโหลดนิยายแนวนี้...</div>
+            <LoadingScreen compact message="กำลังโหลดนิยายแนวนี้..." />
           ) : (
             <div className="dark-cards">
               {spotlightNovels.map((novel) => (
                 <div
                   key={novel.id}
                   className="dark-novel-card"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => activateCardAction(event, () => handleReadNovel(novel.id))}
                   onClick={() => handleReadNovel(novel.id)}
                 >
-                  <div className="dnc-cover" style={{ background: novel.bg }}>
+                  <div className="dnc-cover" style={{ background: novel.bg, position: 'relative' }}>
                     {novel.coverImage ? (
                       <img
                         src={novel.coverImage}
@@ -553,6 +602,7 @@ const HomePage = ({ onNavigate }) => {
                     ) : (
                       novel.coverEmoji
                     )}
+                    {novel.is_completed && <div className="tc-finished-badge">จบแล้ว</div>}
                   </div>
 
                   <div className="dnc-body">
@@ -588,6 +638,9 @@ const HomePage = ({ onNavigate }) => {
               <div
                 key={novel.id}
                 className="novel-row-card"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => activateCardAction(event, () => handleReadNovel(novel.id))}
                 onClick={() => handleReadNovel(novel.id)}
               >
                 <div className="nrc-cover" style={{ background: novel.bg }}>
@@ -600,6 +653,7 @@ const HomePage = ({ onNavigate }) => {
                   ) : (
                     novel.coverEmoji
                   )}
+                    {novel.is_completed && <div className="tc-finished-badge">จบแล้ว</div>}
                 </div>
 
                 <div className="nrc-body">
@@ -671,7 +725,10 @@ const HomePage = ({ onNavigate }) => {
 
               <button
                 className={`follow-btn ${isFollowed ? "followed" : ""}`}
+                disabled={followLoading}
                 onClick={async () => {
+                  if (followLoading) return;
+                  setFollowLoading(true);
                   const token = localStorage.getItem("token");
                   const nextState = !isFollowed;
 
@@ -714,21 +771,25 @@ const HomePage = ({ onNavigate }) => {
 
                   showToast(nextState ? `กดติดตาม @${featuredWriter.name} เรียบร้อย!` : `ยกเลิกการติดตาม @${featuredWriter.name}`);
 
-                  if (token) {
-                    try {
+                  try {
+                    if (token) {
                       const endpoint = nextState
                         ? `${API_BASE_URL}/api/writers/${featuredWriter.id}/follow`
                         : `${API_BASE_URL}/api/writers/${featuredWriter.id}/unfollow`;
                       await axios.post(endpoint, {}, {
                         headers: { Authorization: `Bearer ${token}` }
                       });
-                    } catch (err) {
-                      console.warn("API follow/unfollow request failed:", err.message);
                     }
+                  } catch (err) {
+                    console.warn("API follow/unfollow request failed:", err.message);
+                  } finally {
+                    setFollowLoading(false);
                   }
                 }}
               >
-                {isFollowed ? (
+                {followLoading ? (
+                  <><i className="ti ti-loader-2"></i>กำลังบันทึก...</>
+                ) : isFollowed ? (
                   <>
                     <i className="ti ti-user-check"></i>ติดตามแล้ว
                   </>
@@ -745,6 +806,9 @@ const HomePage = ({ onNavigate }) => {
                 <div
                   key={work.id}
                   className="writer-work"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => activateCardAction(event, () => handleReadNovel(work.id))}
                   onClick={() => handleReadNovel(work.id)}
                 >
                   <div className="ww-cover" style={{ background: work.bg }}>
@@ -757,6 +821,7 @@ const HomePage = ({ onNavigate }) => {
                     ) : (
                       work.coverEmoji
                     )}
+                    {work.is_completed && <div className="tc-finished-badge">จบแล้ว</div>}
                   </div>
 
                   <div className="ww-body">

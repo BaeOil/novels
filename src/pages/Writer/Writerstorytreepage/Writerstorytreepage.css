@@ -308,6 +308,51 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.8;
+  padding-right: 70px; /* เว้นระยะไม่ให้ชนกับ badge มุมขวาบน */
+}
+
+/* ป้ายสถานะ เผยแพร่ / ฉบับร่าง มุมบนขวาของการ์ดโหนด */
+.wst-node-card__publish-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  z-index: 5;
+}
+
+.wst-node-card__publish-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.wst-node-card__publish-badge--published {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.wst-node-card__publish-badge--published .wst-node-card__publish-dot {
+  background-color: #16a34a;
+}
+
+.wst-node-card__publish-badge--draft {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.wst-node-card__publish-badge--draft .wst-node-card__publish-dot {
+  background-color: #94a3b8;
 }
 
 .wst-node-card__scene-num {
@@ -719,33 +764,34 @@
 }
 
 /* ─────────────────────────────────────────────
-   Floating Guidance Banner (ธีมสีน้ำเงินพรีเมียมตัวใหม่ แสดงด้านบน)
+   Floating Guidance Banner (แสดงด้านล่างตรงกลาง ไม่บดบัง Toolbar ด้านบน)
    ───────────────────────────────────────────── */
 .wst-canvas-guidance-banner {
   position: absolute;
-  top: 20px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #eff6ff; /* โทนฟ้า/น้ำเงินพาสเทล */
+  background: rgba(239, 246, 255, 0.95); /* โทนฟ้า/น้ำเงินพาสเทลโปร่งแสง */
+  backdrop-filter: blur(8px);
   color: #1e40af;       /* ข้อความสีน้ำเงินเข้มข้น */
-  border: 1px solid #bfdbfe; /* เส้นขอบฟ้าน้ำเงินบาง */
-  padding: 8px 18px;
+  border: 1.5px solid #bfdbfe; /* เส้นขอบฟ้าน้ำเงินบาง */
+  padding: 8px 20px;
   border-radius: 99px;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
   pointer-events: none;
   z-index: 100;
   white-space: nowrap;
   box-sizing: border-box;
-  animation: bannerFadeIn 0.25s ease-out;
+  animation: bannerFadeInBottom 0.25s ease-out;
 }
 
-@keyframes bannerFadeIn {
-  from { opacity: 0; transform: translate(-50%, -10px); }
+@keyframes bannerFadeInBottom {
+  from { opacity: 0; transform: translate(-50%, 10px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 

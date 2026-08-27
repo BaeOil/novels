@@ -3,9 +3,12 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import GenreTag from "../../../components/GenreTag/GenreTag";
 import ActionButtons from "../../../components/ActionButtons/ActionButtons";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./BookshelfPage.css";
 import {
     ArrowLeft,
+    ChevronDown,
+    ChevronUp,
     Eye,
     Heart,
     BookmarkPlus,
@@ -72,7 +75,15 @@ const formatRelative = (iso) => {
 // นิยายจะถือว่า "จบ" ก็ต่อเมื่อตัวนิยายเองถูกทำเครื่องหมายว่าจบแล้วโดยผู้เขียน/ระบบ
 // เช่น "completed" / "finished" / "จบแล้ว" เท่านั้น การอ่านถึงฉากล่าสุดที่มีอยู่
 // ไม่ได้แปลว่านิยายจบ (นิยายอาจจะยังเขียนไม่จบ หรือฉากล่าสุดไม่ใช่ฉากจบเรื่องจริงๆ)
-const NOVEL_COMPLETED_VALUES = new Set(["completed", "complete", "finished", "end", "จบแล้ว"]);
+const NOVEL_COMPLETED_VALUES = new Set([
+    "completed",
+    "complete",
+    "finished",
+    "end",
+    "completed-published",
+    "completed-draft",
+    "จบแล้ว",
+]);
 
 const isNovelCompleted = (novelStatus) =>
     NOVEL_COMPLETED_VALUES.has(String(novelStatus || "").trim().toLowerCase());
@@ -104,7 +115,8 @@ const normalizeReadingStatus = ({ explicitStatus, novelStatus, reachedEnding, cu
 
 const normalizeBook = (item) => {
     // สถานะของ "ตัวนิยาย" เอง (จบแล้ว/ยังเขียนอยู่) แยกจากสถานะการอ่านของผู้ใช้
-    const novelStatus = item.novel_status || item.novel?.status || item.novel_completion_status;
+    const novelStatus = item.status || item.novel_status || item.novel?.status || item.novel_completion_status;
+    const novelCompleted = item.is_completed === true || item.novel?.is_completed === true || isNovelCompleted(novelStatus);
 
     // ผู้ใช้อ่านไปถึงฉากจบจริงๆ หรือไม่ (ต้องเป็นสัญญาณเฉพาะผู้ใช้ ไม่ใช่สถิติรวมของนิยาย)
     const reachedEnding = Boolean(
@@ -180,6 +192,7 @@ const normalizeBook = (item) => {
             reachedEnding,
             currentSceneId,
         }),
+        novelCompleted,
 
         latestChapter:
             item.latest_chapter ||
@@ -263,6 +276,8 @@ const BookshelfPage = () => {
     const [filter, setFilter] = useState("all");
     const [books, setBooks] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [removingBookId, setRemovingBookId] = useState(null);
+    const [expandedBookIds, setExpandedBookIds] = useState(() => new Set());
 
     const getCurrentUserId = () => {
         const userJson = localStorage.getItem("user");
@@ -378,6 +393,8 @@ const BookshelfPage = () => {
 
     const handleRemoveBook = async (bookId, title) => {
         if (window.confirm(`คุณต้องการนำ "${title}" ออกจากชั้นหนังสือใช่หรือไม่?`)) {
+            if (removingBookId) return;
+            setRemovingBookId(bookId);
             try {
                 const token = localStorage.getItem("token");
                 const headers = { "Content-Type": "application/json" };
@@ -392,8 +409,19 @@ const BookshelfPage = () => {
             } catch (err) {
                 console.error("Remove from bookshelf error:", err);
                 alert("ไม่สามารถลบนิยายออกจากชั้นหนังสือได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
+            } finally {
+                setRemovingBookId(null);
             }
         }
+    };
+
+    const toggleBookDetails = (bookId) => {
+        setExpandedBookIds((previous) => {
+            const next = new Set(previous);
+            if (next.has(bookId)) next.delete(bookId);
+            else next.add(bookId);
+            return next;
+        });
     };
 
     return (
@@ -432,18 +460,7 @@ const BookshelfPage = () => {
                 </div>
 
                 {loading ? (
-                    <div className="bookshelf-page__grid" aria-hidden="true">
-                        {Array.from({ length: 8 }).map((_, index) => (
-                            <div key={index} className="bookshelf-skeleton-card">
-                                <div className="bookshelf-skeleton-card__cover" />
-                                <div className="bookshelf-skeleton-card__body">
-                                    <div className="bookshelf-skeleton-card__line bookshelf-skeleton-card__line--title" />
-                                    <div className="bookshelf-skeleton-card__line bookshelf-skeleton-card__line--author" />
-                                    <div className="bookshelf-skeleton-card__line bookshelf-skeleton-card__line--stats" />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <LoadingScreen compact message="กำลังโหลดชั้นหนังสือ..." />
                 ) : (
                     <>
                         {filteredBooks.length === 0 ? (
@@ -457,6 +474,7 @@ const BookshelfPage = () => {
                                     const isFinished = book.reading_status === 'finished';
                                     const isReading = book.reading_status === 'reading';
                                     const isWantToRead = book.reading_status === 'want_to_read';
+                                    const isExpanded = expandedBookIds.has(book.id);
 
                                     const handleRead = () => {
                                         if (isWantToRead) {
@@ -492,18 +510,22 @@ const BookshelfPage = () => {
                                         <article
                                             key={book.id}
                                             className="bookshelf-card"
-                                            onClick={() => navigate(`/novel/${book.id}`)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter") navigate(`/novel/${book.id}`);
-                                            }}
-                                            tabIndex={0}
-                                            role="button"
                                         >
                                             <div className="bookshelf-card__cover">
+                                                <button
+                                                    type="button"
+                                                    className="bookshelf-card__cover-button"
+                                                    onClick={() => navigate(`/novel/${book.id}`)}
+                                                    aria-label={`เปิดรายละเอียด ${book.title}`}
+                                                >
                                                 <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
+                                                </button>
                                                 <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
                                                     {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
                                                 </span>
+                                                {book.novelCompleted && (
+                                                    <span className="bookshelf-card__novel-status">จบแล้ว</span>
+                                                )}
                                                 <button
                                                     className="bookshelf-card__remove-btn"
                                                     onClick={(e) => {
@@ -511,25 +533,21 @@ const BookshelfPage = () => {
                                                         handleRemoveBook(book.id, book.title);
                                                     }}
                                                     title="นำออกจากชั้นหนังสือ"
+                                                    disabled={removingBookId === book.id}
                                                 >
-                                                    <Trash2 size={16} />
+                                                    {removingBookId === book.id ? "..." : <Trash2 size={16} />}
                                                 </button>
                                             </div>
                                             <div className="bookshelf-card__body">
-                                                <h2 className="bookshelf-card__title">{book.title}</h2>
-
-                                                {book.description && (
-                                                    <p className="bookshelf-card__description">{book.description}</p>
-                                                )}
+                                                <button
+                                                    type="button"
+                                                    className="bookshelf-card__title"
+                                                    onClick={() => navigate(`/novel/${book.id}`)}
+                                                >
+                                                    {book.title}
+                                                </button>
 
                                                 <p className="bookshelf-card__author">✍️ {book.author}</p>
-
-                                                {!isWantToRead && (
-                                                    <div className="bookshelf-card__latest-read">
-                                                        <span>อ่านล่าสุด</span>
-                                                        <span>{book.lastReadAt ? formatRelative(book.lastReadAt) : "ยังไม่มีประวัติการอ่าน"}</span>
-                                                    </div>
-                                                )}
 
                                                 <div className="bookshelf-card__categories">
                                                     {book.categories.slice(0, 2).map((category) => (
@@ -560,6 +578,34 @@ const BookshelfPage = () => {
                                                         <span>{book.likes}</span>
                                                     </div>
                                                 </div>
+
+                                                <button
+                                                    type="button"
+                                                    className="bookshelf-card__details-toggle"
+                                                    aria-expanded={isExpanded}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleBookDetails(book.id);
+                                                    }}
+                                                >
+                                                    {isExpanded ? "ซ่อนรายละเอียด" : "ดูรายละเอียด"}
+                                                    {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                                </button>
+
+                                                {isExpanded && (
+                                                    <div className="bookshelf-card__details">
+                                                        {book.description && (
+                                                            <p className="bookshelf-card__description">{book.description}</p>
+                                                        )}
+
+                                                        {!isWantToRead && (
+                                                            <div className="bookshelf-card__latest-read">
+                                                                <span>อ่านล่าสุด</span>
+                                                                <span>{book.lastReadAt ? formatRelative(book.lastReadAt) : "ยังไม่มีประวัติการอ่าน"}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
 
                                                 {(isWantToRead || isReading || isFinished) && (
                                                     <button

@@ -1,7 +1,7 @@
 .novel-detail__comments-section {
   margin-top: 32px;
-  background: var(--white);
-  border: 1.5px solid var(--gray-100);
+  background: var(--reader-surface, var(--white));
+  border: 1.5px solid var(--reader-border, var(--gray-100));
   border-radius: 20px;
   padding: 28px 32px;
 }
@@ -15,7 +15,7 @@
 
 .novel-detail__comments-count {
   font-size: 14px;
-  color: var(--gray-500);
+  color: var(--reader-muted, var(--gray-500));
   font-family: 'Sarabun', sans-serif;
 }
 
@@ -36,7 +36,7 @@
 
 .novel-detail__comment-input {
   width: 100%;
-  border: 1.5px solid var(--gray-100);
+  border: 1.5px solid var(--reader-border, var(--gray-100));
   border-radius: 16px;
   padding: 16px;
   resize: vertical;
@@ -46,14 +46,15 @@
   font-size: 14px;
   line-height: 1.7;
 
-  background: var(--gray-50);
+  background: var(--reader-surface-soft, var(--gray-50));
+  color: var(--reader-text, var(--ink));
   transition: all 0.18s ease;
 }
 
 .novel-detail__comment-input:focus {
   outline: none;
-  border-color: var(--pink-300);
-  background: var(--white);
+  border-color: var(--reader-accent, var(--pink-300));
+  background: var(--reader-surface, var(--white));
   box-shadow: 0 0 0 4px rgba(255, 182, 193, 0.15);
 }
 
@@ -66,7 +67,7 @@
   border: none;
   border-radius: 999px;
   padding: 12px 28px;
-  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  background: var(--reader-accent, linear-gradient(135deg, #ec4899 0%, #db2777 100%));
   color: #ffffff !important;
   font-family: 'Sarabun', sans-serif;
   font-size: 14.5px;
@@ -92,6 +93,12 @@
   box-shadow: 0 2px 8px rgba(219, 39, 119, 0.25);
 }
 
+.novel-detail__comment-button:disabled {
+  cursor: wait;
+  opacity: 0.7 !important;
+  transform: none;
+}
+
 .novel-detail__comment-button:focus-visible {
   outline: 3px solid rgba(233, 30, 140, 0.5);
   outline-offset: 3px;
@@ -110,15 +117,15 @@
   padding: 18px;
   border-radius: 18px;
 
-  background: var(--gray-50);
+  background: var(--reader-surface-soft, var(--gray-50));
   border: 1px solid transparent;
 
   transition: all 0.18s ease;
 }
 
 .novel-detail__comment-card:hover {
-  border-color: var(--pink-100);
-  background: rgb(249, 198, 219);
+  border-color: var(--reader-accent, var(--pink-100));
+  background: var(--reader-accent-soft, rgb(249, 198, 219));
 }
 
 .novel-detail__comment-avatar {
@@ -161,12 +168,12 @@
   font-family: 'Sarabun', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--reader-text, var(--ink));
 }
 
 .novel-detail__comment-date {
   font-size: 12px;
-  color: var(--gray-400);
+  color: var(--reader-muted, var(--gray-400));
 }
 
 .novel-detail__comment-meta {
@@ -196,7 +203,7 @@
   font-family: 'Sarabun', sans-serif;
   font-size: 14px;
   line-height: 1.8;
-  color: var(--gray-700);
+  color: var(--reader-text, var(--gray-700));
 
   white-space: pre-wrap;
 }
@@ -204,7 +211,7 @@
 .novel-detail__comments-empty {
   text-align: center;
   padding: 32px 16px;
-  color: var(--gray-400);
+  color: var(--reader-muted, var(--gray-400));
   font-size: 14px;
 }
 
@@ -217,5 +224,15 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+
+  .novel-detail__comments-header {
+    align-items: flex-start;
+    gap: 12px;
+    flex-direction: column;
+  }
+
+  .novel-detail__comment-button {
+    width: 100%;
   }
 }

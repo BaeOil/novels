@@ -10,13 +10,7 @@
   border: 1.5px solid var(--gray-100);
   border-radius: 12px;
   min-width: 90px;
-  transition: border-color 0.2s ease, transform 0.2s ease;
   cursor: default;
-}
-
-.stat-badge:hover {
-  border-color: var(--pink-300);
-  transform: translateY(-1px);
 }
 
 .stat-badge__value {

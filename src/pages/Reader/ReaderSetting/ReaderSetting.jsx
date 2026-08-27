@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../../../utils/cropImage.js";
 import "./ReaderSetting.css";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -1059,16 +1060,7 @@ export default function ReaderSetting() {
   const strengthInfo = getPwStrength();
 
   if (loading) {
-    return (
-      <div className="wst-page-container">
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 0" }}>
-          <div className="wst-loading-spinner"></div>
-          <span style={{ marginLeft: "12px", fontSize: "14px", color: "var(--muted)", fontWeight: 500 }}>
-            กำลังโหลดข้อมูลการตั้งค่าบัญชี...
-          </span>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="กำลังโหลดข้อมูลการตั้งค่าบัญชี..." />;
   }
 
   if (error) {

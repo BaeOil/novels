@@ -169,7 +169,7 @@ export function useNotifications(isLoggedIn) {
         const refresh = () => fetchUnreadCount();
         window.addEventListener("notifications-updated", refresh);
         window.addEventListener("focus", refresh);
-        const intervalId = setInterval(refresh, 10000);
+        const intervalId = setInterval(refresh, 60000);
 
         // ต่อ SSE ไว้ด้วย เผื่อมีแจ้งเตือนใหม่แบบ real-time
         const token = localStorage.getItem("token");

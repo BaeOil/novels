@@ -78,3 +78,16 @@
   border: 1px solid var(--pink-100, #fce7f3);
   border-radius: 16px;
 }
+
+/* สถิติ 4 อันนี้กดไม่ได้ (แค่แสดงตัวเลข) — ปิด hover/cursor ของลูกๆ ไว้กันสับสนว่าคลิกได้
+   NOTE: สีของตัวเลข/ไอคอนจริงๆ ถูกกำหนดใน StatBadge component (ไม่ได้แนบไฟล์มาด้วย)
+   ถ้าต้องการปรับสีตรงนั้น ส่ง StatBadge.jsx / StatBadge.css มาด้วยนะ */
+.novel-cover-card__stats [role="listitem"] {
+  cursor: default;
+}
+
+.novel-cover-card__stats [role="listitem"] *:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+

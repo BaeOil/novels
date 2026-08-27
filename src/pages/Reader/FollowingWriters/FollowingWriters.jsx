@@ -180,8 +180,11 @@ export default function FollowingWriters() {
     const confirmed = window.confirm("คุณต้องการเลิกติดตามนักเขียนคนนี้ใช่หรือไม่?");
     if (!confirmed) return;
 
-    // 1. อัปเดต UI ทันที
-    setWriters(p => p.filter(w => w.id !== id));
+    const removedWriter = writers.find((writer) => Number(writer.id) === Number(id));
+    const savedFollowingWriters = localStorage.getItem("local_following_writers");
+
+    // อัปเดต UI ทันที แล้วคืนรายการถ้า backend ปฏิเสธคำขอ
+    setWriters((previous) => previous.filter((writer) => writer.id !== id));
 
     // 2. อัปเดตและซิงค์ลบออกจาก LocalStorage
     try {
@@ -197,15 +200,21 @@ export default function FollowingWriters() {
     const token = localStorage.getItem("token");
     if (token) {
       try {
-        await fetch(`${API_BASE_URL}/api/writers/${id}/unfollow`, {
+        const response = await fetch(`${API_BASE_URL}/api/writers/${id}/unfollow`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json"
           }
         });
+        if (!response.ok) throw new Error(`unfollow failed: ${response.status}`);
       } catch (e) {
         console.warn("API unfollow request warning:", e.message);
+        if (removedWriter) setWriters((previous) => [removedWriter, ...previous]);
+        if (savedFollowingWriters !== null) {
+          localStorage.setItem("local_following_writers", savedFollowingWriters);
+        }
+        alert("ไม่สามารถเลิกติดตามนักเขียนได้ กรุณาลองใหม่อีกครั้ง");
       }
     }
   };
@@ -261,7 +270,13 @@ export default function FollowingWriters() {
           </div>
 
           <div className="sortWrapper">
-            <button onClick={() => setShowSort(p => !p)} className="sortTrigger">
+              <button
+                type="button"
+                onClick={() => setShowSort(p => !p)}
+                className="sortTrigger"
+                aria-expanded={showSort}
+                aria-haspopup="menu"
+              >
               <ArrowUpDown size={14} /> <span className="sortLabel">{SORT_OPTIONS[sort]}</span>
             </button>
             

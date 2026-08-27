@@ -94,6 +94,19 @@
   color: var(--muted);
 }
 
+.notification-page__live-status,
+.notification-page__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .notification-page__actions {
   display: flex;
   gap: 10px;
@@ -696,4 +709,37 @@
 
   }
 
+}
+
+@media (max-width: 420px) {
+  .notification-page {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .notification-page__top {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px 10px;
+  }
+
+  .notification-page__actions {
+    width: 100%;
+  }
+
+  .notification-page__actions button {
+    flex: 1;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .notification-content {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .notification-item {
+    gap: 10px;
+    padding: 12px 10px;
+  }
 }
