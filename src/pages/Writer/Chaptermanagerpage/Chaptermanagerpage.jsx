@@ -6,6 +6,7 @@ import "./ChapterManagerPage.css";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
+import { getChoiceConnectionBlockReason, getChoiceConnectionMessage } from "../../../utils/choiceValidation";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 const IMAGE_BASE_URL = import.meta.env.VITE_IMAGE_BASE_URL || "http://localhost:9000";
@@ -180,9 +181,9 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
   }, 0) ?? 0;
 
   return (
-    <div className="cm-banner flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div className="flex justify-between items-start w-full gap-6" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '24px' }}>
-        <div className="cm-banner__left flex-1" style={{ flex: 1, minWidth: 0 }}>
+    <div className="cm-banner">
+      <div className="cm-banner__inner">
+        <div className="cm-banner__left flex-1">
           <div className="cm-banner__cover shrink-0" style={{ background: coverBg }}>
             {coverImage ? (
               <img
@@ -293,7 +294,7 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
   );
 };
 
-const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, onUpdate, onCreate, onDelete, openConfirmDialog }) => {
+const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, onUpdate, onCreate, onCreateScene, onDeleteScene, onOpenScene, onDelete, openConfirmDialog }) => {
   const choiceId = choice?.id ?? choice?.ID ?? choice?.choice_id ?? choice?.ChoiceID;
   const choiceText = choice?.label ?? choice?.Label ?? choice?.text ?? choice?.Text ?? "";
   const choiceTargetSceneId = choice?.to_scene_id ?? choice?.ToSceneID ?? choice?.target_scene_id ?? choice?.TargetSceneID ?? "";
@@ -325,11 +326,16 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
   // Initialize States
   const [scope, setScope] = useState(() => (targetScene ? (String(targetScene.chapterId) === String(currentChapterId) ? "same" : "other") : "same"));
   const [selectedChapterId, setSelectedChapterId] = useState(() => targetScene?.chapterId || currentChapterId);
+  const [connectionMode, setConnectionMode] = useState("existing");
+  const [newSceneTitle, setNewSceneTitle] = useState("");
+  const [newSceneChapterId, setNewSceneChapterId] = useState(currentChapterId || "");
 
   const [isEditing, setIsEditing] = useState(isNew);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [createdScene, setCreatedScene] = useState(null);
 
   const timeoutRef = useRef(null);
 
@@ -355,28 +361,39 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
     if (String(scene.chapterId) !== String(activeChapterId)) return false;
     // ห้ามเลือกฉากตัวเอง
     if (String(scene.value) === String(fromSceneId)) return false;
+    const sourceIndex = allScenes.findIndex((item) => String(item.value) === String(fromSceneId));
+    const targetIndex = allScenes.findIndex((item) => String(item.value) === String(scene.value));
+    if (sourceIndex !== -1 && targetIndex <= sourceIndex) return false;
     return true;
   });
 
   const selectedTargetScene = allScenes.find((scene) => String(scene.value) === String(subScene));
-
+  const sourceIndex = allScenes.findIndex((scene) => String(scene.value) === String(fromSceneId));
+  const targetIndex = allScenes.findIndex((scene) => String(scene.value) === String(subScene));
+  const connectionBlockReason = Boolean(subScene)
+    ? getChoiceConnectionBlockReason(fromSceneId, subScene, sceneOptions, isNew ? null : choiceId)
+    : "invalid";
+  const normalizedConnectionBlockReason = connectionBlockReason || (
+    sourceIndex !== -1 && targetIndex !== -1 && targetIndex <= sourceIndex ? "backward" : null
+  );
   const handleSaveChoice = async () => {
     if (!text || text.trim() === "") {
-      alert("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
+      setFormError("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
       return;
     }
 
     if (!subScene || subScene === "") {
-      alert("กรุณาเลือกฉากปลายทางที่ต้องการเชื่อมโยง");
+      setFormError("กรุณาเลือกฉากปลายทางที่ต้องการเชื่อมโยง");
       return;
     }
 
     // 🛑 ตรวจสอบห้ามเชื่อมโยงเข้าหาตัวเอง
-    if (String(subScene) === String(fromSceneId)) {
-      alert("❌ ไม่สามารถบันทึกได้: ระบบไม่อนุญาตให้สร้างช้อยส์โยงเข้าหาฉากตัวเอง");
+    if (normalizedConnectionBlockReason) {
+      setFormError(`ไม่สามารถบันทึกได้: ${getChoiceConnectionMessage(normalizedConnectionBlockReason)}`);
       return;
     }
 
+    setFormError("");
     const payload = {
       from_scene_id: parseInt(fromSceneId || currentChapterId, 10),
       to_scene_id: parseInt(subScene, 10) || 0,
@@ -393,16 +410,82 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
       }
 
       if (saved) {
+        setCreatedScene(null);
         setShowSuccess(true);
         timeoutRef.current = setTimeout(() => {
           setShowSuccess(false);
           setIsEditing(false);
         }, 1200);
       } else {
-        alert("❌ บันทึกไม่สำเร็จ: ตัวเลือกไม่สามารถเชื่อมโยงระบบได้");
+        setFormError("บันทึกไม่สำเร็จ: ไม่สามารถเชื่อมโยงทางเลือกได้");
       }
     } catch (err) {
       console.error("บันทึกตัวเลือกล้มเหลว:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateAndConnectScene = async () => {
+    if (!text || text.trim() === "") {
+      setFormError("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
+      return;
+    }
+    if (!newSceneTitle.trim()) {
+      setFormError("กรุณากรอกชื่อฉากใหม่ก่อน");
+      return;
+    }
+    if (!newSceneChapterId) {
+      setFormError("กรุณาเลือกตอนสำหรับฉากใหม่ก่อน");
+      return;
+    }
+    const currentChapterIndex = chapterOptions.findIndex((chapter) => String(chapter.value) === String(currentChapterId));
+    const targetChapterIndex = chapterOptions.findIndex((chapter) => String(chapter.value) === String(newSceneChapterId));
+    if (currentChapterIndex !== -1 && targetChapterIndex !== -1 && targetChapterIndex < currentChapterIndex) {
+      setFormError("ไม่สามารถสร้างฉากใหม่ในตอนก่อนหน้าได้ เพราะจะเป็นการเชื่อมย้อนกลับ");
+      return;
+    }
+
+    setIsSaving(true);
+    let createdSceneId = null;
+    try {
+      createdSceneId = await onCreateScene?.({
+        title: newSceneTitle.trim(),
+        chapterId: newSceneChapterId,
+      });
+      if (!createdSceneId) {
+        throw new Error("ระบบไม่ได้รับรหัสฉากใหม่จากหลังบ้าน");
+      }
+
+      const payload = {
+        from_scene_id: parseInt(fromSceneId || currentChapterId, 10),
+        to_scene_id: parseInt(createdSceneId, 10),
+        label: text.trim(),
+      };
+      const saved = isNew ? await onCreate?.(payload) : await onUpdate(choiceId, payload);
+      if (!saved) {
+        await onDeleteScene?.(createdSceneId);
+        createdSceneId = null;
+        throw new Error("บันทึกทางเลือกไม่สำเร็จ ระบบลบฉากใหม่ที่สร้างไว้แล้ว");
+      }
+
+      setNewSceneTitle("");
+      setCreatedScene({ id: createdSceneId, chapterId: newSceneChapterId });
+      setShowSuccess(true);
+      timeoutRef.current = setTimeout(() => {
+        setShowSuccess(false);
+        setIsEditing(false);
+      }, 1200);
+    } catch (err) {
+      console.error("สร้างฉากและเชื่อมทางเลือกล้มเหลว:", err);
+      if (createdSceneId) {
+        try {
+          await onDeleteScene?.(createdSceneId);
+        } catch (rollbackError) {
+          console.error("ลบฉากใหม่ที่สร้างค้างไว้ไม่สำเร็จ:", rollbackError);
+        }
+      }
+      setFormError(`ไม่สามารถสร้างฉากและเชื่อมทางเลือกได้: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -515,6 +598,14 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
             </svg>
           </button>
         </div>
+        {createdScene && (
+          <div className="cm-choice-created-feedback">
+            สร้างฉากและเชื่อมทางเลือกสำเร็จ
+            <button type="button" onClick={() => onOpenScene?.(createdScene.id, createdScene.chapterId)} className="cm-choice-created-feedback__button">
+              ไปเขียนเนื้อหา
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -529,7 +620,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
           <input 
             className="cm-input" 
             value={text} 
-            onChange={(e) => setText(e.target.value)} 
+            onChange={(e) => { setText(e.target.value); setFormError(""); }} 
             placeholder="ตัวอย่าง: ยอมเปิดกล่องปริศนา..." 
             style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13.5px', fontFamily: "'Sarabun', sans-serif", outline: 'none' }}
           />
@@ -538,7 +629,17 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
         {/* เชื่อมไปยังฉากปลายทาง */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
           <label style={{ fontSize: '13px', fontWeight: '700', color: '#475569' }}>เชื่อมไปยังฉากปลายทาง</label>
+
+          <div className="cm-choice-connection-modes">
+            <button type="button" onClick={() => setConnectionMode("existing")} className={`cm-choice-connection-mode ${connectionMode === "existing" ? "is-active" : ""}`}>
+              🔗 เลือกฉากที่มี
+            </button>
+            <button type="button" onClick={() => setConnectionMode("new")} className={`cm-choice-connection-mode ${connectionMode === "new" ? "is-active" : ""}`}>
+              ✨ สร้างฉากใหม่
+            </button>
+          </div>
           
+              {connectionMode === "existing" ? <>
           {/* ปุ่มวิทยุเลือกประเภทปลายทางเหมือนหน้าเขียนเนื้อหา */}
           <div style={{ display: 'flex', gap: '16px', marginBottom: '6px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#475569' }}>
@@ -603,7 +704,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
               <select 
                 className="cm-select" 
                 value={subScene || ""} 
-                onChange={(e) => setSubScene(e.target.value)}
+                onChange={(e) => { setSubScene(e.target.value); setFormError(""); }}
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13.5px', fontFamily: "'Sarabun', sans-serif", outline: 'none' }}
               >
                 <option value="">{availableTargetScenes.length > 0 ? "-- กรุณาเลือกฉากปลายทาง --" : "-- ไม่มีฉากที่สามารถโยงได้ --"}</option>
@@ -611,8 +712,37 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
                   <option key={`target-scene-opt-${s.value}`} value={s.value}>ฉากที่ {s.displayNum} — {s.label}</option>
                 ))}
               </select>
+              {subScene && (
+                <div
+                  role="status"
+                  className={`cm-choice-validation ${normalizedConnectionBlockReason ? "is-invalid" : "is-valid"}`}
+                >
+                  {normalizedConnectionBlockReason
+                    ? getChoiceConnectionMessage(normalizedConnectionBlockReason)
+                    : 'เส้นทางนี้เชื่อมต่อได้ ไม่พบลูปในโครงสร้างเรื่อง'}
+                </div>
+              )}
             </div>
           </div>
+          </> : (
+            <div className="cm-choice-new-scene-form">
+              <label className="cm-choice-new-scene-form__label">
+                ชื่อฉากใหม่
+                <input className="cm-input cm-choice-new-scene-form__input" value={newSceneTitle} onChange={(e) => { setNewSceneTitle(e.target.value); setFormError(""); }} placeholder="เช่น ห้องลับใต้ปราสาท" />
+              </label>
+              <label className="cm-choice-new-scene-form__label">
+                สร้างฉากใหม่ในตอน
+                <select className="cm-select cm-choice-new-scene-form__input" value={newSceneChapterId} onChange={(e) => setNewSceneChapterId(e.target.value)}>
+                  <option value="">-- เลือกตอน --</option>
+                  {chapterOptions.map((chapter) => <option key={chapter.value} value={chapter.value}>{chapter.label}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={handleCreateAndConnectScene} disabled={isSaving || showSuccess} className="cm-choice-new-scene-form__button">
+                {isSaving ? 'กำลังสร้างฉากและเชื่อม...' : 'สร้างฉากและเชื่อมทางเลือก'}
+              </button>
+            </div>
+          )}
+          {formError && <div role="alert" className="cm-choice-form-error">{formError}</div>}
         </div>
 
         {/* ปุ่มควบคุม */}
@@ -635,7 +765,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
           <button
             className="cm-btn cm-btn--sm"
             onClick={handleSaveChoice}
-            disabled={isSaving || showSuccess}
+            disabled={isSaving || showSuccess || Boolean(normalizedConnectionBlockReason)}
             style={{ 
               padding: '8px 16px', 
               fontSize: '13px', 
@@ -659,6 +789,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
 
 const SceneCard = ({
   scene,
+  novelId,
   chapterId,
   chapterNumber,
   sceneIndex,
@@ -745,6 +876,46 @@ const SceneCard = ({
     const uniqueTempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setNewChoices((prev) => [...prev, { id: uniqueTempId, temp: true, from_scene_id: sceneId, label: "", to_scene_id: "" }]);
     setIsBodyOpen(true);
+  };
+
+  const handleCreateSceneFromChoice = async ({ title, chapterId: targetChapterId }) => {
+    if (isNovelBanned) {
+      throw new Error("นิยายถูกระงับ ไม่สามารถเพิ่มฉากได้");
+    }
+
+    const authToken = getToken();
+    if (!authToken) throw new Error("กรุณาเข้าสู่ระบบก่อนเพิ่มฉาก");
+
+    const res = await fetch(`${API_BASE}/scenes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        novel_id: parseInt(novelId, 10),
+        chapter_id: parseInt(targetChapterId, 10),
+        title: title.trim(),
+        content: "",
+        x: 0,
+        y: 0,
+        type: "normal",
+        status: "draft",
+      }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => null);
+      throw new Error(errorData?.error || errorData?.message || "สร้างฉากใหม่ไม่สำเร็จ");
+    }
+
+    const data = await res.json().catch(() => null) || {};
+    const createdSceneId = data.scene_id ?? data.id ?? data.data?.scene_id ?? data.data?.id;
+    if (!createdSceneId) throw new Error("ระบบไม่ได้รับรหัสฉากใหม่จากหลังบ้าน");
+
+    await fetchScenes();
+    window.dispatchEvent(new Event("novel-data-updated"));
+    return createdSceneId;
   };
 
   const handleApplyChoice = async (choiceId, updatedData) => {
@@ -932,6 +1103,21 @@ const SceneCard = ({
             <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: '800', color: '#1e293b' }}>
               {sceneTitle}
             </h4>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              width: 'fit-content',
+              marginTop: '4px',
+              padding: '2px 8px',
+              borderRadius: '999px',
+              backgroundColor: '#fdf2f8',
+              border: '1px solid #fbcfe8',
+              color: '#be185d',
+              fontSize: '11.5px',
+              fontWeight: '800'
+            }}>
+              ทางเลือก {choiceCount} ทาง
+            </span>
             
             {/* ป้ายบอกประเภทฉากย่อย */}
             <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1198,7 +1384,7 @@ const SceneCard = ({
 
       {isBodyOpen && (
         <div className="cm-scene__choices" style={{ padding: '24px', backgroundColor: isEnding ? '#fffdf5' : '#fafaf9', borderTop: '1px solid #f1f5f9', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px' }}>
-          {/* ป้ายบอกจำนวนทางเลือกแสดงเฉพาะเมื่อกดขยายดูทางเลือกตามสเปกใหม่ */}
+          {/* แสดงจำนวนซ้ำในรายละเอียดเพื่อให้ตรงกับรายการทางเลือกที่เปิดอยู่ */}
           <div 
             style={{
               display: 'flex',
@@ -1232,6 +1418,9 @@ const SceneCard = ({
               sceneOptions={allChapters}
               currentChapterId={chapterId}
               onUpdate={handleApplyChoice}
+              onCreateScene={handleCreateSceneFromChoice}
+              onDeleteScene={handleDeleteScene}
+              onOpenScene={onWrite}
               onCreate={async (choiceData) => {
                 try {
                   const choiceToken = getToken();
@@ -1888,7 +2077,7 @@ const ChapterPanel = ({
           {(chapter?.scenes || []).length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px 20px', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
               <p style={{ margin: 0, fontSize: '13.5px', color: '#94a3b8', fontWeight: '500' }}>
-                ยังไม่มีฉากย่อยในบทนี้ กดปุ่ม "เพิ่มฉากย่อย" ด้านบนเพื่อเริ่มร้อยเรียงพล็อตย่อยของคุณเลย 📖
+                ยังไม่มีฉากในตอนนี้ กด '+ เพิ่มฉาก' เพื่อเริ่มต้นเขียนเนื้อเรื่อง 📖
               </p>
             </div>
           ) : (
@@ -1896,6 +2085,7 @@ const ChapterPanel = ({
               <SceneCard
                 key={scene?.scene_id || scene?.id || index}
                 scene={scene}
+                novelId={novel?.novel_id ?? novel?.id ?? novel?.ID}
                 chapterId={chapterId}
                 chapterNumber={chapterNumber}
                 sceneIndex={index + 1}
@@ -1943,6 +2133,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const [expandedChapters, setExpandedChapters] = useState({});
   const [activeSceneId, setActiveSceneId] = useState(null);
   const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
 
   // Auto-expand the active chapter on load or switch
@@ -2407,11 +2598,27 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   return (
     <div className="cm-layout">
       {/* ☰ แถบรายชื่อตอนและฉากย่อย (Sidebar) ย้ายมาด้านซ้ายมือตามความต้องการผู้แต่ง */}
-      <aside className="cm-sidebar" style={{ borderRight: "1px solid #e2e8f0" }}>
-        <div className="cm-sidebar__header" style={{ padding: "24px 20px 12px 20px", borderBottom: "none" }}>
+      <aside className={`cm-sidebar ${isSidebarOpen ? "open" : ""}`} style={{ borderRight: "1px solid #e2e8f0" }}>
+        <div className="cm-sidebar__header" style={{ padding: "24px 20px 12px 20px", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
             ตอนทั้งหมด ({chapters.length})
           </span>
+          <button 
+            type="button"
+            className="cm-sidebar-close-btn"
+            onClick={() => setIsSidebarOpen(false)}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "18px",
+              cursor: "pointer",
+              color: "#64748b",
+              padding: "4px 8px",
+              display: "none"
+            }}
+          >
+            ✕
+          </button>
         </div>
 
         {/* ➕ ปุ่มสร้างตอนใหม่เด่นชัด ย้ายขึ้นไปอยู่ส่วนบนถัดจากหัวข้อหลัก */}
@@ -2508,7 +2715,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                 {/* Chapter Card Row */}
                 <div
                   className={`cm-sidebar__item ${isCurrentActive ? "cm-sidebar__item--active" : ""}`}
-                  onClick={() => setActiveChapterId(chId)}
+                  onClick={() => {
+                    setActiveChapterId(chId);
+                    setIsSidebarOpen(false);
+                  }}
                   style={{
                     display: "flex",
                     flexDirection: "column",
@@ -2638,6 +2848,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSceneClick(chId, scId);
+                              setIsSidebarOpen(false);
                             }}
                             style={{
                               fontSize: "12.5px",
@@ -2689,9 +2900,28 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       {/* 📄 เนื้อหาการแสดงผลตอนย่อยหลัก (Main Content) */}
       <div className="cm-main">
         <div className="cm-topbar">
-          <div>
-            <h1 className="cm-topbar__title">จัดการตอนนิยาย</h1>
-            <p className="cm-topbar__sub">จัดการรายการตอนและรายละเอียดฉากของคุณ</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              className="cm-btn cm-btn--outline cm-sidebar-toggle-btn"
+              onClick={() => setIsSidebarOpen(true)}
+              style={{
+                display: "none",
+                borderRadius: "20px",
+                padding: "6px 14px",
+                fontSize: "13px",
+                fontWeight: "700",
+                color: "#475569",
+                border: "1.5px solid #e2e8f0",
+                fontFamily: "'Sarabun', sans-serif"
+              }}
+            >
+              ☰ ตอนทั้งหมด
+            </button>
+            <div>
+              <h1 className="cm-topbar__title" style={{ margin: 0 }}>จัดการตอนนิยาย</h1>
+              <p className="cm-topbar__sub" style={{ margin: "4px 0 0 0" }}>จัดการรายการตอนและรายละเอียดฉากของคุณ</p>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
@@ -2750,12 +2980,12 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
               marginBottom: '16px',
               animation: 'bounce 2s infinite',
               display: 'inline-block'
-            }}>✍️</div>
+            }}>📝</div>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>
-              เริ่มรังสรรค์โลกจินตนาการของคุณกัน!
+              เริ่มต้นสร้างนิยายของคุณ !
             </h3>
             <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b', maxWidth: '380px', lineHeight: '1.6' }}>
-              นิยายใหม่เรื่องนี้ยังไม่มีตอนแรกอยู่เลย มาร่วมเขียนก้าวแรกของเนื้อเรื่องโดยการเพิ่มตอนใหม่ตรงนี้กันเถอะ
+              เพิ่ม "ตอน" เพื่อจัดหมวดหมู่เรื่องราว จากนั้นสร้าง "ฉาก" ย่อยด้านในตอนเพื่อเริ่มเขียนเนื้อหาและเชื่อมตัวเลือกไปยังฉากต่อไป 
             </p>
             <button
               onClick={openCreateChapterForm}

@@ -80,25 +80,6 @@
   align-items: start;
 }
 
-@media(max-width: 768px) {
-  .wst-page-container .layout {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-  .wst-page-container .side-nav {
-    position: static;
-    display: flex;
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 8px;
-    gap: 8px;
-    border-bottom: 1px solid var(--border-m);
-    margin-bottom: 16px;
-  }
-  .wst-page-container .side-nav-sep {
-    display: none;
-  }
-}
 
 /* ── Sticky Sidebar Menu ── */
 .wst-page-container .side-nav {

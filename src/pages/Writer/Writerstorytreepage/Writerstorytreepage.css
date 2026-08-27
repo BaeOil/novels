@@ -336,13 +336,13 @@
 }
 
 .wst-node-card__publish-badge--published {
-  background-color: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
 }
 
 .wst-node-card__publish-badge--published .wst-node-card__publish-dot {
-  background-color: #16a34a;
+  background-color: #2563eb;
 }
 
 .wst-node-card__publish-badge--draft {

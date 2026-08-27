@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import "./WriterDashboardPage.css";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -148,11 +149,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   };
 
   if (loading) {
-    return (
-      <div className="wdb" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-        <p style={{ color: "var(--pink-500)", fontSize: "1.2rem" }}>กำลังดึงข้อมูลแดชบอร์ดนักเขียน...</p>
-      </div>
-    );
+    return <LoadingScreen message="กำลังดึงข้อมูลแดชบอร์ดนักเขียน..." />;
   }
 
   const filteredNovels = novels.filter(novel => {

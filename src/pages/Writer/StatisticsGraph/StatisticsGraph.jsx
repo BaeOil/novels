@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ReactFlow, {
   Handle,
@@ -235,7 +235,6 @@ function StatisticsGraph() {
   
   const [novelTitle, setNovelTitle] = useState("นิยายของฉัน");
   const [treeData, setTreeData] = useState(null);
-  const [novelChapters, setNovelChapters] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -246,11 +245,15 @@ function StatisticsGraph() {
   const [allScenesAnalytics, setAllScenesAnalytics] = useState([]);
   const [isSceneLoading, setIsSceneLoading] = useState(false);
   const [isChoiceLoading, setIsChoiceLoading] = useState(false);
+  const [sceneError, setSceneError] = useState(null);
+  const [choiceError, setChoiceError] = useState(null);
+  const sceneRequestIdRef = useRef(0);
   
   // Selection
   const [selectedSceneId, setSelectedSceneId] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("scene");
+  const [highlightedChoiceId, setHighlightedChoiceId] = useState(null);
 
   // Fetch Data
   const fetchData = useCallback(async () => {
@@ -261,9 +264,8 @@ function StatisticsGraph() {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const [treeRes, chaptersRes, novelRes, analyticsRes, scenesAnalyticsRes] = await Promise.all([
+      const [treeRes, novelRes, analyticsRes, scenesAnalyticsRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`),
-        axios.get(`${API_BASE_URL}/novels/${novelId}/chapters`),
         axios.get(`${API_BASE_URL}/novels/${novelId}`),
         axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics`, { headers }),
         axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes`, { headers })
@@ -272,10 +274,7 @@ function StatisticsGraph() {
       const tree = treeRes.data?.data || treeRes.data || null;
       setTreeData(tree);
       
-      const chaptersList = chaptersRes.data?.data?.chapters || chaptersRes.data?.chapters || chaptersRes.data?.data || [];
-      setNovelChapters(Array.isArray(chaptersList) ? chaptersList : []);
-      
-      const title = tree?.NovelTitle || tree?.novel_title || novelRes.data?.data?.title || novelRes.data?.title || novelRes.data?.data?.Title || novelRes.data?.Title;
+      const title = tree?.NovelTitle || tree?.novel_title || novelRes.data?.data?.novel?.title || novelRes.data?.novel?.title || novelRes.data?.data?.title || novelRes.data?.title || novelRes.data?.data?.Title || novelRes.data?.Title;
       if (title) setNovelTitle(title);
 
       setOverallAnalytics(analyticsRes.data?.data || analyticsRes.data || null);
@@ -291,8 +290,12 @@ function StatisticsGraph() {
   // Fetch Scene Details
   const fetchSceneDetails = useCallback(async (sceneId) => {
     if (!novelId || !sceneId) return;
+    const requestId = sceneRequestIdRef.current + 1;
+    sceneRequestIdRef.current = requestId;
     setIsSceneLoading(true);
     setIsChoiceLoading(true);
+    setSceneError(null);
+    setChoiceError(null);
     
     const token = localStorage.getItem("token");
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -302,12 +305,19 @@ function StatisticsGraph() {
         `${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes/${sceneId}`,
         { headers }
       );
-      setSceneAnalytics(sceneRes.data?.data || sceneRes.data || null);
+      if (sceneRequestIdRef.current === requestId) {
+        setSceneAnalytics(sceneRes.data?.data || sceneRes.data || null);
+      }
     } catch (err) {
       console.error("Error fetching scene analytics:", err);
-      setSceneAnalytics(null);
+      if (sceneRequestIdRef.current === requestId) {
+        setSceneAnalytics(null);
+        setSceneError("ไม่สามารถโหลดสถิติฉากนี้ได้");
+      }
     } finally {
-      setIsSceneLoading(false);
+      if (sceneRequestIdRef.current === requestId) {
+        setIsSceneLoading(false);
+      }
     }
 
     try {
@@ -315,12 +325,19 @@ function StatisticsGraph() {
         `${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes/${sceneId}/choices`,
         { headers }
       );
-      setChoiceAnalytics(choiceRes.data?.data || choiceRes.data || null);
+      if (sceneRequestIdRef.current === requestId) {
+        setChoiceAnalytics(choiceRes.data?.data || choiceRes.data || null);
+      }
     } catch (err) {
       console.error("Error fetching choice analytics:", err);
-      setChoiceAnalytics(null);
+      if (sceneRequestIdRef.current === requestId) {
+        setChoiceAnalytics(null);
+        setChoiceError("ไม่สามารถโหลดสถิติทางเลือกของฉากนี้ได้");
+      }
     } finally {
-      setIsChoiceLoading(false);
+      if (sceneRequestIdRef.current === requestId) {
+        setIsChoiceLoading(false);
+      }
     }
   }, [novelId]);
 
@@ -332,9 +349,16 @@ function StatisticsGraph() {
     if (selectedSceneId) {
       fetchSceneDetails(selectedSceneId);
     } else {
+      sceneRequestIdRef.current += 1;
       setSceneAnalytics(null);
       setChoiceAnalytics(null);
+      setSceneError(null);
+      setChoiceError(null);
     }
+
+    return () => {
+      sceneRequestIdRef.current += 1;
+    };
   }, [selectedSceneId, fetchSceneDetails]);
 
   const rawNodes = treeData?.Nodes ?? treeData?.nodes ?? [];
@@ -525,43 +549,39 @@ function StatisticsGraph() {
   // Node analytics data mapping
   const nodeAnalyticsMap = useMemo(() => {
     const analytics = new Map();
-    const uniqueReaders = overallAnalytics?.unique_readers || 2000;
     
-    uniqueNodes.forEach((node, index) => {
+    uniqueNodes.forEach((node) => {
       const id = getNodeId(node);
       if (!id) return;
       
       const type = getNodeType(node);
-      const isStart = type === "start" || type === "starting" || index === 0;
       
-      let visitors = Math.max(80, Math.floor(uniqueReaders * Math.pow(0.75, index % 6)));
-      if (isStart) visitors = uniqueReaders || 2480;
-      
-      let exitRate = 2 + (index * 5) % 15;
-      let returnRate = Math.floor(5 + (index * 3) % 15);
+      let visitors = 0;
+      let exitRate = 0;
+      let returnRate = 0;
 
       // Match with real data from get all scenes endpoint
       if (Array.isArray(allScenesAnalytics)) {
         const sceneData = allScenesAnalytics.find(s => normalizeId(s.scene_id) === id);
         if (sceneData) {
-          visitors = sceneData.unique_readers || sceneData.visit_count || visitors;
-          exitRate = Math.round(sceneData.drop_off_rate) ?? exitRate;
+          visitors = sceneData.unique_readers ?? 0;
+          exitRate = Math.round(sceneData.drop_off_rate ?? 0);
         }
       }
 
       if (overallAnalytics?.top_drop_off_scenes) {
         const dropData = overallAnalytics.top_drop_off_scenes.find(d => normalizeId(d.scene_id) === id);
         if (dropData) {
-          visitors = dropData.unique_readers || dropData.visit_count || visitors;
-          exitRate = Math.round(dropData.drop_off_rate) || exitRate;
+          visitors = dropData.unique_readers ?? 0;
+          exitRate = Math.round(dropData.drop_off_rate ?? 0);
         }
       }
 
       if (selectedSceneId === id && sceneAnalytics) {
-        visitors = sceneAnalytics.unique_readers || sceneAnalytics.visit_count || visitors;
-        exitRate = Math.round(sceneAnalytics.drop_off_rate) ?? exitRate;
+        visitors = sceneAnalytics.unique_readers ?? 0;
+        exitRate = Math.round(sceneAnalytics.drop_off_rate ?? 0);
         if (sceneAnalytics.unique_readers > 0) {
-          returnRate = Math.round((sceneAnalytics.repeat_visit_count / sceneAnalytics.unique_readers) * 100) || returnRate;
+          returnRate = Math.round((sceneAnalytics.repeat_visit_count ?? 0) / sceneAnalytics.unique_readers * 100);
         }
       }
 
@@ -581,48 +601,18 @@ function StatisticsGraph() {
   // Edge Selection Map from API
   const edgeSelectionMap = useMemo(() => {
     const selections = new Map();
-    
-    const sourceGroups = {};
+
     rawEdges.forEach((edge) => {
       const fromId = normalizeId(edge.FromID || edge.from_id || edge.from || edge.source || "");
       if (!fromId) return;
-      if (!sourceGroups[fromId]) sourceGroups[fromId] = [];
-      sourceGroups[fromId].push(edge);
-    });
 
-    Object.keys(sourceGroups).forEach((fromId) => {
-      const edges = sourceGroups[fromId];
-      const count = edges.length;
-      if (count === 0) return;
-      
-      if (fromId === selectedSceneId && choiceAnalytics?.choices) {
-        edges.forEach((edge) => {
-          const toId = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
-          const choiceLabel = edge.Label || edge.label || edge.choice_text || edge.text || "";
-          
-          const realChoice = choiceAnalytics.choices.find(
-            c => normalizeId(c.choice_id) === normalizeId(edge.data?.ID || edge.data?.id) || 
-                 c.label === choiceLabel
-          );
-          
-          const key = `${fromId}->${toId}`;
-          const pct = realChoice ? Math.round(realChoice.percentage) : 0;
-          selections.set(key, pct);
-        });
-      } else {
-        let remaining = 100;
-        edges.forEach((edge, idx) => {
-          const toId = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
-          const key = `${fromId}->${toId}`;
-          
-          let pct = Math.floor(remaining / (count - idx));
-          if (idx === 0 && count > 1) {
-            pct = Math.min(80, Math.floor(remaining * 0.65));
-          }
-          remaining -= pct;
-          selections.set(key, pct);
-        });
-      }
+      const toId = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
+      const choiceLabel = edge.Label || edge.label || edge.choice_text || edge.text || "";
+      const realChoice = fromId === selectedSceneId && choiceAnalytics?.choices?.find(
+        c => normalizeId(c.choice_id) === normalizeId(edge.data?.ID || edge.data?.id) || c.label === choiceLabel
+      );
+
+      selections.set(`${fromId}->${toId}`, realChoice?.percentage ?? 0);
     });
 
     return selections;
@@ -762,9 +752,9 @@ function StatisticsGraph() {
     const finalEdges = [];
 
     const maxDropOffScene = overallAnalytics?.top_drop_off_scenes?.[0];
-    const totalVisitors = overallAnalytics?.unique_readers || 2480;
-    const highMax = Math.round(totalVisitors * 0.66);
-    const midMax = Math.round(totalVisitors * 0.33);
+    const totalVisitors = overallAnalytics?.unique_readers ?? 0;
+    const highMax = totalVisitors > 0 ? Math.round(totalVisitors * 0.66) : 1;
+    const midMax = totalVisitors > 0 ? Math.round(totalVisitors * 0.33) : 1;
 
     nodeIds.forEach((sceneId) => {
       const scene = localMap.get(sceneId);
@@ -787,7 +777,7 @@ function StatisticsGraph() {
         position: { x: finalX, y: finalY },
         data: {
           title: getNodeTitle(scene),
-          labelNum: pos ? pos.display : `ฉากที่ ${sceneId}`,
+          labelNum: pos ? pos.display : "ฉากนิยาย",
           visitors: analytics.visitors,
           exitRate: analytics.exitRate,
           returnRate: analytics.returnRate,
@@ -807,7 +797,7 @@ function StatisticsGraph() {
       const src = edge.source;
       const tgt = edge.target;
       const key = `${src}->${tgt}`;
-      const pct = edgeSelectionMap.get(key) ?? 100;
+      const pct = edgeSelectionMap.get(key) ?? 0;
 
       let strokeWidth = 1.5;
       let strokeColor = "#DCCFC0";
@@ -858,15 +848,17 @@ function StatisticsGraph() {
 
   const [rfNodes, setRfNodes] = useNodesState([]);
   const [rfEdges, setRfEdges] = useEdgesState([]);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
   useEffect(() => {
-    if (positionedElements.nodes.length > 0) {
+    if (treeData) {
       setRfNodes(positionedElements.nodes);
       setRfEdges(positionedElements.edges);
     }
-  }, [positionedElements, setRfNodes, setRfEdges]);
+  }, [positionedElements, treeData, setRfNodes, setRfEdges]);
 
   const onNodeClick = useCallback((event, node) => {
+    setHighlightedChoiceId(null);
     setSelectedSceneId(prev => {
       const next = prev === node.id ? null : node.id;
       if (next) {
@@ -877,8 +869,47 @@ function StatisticsGraph() {
   }, []);
 
   const onPaneClick = useCallback(() => {
+    setHighlightedChoiceId(null);
     setSelectedSceneId(null);
   }, []);
+
+  const onEdgeClick = useCallback((event, edge) => {
+    event.stopPropagation();
+    setHighlightedChoiceId(normalizeId(edge.data?.ID ?? edge.data?.id) || edge.label || null);
+    setSelectedSceneId(edge.source);
+    setActiveTab("choice");
+    setIsCollapsed(false);
+  }, []);
+
+  const focusNode = useCallback((sceneId) => {
+    if (!reactFlowInstance || !sceneId) return;
+
+    const targetNode = reactFlowInstance.getNode(sceneId) || rfNodes.find((node) => node.id === sceneId);
+    if (!targetNode) return;
+
+    requestAnimationFrame(() => {
+      const position = targetNode.positionAbsolute || targetNode.position;
+      const width = targetNode.measured?.width || targetNode.width || NODE_WIDTH;
+      const height = targetNode.measured?.height || targetNode.height || NODE_HEIGHT;
+
+      reactFlowInstance.setCenter(
+        position.x + width / 2,
+        position.y + height / 2,
+        { zoom: 1.1, duration: 500 }
+      );
+    });
+  }, [reactFlowInstance, rfNodes]);
+
+  const onPreviousSceneClick = useCallback((sceneId) => {
+    setActiveTab("scene");
+    setIsCollapsed(false);
+    setSelectedSceneId(sceneId);
+    focusNode(sceneId);
+  }, [focusNode]);
+
+  const onChoiceDestinationClick = useCallback((sceneId) => {
+    focusNode(sceneId);
+  }, [focusNode]);
 
   const selectedSceneDetails = useMemo(() => {
     if (!selectedSceneId) return null;
@@ -1119,8 +1150,14 @@ function StatisticsGraph() {
                 {activeTab === "scene" ? (
                   isSceneLoading ? (
                     <div className="wsg-loading-overlay">
-                      <div className="wsg-spinner"></div>
-                      <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0 }}>กำลังโหลดสถิติฉาก...</p>
+                      <LoadingScreen message="กำลังโหลดสถิติฉาก..." compact />
+                    </div>
+                  ) : sceneError ? (
+                    <div className="wsg-loading-overlay">
+                      <p style={{ fontSize: "0.85rem", color: "#b91c1c", margin: 0 }}>{sceneError}</p>
+                      <button className="wst-error-button" onClick={() => fetchSceneDetails(selectedSceneId)}>
+                        ลองใหม่อีกครั้ง
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -1234,11 +1271,13 @@ function StatisticsGraph() {
                             if (prevList.length > 0) {
                               return prevList.map((item, idx) => {
                                 const scId = normalizeId(item.scene_id);
-                                const displayLabel = chapterAndSceneDisplayMap.get(scId)?.display || `ฉากที่ ${scId}`;
+                                const displayLabel = chapterAndSceneDisplayMap.get(scId)?.display || "ฉากก่อนหน้า";
 
                                 return (
-                                  <div 
+                                  <button
                                     key={idx} 
+                                    type="button"
+                                    onClick={() => onPreviousSceneClick(scId)}
                                     style={{ 
                                       padding: "10px 14px", 
                                       backgroundColor: "#f8fafc", 
@@ -1246,11 +1285,16 @@ function StatisticsGraph() {
                                       border: "1px solid #e2e8f0", 
                                       fontSize: "0.85rem", 
                                       color: "#334155",
-                                      textAlign: "left" 
+                                      textAlign: "left",
+                                      cursor: "pointer",
+                                      width: "100%"
                                     }}
                                   >
-                                    มาจาก <strong>{displayLabel}</strong> - {item.title || "ไม่มีชื่อฉาก"}
-                                  </div>
+                                    <div>มาจาก <strong>{displayLabel}</strong> - {item.title || "ไม่มีชื่อฉาก"}</div>
+                                    <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "4px" }}>
+                                      ผ่านเข้าฉาก {item.transition_count ?? 0} ครั้ง ({item.percentage ?? 0}%)
+                                    </div>
+                                  </button>
                                 );
                               });
                             }
@@ -1263,8 +1307,14 @@ function StatisticsGraph() {
                 ) : (
                   isChoiceLoading ? (
                     <div className="wsg-loading-overlay">
-                      <div className="wsg-spinner"></div>
-                      <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0 }}>กำลังโหลดสถิติทางเลือก...</p>
+                      <LoadingScreen message="กำลังโหลดสถิติทางเลือก..." compact />
+                    </div>
+                  ) : choiceError ? (
+                    <div className="wsg-loading-overlay">
+                      <p style={{ fontSize: "0.85rem", color: "#b91c1c", margin: 0 }}>{choiceError}</p>
+                      <button className="wst-error-button" onClick={() => fetchSceneDetails(selectedSceneId)}>
+                        ลองใหม่อีกครั้ง
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -1285,15 +1335,23 @@ function StatisticsGraph() {
 
                             return choiceAnalytics.choices.map((choice, idx) => {
                               const isTop = topId !== undefined && normalizeId(choice.choice_id) === normalizeId(topId);
-                              const targetLabel = chapterAndSceneDisplayMap.get(normalizeId(choice.to_scene_id))?.display || `ฉากที่ ${choice.to_scene_id}`;
+                              const choiceId = normalizeId(choice.choice_id);
+                              const isHighlighted = highlightedChoiceId === choiceId || highlightedChoiceId === choice.label;
+                              const targetSceneId = normalizeId(choice.to_scene_id);
+                              const targetLabel = chapterAndSceneDisplayMap.get(targetSceneId)?.display || "ฉากปลายทาง";
                               return (
-                                <div 
+                                <button
                                   key={idx} 
-                                  className={`wsg-choice-row-container ${isTop ? "wsg-top-choice-row" : ""}`} 
+                                  type="button"
+                                  onClick={() => onChoiceDestinationClick(targetSceneId)}
+                                  className={`wsg-choice-row-container ${isTop ? "wsg-top-choice-row" : ""} ${isHighlighted ? "wsg-highlighted-choice-row" : ""}`} 
                                   style={{ 
                                     padding: "10px", 
                                     border: isTop ? "1.5px solid #d97706" : "1px solid #e2e8f0",
-                                    borderRadius: "8px"
+                                    borderRadius: "8px",
+                                    width: "100%",
+                                    textAlign: "left",
+                                    cursor: "pointer"
                                   }}
                                 >
                                   <div className="wsg-choice-row-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1321,7 +1379,7 @@ function StatisticsGraph() {
                                       <span style={{ fontSize: "0.65rem", color: "#64748b" }}>กด {choice.selection_count.toLocaleString()} ครั้ง</span>
                                     </div>
                                   </div>
-                                </div>
+                                </button>
                               );
                             });
                           })()}
@@ -1354,9 +1412,9 @@ function StatisticsGraph() {
 
           <div className="wsg-canvas-wrap">
             {(() => {
-              const totalVis = overallAnalytics?.unique_readers || 2480;
-              const hMax = Math.round(totalVis * 0.66);
-              const mMax = Math.round(totalVis * 0.33);
+              const totalVis = overallAnalytics?.unique_readers ?? 0;
+              const hMax = totalVis > 0 ? Math.round(totalVis * 0.66) : 1;
+              const mMax = totalVis > 0 ? Math.round(totalVis * 0.33) : 1;
 
               return (
                 <div className="wsg-legend-overlay">
@@ -1403,28 +1461,36 @@ function StatisticsGraph() {
               );
             })()}
 
-            <ReactFlow
-              nodes={rfNodes}
-              edges={rfEdges}
-              nodeTypes={nodeTypes}
-              onNodeClick={onNodeClick}
-              onPaneClick={onPaneClick}
-              fitView
-              minZoom={0.2}
-              maxZoom={2}
-            >
-              <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="#e2e8f0" />
-              <Controls showInteractive={false} />
-              <MiniMap 
-                nodeColor={(node) => {
-                  if (node.data?.isMaxDrop) return "#ef4444";
-                  if (node.data?.visitors >= (node.data?.highMax || 1600)) return "#F472B6";
-                  if (node.data?.visitors >= (node.data?.midMax || 800)) return "#F9A8D4";
-                  return "#FCE7F3";
-                }}
-                maskColor="rgba(250, 249, 246, 0.6)"
-              />
-            </ReactFlow>
+            {rfNodes.length === 0 ? (
+              <div className="wsg-empty-sidebar">
+                <p className="wsg-empty-text">ยังไม่มีฉากในโครงสร้างนิยาย</p>
+              </div>
+            ) : (
+              <ReactFlow
+                nodes={rfNodes}
+                edges={rfEdges}
+                nodeTypes={nodeTypes}
+                onInit={setReactFlowInstance}
+                onNodeClick={onNodeClick}
+                onEdgeClick={onEdgeClick}
+                onPaneClick={onPaneClick}
+                fitView
+                minZoom={0.2}
+                maxZoom={2}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="#e2e8f0" />
+                <Controls showInteractive={false} />
+                <MiniMap 
+                  nodeColor={(node) => {
+                    if (node.data?.isMaxDrop) return "#ef4444";
+                    if (node.data?.visitors >= (node.data?.highMax || 1600)) return "#F472B6";
+                    if (node.data?.visitors >= (node.data?.midMax || 800)) return "#F9A8D4";
+                    return "#FCE7F3";
+                  }}
+                  maskColor="rgba(250, 249, 246, 0.6)"
+                />
+              </ReactFlow>
+            )}
           </div>
         </div>
       </div>

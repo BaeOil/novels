@@ -6,6 +6,7 @@ import DOMPurify from "dompurify";
 import FollowButton from "../../../components/FollowButton/FollowButton";
 import NovelCard from "../../../components/NovelCard/NovelCard";
 import AdminModeBanner from "../../../components/AdminModeBanner/AdminModeBanner";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./WriterProfile.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -285,16 +286,7 @@ export default function WriterProfile() {
   };
 
   if (loading) {
-    return (
-      <div className="profile-wrapper">
-        <div className="profile-container">
-          <div className="profile-loading-card">
-            <div className="profile-loading-spinner"></div>
-            <p>กำลังโหลดข้อมูลโปรไฟล์นักเขียน...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="กำลังโหลดข้อมูลโปรไฟล์นักเขียน..." />;
   }
 
   if (error || !writerInfo) {
