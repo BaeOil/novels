@@ -47,14 +47,14 @@ func (r *postgresAnalyticsRepository) GetSceneChoiceAnalytics(novelID, sceneID i
 
 	// ─── 2. Query all choices for this scene + selection_count ───────────────
 	// JOIN scenes s_to เพื่อดึง target_scene_title
-	// LEFT JOIN user_choice_history uch เพื่อดึง COUNT(uch.history_id)
+	// LEFT JOIN user_choice_history uch เพื่อดึง COUNT(uch.id)
 	choiceQuery := `
 		SELECT
 			c.choice_id,
 			c.label,
 			c.to_scene_id,
 			COALESCE(s_to.title, '') AS target_scene_title,
-			COUNT(uch.history_id)   AS selection_count
+			COUNT(uch.id)           AS selection_count
 		FROM choices c
 		LEFT JOIN scenes s_to ON s_to.scene_id = c.to_scene_id
 		LEFT JOIN user_choice_history uch ON uch.choice_id = c.choice_id
@@ -69,6 +69,9 @@ func (r *postgresAnalyticsRepository) GetSceneChoiceAnalytics(novelID, sceneID i
 	}
 	defer rows.Close()
 
+	var totalSelections int64
+	var topChoice *models.TopChoiceStat
+
 	for rows.Next() {
 		var cs models.ChoiceStat
 		var toSceneID sql.NullInt64
@@ -79,11 +82,33 @@ func (r *postgresAnalyticsRepository) GetSceneChoiceAnalytics(novelID, sceneID i
 			v := int(toSceneID.Int64)
 			cs.ToSceneID = &v
 		}
+		totalSelections += cs.SelectionCount
+		if cs.SelectionCount > 0 && (topChoice == nil || cs.SelectionCount > topChoice.SelectionCount) {
+			topChoice = &models.TopChoiceStat{
+				ChoiceID:       cs.ChoiceID,
+				Label:          cs.Label,
+				SelectionCount: cs.SelectionCount,
+			}
+		}
 		stats.Choices = append(stats.Choices, cs)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
+	if totalSelections > 0 {
+		for i := range stats.Choices {
+			stats.Choices[i].Percentage = roundFloat2(
+				float64(stats.Choices[i].SelectionCount) * 100.0 / float64(totalSelections),
+			)
+		}
+		if topChoice != nil {
+			topChoice.Percentage = roundFloat2(
+				float64(topChoice.SelectionCount) * 100.0 / float64(totalSelections),
+			)
+		}
+	}
+	stats.TopChoice = topChoice
 
 	return stats, nil
 }
@@ -471,4 +496,3 @@ func (r *postgresAnalyticsRepository) GetAllScenesAnalytics(novelID int) ([]mode
 	}
 	return results, nil
 }
-

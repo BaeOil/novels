@@ -77,18 +77,7 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 			novelTitle = "นิยายเรื่องใหม่อันลึกลับ"
 		}
 
-		// =================================================================
-		// 🎯 แก้ไขส่วนที่ 1: หาค่า currentSceneID เริ่มต้นก่อนการกรอง
-		// =================================================================
 		currentSceneID := tree.CurrentSceneID
-		if currentSceneID == 0 {
-			for _, n := range tree.Nodes {
-				if n.Type == "start" {
-					currentSceneID = n.ID
-					break
-				}
-			}
-		}
 
 		// =================================================================
 		// 🎯 ปรับปรุงส่วนที่ 2: ลอจิกกรองสปอยล์
@@ -168,22 +157,6 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 
 			secureNodes = append(secureNodes, node)
 			secureNodesMap[node.ID] = true
-		}
-
-		// =================================================================
-		// 🎯 ตรวจสอบความถูกต้องของ currentSceneID หลังการ Filter
-		// =================================================================
-		if !secureNodesMap[currentSceneID] {
-			currentSceneID = 0
-			for _, n := range secureNodes {
-				if n.Type == "start" {
-					currentSceneID = n.ID
-					break
-				}
-			}
-			if currentSceneID == 0 && len(secureNodes) > 0 {
-				currentSceneID = secureNodes[0].ID
-			}
 		}
 
 		// =================================================================

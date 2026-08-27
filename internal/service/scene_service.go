@@ -855,17 +855,9 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 	// 🟢 ถ้ามี userID ให้ดึง current scene จาก reading progress
 	if userID > 0 {
 		_ = s.db.QueryRow(
-			`SELECT COALESCE(current_scene_id, 1) FROM reading_progress 
+			`SELECT current_scene_id FROM reading_progress 
 			 WHERE user_id = $1 AND novel_id = $2 AND updated_at IS NOT NULL`,
 			userID, novelID,
-		).Scan(&currentSceneID)
-	}
-
-	// ถ้ายังหา current scene ไม่ได้ ให้เอา start scene
-	if currentSceneID == 0 {
-		_ = s.db.QueryRow(
-			`SELECT scene_id FROM scenes WHERE novel_id = $1 AND type = 'start' LIMIT 1`,
-			novelID,
 		).Scan(&currentSceneID)
 	}
 
