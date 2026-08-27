@@ -392,29 +392,11 @@ export default function ReaderSetting() {
   // ------------------------------------------
   // Sidebar Nav Highlighting & Scrolling
   // ------------------------------------------
-  useEffect(() => {
-    const handleScroll = () => {
-      const sections = ["#profile", "#security", "#notifications", "#danger"];
-      let current = "#profile";
-      for (const id of sections) {
-        const el = document.querySelector(id);
-        if (el && el.getBoundingClientRect().top <= 140) {
-          current = id;
-        }
-      }
-      setActiveSection(current);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
+  // ------------------------------------------
+  // Sidebar Nav Highlighting & Tab selection
+  // ------------------------------------------
   const handleScrollTo = (id) => {
-    const el = document.querySelector(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      setActiveSection(id);
-    }
+    setActiveSection(id);
     return false;
   };
 
@@ -1109,7 +1091,7 @@ export default function ReaderSetting() {
       <div className="page-wrap">
         <div className="page-header">
           <h1 className="page-title">ตั้งค่าบัญชี</h1>
-          <p className="page-sub">จัดการข้อมูลส่วนบุคคล การแจ้งเตือน และความปลอดภัยบัญชีของคุณ</p>
+          <p className="page-sub">จัดการข้อมูลบัญชี การแจ้งเตือน และความปลอดภัยบัญชีของคุณ</p>
         </div>
 
         <div className="layout">
@@ -1151,12 +1133,13 @@ export default function ReaderSetting() {
           <div className="wst-main-content">
             
             {/* ════ 1. PROFILE ════ */}
-            <section className="card" id="profile">
+            {activeSection === "#profile" && (
+              <section className="card" id="profile">
               <div className="card-header">
                 <div className="card-icon purple"><i className="ti ti-user-circle" aria-hidden="true"></i></div>
                 <div>
                   <div className="card-title">ข้อมูลบัญชี</div>
-                  <div className="card-sub">ชื่อผู้ใช้งานและข้อมูลทั่วไปในการเข้าใช้งานระบบ</div>
+                  <div className="card-sub">ข้อมูลโปรไฟล์และรายละเอียดบัญชีของคุณ</div>
                 </div>
               </div>
               
@@ -1247,7 +1230,7 @@ export default function ReaderSetting() {
                 {/* Email Login Field */}
                 <div className="field">
                   <div className="label">
-                    อีเมลสำหรับเข้าสู่ระบบ (Login Email)
+                    อีเมล (Email)
                   </div>
                   <div className="input-wrap">
                     <input 
@@ -1270,7 +1253,7 @@ export default function ReaderSetting() {
 
                 {/* Role (Read-only) */}
                 <div className="field">
-                  <div className="label">บทบาทปัจจุบัน (Role)</div>
+                  <div className="label">บทบาท (Role)</div>
                   <div className="input-wrap">
                     <input 
                       className="input readonly-input"
@@ -1346,14 +1329,16 @@ export default function ReaderSetting() {
                 </div>
               </div>
             </section>
+            )}
 
             {/* ════ 2. SECURITY ════ */}
-            <section className="card" id="security">
+            {activeSection === "#security" && (
+              <section className="card" id="security">
               <div className="card-header">
                 <div className="card-icon indigo"><i className="ti ti-shield-lock" aria-hidden="true"></i></div>
                 <div>
                   <div className="card-title">ความปลอดภัย </div>
-                  <div className="card-sub">เปลี่ยนรหัสผ่านเข้าสู่ระบบของคุณ</div>
+                  <div className="card-sub">เปลี่ยนรหัสผ่านเพื่อความปลอดภัยของบัญชี</div>
                 </div>
               </div>
               
@@ -1406,7 +1391,7 @@ export default function ReaderSetting() {
                         รหัสผ่านใหม่
                         {strengthInfo && (
                           <span className="label-hint" style={{ fontWeight: 600, color: strengthInfo.level.color }}>
-                            ระดับความแข็งแกร่ง: {strengthInfo.level.label}
+                            ระดับความปลอดภัย: {strengthInfo.level.label}
                           </span>
                         )}
                       </div>
@@ -1504,14 +1489,16 @@ export default function ReaderSetting() {
                 )}
               </div>
             </section>
+            )}
 
             {/* ════ 3. NOTIFICATIONS ════ */}
-            <section className="card" id="notifications">
+            {activeSection === "#notifications" && (
+              <section className="card" id="notifications">
               <div className="card-header">
                 <div className="card-icon teal"><i className="ti ti-bell" aria-hidden="true"></i></div>
                 <div>
                   <div className="card-title">การแจ้งเตือน</div>
-                  <div className="card-sub">เลือกการทำงานที่คุณต้องการให้แจ้งเตือนระบบ</div>
+                  <div className="card-sub">เลือกประเภทการแจ้งเตือนที่คุณต้องการรับ</div>
                 </div>
               </div>
               
@@ -1521,8 +1508,8 @@ export default function ReaderSetting() {
                 <div className="toggle-row">
                   <div className="toggle-icon"><i className="ti ti-book-2" aria-hidden="true"></i></div>
                   <div className="toggle-info">
-                    <div className="toggle-label">นิยาย/ตอนใหม่จาก นิยายที่ผู้ใช้เพิ่มเข้าชั้น</div>
-                    <div className="toggle-sub">แจ้งเตือนเมื่อนิยายในชั้นหนังสือของคุณอัปเดตฉากหรือตอนใหม่</div>
+                    <div className="toggle-label">อัปเดตนิยายในชั้นหนังสือ</div>
+                    <div className="toggle-sub">แจ้งเตือนเมื่อนิยายในชั้นหนังสือของคุณมีตอนหรือฉากใหม่</div>
                   </div>
                   <label className="sw" aria-label="แจ้งเตือนนิยายอัปเดต">
                     <input 
@@ -1538,8 +1525,8 @@ export default function ReaderSetting() {
                 <div className="toggle-row">
                   <div className="toggle-icon"><i className="ti ti-user-plus" aria-hidden="true"></i></div>
                   <div className="toggle-info">
-                    <div className="toggle-label">นักเขียนที่ผู้ใช้ติดตาม เผยแพร่นิยายเรื่องใหม่</div>
-                    <div className="toggle-sub">แจ้งเตือนเมื่อนักเขียนที่คุณติดตามเปิดตัวเรื่องใหม่</div>
+                    <div className="toggle-label">ผลงานใหม่จากนักเขียนที่ติดตาม</div>
+                    <div className="toggle-sub">แจ้งเตือนเมื่อนักเขียนที่คุณติดตามเผยแพร่นิยายเรื่องใหม่</div>
                   </div>
                   <label className="sw" aria-label="แจ้งเตือนนักเขียนอัปเดต">
                     <input 
@@ -1556,8 +1543,8 @@ export default function ReaderSetting() {
                   <div className="toggle-row">
                     <div className="toggle-icon"><i className="ti ti-message-circle" aria-hidden="true"></i></div>
                     <div className="toggle-info">
-                      <div className="toggle-label">มีคนแสดงความคิดเห็น</div>
-                      <div className="toggle-sub">แจ้งเตือนเมื่อผู้อื่นแสดงความคิดเห็นบนตอนหรือบทเรียนของคุณ</div>
+                      <div className="toggle-label">ความคิดเห็นใหม่</div>
+                      <div className="toggle-sub">แจ้งเตือนเมื่อมีผู้อื่นแสดงความคิดเห็นในนิยายของคุณ</div>
                     </div>
                     <label className="sw" aria-label="แจ้งเตือนคอมเมนต์">
                       <input 
@@ -1575,8 +1562,8 @@ export default function ReaderSetting() {
                   <div className="toggle-row">
                     <div className="toggle-icon"><i className="ti ti-heart" aria-hidden="true"></i></div>
                     <div className="toggle-info">
-                      <div className="toggle-label">มีคนถูกใจ</div>
-                      <div className="toggle-sub">แจ้งเมื่อมีผู้อ่านกดถูกใจผลงานสร้างสรรค์ของคุณ</div>
+                      <div className="toggle-label">การกดถูกใจ</div>
+                      <div className="toggle-sub">แจ้งเตือนเมื่อมีผู้อ่านกดถูกใจผลงานของคุณ</div>
                     </div>
                     <label className="sw" aria-label="แจ้งเตือนไลก์">
                       <input 
@@ -1594,8 +1581,8 @@ export default function ReaderSetting() {
                   <div className="toggle-row">
                     <div className="toggle-icon"><i className="ti ti-user-check" aria-hidden="true"></i></div>
                     <div className="toggle-info">
-                      <div className="toggle-label">มีคนติดตามนักเขียน</div>
-                      <div className="toggle-sub">แจ้งเมื่อมีผู้กดติดตามบัญชีนักเขียนของคุณ</div>
+                      <div className="toggle-label">ผู้ติดตามใหม่</div>
+                      <div className="toggle-sub">แจ้งเตือนเมื่อมีผู้ใช้กดติดตามบัญชีของคุณ</div>
                     </div>
                     <label className="sw" aria-label="แจ้งเตือนผู้ติดตามนักเขียน">
                       <input 
@@ -1612,8 +1599,8 @@ export default function ReaderSetting() {
                 <div className="toggle-row">
                   <div className="toggle-icon"><i className="ti ti-speakerphone" aria-hidden="true"></i></div>
                   <div className="toggle-info">
-                    <div className="toggle-label">การแจ้งเตือนจากระบบ</div>
-                    <div className="toggle-sub">ข่าวสาร นโยบายระบบ และประกาศสำคัญจากทีมงาน</div>
+                    <div className="toggle-label">ข่าวสารจากระบบ</div>
+                    <div className="toggle-sub">ประกาศสำคัญ อัปเดตฟีเจอร์ และข่าวสารจากทีมงาน</div>
                   </div>
                   <label className="sw" aria-label="แจ้งเตือนระบบ">
                     <input 
@@ -1642,14 +1629,16 @@ export default function ReaderSetting() {
                 </div>
               </div>
             </section>
+            )}
 
             {/* ════ 4. DANGER ZONE ════ */}
-            <section className="danger-card" id="danger">
+            {activeSection === "#danger" && (
+              <section className="danger-card" id="danger">
               <div className="card-header">
                 <div className="card-icon danger"><i className="ti ti-alert-triangle" aria-hidden="true"></i></div>
                 <div>
                   <div className="card-title">ลบบัญชี ⚠️</div>
-                  <div className="card-sub">การดำเนินการลบจะส่งผลถาวรและไม่สามารถย้อนกลับได้</div>
+                  <div className="card-sub">เมื่อลบบัญชีแล้ว จะไม่สามารถกู้คืนข้อมูลกลับมาได้</div>
                 </div>
               </div>
               
@@ -1657,7 +1646,7 @@ export default function ReaderSetting() {
                 <div className="danger-action-info">
                   <div className="danger-action-label">ลบบัญชีถาวร</div>
                   <div className="danger-action-desc">
-                    ข้อมูลบัญชี ประวัติการอ่าน และข้อมูลส่วนบุคคลทั้งหมดของท่านจะถูกลบออกจากระบบ
+                    ข้อมูลบัญชี ประวัติการอ่าน และข้อมูลทั้งหมดของคุณจะถูกลบออกจากระบบอย่างถาวร
                   </div>
                 </div>
                 <button className="btn btn-red" onClick={() => setIsDeleteModalOpen(true)}>
@@ -1665,6 +1654,7 @@ export default function ReaderSetting() {
                 </button>
               </div>
             </section>
+            )}
 
           </div>
         </div>

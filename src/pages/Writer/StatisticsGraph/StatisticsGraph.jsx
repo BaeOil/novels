@@ -10,6 +10,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
+  ReactFlowProvider,
+  useReactFlow,
 } from "reactflow";
 import axios from "axios";
 import "reactflow/dist/style.css";
@@ -60,35 +62,7 @@ const AnalyticsNode = ({ data }) => {
     >
       <Handle type="target" position={Position.Top} style={{ background: isSelected ? "#2563eb" : (isMaxDrop ? "#ef4444" : (isHighExit ? "#ef4444" : shade.border)), width: 8, height: 8 }} />
       
-      {isMaxDrop && (
-        <div 
-          style={{
-            position: "absolute",
-            top: "-12px",
-            right: "-12px",
-            backgroundColor: "#ef4444",
-            color: "#ffffff",
-            borderRadius: "50%",
-            width: "32px",
-            height: "32px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "0.6rem",
-            fontWeight: 800,
-            border: "2px solid #ffffff",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-            zIndex: 10
-          }}
-          title={`ฉากที่มีคนออกสูงสุด: ${data.maxDropOffRate}%`}
-        >
-          <span>🔥</span>
-          <span style={{ fontSize: "0.5rem", marginTop: "-2px" }}>{Math.round(data.maxDropOffRate)}%</span>
-        </div>
-      )}
-
-      {isHighExit && !isMaxDrop && (
+      {(isMaxDrop || isHighExit) && (
         <div 
           style={{
             position: "absolute",
@@ -96,19 +70,32 @@ const AnalyticsNode = ({ data }) => {
             left: "50%",
             transform: "translateX(-50%)",
             backgroundColor: "#fee2e2",
-            border: "1px solid #fca5a5",
+            border: isMaxDrop ? "1.5px solid #ef4444" : "1px solid #fca5a5",
             color: "#b91c1c",
             borderRadius: "10px",
             padding: "2px 8px",
-            fontSize: "0.6rem",
+            fontSize: "0.65rem",
             fontWeight: 800,
             boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
             whiteSpace: "nowrap",
-            zIndex: 10
+            zIndex: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px"
           }}
-          title="จุดที่มีอัตราออกจากฉากสูง"
+          title={isMaxDrop ? `ฉากที่มีคนออกสูงสุดในเรื่อง: ${Math.round(data.maxDropOffRate)}%` : "จุดที่มีอัตราออกจากฉากสูง"}
         >
-          ⚠️ อัตราออกสูง 
+          {isMaxDrop ? (
+            <>
+              <span>🔥 อัตราออกสูงสุด</span>
+              <span style={{ fontSize: "0.6rem", opacity: 0.9 }}>({Math.round(data.maxDropOffRate)}%)</span>
+            </>
+          ) : (
+            <>
+              <span>⚠️ อัตราออกสูง</span>
+              <span style={{ fontSize: "0.6rem", opacity: 0.9 }}>({Math.round(data.exitRate)}%)</span>
+            </>
+          )}
         </div>
       )}
 
@@ -188,7 +175,7 @@ const getSceneTypeBadge = (typeStr) => {
   const isEnding = type === "ending" || type === "end" || type.includes("จบ");
 
   const typeLabel = isStart ? "จุดเริ่มต้น"
-    : isEnding ? "ฉากจบ"
+    : isEnding ? (typeStr.includes("(") ? typeStr : "ฉากจบ")
       : "ฉากทั่วไป";
 
   const typeColor = isStart ? "#16A34A"
@@ -225,9 +212,10 @@ const getSceneTypeBadge = (typeStr) => {
   );
 };
 
-function StatisticsGraph() {
+function StatisticsGraphContent() {
   const { novelId } = useParams();
   const navigate = useNavigate();
+  const { setCenter } = useReactFlow();
 
   const nodeTypes = useMemo(() => ({
     analyticsNode: AnalyticsNode,
@@ -243,6 +231,7 @@ function StatisticsGraph() {
   const [overallAnalytics, setOverallAnalytics] = useState(null);
   const [sceneAnalytics, setSceneAnalytics] = useState(null);
   const [choiceAnalytics, setChoiceAnalytics] = useState(null);
+  const [allChoicesAnalytics, setAllChoicesAnalytics] = useState({});
   const [allScenesAnalytics, setAllScenesAnalytics] = useState([]);
   const [isSceneLoading, setIsSceneLoading] = useState(false);
   const [isChoiceLoading, setIsChoiceLoading] = useState(false);
@@ -251,6 +240,20 @@ function StatisticsGraph() {
   const [selectedSceneId, setSelectedSceneId] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("scene");
+  const [showLegend, setShowLegend] = useState(window.innerWidth > 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setShowLegend(false);
+      } else {
+        setShowLegend(true);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize(); // run on mount
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Fetch Data
   const fetchData = useCallback(async () => {
@@ -280,6 +283,38 @@ function StatisticsGraph() {
 
       setOverallAnalytics(analyticsRes.data?.data || analyticsRes.data || null);
       setAllScenesAnalytics(scenesAnalyticsRes.data?.data || scenesAnalyticsRes.data || []);
+
+      // ดึงสถิติของทางเลือก (choices) ของทุกโหนดมาแบบคู่ขนานเพื่อใช้คำนวณและแสดงสีเส้นเชื่อมแบบคงที่ ไม่กระพริบเปลี่ยนสีทีหลัง
+      const nodesList = tree?.Nodes ?? tree?.nodes ?? [];
+      const seen = new Set();
+      const uniqueSceneIds = nodesList
+        .map((n) => normalizeId(n?.SceneID ?? n?.scene_id ?? n?.id ?? n?.ID))
+        .filter((id) => {
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+
+      const choicesPromises = uniqueSceneIds.map(async (scId) => {
+        try {
+          const res = await axios.get(
+            `${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes/${scId}/choices`,
+            { headers }
+          );
+          return { sceneId: scId, data: res.data?.data || res.data || null };
+        } catch (e) {
+          return { sceneId: scId, data: null };
+        }
+      });
+
+      const choicesResults = await Promise.all(choicesPromises);
+      const choiceMap = {};
+      choicesResults.forEach((r) => {
+        if (r.data) {
+          choiceMap[r.sceneId] = r.data;
+        }
+      });
+      setAllChoicesAnalytics(choiceMap);
     } catch (err) {
       console.error("Error fetching analytics data:", err);
       setError("ไม่สามารถดึงข้อมูลนิยายและสถิติได้ กรุณาลองใหม่อีกครั้ง");
@@ -595,7 +630,23 @@ function StatisticsGraph() {
       const count = edges.length;
       if (count === 0) return;
       
-      if (fromId === selectedSceneId && choiceAnalytics?.choices) {
+      const cachedChoices = allChoicesAnalytics[fromId]?.choices;
+      
+      if (cachedChoices) {
+        edges.forEach((edge) => {
+          const toId = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
+          const choiceLabel = edge.Label || edge.label || edge.choice_text || edge.text || "";
+          
+          const realChoice = cachedChoices.find(
+            c => normalizeId(c.choice_id) === normalizeId(edge.data?.ID || edge.data?.id) || 
+                 c.label === choiceLabel
+          );
+          
+          const key = `${fromId}->${toId}`;
+          const pct = realChoice ? Math.round(realChoice.percentage) : 0;
+          selections.set(key, pct);
+        });
+      } else if (fromId === selectedSceneId && choiceAnalytics?.choices) {
         edges.forEach((edge) => {
           const toId = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
           const choiceLabel = edge.Label || edge.label || edge.choice_text || edge.text || "";
@@ -626,7 +677,7 @@ function StatisticsGraph() {
     });
 
     return selections;
-  }, [rawEdges, selectedSceneId, choiceAnalytics]);
+  }, [rawEdges, selectedSceneId, choiceAnalytics, allChoicesAnalytics]);
 
   // Position Elements for ReactFlow
   const positionedElements = useMemo(() => {
@@ -779,7 +830,11 @@ function StatisticsGraph() {
 
       const pos = chapterAndSceneDisplayMap.get(sceneId);
       const analytics = nodeAnalyticsMap.get(sceneId) || { visitors: 0, exitRate: 0, returnRate: 0 };
-      const isMaxDrop = maxDropOffScene && normalizeId(maxDropOffScene.scene_id) === sceneId;
+      const maxDropRate = maxDropOffScene ? Math.round(maxDropOffScene.drop_off_rate) : -1;
+      const isMaxDrop = maxDropOffScene && (
+        normalizeId(maxDropOffScene.scene_id) === sceneId || 
+        (maxDropRate >= 0 && Math.round(analytics.exitRate) === maxDropRate)
+      );
 
       finalNodes.push({
         id: sceneId,
@@ -809,25 +864,25 @@ function StatisticsGraph() {
       const key = `${src}->${tgt}`;
       const pct = edgeSelectionMap.get(key) ?? 100;
 
-      let strokeWidth = 1.5;
-      let strokeColor = "#DCCFC0";
+      let strokeWidth = 3;
+      let strokeColor = "#64748b";
       
       if (pct >= 60) {
-        strokeWidth = 4;
-        strokeColor = "#7DCCAD";
+        strokeWidth = 6;
+        strokeColor = "#059669";
       } else if (pct >= 30) {
-        strokeWidth = 2.5;
-        strokeColor = "#F5C84B";
+        strokeWidth = 4.5;
+        strokeColor = "#d97706";
       } else {
-        strokeWidth = 1.5;
-        strokeColor = "#DCCFC0";
+        strokeWidth = 3;
+        strokeColor = "#64748b";
       }
 
       const isConnectedToSelection = selectedSceneId && (src === selectedSceneId || tgt === selectedSceneId);
       if (selectedSceneId) {
         if (!isConnectedToSelection) {
-          strokeColor = "#e2e8f0";
-          strokeWidth = 1;
+          strokeColor = "#cbd5e1";
+          strokeWidth = 1.5;
         }
       }
 
@@ -876,6 +931,20 @@ function StatisticsGraph() {
     });
   }, []);
 
+  const focusOnScene = useCallback((sceneId) => {
+    const sId = normalizeId(sceneId);
+    setSelectedSceneId(sId);
+    setIsCollapsed(false);
+
+    const targetNode = rfNodes.find((n) => normalizeId(n.id) === sId);
+    if (targetNode && targetNode.position) {
+      setCenter(targetNode.position.x + NODE_WIDTH / 2, targetNode.position.y + NODE_HEIGHT / 2, {
+        zoom: 1,
+        duration: 800,
+      });
+    }
+  }, [rfNodes, setCenter]);
+
   const onPaneClick = useCallback(() => {
     setSelectedSceneId(null);
   }, []);
@@ -889,8 +958,25 @@ function StatisticsGraph() {
     const pos = chapterAndSceneDisplayMap.get(selectedSceneId);
     const type = getNodeType(node);
     let sceneType = "ฉากทั่วไป";
-    if (type === "start" || type === "starting") sceneType = "ฉากเริ่มต้น";
-    else if (type === "ending" || type === "end") sceneType = "ฉากตอนจบ";
+    if (type === "start" || type === "starting") {
+      sceneType = "ฉากเริ่มต้น";
+    } else if (type === "ending" || type === "end") {
+      const rawEndingType = (node.ending_type || node.EndingType || node.endingType || "").toString().trim();
+      if (rawEndingType) {
+        let clean = rawEndingType.trim();
+        let formattedEnding = clean.split(/\s+/).map(word => {
+          if (!word) return "";
+          return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        }).join(" ");
+        
+        if (!formattedEnding.toLowerCase().endsWith("ending")) {
+          formattedEnding = formattedEnding + " Ending";
+        }
+        sceneType = `ฉากจบ (${formattedEnding})`;
+      } else {
+        sceneType = "ฉากจบ";
+      }
+    }
     
     return {
       id: selectedSceneId,
@@ -926,7 +1012,8 @@ function StatisticsGraph() {
             className="wsg-topbar__back"
             onClick={() => navigate(`/writer/${novelId}/chapters`)}
           >
-            ← รายชื่อตอน
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L5 7L9 11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            ย้อนกลับ
           </button>
           <div className="wsg-topbar__divider-v" />
           <h2 className="wsg-topbar__title" title={novelTitle}>
@@ -948,85 +1035,103 @@ function StatisticsGraph() {
       </header>
 
       {/* 🟢 KPI Dashboard แสดงตัวเลขภาพรวม 5 การ์ดตามเพื่อนแนะนำ และคัดกรองสิ่งอื่นออก */}
-      <section 
-        className="wsg-kpis-new-container" 
-        style={{ 
-          display: "grid", 
-          gridTemplateColumns: "1fr 1fr 1.2fr 1.5fr 1.8fr", 
-          gap: "16px", 
-          height: "155px", 
-          padding: "12px 24px",
-          backgroundColor: "#fff"
-        }}
-      >
+      <section className="wsg-kpis-new-container">
         {/* การ์ด 1: ยอดวิวรวม */}
-        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 700 }}>👁️ ยอดวิวรวม</span>
-          </div>
-          <div>
-            <div className="wsg-kpi-val-large" style={{ color: "#1e293b", fontSize: "1.7rem", fontWeight: 800 }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", alignItems: "flex-start", backgroundColor: "#fff" }}>
+          <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>👁️ ยอดวิวรวม</span>
+          <div style={{ marginTop: "auto", textAlign: "left" }}>
+            <div style={{ color: "#0f172a", fontSize: "1.45rem", fontWeight: 800 }}>
               {overallAnalytics?.total_views ? overallAnalytics.total_views.toLocaleString() : "0"}
             </div>
-            <span style={{ fontSize: "0.7rem", color: "#64748b" }}>มีคนเปิดอ่านกี่ครั้ง</span>
+            <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>มีคนเปิดอ่านกี่ครั้ง</span>
           </div>
         </div>
 
         {/* การ์ด 2: จำนวนคนอ่านจริง */}
-        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 700 }}>👥 จำนวนคนอ่าน</span>
-          </div>
-          <div>
-            <div className="wsg-kpi-val-large" style={{ color: "#0f766e", fontSize: "1.7rem", fontWeight: 800 }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", alignItems: "flex-start", backgroundColor: "#fff" }}>
+          <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>👥 จำนวนคนอ่าน</span>
+          <div style={{ marginTop: "auto", textAlign: "left" }}>
+            <div style={{ color: "#0f172a", fontSize: "1.45rem", fontWeight: 800 }}>
               {overallAnalytics?.unique_readers ? overallAnalytics.unique_readers.toLocaleString() : "0"}
             </div>
-            <span style={{ fontSize: "0.7rem", color: "#64748b" }}>คน</span>
+            <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>คน</span>
           </div>
         </div>
 
         {/* การ์ด 3: คนอ่านจบกี่คน / กี่ % */}
-        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 700 }}>🏆 คนอ่านจบ</span>
-          </div>
-          <div>
-            <div className="wsg-kpi-val-large" style={{ color: "#7c3aed", fontSize: "1.5rem", fontWeight: 800 }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", alignItems: "flex-start", backgroundColor: "#fff" }}>
+          <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>🏆 คนอ่านจบ</span>
+          <div style={{ marginTop: "auto", textAlign: "left" }}>
+            <div style={{ color: "#0f172a", fontSize: "1.45rem", fontWeight: 800 }}>
               {overallAnalytics?.completed_readers ? overallAnalytics.completed_readers.toLocaleString() : "0"} คน
             </div>
-            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#6d28d9" }}>
+            <span style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 600 }}>
               คิดเป็น {overallAnalytics?.completion_rate ? overallAnalytics.completion_rate : "0"}%
             </span>
           </div>
         </div>
 
         {/* การ์ด 4: จบแบบไหนบ้าง (เป็น %) */}
-        <div className="wsg-kpi-card-large" style={{ height: "100%", padding: "10px 14px", justifyContent: "space-between" }}>
-          <span className="wsg-kpi-label-new" style={{ fontSize: "0.75rem", fontWeight: 700 }}>🏁 จบแบบไหนบ้าง (เป็น %)</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, justifyContent: "center", width: "100%" }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", padding: "12px 14px", justifyContent: "space-between", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "flex-start", backgroundColor: "#fff" }}>
+          <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>🏁 จบแบบไหนบ้าง (เป็น %)</span>
+          <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "2px", flex: 1, justifyContent: "center", width: "100%" }}>
             {(() => {
               const allEndingsFromTree = uniqueNodes.filter(n => getNodeType(n) === "ending");
               const rawEndings = overallAnalytics?.ending_stats || [];
 
-              const mappedEndings = allEndingsFromTree.map((sceneNode) => {
-                const sId = getNodeId(sceneNode);
-                const sceneEndingTitle = sceneNode.ending_title || sceneNode.EndingTitle || sceneNode.title || sceneNode.Title || `ฉากจบที่ ${sId}`;
+              // Collect unique ending types from both the tree nodes and backend stats (ignore fallback scene titles)
+              const uniqueEndingTypes = new Set();
+              allEndingsFromTree.forEach((sceneNode) => {
+                const sceneEndingType = (sceneNode.ending_type || sceneNode.EndingType || sceneNode.endingType || "").toString().trim();
+                if (sceneEndingType) {
+                  uniqueEndingTypes.add(sceneEndingType);
+                }
+              });
+
+              rawEndings.forEach((e) => {
+                if (e.ending_type) uniqueEndingTypes.add(e.ending_type.trim());
+              });
+
+              // Formatting helper for Ending Types
+              const formatEndingType = (str) => {
+                if (!str) return "";
+                let clean = str.trim();
+                let formatted = clean.split(/\s+/).map(word => {
+                  if (!word) return "";
+                  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                }).join(" ");
                 
+                if (!formatted.toLowerCase().endsWith("ending")) {
+                  formatted = formatted + " Ending";
+                }
+                return formatted;
+              };
+
+              // Group and format endings
+              const formattedGroups = {};
+              Array.from(uniqueEndingTypes).forEach((endType) => {
+                const formattedTitle = formatEndingType(endType);
+                if (!formattedTitle) return;
+
                 const statsMatch = rawEndings.find(
-                  e => e.ending_type === sceneEndingTitle || 
-                       e.ending_type === (sceneNode.ending_title || sceneNode.EndingTitle) ||
-                       e.ending_type === (sceneNode.title || sceneNode.Title)
+                  e => e.ending_type && e.ending_type.trim().toLowerCase() === endType.toLowerCase()
                 );
 
                 const count = statsMatch ? (statsMatch.count ?? 0) : 0;
                 const percentage = statsMatch ? (statsMatch.percentage !== undefined ? statsMatch.percentage : 0) : 0;
 
-                return {
-                  title: sceneEndingTitle,
-                  count,
-                  percentage: parseFloat(percentage),
-                };
+                if (!formattedGroups[formattedTitle]) {
+                  formattedGroups[formattedTitle] = { count: 0, percentage: 0 };
+                }
+                formattedGroups[formattedTitle].count = Math.max(formattedGroups[formattedTitle].count, count);
+                formattedGroups[formattedTitle].percentage = Math.max(formattedGroups[formattedTitle].percentage, percentage);
               });
+
+              const mappedEndings = Object.keys(formattedGroups).map((title) => ({
+                title,
+                count: formattedGroups[title].count,
+                percentage: parseFloat(formattedGroups[title].percentage),
+              }));
 
               mappedEndings.sort((a, b) => b.percentage - a.percentage || b.count - a.count);
 
@@ -1067,34 +1172,34 @@ function StatisticsGraph() {
         </div>
 
         {/* การ์ด 5: ฉากคนหนีเยอะสุด */}
-        <div className="wsg-kpi-card-large" style={{ height: "100%", borderColor: "#fca5a5", backgroundColor: "#fff5f5", justifyContent: "space-between" }}>
-          <span className="wsg-kpi-label-new" style={{ fontSize: "0.75rem", fontWeight: 700, color: "#991b1b" }}>🔥 ฉากที่คนกดออกเยอะสุด</span>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", border: "1px solid #fca5a5", borderRadius: "12px", padding: "12px 14px", display: "flex", flexDirection: "column", alignItems: "flex-start", backgroundColor: "#fff5f5", justifyContent: "space-between" }}>
+          <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#991b1b", display: "flex", alignItems: "center", gap: "6px" }}>🔥 ฉากที่คนกดออกเยอะสุด</span>
           {(() => {
             const topDrop = overallAnalytics?.top_drop_off_scenes?.[0];
             if (topDrop) {
               const displayLabel = chapterAndSceneDisplayMap.get(normalizeId(topDrop.scene_id))?.display || `ฉากที่ ${topDrop.scene_id}`;
               return (
-                <div style={{ width: "100%", textAlign: "left" }}>
+                <div style={{ width: "100%", textAlign: "left", marginTop: "auto" }}>
                   <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#ef4444", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={topDrop.title}>
                     {displayLabel} - {topDrop.title}
                   </div>
                   <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#7f1d1d", marginTop: "2px" }}>
-                    อัตราคนหนี: {topDrop.drop_off_rate}% ({topDrop.unique_readers?.toLocaleString() || "0"} คนอ่านไม่ซ้ำ / {topDrop.visit_count?.toLocaleString() || "0"} ครั้ง)
+                    อัตราคนหนี: {topDrop.drop_off_rate}% ({topDrop.unique_readers?.toLocaleString() || "0"} คน / {topDrop.visit_count?.toLocaleString() || "0"} ครั้ง)
                   </div>
                 </div>
               );
             }
-            return <div style={{ fontSize: "0.8rem", color: "#64748b" }}>ไม่มีข้อมูลอัตราออกสูง</div>;
+            return <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "auto" }}>ไม่มีข้อมูลอัตราออกสูง</div>;
           })()}
-          <div style={{ color: "#b91c1c", fontWeight: 900, fontSize: "0.85rem", borderTop: "1px dashed #fca5a5", paddingTop: "4px", textAlign: "center" }}>
+          <div style={{ color: "#b91c1c", fontWeight: 900, fontSize: "0.68rem", borderTop: "1px dashed #fca5a5", paddingTop: "4px", textAlign: "center", width: "100%", marginTop: "4px" }}>
             "ฉากที่คนกดออกเยอะที่สุด" คือฉากที่มี Exit Rate สูงสุด
           </div>
         </div>
       </section>
 
-      <div className="wsg-body" style={{ height: "calc(100% - 219px)" }}>
+      <div className="wsg-body">
         {/* 🟢 Detail Sidebar ทางซ้าย */}
-        <aside className={`wsg-sidebar ${isCollapsed ? "collapsed" : ""}`}>
+        <aside className={`wsg-sidebar ${(!selectedSceneId || isCollapsed) ? "collapsed" : ""}`}>
           {selectedSceneDetails ? (
             <>
               <div className="wsg-sidebar-tabs">
@@ -1138,18 +1243,18 @@ function StatisticsGraph() {
                       <div className="wsg-stats-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "24px" }}>
                         {/* ผู้เข้าชมไม่ซ้ำ */}
                         <div style={{ 
-                          padding: "12px 8px", 
-                          backgroundColor: "#f8fafc", 
-                          border: "1px solid #f1f5f9", 
+                          padding: "14px 16px", 
+                          backgroundColor: "#fff", 
+                          border: "1px solid #e2e8f0", 
                           borderRadius: "12px",
                           display: "flex",
                           flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
                           boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
                         }}>
-                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0f766e" }}>
-                            จำนวนคนอ่าน
+                          <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
+                            👥 ผู้ชม
                           </span>
                           <span style={{ fontSize: "1.3rem", fontWeight: 800, color: "#0f172a", marginTop: "6px" }}>
                             {sceneAnalytics?.unique_readers !== undefined ? sceneAnalytics.unique_readers.toLocaleString() : "0"}
@@ -1159,18 +1264,18 @@ function StatisticsGraph() {
                         
                         {/* เข้าฉากทั้งหมด */}
                         <div style={{ 
-                          padding: "12px 8px", 
-                          backgroundColor: "#f8fafc", 
-                          border: "1px solid #f1f5f9", 
+                          padding: "14px 16px", 
+                          backgroundColor: "#fff", 
+                          border: "1px solid #e2e8f0", 
                           borderRadius: "12px",
                           display: "flex",
                           flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
                           boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
                         }}>
-                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#3b82f6" }}>
-                            เข้าฉากทั้งหมด
+                          <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
+                            📖 เข้าฉากทั้งหมด
                           </span>
                           <span style={{ fontSize: "1.3rem", fontWeight: 800, color: "#0f172a", marginTop: "6px" }}>
                             {sceneAnalytics?.visit_count !== undefined ? sceneAnalytics.visit_count.toLocaleString() : "0"}
@@ -1180,18 +1285,18 @@ function StatisticsGraph() {
                         
                         {/* เข้าซ้ำ */}
                         <div style={{ 
-                          padding: "12px 8px", 
-                          backgroundColor: "#f8fafc", 
-                          border: "1px solid #f1f5f9", 
+                          padding: "14px 16px", 
+                          backgroundColor: "#fff", 
+                          border: "1px solid #e2e8f0", 
                           borderRadius: "12px",
                           display: "flex",
                           flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
                           boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
                         }}>
-                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#7c3aed" }}>
-                            การเข้า Scene ซ้ำ
+                          <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
+                            🔁 เข้า Scene ซ้ำ
                           </span>
                           <span style={{ fontSize: "1.3rem", fontWeight: 800, color: "#0f172a", marginTop: "6px" }}>
                             {sceneAnalytics?.repeat_visit_count !== undefined ? sceneAnalytics.repeat_visit_count.toLocaleString() : "0"}
@@ -1201,18 +1306,18 @@ function StatisticsGraph() {
 
                         {/* Drop-off Rate */}
                         <div style={{ 
-                          padding: "12px 8px", 
-                          backgroundColor: "#f8fafc", 
-                          border: "1px solid #f1f5f9", 
+                          padding: "14px 16px", 
+                          backgroundColor: "#fff", 
+                          border: "1px solid #e2e8f0", 
                           borderRadius: "12px",
                           display: "flex",
                           flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
                           boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
                         }}>
-                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#ef4444" }}>
-                            กดออกจากฉาก
+                          <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
+                            🚪 อัตราออก
                           </span>
                           <span style={{ fontSize: "1.3rem", fontWeight: 800, color: "#0f172a", marginTop: "6px" }}>
                             {sceneAnalytics?.drop_off_rate !== undefined ? Math.round(sceneAnalytics.drop_off_rate) : "0"}%
@@ -1239,6 +1344,7 @@ function StatisticsGraph() {
                                 return (
                                   <div 
                                     key={idx} 
+                                    onClick={() => focusOnScene(item.scene_id)}
                                     style={{ 
                                       padding: "10px 14px", 
                                       backgroundColor: "#f8fafc", 
@@ -1246,15 +1352,60 @@ function StatisticsGraph() {
                                       border: "1px solid #e2e8f0", 
                                       fontSize: "0.85rem", 
                                       color: "#334155",
-                                      textAlign: "left" 
+                                      textAlign: "left",
+                                      cursor: "pointer"
                                     }}
                                   >
                                     มาจาก <strong>{displayLabel}</strong> - {item.title || "ไม่มีชื่อฉาก"}
+                                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", marginTop: "4px" }}>
+                                      จำนวนผู้ข้ามมา: <strong>{item.transition_count ?? 0} คน</strong> (คิดเป็น {item.percentage !== undefined ? item.percentage : 0}%)
+                                    </span>
                                   </div>
                                 );
                               });
                             }
                             return <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0, textAlign: "left" }}>ไม่มีฉากก่อนหน้า (ฉากนี้เป็นฉากเริ่มต้น)</p>;
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* เชื่อมต่อไปยังฉากถัดไป (ฉากปลายทาง) */}
+                      <div style={{ marginTop: "24px" }}>
+                        <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a", margin: "0 0 12px 0", textAlign: "left" }}>
+                          เชื่อมต่อไปยังฉากถัดไป (ฉากปลายทาง)
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                          {(() => {
+                            const nextList = sceneAnalytics?.next_scenes || [];
+                            if (nextList.length > 0) {
+                              return nextList.map((item, idx) => {
+                                const scId = normalizeId(item.scene_id);
+                                const displayLabel = chapterAndSceneDisplayMap.get(scId)?.display || `ฉากที่ ${scId}`;
+
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    onClick={() => focusOnScene(item.scene_id)}
+                                    style={{ 
+                                      padding: "10px 14px", 
+                                      backgroundColor: "#f8fafc", 
+                                      borderRadius: "8px", 
+                                      border: "1px solid #e2e8f0", 
+                                      fontSize: "0.85rem", 
+                                      color: "#334155",
+                                      textAlign: "left",
+                                      cursor: "pointer"
+                                    }}
+                                  >
+                                    ไปยัง <strong>{displayLabel}</strong> - {item.title || "ไม่มีชื่อฉาก"}
+                                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", marginTop: "4px" }}>
+                                      จำนวนผู้ไปต่อ: <strong>{item.transition_count ?? 0} คน</strong> (คิดเป็น {item.percentage !== undefined ? item.percentage : 0}%)
+                                    </span>
+                                  </div>
+                                );
+                              });
+                            }
+                            return <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0, textAlign: "left" }}>ไม่มีฉากปลายทาง (ฉากนี้เป็นฉากจบ)</p>;
                           })()}
                         </div>
                       </div>
@@ -1268,16 +1419,17 @@ function StatisticsGraph() {
                     </div>
                   ) : (
                     <>
-                      <div className="wsg-scene-title-row" style={{ marginBottom: "16px" }}>
-                        <h3 className="wsg-scene-title-text" style={{ fontSize: "1rem", fontWeight: 800 }}>
-                          {selectedSceneDetails.label} - {selectedSceneDetails.title}
+                      <div style={{ marginBottom: "20px", textAlign: "left" }}>
+                        <h3 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0f172a", margin: "0 0 4px 0" }}>
+                          {selectedSceneDetails.label} {selectedSceneDetails.title}
                         </h3>
-                        <span className="wsg-scene-type-text">
-                          ประเภท: {selectedSceneDetails.sceneType}
+                        <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
+                          <span>ประเภท:</span>
+                          {getSceneTypeBadge(selectedSceneDetails.sceneType)}
                         </span>
                       </div>
 
-                      <h4 className="wsg-section-title" style={{ fontSize: "0.8rem", fontWeight: 800, color: "#334155" }}>สถิติปุ่มทางเลือกในฉากนี้</h4>
+                      <h4 className="wsg-section-title" style={{ fontSize: "0.8rem", fontWeight: 800, color: "#334155" }}>สถิติทางเลือกไปยังฉากถัดไป</h4>
                       {choiceAnalytics?.choices && choiceAnalytics.choices.length > 0 ? (
                         <div className="wsg-choice-list" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                           {(() => {
@@ -1290,10 +1442,16 @@ function StatisticsGraph() {
                                 <div 
                                   key={idx} 
                                   className={`wsg-choice-row-container ${isTop ? "wsg-top-choice-row" : ""}`} 
+                                  onClick={() => {
+                                    if (choice.to_scene_id) {
+                                      focusOnScene(choice.to_scene_id);
+                                    }
+                                  }}
                                   style={{ 
                                     padding: "10px", 
                                     border: isTop ? "1.5px solid #d97706" : "1px solid #e2e8f0",
-                                    borderRadius: "8px"
+                                    borderRadius: "8px",
+                                    cursor: choice.to_scene_id ? "pointer" : "default"
                                   }}
                                 >
                                   <div className="wsg-choice-row-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1352,6 +1510,39 @@ function StatisticsGraph() {
             </button>
           )}
 
+          {!selectedSceneId && (
+            <div 
+              className="wsg-empty-notice-banner"
+              style={{
+                position: "absolute",
+                top: "20px",
+                left: "20px",
+                zIndex: 10,
+                backgroundColor: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                padding: "12px 18px",
+                fontSize: "0.88rem",
+                fontWeight: 500,
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontFamily: "'Sarabun', sans-serif"
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#db2777" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5 5 0 0 0 8 8c0 1 .3 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+              </svg>
+              <div>
+                <span style={{ color: "#db2777", fontWeight: 700 }}>คำแนะนำ: </span>
+                <span style={{ color: "#475569" }}>คลิกโหนดฉากในแผนผังเพื่อดูสถิติ — ลากเพื่อเลื่อน กด + / - เพื่อซูม</span>
+              </div>
+            </div>
+          )}
+
           <div className="wsg-canvas-wrap">
             {(() => {
               const totalVis = overallAnalytics?.unique_readers || 2480;
@@ -1359,46 +1550,79 @@ function StatisticsGraph() {
               const mMax = Math.round(totalVis * 0.33);
 
               return (
-                <div className="wsg-legend-overlay">
-                  <div className="wsg-legend-overlay__section">
-                    <h4 className="wsg-legend-overlay__title">👥 ระดับสัดส่วนผู้ชมฉาก</h4>
-                    <div className="wsg-legend-overlay__row">
-                      <span className="wsg-legend-color-box" style={{ backgroundColor: "#F472B6", border: "1px solid #ec4899" }} />
-                      <span>ผู้ชมสูง ({"≥"} {hMax.toLocaleString()} คน)</span>
-                    </div>
-                    <div className="wsg-legend-overlay__row">
-                      <span className="wsg-legend-color-box" style={{ backgroundColor: "#F9A8D4", border: "1px solid #f472b6" }} />
-                      <span>ผู้ชมปานกลาง ({mMax.toLocaleString()} - {(hMax - 1).toLocaleString()} คน)</span>
-                    </div>
-                    <div className="wsg-legend-overlay__row">
-                      <span className="wsg-legend-color-box" style={{ backgroundColor: "#FCE7F3", border: "1px solid #fbcfe8" }} />
-                      <span>ผู้ชมน้อย ({"<"} {mMax.toLocaleString()} คน)</span>
-                    </div>
+                <div className={`wsg-legend-overlay ${!showLegend ? "collapsed" : ""}`}>
+                  <div 
+                    className="wsg-legend-header"
+                    style={{ 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      alignItems: "center", 
+                      cursor: "pointer",
+                      userSelect: "none"
+                    }}
+                    onClick={() => setShowLegend(!showLegend)}
+                  >
+                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+                      ℹ️ คำอธิบายสัญลักษณ์
+                    </span>
+                    <button 
+                      style={{ 
+                        background: "none", 
+                        border: "none", 
+                        cursor: "pointer", 
+                        fontSize: "0.75rem", 
+                        color: "#db2777",
+                        fontWeight: 700,
+                        padding: "2px 6px"
+                      }}
+                    >
+                      {showLegend ? "▲ ซ่อน" : "▼ แสดง"}
+                    </button>
                   </div>
 
-                  <div className="wsg-legend-overlay__section">
-                    <h4 className="wsg-legend-overlay__title">⚠️ อัตราออกสูง</h4>
-                    <div className="wsg-legend-overlay__row" style={{ color: "#b91c1c", fontWeight: 700 }}>
-                      <span className="wsg-legend-color-box" style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5" }} />
-                      <span>Exit Rate {"≥"} 25% ⚠️</span>
-                    </div>
-                  </div>
+                  {showLegend && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "8px" }}>
+                      <div className="wsg-legend-overlay__section">
+                        <h4 className="wsg-legend-overlay__title">👥 ระดับสัดส่วนผู้ชมฉาก</h4>
+                        <div className="wsg-legend-overlay__row">
+                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#F472B6", border: "1px solid #ec4899" }} />
+                          <span>ผู้ชมสูง ({"≥"} {hMax.toLocaleString()} คน)</span>
+                        </div>
+                        <div className="wsg-legend-overlay__row">
+                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#F9A8D4", border: "1px solid #f472b6" }} />
+                          <span>ผู้ชมปานกลาง ({mMax.toLocaleString()} - {(hMax - 1).toLocaleString()} คน)</span>
+                        </div>
+                        <div className="wsg-legend-overlay__row">
+                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#FCE7F3", border: "1px solid #fbcfe8" }} />
+                          <span>ผู้ชมน้อย ({"<"} {mMax.toLocaleString()} คน)</span>
+                        </div>
+                      </div>
 
-                  <div className="wsg-legend-overlay__section">
-                    <h4 className="wsg-legend-overlay__title">➡️ ความนิยมของทางเลือก</h4>
-                    <div className="wsg-legend-overlay__row">
-                      <span className="wsg-legend-line" style={{ height: "4px", backgroundColor: "#7DCCAD" }} />
-                      <span>นิยมสูง ({"≥"} 60%)</span>
+                      <div className="wsg-legend-overlay__section">
+                        <h4 className="wsg-legend-overlay__title">⚠️ อัตราออกสูง</h4>
+                        <div className="wsg-legend-overlay__row" style={{ color: "#b91c1c", fontWeight: 700 }}>
+                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5" }} />
+                          <span>Exit Rate {"≥"} 25% ⚠️</span>
+                        </div>
+                      </div>
+
+                      <div className="wsg-legend-overlay__section">
+                        <h4 className="wsg-legend-overlay__title">➡️ ความนิยมของทางเลือก</h4>
+                        <div className="wsg-legend-overlay__row">
+                          <span className="wsg-legend-line" style={{ height: "6px", backgroundColor: "#059669" }} />
+                          <span>นิยมสูง ({"≥"} 60%)</span>
+                        </div>
+                        <div className="wsg-legend-overlay__row">
+                          <span className="wsg-legend-line" style={{ height: "4.5px", backgroundColor: "#d97706" }} />
+                          <span>ทั่วไป (30% - 59%)</span>
+                        </div>
+                        <div className="wsg-legend-overlay__row">
+                          <span className="wsg-legend-line" style={{ height: "3px", backgroundColor: "#64748b" }} />
+                          <span>เลือกน้อย ({"<"} 30%)</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="wsg-legend-overlay__row">
-                      <span className="wsg-legend-line" style={{ height: "2.5px", backgroundColor: "#F5C84B" }} />
-                      <span>ทั่วไป (30% - 59%)</span>
-                    </div>
-                    <div className="wsg-legend-overlay__row">
-                      <span className="wsg-legend-line" style={{ height: "1.5px", backgroundColor: "#DCCFC0" }} />
-                      <span>เลือกน้อย ({"<"} 30%)</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
@@ -1429,6 +1653,14 @@ function StatisticsGraph() {
         </div>
       </div>
     </div>
+  );
+}
+
+function StatisticsGraph() {
+  return (
+    <ReactFlowProvider>
+      <StatisticsGraphContent />
+    </ReactFlowProvider>
   );
 }
 

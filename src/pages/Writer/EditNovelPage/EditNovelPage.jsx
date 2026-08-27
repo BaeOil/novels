@@ -5,6 +5,7 @@ import "./EditNovelPage.css";
 import MultiSelect from "../../../components/MultiSelect/MultiSelect";
 import CoverUpload from "../../../components/CoverUpload/CoverUpload";
 import Toggle from "../../../components/Toggle/Toggle";
+import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import { useNavigate, useParams } from "react-router-dom";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
 
@@ -365,7 +366,7 @@ const EditNovelPage = ({ onNavigate }) => {
             if (respBody && respBody.message) {
                 alert("✅ " + respBody.message);
             } else {
-                alert("✅ อัพเดทข้อมูลนิยายสำเร็จ!");
+                alert("✅ อัปเดตข้อมูลนิยายสำเร็จ!");
             }
 
             // Verify persisted values by re-fetching the novel before navigating
@@ -390,7 +391,7 @@ const EditNovelPage = ({ onNavigate }) => {
                     const freshCompleted = freshStatus.isCompleted;
                     const freshTitle = novelFresh.title || "";
                     if (freshPublished !== form.isPublished || freshCompleted !== form.isCompleted || freshTitle !== form.title) {
-                        const msg = "อัพเดทสำเร็จแต่ค่าที่กลับมาไม่ตรงกับที่คาดไว้ (ยังไม่ได้บันทึก)";
+                        const msg = "อัปเดตสำเร็จแต่ค่าที่กลับมาไม่ตรงกับที่คาดไว้ (ยังไม่ได้บันทึก)";
                         console.error("EditNovelPage: verification mismatch", { novelFresh, expected: novelPayload });
                         setSubmissionError(msg);
                         return;
@@ -431,13 +432,7 @@ const EditNovelPage = ({ onNavigate }) => {
     const taglineLen = form.tagline.length;
 
     if (isLoading) {
-        return (
-            <div className="cnp" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
-                <div style={{ textAlign: "center" }}>
-                    <p>🔄 กำลังโหลดข้อมูลนิยาย...</p>
-                </div>
-            </div>
-        );
+        return <LoadingScreen message="กำลังโหลดข้อมูลนิยาย..." />;
     }
 
     return (
@@ -603,14 +598,14 @@ const EditNovelPage = ({ onNavigate }) => {
                             {isSubmitting ? (
                                 <>
                                     <span className="cnp__spinner" aria-hidden="true" />
-                                    กำลังอัพเดท...
+                                    กำลังอัปเดต...
                                 </>
                             ) : (
                                 <>
                                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                                         <path d="M2 7l4 4 6-6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                     </svg>
-                                    อัพเดทข้อมูลนิยาย
+                                    อัปเดตข้อมูลนิยาย
                                 </>
                             )}
                         </button>

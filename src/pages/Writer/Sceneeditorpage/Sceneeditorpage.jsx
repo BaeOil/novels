@@ -127,7 +127,7 @@ const ChoiceCard = ({
 
   const sameChapterScenes = allScenes.filter((scene) => String(scene.chapterId) === String(currentChapterId));
   // 🛡️ กรอง "ตอนอื่น" ใน dropdown ด้วยกฎ Forward-Only เช่นกัน: ตอนที่ไม่มีฉากใดอยู่ข้างหน้า
-  // ฉากปัจจุบันเลยจะไม่ถูกนำมาแสดงเป็นตัวเลือกตั้งแต่แรก (เดิมกรองแค่ตอนเลือก "ฉาก" ปลายทาง
+  // ฉากปัจจุบันเลยจะไม่ถูกนำมาแสดงเป็นทางเลือกตั้งแต่แรก (เดิมกรองแค่ตอนเลือก "ฉาก" ปลายทาง
   // แต่ตัว "ตอน" เองไม่ได้กรอง ทำให้ตอนก่อนหน้าที่เชื่อมย้อนกลับไม่ได้ยังโผล่ในลิสต์)
   const otherChapterOptions = Array.from(
     new Map(
@@ -372,7 +372,7 @@ const ChoiceCard = ({
             
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px dashed #f1f5f9", paddingBottom: "8px", marginBottom: "2px" }}>
               <span style={{ fontSize: "0.88rem", fontWeight: "800", color: accentColor }}>
-                ตัวเลือกที่ {index + 1}
+                ทางเลือกที่ {index + 1}
               </span>
               
               <div style={{ display: "flex", gap: "6px" }}>
@@ -496,7 +496,7 @@ const ChoiceCard = ({
           <div className="se-choice__config" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             
             <div className="se-choice__config-col" style={{ display: "flex", flexDirection: "column", gap: "8px", textAlign: "left" }}>
-              <div className="se-choice__config-label" style={{ fontSize: "0.88rem", fontWeight: "700", color: "#475569" }}>ข้อความตัวเลือก</div>
+              <div className="se-choice__config-label" style={{ fontSize: "0.88rem", fontWeight: "700", color: "#475569" }}>ข้อความทางเลือก</div>
               <input
                 className="se-input"
                 value={text}
@@ -792,7 +792,7 @@ const ChoiceCard = ({
     {showDiscardConfirm && (
       <ConfirmModal
         icon="⚠️"
-        title="ยกเลิกการแก้ไขตัวเลือกนี้?"
+        title="ยกเลิกการแก้ไขทางเลือกนี้?"
         description="ข้อความและการตั้งค่าที่พิมพ์ไว้จะหายไปทันที เนื่องจากยังไม่ได้กดยืนยันการแก้ไข"
         cancelText="กลับไปแก้ไขต่อ"
         confirmText="ทิ้งข้อมูลและยกเลิก"
@@ -822,6 +822,9 @@ const SceneTreeSidebar = ({
   setIsEnding,
   onToggleEnding,
   onOpenEndingSettings,
+  isNewScene,
+  sceneTitle,
+  sceneType
 }) => {
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -832,11 +835,28 @@ const SceneTreeSidebar = ({
       const activeChs = chapters
         .filter((c) => (c.scenes || []).some((s) => String(s.id ?? s.scene_id ?? s.SceneID) === String(currentSceneId)))
         .map((c) => c.id ?? c.chapter_id ?? c.ChapterID);
+
+      if (isNewScene && currentChapterId) {
+        activeChs.push(currentChapterId);
+      }
+
       if (activeChs.length > 0) {
         setExpandedChapters((prev) => Array.from(new Set([...prev, ...activeChs])));
       }
     }
-  }, [chapters, currentSceneId]);
+  }, [chapters, currentSceneId, isNewScene, currentChapterId]);
+
+  useEffect(() => {
+    if (isNewScene && chapters && chapters.length > 0) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById("virtual-new-scene-row");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isNewScene, chapters]);
 
   const toggleChapter = (chId) => {
     setExpandedChapters((prev) =>
@@ -1009,9 +1029,7 @@ const SceneTreeSidebar = ({
         </div>
       </div>
 
-      <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '4px 0 6px 0' }} />
-
-      <div className="se-tree__header" style={{ marginBottom: "6px" }}>รายการตอนและฉาก</div>
+      <div className="se-tree__header" style={{ paddingTop: "0px", marginTop: "0px", borderBottom: "none", paddingBottom: "4px", marginBottom: "6px" }}>รายการตอนและฉาก</div>
 
       {/* ช่องค้นหาตอนและฉาก */}
       <div className="se-search-container" style={{ marginBottom: "12px", position: "relative" }}>
@@ -1109,11 +1127,24 @@ const SceneTreeSidebar = ({
         </button>
       </div>
 
-      <div className="se-tree__list" style={{ flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 350px)", paddingRight: "4px" }}>
+      <div className="se-tree__list" style={{ paddingRight: "4px" }}>
         {filteredChapters.map((ch, chapterIndex) => {
           const chapterKey = ch.id ?? ch.chapter_id ?? ch.ChapterID ?? chapterIndex;
           const isExpanded = expandedChapters.includes(chapterKey);
-          const chapterScenes = Array.isArray(ch.scenes) ? ch.scenes : [];
+          let chapterScenes = Array.isArray(ch.scenes) ? [...ch.scenes] : [];
+          const isNewSceneForThisChapter = isNewScene && String(chapterKey) === String(currentChapterId);
+          if (isNewSceneForThisChapter) {
+            chapterScenes.push({
+              id: "new",
+              scene_id: "new",
+              title: sceneTitle || "กำลังสร้างฉากใหม่",
+              label: sceneTitle || "กำลังสร้างฉากใหม่",
+              status: "draft",
+              type: isEnding ? "ending" : (sceneType || "normal"),
+              is_published: false,
+              isVirtual: true
+            });
+          }
 
           const chDisplayNum =
             ch.chapterNumber ??
@@ -1167,13 +1198,13 @@ const SceneTreeSidebar = ({
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          width: "22px",
-                          height: "22px",
-                          borderRadius: "6px",
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "4px",
                           backgroundColor: "#e8f5e9", // สีเขียวพาสเทลจาง
                           color: "#16A34A", // สีเขียว
-                          fontSize: "0.6rem",
-                          marginRight: "8px",
+                          fontSize: "0.55rem",
+                          marginRight: "6px",
                           flexShrink: 0
                         }}>
                           ▶
@@ -1185,13 +1216,13 @@ const SceneTreeSidebar = ({
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          width: "22px",
-                          height: "22px",
-                          borderRadius: "6px",
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "4px",
                           backgroundColor: "#fce4ec", // สีชมพูพาสเทลจาง
                           color: "#db2777", // สีชมพูเข้ม
-                          fontSize: "0.6rem",
-                          marginRight: "8px",
+                          fontSize: "0.55rem",
+                          marginRight: "6px",
                           flexShrink: 0
                         }}>
                           ▶
@@ -1203,7 +1234,7 @@ const SceneTreeSidebar = ({
                     const tooltipMsg = publishState === "published" ? "เผยแพร่แล้ว" : "ฉบับร่าง";
 
                     return (
-                      <div key={sceneKey} className="se-tree__scene-wrapper">
+                      <div key={sceneKey} className="se-tree__scene-wrapper" id={String(sceneIdValue) === "new" ? "virtual-new-scene-row" : undefined}>
                         <button
                           className={`se-tree__scene-row ${isCurrent ? "se-tree__scene-row--active" : ""}`}
                           onClick={() => onSelectScene(chapterIdValue, sceneIdValue)}
@@ -1217,8 +1248,8 @@ const SceneTreeSidebar = ({
                             className="se-tree__scene-status"
                             style={{
                               color: dotColor,
-                              fontSize: "0.85rem",
-                              marginLeft: "8px",
+                              fontSize: "0.7rem",
+                              marginLeft: "4px",
                               flexShrink: 0,
                               lineHeight: 1
                             }}
@@ -1313,7 +1344,7 @@ const SceneTreeSidebar = ({
 
 // ─────────────────────────────────────────────
 // Confirm Modal (ใช้ร่วมกันสำหรับ dialog แจ้งเตือน/ยืนยันแบบกึ่งกลางจอ
-// เช่น ยืนยันการลบตัวเลือก, เตือนยังไม่ได้บันทึก, ยืนยันการเผยแพร่)
+// เช่น ยืนยันการลบทางเลือก, เตือนยังไม่ได้บันทึก, ยืนยันการเผยแพร่)
 // ─────────────────────────────────────────────
 const ConfirmModal = ({
   icon = "⚠️",
@@ -1444,6 +1475,7 @@ const SceneEditorPage = ({
 
   // States สำหรับ dialog เพิ่มตอน/ฉากใหม่
   const [showAddChapterDialog, setShowAddChapterDialog] = useState(false);
+  const [isTreeSidebarOpen, setIsTreeSidebarOpen] = useState(false);
   const [showAddSceneDialog, setShowAddSceneDialog] = useState(false);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState("");
@@ -1639,7 +1671,7 @@ const SceneEditorPage = ({
         const novelRes = await fetch(`${API_BASE_URL}/novels/${novelId}`, { headers });
         if (novelRes.ok) {
           const novelResult = await novelRes.json().catch(() => null);
-          const novelData = novelResult?.novel || novelResult?.data || novelResult || {};
+          const novelData = novelResult?.novel || novelResult?.data?.novel || novelResult?.data || novelResult || {};
           setNovelTitle(
             novelData.title ||
             novelData.novel_title ||
@@ -1743,7 +1775,7 @@ const SceneEditorPage = ({
           setCurrentSelectedChapterId(chapterId);
         }
 
-        // ข้อมูลของ Choices ตัวเลือกท้ายตอน (ใช้ข้อมูลล่าสุดจาก Backend เสมอเพื่อความเรียลไทม์)
+        // ข้อมูลของ Choices ทางเลือกท้ายตอน (ใช้ข้อมูลล่าสุดจาก Backend เสมอเพื่อความเรียลไทม์)
         const backendChoices = (Array.isArray(sceneData.choices) ? sceneData.choices : []).map((choice) => ({
           ...choice,
           id: choice.id ?? choice.choice_id ?? choice.choiceId ?? `choice-${choice.choice_id || choice.id || Date.now()}`,
@@ -1849,6 +1881,12 @@ const SceneEditorPage = ({
   }, [saveDraftToStorage]);
 
   const handleSave = async (overridePublishStatus = null, returnToManager = false, overrideChoices = null, overrideIsEnding = null, showToast = false) => {
+    if (!sceneTitle.trim()) {
+      setErrorMsg("ยังไม่ได้กรอกชื่อฉาก ไม่สามารถกดบันทึกเพื่อสร้างฉากได้");
+      setIsSaving(false);
+      return;
+    }
+
     const editorContainer = document.querySelector('.se-editor');
     const savedScrollTop = editorContainer ? editorContainer.scrollTop : 0;
 
@@ -1985,6 +2023,11 @@ const SceneEditorPage = ({
   };
 
   const handlePublish = async () => {
+    if (!sceneTitle.trim()) {
+      setErrorMsg("ยังไม่มีชื่อฉาก ไม่สามารถกดเผยแพร่ได้");
+      return;
+    }
+
     setIsSaving(true);
     setErrorMsg(null);
     try {
@@ -2039,7 +2082,7 @@ const SceneEditorPage = ({
     if (value) {
       if (choices.length > 0) {
         setErrorMsg(
-          "ฉากจบไม่สามารถสร้างทางเลือกต่อได้ **กรุณาลบตัวเลือกในฉากนี้ออก หรือเปลี่ยนประเภทฉากเพื่อไปต่อ**"
+          "ฉากจบไม่สามารถสร้างทางเลือกต่อได้ **กรุณาลบทางเลือกในฉากนี้ออก หรือเปลี่ยนประเภทฉากเพื่อไปต่อ**"
         );
         setTimeout(() => setErrorMsg(null), 8000);
         return;
@@ -2062,7 +2105,7 @@ const SceneEditorPage = ({
   const handleOpenEndingSettings = () => {
     if (choices.length > 0) {
       setErrorMsg(
-        "ฉากจบไม่สามารถสร้างทางเลือกต่อได้ **กรุณาลบตัวเลือกในฉากนี้ออก หรือเปลี่ยนประเภทฉากเพื่อไปต่อ**"
+        "ฉากจบไม่สามารถสร้างทางเลือกต่อได้ **กรุณาลบทางเลือกในฉากนี้ออก หรือเปลี่ยนประเภทฉากเพื่อไปต่อ**"
       );
       setTimeout(() => setErrorMsg(null), 8000);
       return;
@@ -2367,11 +2410,12 @@ const SceneEditorPage = ({
   };
 
   const handleBack = () => {
-    if (isUnsaved) {
+    if (isUnsaved || isNewScene) {
       setPendingAction("back");
       return;
     }
 
+    sessionStorage.removeItem("focusSceneTarget");
     if (typeof onNavigate === "function") {
       onNavigate("chapters", { novelId });
     } else {
@@ -2385,11 +2429,13 @@ const SceneEditorPage = ({
       }
       clearDraft();
       setIsUnsaved(false);
+      sessionStorage.removeItem("focusSceneTarget");
     }
 
     setPendingAction(null);
 
     if (action === "back") {
+      sessionStorage.removeItem("focusSceneTarget");
       if (typeof onNavigate === "function") {
         onNavigate("chapters", { novelId });
       } else {
@@ -2420,6 +2466,7 @@ const SceneEditorPage = ({
     }
 
     if (action === "back") {
+      sessionStorage.removeItem("focusSceneTarget");
       if (typeof onNavigate === "function") {
         onNavigate("chapters", { novelId });
       } else {
@@ -2573,7 +2620,16 @@ const SceneEditorPage = ({
             onClick={handleBack}
             aria-label="ย้อนกลับ"
           >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L5 7L9 11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
             ย้อนกลับ
+          </button>
+          <button
+            type="button"
+            className="se-header__sidebar-toggle"
+            onClick={() => setIsTreeSidebarOpen(!isTreeSidebarOpen)}
+            style={{ display: "none" }}
+          >
+            ☰ ตอน/ฉาก
           </button>
 
           <nav className="se-header__breadcrumb" aria-label="breadcrumb">
@@ -2596,7 +2652,7 @@ const SceneEditorPage = ({
               {currentChDisplayNumber !== null && currentChDisplayNumber !== "" && currentScDisplayNumber !== null && currentScDisplayNumber !== ""
                 ? `ฉากที่ ${currentChDisplayNumber}.${currentScDisplayNumber}`
                 : "ฉาก: ?"}{" "}
-              {sceneLabel}
+              {isNewScene ? (sceneTitle || "กำลังสร้างฉากใหม่") : sceneLabel}
             </span>
           </nav>
         </div>
@@ -2610,12 +2666,18 @@ const SceneEditorPage = ({
             onClick={() => handleSave(null, false, null, null, true)}
             disabled={isSaving}
           >
-            บันทึก
+            {isNewScene ? "สร้างฉาก" : "บันทึก"}
           </button>
 
           <button
             className="se-header__btn se-header__btn--publish"
-            onClick={() => setShowPublishConfirm(true)}
+            onClick={() => {
+              if (!sceneTitle.trim()) {
+                setErrorMsg("ยังไม่มีชื่อฉาก ไม่สามารถกดเผยแพร่ได้");
+                return;
+              }
+              setShowPublishConfirm(true);
+            }}
             disabled={isSaving}
           >
             เผยแพร่เลย
@@ -2638,30 +2700,50 @@ const SceneEditorPage = ({
       )}
 
       <div className="se-body">
-        {/* Sidebar */}
-        <SceneTreeSidebar
-          chapters={chapters}
-          currentSceneId={sceneId}
-          currentChapterId={effectiveChapterId}
-          currentChapterTitle={chapterTitle}
-          currentSceneLabel={sceneLabel}
-          onSelectScene={(chId, sId) => {
-            if (String(sId) === String(sceneId)) return;
-            if (isUnsaved) {
-              setNextSceneTarget({ chapterId: chId, sceneId: sId });
-              setPendingAction("change-scene");
-              return;
-            }
-            onNavigate("scene-editor", { novelId, chapterId: chId, sceneId: sId });
-          }}
-          onAddScene={handleAddScene}
-          onAddChapter={handleAddChapter}
-          isPublished={isPublished}
-          isEnding={isEnding}
-          setIsEnding={setIsEnding}
-          onToggleEnding={handleToggleEnding}
-          onOpenEndingSettings={handleOpenEndingSettings}
-        />
+        {/* Sidebar Wrapper */}
+        <div className={`se-sidebar-wrapper ${isTreeSidebarOpen ? "open" : ""}`}>
+          <button 
+            type="button" 
+            className="se-sidebar-wrapper-close" 
+            onClick={() => setIsTreeSidebarOpen(false)}
+            style={{ display: "none" }}
+          >
+            ✕
+          </button>
+          <SceneTreeSidebar
+            chapters={chapters}
+            currentSceneId={sceneId}
+            currentChapterId={effectiveChapterId}
+            currentChapterTitle={chapterTitle}
+            currentSceneLabel={sceneLabel}
+            onSelectScene={(chId, sId) => {
+              setIsTreeSidebarOpen(false);
+              if (String(sId) === String(sceneId)) return;
+              if (isUnsaved) {
+                setNextSceneTarget({ chapterId: chId, sceneId: sId });
+                setPendingAction("change-scene");
+                return;
+              }
+              onNavigate("scene-editor", { novelId, chapterId: chId, sceneId: sId });
+            }}
+            onAddScene={(chId) => {
+              setIsTreeSidebarOpen(false);
+              handleAddScene(chId);
+            }}
+            onAddChapter={() => {
+              setIsTreeSidebarOpen(false);
+              handleAddChapter();
+            }}
+            isPublished={isPublished}
+            isEnding={isEnding}
+            setIsEnding={setIsEnding}
+            onToggleEnding={handleToggleEnding}
+            onOpenEndingSettings={handleOpenEndingSettings}
+            isNewScene={isNewScene}
+            sceneTitle={sceneTitle}
+            sceneType={sceneType}
+          />
+        </div>
         <main className="se-editor">
           <div className="se-section">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
@@ -2757,7 +2839,7 @@ const SceneEditorPage = ({
                     if (!isEnding) {
                       if (choices.length > 0) {
                         setErrorMsg(
-                          "ฉากจบไม่สามารถสร้างทางเลือกต่อได้ **กรุณาลบตัวเลือกในฉากนี้ออกก่อน**"
+                          "ฉากจบไม่สามารถสร้างทางเลือกต่อได้ **กรุณาลบทางเลือกในฉากนี้ออกก่อน**"
                         );
                         setTimeout(() => setErrorMsg(null), 6000);
                         return;
@@ -2825,10 +2907,10 @@ const SceneEditorPage = ({
               <>
                 <div className="se-section__heading-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                   <div className="se-section__heading" style={{ margin: 0, fontSize: "0.95rem", fontWeight: "800" }}>
-                    ตัวเลือกท้ายฉาก <span style={{ color: "#94a3b8", fontSize: "0.85rem", marginLeft: "6px", fontWeight: "600" }}>| {choices.length} ตัวเลือก</span>
+                    ทางเลือกท้ายฉาก <span style={{ color: "#94a3b8", fontSize: "0.85rem", marginLeft: "6px", fontWeight: "600" }}>| {choices.length} ทางเลือก</span>
                   </div>
                   <button className="se-btn se-btn--add-choice" onClick={addChoice}>
-                    ✚ เพิ่มตัวเลือกใหม่
+                    ✚ เพิ่มทางเลือกใหม่
                   </button>
                 </div>
 
@@ -2853,8 +2935,8 @@ const SceneEditorPage = ({
 
                   {choices.length === 0 && (
                     <div className="se-choices-empty">
-                      <p>⚠️ ยังไม่มีตัวเลือกถัดไป</p>
-                      <p>ฉากนี้ยังไม่ได้เชื่อมโยงไปฉากอื่น เนื้อเรื่องจะหยุดค้างอยู่ที่ฉากนี้ กรุณาเพิ่มตัวเลือกเพื่อเชื่อมไปยังฉากถัดไป</p>
+                      <p>⚠️ ยังไม่มีทางเลือกถัดไป</p>
+                      <p>ฉากนี้ยังไม่ได้เชื่อมโยงไปฉากอื่น เนื้อเรื่องจะหยุดค้างอยู่ที่ฉากนี้ กรุณาเพิ่มทางเลือกเพื่อเชื่อมไปยังฉากถัดไป</p>
                     </div>
                   )}
                 </div>
@@ -2931,14 +3013,14 @@ const SceneEditorPage = ({
           </div>
         </div>
       )}
-      {/* Dialog ยืนยันการลบตัวเลือก */}
+      {/* Dialog ยืนยันการลบทางเลือก */}
       {choiceToDelete && (
         <ConfirmModal
           variant="danger"
-          title="ยืนยันการลบตัวเลือก?"
-          description="คุณแน่ใจหรือไม่ที่จะลบตัวเลือกนี้? การดำเนินการนี้จะลบเส้นทางการเชื่อมโยงของฉากปลายทางออกและไม่สามารถกู้คืนได้"
+          title="ยืนยันการลบทางเลือก?"
+          description="คุณแน่ใจหรือไม่ที่จะลบทางเลือกนี้? การดำเนินการนี้จะลบเส้นทางการเชื่อมโยงของฉากปลายทางออกและไม่สามารถกู้คืนได้"
           cancelText="ยกเลิก"
-          confirmText="ลบตัวเลือก"
+          confirmText="ลบทางเลือก"
           onCancel={() => setChoiceToDelete(null)}
           onConfirm={confirmDeleteChoice}
         />
@@ -2946,24 +3028,35 @@ const SceneEditorPage = ({
 
       {/* 🛑 Dialog แจ้งเตือนเมื่อลืมบันทึก */}
       {pendingAction && (
-        <ConfirmModal
-          title="มีเนื้อหาที่ยังไม่ได้บันทึก"
-          description={
-            pendingAction === "preview"
-              ? "กรุณาบันทึกข้อมูลก่อนเข้าสู่โหมดทดลองอ่านเพื่อป้องกันการสูญหาย"
-              : pendingAction === "change-scene"
-              ? "กรุณาบันทึกข้อมูลก่อนสลับไปยังฉากอื่นเพื่อป้องกันการสูญหาย"
-              : "กรุณาบันทึกข้อมูลก่อนออกจากหน้านี้เพื่อป้องกันการสูญหาย"
-          }
-          cancelText={
-            pendingAction === "back" || pendingAction === "change-scene"
-              ? "ออกโดยไม่บันทึก"
-              : "ยกเลิก"
-          }
-          confirmText="✓ บันทึก"
-          onCancel={() => handleDiscardPendingAction(pendingAction)}
-          onConfirm={() => handleConfirmPendingAction(pendingAction)}
-        />
+        isNewScene && !sceneTitle.trim() ? (
+          <ConfirmModal
+            title="ยังไม่ได้กรอกชื่อฉาก"
+            description="ยังไม่ได้กรอกชื่อฉากทำให้ข้อมูลยังไม่ได้บันทึก ฉากนี้จะยังไม่ถูกสร้าง"
+            cancelText="จะไม่สร้างฉาก"
+            confirmText="กรอกข้อมูลสร้างต่อ"
+            onCancel={() => handleDiscardPendingAction(pendingAction)}
+            onConfirm={() => setPendingAction(null)}
+          />
+        ) : (
+          <ConfirmModal
+            title="มีเนื้อหาที่ยังไม่ได้บันทึก"
+            description={
+              pendingAction === "preview"
+                ? "กรุณาบันทึกข้อมูลก่อนเข้าสู่โหมดทดลองอ่านเพื่อป้องกันการสูญหาย"
+                : pendingAction === "change-scene"
+                ? "กรุณาบันทึกข้อมูลก่อนสลับไปยังฉากอื่นเพื่อป้องกันการสูญหาย"
+                : "กรุณาบันทึกข้อมูลก่อนออกจากหน้านี้เพื่อป้องกันการสูญหาย"
+            }
+            cancelText={
+              pendingAction === "back" || pendingAction === "change-scene"
+                ? "ออกโดยไม่บันทึก"
+                : "ยกเลิก"
+            }
+            confirmText="✓ บันทึก"
+            onCancel={() => handleDiscardPendingAction(pendingAction)}
+            onConfirm={() => handleConfirmPendingAction(pendingAction)}
+          />
+        )
       )}
 
       {/* Dialog ยืนยันก่อนเผยแพร่ */}

@@ -180,9 +180,9 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
   }, 0) ?? 0;
 
   return (
-    <div className="cm-banner flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div className="flex justify-between items-start w-full gap-6" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '24px' }}>
-        <div className="cm-banner__left flex-1" style={{ flex: 1, minWidth: 0 }}>
+    <div className="cm-banner">
+      <div className="cm-banner__inner">
+        <div className="cm-banner__left flex-1">
           <div className="cm-banner__cover shrink-0" style={{ background: coverBg }}>
             {coverImage ? (
               <img
@@ -1888,7 +1888,7 @@ const ChapterPanel = ({
           {(chapter?.scenes || []).length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px 20px', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
               <p style={{ margin: 0, fontSize: '13.5px', color: '#94a3b8', fontWeight: '500' }}>
-                ยังไม่มีฉากย่อยในบทนี้ กดปุ่ม "เพิ่มฉากย่อย" ด้านบนเพื่อเริ่มร้อยเรียงพล็อตย่อยของคุณเลย 📖
+                ยังไม่มีฉากในตอนนี้ กด '+ เพิ่มฉาก' เพื่อเริ่มต้นเขียนเนื้อเรื่อง 📖
               </p>
             </div>
           ) : (
@@ -1943,6 +1943,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   const [expandedChapters, setExpandedChapters] = useState({});
   const [activeSceneId, setActiveSceneId] = useState(null);
   const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
 
   // Auto-expand the active chapter on load or switch
@@ -2407,11 +2408,27 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   return (
     <div className="cm-layout">
       {/* ☰ แถบรายชื่อตอนและฉากย่อย (Sidebar) ย้ายมาด้านซ้ายมือตามความต้องการผู้แต่ง */}
-      <aside className="cm-sidebar" style={{ borderRight: "1px solid #e2e8f0" }}>
-        <div className="cm-sidebar__header" style={{ padding: "24px 20px 12px 20px", borderBottom: "none" }}>
+      <aside className={`cm-sidebar ${isSidebarOpen ? "open" : ""}`} style={{ borderRight: "1px solid #e2e8f0" }}>
+        <div className="cm-sidebar__header" style={{ padding: "24px 20px 12px 20px", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
             ตอนทั้งหมด ({chapters.length})
           </span>
+          <button 
+            type="button"
+            className="cm-sidebar-close-btn"
+            onClick={() => setIsSidebarOpen(false)}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "18px",
+              cursor: "pointer",
+              color: "#64748b",
+              padding: "4px 8px",
+              display: "none"
+            }}
+          >
+            ✕
+          </button>
         </div>
 
         {/* ➕ ปุ่มสร้างตอนใหม่เด่นชัด ย้ายขึ้นไปอยู่ส่วนบนถัดจากหัวข้อหลัก */}
@@ -2508,7 +2525,10 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                 {/* Chapter Card Row */}
                 <div
                   className={`cm-sidebar__item ${isCurrentActive ? "cm-sidebar__item--active" : ""}`}
-                  onClick={() => setActiveChapterId(chId)}
+                  onClick={() => {
+                    setActiveChapterId(chId);
+                    setIsSidebarOpen(false);
+                  }}
                   style={{
                     display: "flex",
                     flexDirection: "column",
@@ -2638,6 +2658,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSceneClick(chId, scId);
+                              setIsSidebarOpen(false);
                             }}
                             style={{
                               fontSize: "12.5px",
@@ -2689,9 +2710,28 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       {/* 📄 เนื้อหาการแสดงผลตอนย่อยหลัก (Main Content) */}
       <div className="cm-main">
         <div className="cm-topbar">
-          <div>
-            <h1 className="cm-topbar__title">จัดการตอนนิยาย</h1>
-            <p className="cm-topbar__sub">จัดการรายการตอนและรายละเอียดฉากของคุณ</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              className="cm-btn cm-btn--outline cm-sidebar-toggle-btn"
+              onClick={() => setIsSidebarOpen(true)}
+              style={{
+                display: "none",
+                borderRadius: "20px",
+                padding: "6px 14px",
+                fontSize: "13px",
+                fontWeight: "700",
+                color: "#475569",
+                border: "1.5px solid #e2e8f0",
+                fontFamily: "'Sarabun', sans-serif"
+              }}
+            >
+              ☰ ตอนทั้งหมด
+            </button>
+            <div>
+              <h1 className="cm-topbar__title" style={{ margin: 0 }}>จัดการตอนนิยาย</h1>
+              <p className="cm-topbar__sub" style={{ margin: "4px 0 0 0" }}>จัดการรายการตอนและรายละเอียดฉากของคุณ</p>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
@@ -2750,12 +2790,12 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
               marginBottom: '16px',
               animation: 'bounce 2s infinite',
               display: 'inline-block'
-            }}>✍️</div>
+            }}>📝</div>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>
-              เริ่มรังสรรค์โลกจินตนาการของคุณกัน!
+              เริ่มต้นสร้างนิยายของคุณ !
             </h3>
             <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b', maxWidth: '380px', lineHeight: '1.6' }}>
-              นิยายใหม่เรื่องนี้ยังไม่มีตอนแรกอยู่เลย มาร่วมเขียนก้าวแรกของเนื้อเรื่องโดยการเพิ่มตอนใหม่ตรงนี้กันเถอะ
+              เพิ่ม "ตอน" เพื่อจัดหมวดหมู่เรื่องราว จากนั้นสร้าง "ฉาก" ย่อยด้านในตอนเพื่อเริ่มเขียนเนื้อหาและเชื่อมตัวเลือกไปยังฉากต่อไป 
             </p>
             <button
               onClick={openCreateChapterForm}
