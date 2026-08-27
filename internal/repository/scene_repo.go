@@ -407,4 +407,3 @@ func (r *postgresSceneRepository) UpdateScenePosition(sceneID int, nodeX *float6
 	}
 	return nil
 }
-
