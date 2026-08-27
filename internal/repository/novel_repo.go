@@ -120,6 +120,9 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 
 		novels = append(novels, n)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return novels, nil
 }
 
@@ -407,6 +410,9 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 		}
 
 		novels = append(novels, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return novels, nil
 }

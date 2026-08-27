@@ -33,6 +33,9 @@ func GetChoicesBySceneID(db *sql.DB, sceneID int) ([]models.Choice, error) {
 		c.IsPublished = &isPub
 		choices = append(choices, c)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return choices, nil
 }
 

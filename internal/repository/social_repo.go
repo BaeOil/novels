@@ -127,6 +127,9 @@ func GetBookshelfByUserID(db *sql.DB, userID int) ([]models.Novel, error) {
 		}
 		novels = append(novels, n)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return novels, nil
 }
 
@@ -164,6 +167,9 @@ func GetBookshelfCountsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, err
 			return nil, err
 		}
 		novels = append(novels, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return novels, nil
 }
@@ -352,6 +358,9 @@ func GetFollowingWriters(db *sql.DB, userID int) ([]models.Writer, error) {
 		}
 		writers = append(writers, writer)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return writers, nil
 }
 
@@ -391,6 +400,9 @@ func GetCommentsByNovelID(db *sql.DB, novelID int) ([]models.Comment, error) {
 		}
 		comments = append(comments, c)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return comments, nil
 }
 
@@ -415,6 +427,9 @@ func GetCommentsBySceneID(db *sql.DB, sceneID int) ([]models.Comment, error) {
 			return nil, err
 		}
 		comments = append(comments, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return comments, nil
 }

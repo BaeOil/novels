@@ -50,6 +50,9 @@ func (r *categoryRepository) GetAllCategories() ([]models.Category, error) {
 		}
 		categories = append(categories, c)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return categories, nil
 }

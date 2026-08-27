@@ -70,6 +70,9 @@ func GetNotificationsByUserID(db *sql.DB, userID int, page, limit int) ([]models
 		populateNotificationDisplayFields(db, &n)
 		items = append(items, n)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -350,6 +353,9 @@ func GetBookshelfUserIDsByNovelID(db *sql.DB, novelID int) ([]int, error) {
 		}
 		ids = append(ids, id)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return ids, nil
 }
 
@@ -371,6 +377,9 @@ func GetFollowersByNovelAuthor(db *sql.DB, authorID int) ([]int, error) {
 			return nil, err
 		}
 		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return ids, nil
 }
@@ -396,6 +405,9 @@ func GetReadersReachedChapterScene(db *sql.DB, novelID int, chapterID int) ([]in
 			return nil, err
 		}
 		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return ids, nil
 }

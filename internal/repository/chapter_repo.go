@@ -33,6 +33,9 @@ func GetChaptersByNovelID(db *sql.DB, novelID int) ([]models.Chapter, error) {
 
 		chapters = append(chapters, c)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return chapters, nil
 }
 

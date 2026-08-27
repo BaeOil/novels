@@ -147,6 +147,9 @@ func GetScenesByChapterID(db *sql.DB, chapterID int) ([]models.Scene, error) {
 
 		scenes = append(scenes, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return scenes, nil
 }
 
@@ -260,6 +263,9 @@ func (r *postgresSceneRepository) GetNodesByNovelID(novelID int) ([]models.Scene
 		}
 		nodes = append(nodes, n)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return nodes, nil
 }
 
@@ -282,6 +288,9 @@ func (r *postgresSceneRepository) GetEdgesByNovelID(novelID int) ([]models.Scene
 			return nil, err
 		}
 		edges = append(edges, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return edges, nil
 }
@@ -331,6 +340,9 @@ func (r *postgresSceneRepository) GetEndingsByNovelIDForUser(novelID int, userID
 		}
 
 		endings = append(endings, ending)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return endings, nil
 }
@@ -384,6 +396,9 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 		}
 
 		nodes = append(nodes, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return nodes, nil
 }
