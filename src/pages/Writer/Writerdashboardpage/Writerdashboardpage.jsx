@@ -225,9 +225,19 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
             );
           })
         ) : (
-          <div className="wdb__empty-search" style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "var(--gray-500)" }}>
-            ไม่พบนิยายที่ตรงกับ "{searchQuery}"
-          </div>
+          novels.length === 0 && !searchQuery ? (
+            <div className="wdb__empty-search" style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "var(--gray-500)", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "2rem" }}>📚</span>
+              <strong style={{ fontSize: "1.1rem", color: "var(--gray-800)", fontFamily: "'Sarabun', sans-serif" }}>ยังไม่มีนิยาย</strong>
+              <span style={{ fontSize: "0.9rem", color: "var(--gray-500)", fontFamily: "'Sarabun', sans-serif" }}>เริ่มสร้างนิยายเรื่องแรกของคุณได้เลย</span>
+            </div>
+          ) : (
+            <div className="wdb__empty-search" style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "var(--gray-500)", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "2rem" }}>🔍</span>
+              <strong style={{ fontSize: "1.1rem", color: "var(--gray-800)", fontFamily: "'Sarabun', sans-serif" }}>ไม่พบนิยายที่ตรงกับ "{searchQuery}"</strong>
+              <span style={{ fontSize: "0.9rem", color: "var(--gray-500)", fontFamily: "'Sarabun', sans-serif" }}>กรุณาลองระบุคำค้นหาใหม่อีกครั้ง</span>
+            </div>
+          )
         )}
 
         {!searchQuery && (

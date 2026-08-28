@@ -201,22 +201,23 @@
 /* การ์ดใบใหญ่ */
 .wsg-kpi-card-large {
   flex: 1;
-  background: #ffffff; /* เปลี่ยนเป็นสีขาวคลีนสบายตา */
-  border: 1px solid #ffe4e6; /* ขอบชมพูพาสเทลอ่อนโทนเดียวกับแถบข้าง */
-  border-radius: 12px;
-  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 16px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   min-width: 150px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.01);
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
 }
 
 .wsg-kpi-card-large:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(219, 39, 119, 0.04);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(219, 39, 119, 0.08), 0 4px 6px -2px rgba(219, 39, 119, 0.03);
+  border-color: #fbcfe8;
 }
 
 .wsg-kpis-small-grid {
@@ -1033,41 +1034,42 @@
   top: 20px;
   right: 20px;
   left: auto;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   width: 250px;
   font-family: inherit;
   pointer-events: auto;
+  transition: all 0.2s ease;
 }
 
 .wsg-legend-overlay__section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .wsg-legend-overlay__title {
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 2px 0;
+  color: #1e293b;
+  margin: 0 0 4px 0;
   border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
 }
 
 .wsg-legend-overlay__row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.72rem;
+  gap: 10px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: #475569;
 }
@@ -1075,7 +1077,7 @@
 .wsg-legend-color-box {
   width: 14px;
   height: 14px;
-  border-radius: 3px;
+  border-radius: 4px;
   flex-shrink: 0;
 }
 
