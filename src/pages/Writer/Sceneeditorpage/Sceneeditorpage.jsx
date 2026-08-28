@@ -27,6 +27,7 @@ const ChoiceCard = ({
   allTargetOptions,
   currentChapterId,
   currentSceneId, // 🆕 เพิ่ม Props นี้เข้ามาเพื่อคำนวณตำแหน่งฉากปัจจุบัน
+  sourceSceneTitle,
   onUpdate,
   onSave,
   onDelete,
@@ -274,6 +275,7 @@ const ChoiceCard = ({
     setFormError("");
 
     let createdSceneId = null;
+    let createdTargetSceneId = null;
     try {
       const payload = {
         novel_id: parseInt(novelId, 10),
@@ -289,6 +291,84 @@ const ChoiceCard = ({
 
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      // ฉากใหม่ต้องถูกสร้างก่อน target เพื่อให้ฉากแรกของนิยายได้รับสถานะ start
+      // และไม่ทำให้ target ถูกเลือกเป็น start แทนโดยอัตโนมัติ
+      if (String(currentSceneId) === "new") {
+        const sourceTitle = sourceSceneTitle?.trim() || `ฉากใหม่ ${Date.now()}`;
+        const sourceResponse = await fetch(`${API_BASE_URL}/scenes`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            novel_id: parseInt(novelId, 10),
+            chapter_id: parseInt(currentChapterId, 10),
+            title: sourceTitle,
+            content: "",
+            type: "normal",
+            status: "draft",
+            choices: [],
+          }),
+        });
+        if (!sourceResponse.ok) {
+          const errorData = await sourceResponse.json().catch(() => null);
+          throw new Error(errorData?.error || errorData?.message || "สร้างฉากต้นทางไม่สำเร็จ");
+        }
+
+        const sourceData = await sourceResponse.json();
+        const sourceSceneId = sourceData?.data?.scene_id || sourceData?.scene_id || sourceData?.data?.id || sourceData?.id;
+        if (!sourceSceneId) throw new Error("ระบบไม่ได้รับรหัสฉากต้นทาง");
+        createdSceneId = sourceSceneId;
+
+        const targetResponse = await fetch(`${API_BASE_URL}/scenes`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        });
+        if (!targetResponse.ok) {
+          const errorData = await targetResponse.json().catch(() => null);
+          throw new Error(errorData?.error || errorData?.message || "สร้างฉากปลายทางไม่สำเร็จ");
+        }
+
+        const targetData = await targetResponse.json();
+        const targetSceneId = targetData?.data?.scene_id || targetData?.scene_id || targetData?.data?.id || targetData?.id;
+        if (!targetSceneId) throw new Error("ระบบไม่ได้รับรหัสฉากปลายทาง");
+        createdTargetSceneId = targetSceneId;
+
+        const updateResponse = await fetch(`${API_BASE_URL}/scenes/${sourceSceneId}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            title: sourceTitle,
+            content: "",
+            status: "draft",
+            choices: [{
+              label: text.trim(),
+              text: text.trim(),
+              to_scene_id: Number(targetSceneId),
+              targetSubScene: `${newSceneChapterId}||${targetSceneId}`,
+            }],
+          }),
+        });
+        if (!updateResponse.ok) {
+          const errorData = await updateResponse.json().catch(() => null);
+          throw new Error(errorData?.error || errorData?.message || "บันทึกทางเลือกไม่สำเร็จ");
+        }
+
+        setCreatedSceneId(targetSceneId);
+        setSubScene(`${newSceneChapterId}||${targetSceneId}`);
+        setTargetLabel(`ฉากที่เพิ่งสร้าง : ${newSceneTitle.trim()}`);
+        onUpdate?.({
+          ...choice,
+          text: text.trim(),
+          targetType: String(newSceneChapterId) === String(currentChapterId) ? "same" : "other",
+          targetSubScene: `${newSceneChapterId}||${targetSceneId}`,
+          targetLabel: `ฉากที่เพิ่งสร้าง : ${newSceneTitle.trim()}`,
+        });
+        window.dispatchEvent(new Event("novel-data-updated"));
+        setIsEditing(false);
+        setNewSceneTitle("");
+        return;
+      }
 
       const res = await fetch(`${API_BASE_URL}/scenes`, {
         method: "POST",
@@ -343,6 +423,13 @@ const ChoiceCard = ({
           await onDeleteScene?.(createdSceneId);
         } catch (rollbackError) {
           console.error("ลบฉากใหม่ที่สร้างค้างไว้ไม่สำเร็จ:", rollbackError);
+        }
+      }
+      if (createdTargetSceneId) {
+        try {
+          await onDeleteScene?.(createdTargetSceneId);
+        } catch (rollbackError) {
+          console.error("ลบฉากปลายทางที่สร้างค้างไว้ไม่สำเร็จ:", rollbackError);
         }
       }
       setFormError(`❌ เกิดข้อผิดพลาด: ${err.message}`);
@@ -2951,6 +3038,7 @@ const SceneEditorPage = ({
                       onNavigate={onNavigate}
                       navigate={navigate}
                       onDeleteScene={deleteCreatedScene}
+                      sourceSceneTitle={sceneTitle}
                     />
                   ))}
 
