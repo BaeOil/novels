@@ -102,7 +102,7 @@ const ChoiceCard = ({
   // States สำหรับโหมดเชื่อมฉากที่มีอยู่ หรือ สร้างฉากใหม่
   const [connectionMode, setConnectionMode] = useState("existing");
   const [newSceneTitle, setNewSceneTitle] = useState(
-    choice.newSceneTitle || `ฉากใหม่ที่ ${index + 1}`
+    choice.newSceneTitle || ""
   );
   const [newSceneChapterId, setNewSceneChapterId] = useState(currentChapterId || "");
   const [isCreatingNewScene, setIsCreatingNewScene] = useState(false);
@@ -251,6 +251,10 @@ const ChoiceCard = ({
   };
 
   const handleCreateAndConnect = async () => {
+    if (!currentSceneId) {
+      setFormError("ไม่พบรหัสฉากต้นทาง");
+      return;
+    }
     if (!text || text.trim() === "") {
       setFormError("กรุณากรอกข้อความบนปุ่มทางเลือกก่อน");
       return;
@@ -545,7 +549,7 @@ const ChoiceCard = ({
                 onChange={(e) => {
                   setText(e.target.value);
                 }}
-                placeholder="ตัวอย่าง: สำรวจแบบไม่ย่อท้อ..."
+                placeholder="กรอกข้อความทางเลือก..."
                 style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
               />
             </div>
@@ -678,7 +682,7 @@ const ChoiceCard = ({
                       className="se-input"
                       value={newSceneTitle}
                       onChange={(e) => setNewSceneTitle(e.target.value)}
-                      placeholder="ตั้งชื่อฉากใหม่"
+                      placeholder="เช่น ตัดสินใจเผชิญหน้ากับศัตรู"
                       style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
                     />
                   </div>
@@ -690,7 +694,7 @@ const ChoiceCard = ({
                       value={newSceneChapterId}
                       onChange={(e) => setNewSceneChapterId(e.target.value)}
                     >
-                      <option value="">เลือกตอนสำหรับฉากใหม่</option>
+                      <option value="">เลือกตอนที่ต้องการให้ฉากอยู่</option>
                       {(allTargetOptions || []).map((ch, idx) => {
                         const displayNum = ch.episode ?? ch.order_index ?? (idx + 1);
                         return (
@@ -774,7 +778,7 @@ const ChoiceCard = ({
                   }}
                 >
                   {isCreatingNewScene ? (
-                    "⏳ กำลังสร้าง..."
+                    "⏳ กำลังสร้างและเชื่อม..."
                   ) : (
                     <>
                       <span>📄</span> สร้างและเชื่อม
@@ -950,7 +954,7 @@ const SceneTreeSidebar = ({
   }, [filteredChapters, searchQuery]);
 
   return (
-    <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+    <div className="se-tree" style={{ padding: "20px", display: "flex", flexDirection: "column", overflowY: "auto", flex: 1, height: "100%" }}>
       <div className="se-tree__header" style={{ marginBottom: "8px" }}>สถานะและประเภท</div>
       <div className="se-tree__toggles" style={{ marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
@@ -1790,9 +1794,9 @@ const SceneEditorPage = ({
         }
       } else {
         // กรณีเป็นฉากใหม่ชั่วคราวที่คลิกวางจาก Canvas
-        const defaultNewSceneTitle = initialSceneTitle?.trim() || `ฉากใหม่ ${Date.now()}`;
+        const defaultNewSceneTitle = initialSceneTitle?.trim() || "";
         setSceneTitle(defaultNewSceneTitle);
-        setSceneLabel(defaultNewSceneTitle);
+        setSceneLabel(defaultNewSceneTitle || "กำลังสร้างฉากใหม่");
         setContent("");
         setSceneType("normal");
         setIsPublished(false);
@@ -2139,10 +2143,10 @@ const SceneEditorPage = ({
   const addChoice = () => {
     const newChoice = {
       id: `choice-new-${Date.now()}`,
-      text: `ทางเลือกที่ ${choices.length + 1}`,
+      text: "",
       targetType: "same",
       targetSubScene: "",
-      newSceneTitle: `ฉากใหม่ที่ ${choices.length + 1}`,
+      newSceneTitle: "",
     };
     setChoices((prev) => [...prev, newChoice]);
   };
@@ -2789,7 +2793,7 @@ const SceneEditorPage = ({
                   setSceneTitle(e.target.value);
                   setIsUnsaved(true);
                 }}
-                placeholder="ชื่อฉาก..."
+                placeholder="เช่น การพบกับชายปริศนา"
               />
             </div>
 

@@ -294,14 +294,14 @@ const NovelBanner = ({ novel, chapters, onEdit, onToggleStatus, isUpdatingNovelS
   );
 };
 
-const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, onUpdate, onCreate, onCreateScene, onDeleteScene, onOpenScene, onDelete, openConfirmDialog }) => {
+const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, fromSceneId: propFromSceneId, onUpdate, onCreate, onCreateScene, onDeleteScene, onOpenScene, onDelete, openConfirmDialog }) => {
   const choiceId = choice?.id ?? choice?.ID ?? choice?.choice_id ?? choice?.ChoiceID;
   const choiceText = choice?.label ?? choice?.Label ?? choice?.text ?? choice?.Text ?? "";
   const choiceTargetSceneId = choice?.to_scene_id ?? choice?.ToSceneID ?? choice?.target_scene_id ?? choice?.TargetSceneID ?? "";
-  const fromSceneId = choice?.from_scene_id ?? choice?.fromSceneID;
+  const fromSceneId = propFromSceneId || choice?.from_scene_id || choice?.fromSceneID;
   const isNew = choice?.temp === true || String(choiceId).startsWith("temp-");
 
-  const [text, setText] = useState(choiceText || `ทางเลือกที่ ${choiceIndex}`);
+  const [text, setText] = useState(choiceText || "");
   const [subScene, setSubScene] = useState(choiceTargetSceneId);
 
   // 📝 อาเรย์รวมฉากทั้งหมดพร้อมคำนวณลำดับจริง (เช่น 1.2)
@@ -327,7 +327,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
   const [scope, setScope] = useState(() => (targetScene ? (String(targetScene.chapterId) === String(currentChapterId) ? "same" : "other") : "same"));
   const [selectedChapterId, setSelectedChapterId] = useState(() => targetScene?.chapterId || currentChapterId);
   const [connectionMode, setConnectionMode] = useState("existing");
-  const [newSceneTitle, setNewSceneTitle] = useState(`ฉากใหม่ที่ ${choiceIndex}`);
+  const [newSceneTitle, setNewSceneTitle] = useState("");
   const [newSceneChapterId, setNewSceneChapterId] = useState(currentChapterId || "");
 
   const [isEditing, setIsEditing] = useState(isNew);
@@ -621,7 +621,7 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
             className="cm-input" 
             value={text} 
             onChange={(e) => { setText(e.target.value); setFormError(""); }} 
-            placeholder="ตัวอย่าง: ยอมเปิดกล่องปริศนา..." 
+            placeholder="กรอกข้อความทางเลือก..." 
             style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13.5px', fontFamily: "'Sarabun', sans-serif", outline: 'none' }}
           />
         </div>
@@ -728,18 +728,15 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
             <div className="cm-choice-new-scene-form">
               <label className="cm-choice-new-scene-form__label">
                 ชื่อฉากใหม่
-                <input className="cm-input cm-choice-new-scene-form__input" value={newSceneTitle} onChange={(e) => { setNewSceneTitle(e.target.value); setFormError(""); }} placeholder="เช่น ห้องลับใต้ปราสาท" />
+                <input className="cm-input cm-choice-new-scene-form__input" value={newSceneTitle} onChange={(e) => { setNewSceneTitle(e.target.value); setFormError(""); }} placeholder="เช่น การพบกับชายปริศนา" />
               </label>
               <label className="cm-choice-new-scene-form__label">
                 สร้างฉากใหม่ในตอน
                 <select className="cm-select cm-choice-new-scene-form__input" value={newSceneChapterId} onChange={(e) => setNewSceneChapterId(e.target.value)}>
-                  <option value="">-- เลือกตอน --</option>
+                  <option value="">เลือกตอนที่ต้องการให้ฉากอยู่</option>
                   {chapterOptions.map((chapter) => <option key={chapter.value} value={chapter.value}>{chapter.label}</option>)}
                 </select>
               </label>
-              <button type="button" onClick={handleCreateAndConnectScene} disabled={isSaving || showSuccess} className="cm-choice-new-scene-form__button">
-                {isSaving ? 'กำลังสร้างฉากและเชื่อม...' : 'สร้างฉากและเชื่อมทางเลือก'}
-              </button>
             </div>
           )}
           {formError && <div role="alert" className="cm-choice-form-error">{formError}</div>}
@@ -762,25 +759,47 @@ const ChoiceRow = ({ choice, choiceIndex, sceneOptions = [], currentChapterId, o
           >
             ❌ ยกเลิก
           </button>
-          <button
-            className="cm-btn cm-btn--sm"
-            onClick={handleSaveChoice}
-            disabled={isSaving || showSuccess || Boolean(normalizedConnectionBlockReason)}
-            style={{ 
-              padding: '8px 16px', 
-              fontSize: '13px', 
-              borderRadius: '8px', 
-              border: 'none', 
-              background: showSuccess ? "#10b981" : "linear-gradient(90deg, #db2777, #ec4899)", 
-              color: '#ffffff', 
-              cursor: 'pointer', 
-              fontWeight: '700', 
-              boxShadow: showSuccess ? 'none' : '0 4px 10px rgba(219, 39, 119, 0.18)', 
-              transition: "all 0.3s ease" 
-            }}
-          >
-            {isSaving ? "⏳ กำลังบันทึก..." : showSuccess ? "✅ บันทึกสำเร็จ!" : "💾 บันทึกทางเลือก"}
-          </button>
+          {connectionMode === "existing" ? (
+            <button
+              className="cm-btn cm-btn--sm"
+              onClick={handleSaveChoice}
+              disabled={isSaving || showSuccess || Boolean(normalizedConnectionBlockReason)}
+              style={{ 
+                padding: '8px 16px', 
+                fontSize: '13px', 
+                borderRadius: '8px', 
+                border: 'none', 
+                background: showSuccess ? "#10b981" : "linear-gradient(90deg, #db2777, #ec4899)", 
+                color: '#ffffff', 
+                cursor: 'pointer', 
+                fontWeight: '700', 
+                boxShadow: showSuccess ? 'none' : '0 4px 10px rgba(219, 39, 119, 0.18)', 
+                transition: "all 0.3s ease" 
+              }}
+            >
+              {isSaving ? "⏳ กำลังบันทึก..." : showSuccess ? "✅ บันทึกสำเร็จ!" : "💾 บันทึกทางเลือก"}
+            </button>
+          ) : (
+            <button
+              className="cm-btn cm-btn--sm"
+              onClick={handleCreateAndConnectScene}
+              disabled={isSaving || showSuccess}
+              style={{ 
+                padding: '8px 16px', 
+                fontSize: '13px', 
+                borderRadius: '8px', 
+                border: 'none', 
+                background: showSuccess ? "#10b981" : "linear-gradient(90deg, #db2777, #ec4899)", 
+                color: '#ffffff', 
+                cursor: 'pointer', 
+                fontWeight: '700', 
+                boxShadow: showSuccess ? 'none' : '0 4px 10px rgba(219, 39, 119, 0.18)', 
+                transition: "all 0.3s ease" 
+              }}
+            >
+              {isSaving ? "⏳ กำลังสร้างฉากและเชื่อม..." : showSuccess ? "✅ บันทึกสำเร็จ!" : "✨ สร้างฉากและเชื่อมทางเลือก"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1409,6 +1428,7 @@ const SceneCard = ({
               choiceIndex={i + 1}
               sceneOptions={allChapters}
               currentChapterId={chapterId}
+              fromSceneId={sceneId}
               onUpdate={handleApplyChoice}
               onCreateScene={handleCreateSceneFromChoice}
               onDeleteScene={handleDeleteScene}
@@ -2117,8 +2137,15 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
   }, [activeChapterId, currentNovelId]);
   const [isCreatingChapter, setIsCreatingChapter] = useState(false);
   const [isSubmittingChapter, setIsSubmittingChapter] = useState(false);
+  const [isSuccessCreatingChapter, setIsSuccessCreatingChapter] = useState(false);
   const [draftChapterTitle, setDraftChapterTitle] = useState("");
   const [draftChapterStatus, setDraftChapterStatus] = useState("draft");
+  const [isCreatingScene, setIsCreatingScene] = useState(false);
+  const [createSceneChapterId, setCreateSceneChapterId] = useState(null);
+  const [newSceneTitle, setNewSceneTitle] = useState("");
+  const [isSubmittingScene, setIsSubmittingScene] = useState(false);
+  const [isSuccessCreatingScene, setIsSuccessCreatingScene] = useState(false);
+  const [createSceneError, setCreateSceneError] = useState("");
   const [lockedChapterIds, setLockedChapterIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -2340,15 +2367,21 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       });
 
       if (res.ok) {
-        setIsCreatingChapter(false);
-        setDraftChapterTitle("");
-        setDraftChapterStatus("draft");
-        const data = await res.json();
+        setIsSuccessCreatingChapter(true);
+        const data = await res.json().catch(() => null) || {};
         const createdChapterId = data.chapter_id ?? data.chapter?.id ?? data.chapter?.ID ?? data.chapter?.chapter_id ?? data.data?.chapter_id;
+        
         await fetchNovelAndChapters(true);
         if (createdChapterId) {
           setActiveChapterId(createdChapterId);
         }
+
+        setTimeout(() => {
+          setIsSuccessCreatingChapter(false);
+          setIsCreatingChapter(false);
+          setDraftChapterTitle("");
+          setDraftChapterStatus("draft");
+        }, 1200);
       } else {
         const errorText = await res.text();
         console.error("สร้างตอนใหม่ล้มเหลว:", res.status, errorText);
@@ -2380,18 +2413,97 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
     }
   };
 
-  const handleAddScene = async (chapterId) => {
+  const handleAddScene = (chapterId) => {
     if (!chapterId) return;
     if (getNovelStatusInfo(novel).isBanned) {
       alert('นิยายถูกระงับ ไม่สามารถเพิ่มฉากได้');
       return;
     }
-    sessionStorage.setItem("focusSceneTarget", `new_in_${chapterId}`);
-    if (typeof onNavigate === "function") {
+    setCreateSceneChapterId(chapterId);
+    setNewSceneTitle("");
+    setCreateSceneError("");
+    setIsCreatingScene(true);
+    setIsSubmittingScene(false);
+    setIsSuccessCreatingScene(false);
+  };
+
+  const handleConfirmCreateScene = async () => {
+    if (!newSceneTitle.trim()) {
+      setCreateSceneError("กรุณากรอกชื่อฉากก่อน");
+      return;
+    }
+
+    setIsSubmittingScene(true);
+    setCreateSceneError("");
+
+    try {
+      const authToken = getToken();
+      if (!authToken) {
+        throw new Error("กรุณาเข้าสู่ระบบก่อนเพิ่มฉาก");
+      }
+
+      const payload = {
+        novel_id: parseInt(currentNovelId, 10),
+        chapter_id: parseInt(createSceneChapterId, 10),
+        title: newSceneTitle.trim(),
+        content: "",
+        x: 0,
+        y: 0,
+        type: "normal",
+        status: "draft"
+      };
+
+      const res = await fetch(`${API_BASE}/scenes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || errorData?.message || "สร้างฉากใหม่ไม่สำเร็จ");
+      }
+
+      const resData = await res.json();
+      const createdSceneId = resData?.scene_id ?? resData?.id ?? resData?.data?.scene_id ?? resData?.data?.id;
+
+      if (!createdSceneId) {
+        throw new Error("ระบบไม่ได้รับรหัสฉากใหม่จากหลังบ้าน");
+      }
+
+      setIsSuccessCreatingScene(true);
+      await fetchNovelAndChapters(true);
+      window.dispatchEvent(new Event("novel-data-updated"));
+
       const novelTitleVal = novel?.title || novel?.novelTitle || novel?.name || "";
-      const chapterObj = (chapters || []).find(c => String(c.id ?? c.chapter_id ?? c.ChapterID ?? c.chapterId) === String(chapterId));
+      const chapterObj = (chapters || []).find(c => String(c.id ?? c.chapter_id ?? c.ChapterID ?? c.chapterId) === String(createSceneChapterId));
       const chapterTitleVal = chapterObj?.title || chapterObj?.Title || chapterObj?.chapterTitle || "";
-      onNavigate("scene-editor", { novelId: currentNovelId, chapterId, sceneId: "new", novelTitle: novelTitleVal, chapterTitle: chapterTitleVal });
+
+      setTimeout(() => {
+        setIsCreatingScene(false);
+        setNewSceneTitle("");
+        setCreateSceneChapterId(null);
+        setIsSuccessCreatingScene(false);
+        
+        sessionStorage.setItem("focusSceneTarget", createdSceneId);
+        if (typeof onNavigate === "function") {
+          onNavigate("scene-editor", {
+            novelId: currentNovelId,
+            chapterId: createSceneChapterId,
+            sceneId: createdSceneId,
+            novelTitle: novelTitleVal,
+            chapterTitle: chapterTitleVal
+          });
+        }
+      }, 1000);
+    } catch (err) {
+      console.error(err);
+      setCreateSceneError(err.message || "เกิดข้อผิดพลาดในการสร้างฉาก");
+    } finally {
+      setIsSubmittingScene(false);
     }
   };
 
@@ -3087,16 +3199,127 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
                 type="button"
                 className="se-modal-btn"
                 onClick={handleAddChapter}
-                disabled={isSubmittingChapter}
+                disabled={isSubmittingChapter || isSuccessCreatingChapter}
                 style={{
                   flex: 1,
-                  background: "linear-gradient(135deg, #db2777 0%, #be185d 100%)",
+                  background: isSuccessCreatingChapter
+                    ? "#10b981"
+                    : "linear-gradient(135deg, #db2777 0%, #be185d 100%)",
                   color: "#ffffff",
                   border: "none",
-                  fontWeight: "700"
+                  fontWeight: "700",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  transition: "all 0.2s ease"
                 }}
               >
-                {isSubmittingChapter ? "กำลังสร้างตอน..." : "สร้างตอน"}
+                {isSubmittingChapter ? (
+                  <>
+                    <div style={{
+                      display: "inline-block",
+                      width: "12px",
+                      height: "12px",
+                      border: "2px solid rgba(255,255,255,0.3)",
+                      borderTopColor: "#ffffff",
+                      borderRadius: "50%",
+                      animation: "cm-spin 0.8s linear infinite"
+                    }} />
+                    <span>กำลังสร้างตอน</span>
+                  </>
+                ) : isSuccessCreatingChapter ? (
+                  <span>✓ สร้างตอนสำเร็จ</span>
+                ) : (
+                  "สร้างตอน"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📝 ป๊อปอัปกรอกข้อมูลสร้างฉากใหม่ เด้งขึ้นกลางจออย่างหรูหรา (Popup Modal) */}
+      {isCreatingScene && (
+        <div className="se-modal-overlay" style={{ zIndex: 10000 }}>
+          <div className="se-modal-content" style={{ maxWidth: "420px", padding: "28px" }}>
+            <div className="se-modal-icon" style={{ background: "#fce7f3", color: "#db2777" }}>🎬</div>
+            <h3 className="se-modal-title" style={{ fontFamily: "'Sarabun', sans-serif" }}>สร้างฉากใหม่</h3>
+            <p className="se-modal-desc" style={{ fontFamily: "'Sarabun', sans-serif" }}>กรุณากรอกชื่อฉากที่ต้องการสร้างเพื่อเริ่มต้นเขียนเนื้อเรื่อง</p>
+            
+            <div style={{ width: "100%", margin: "16px 0 20px 0", textAlign: "left" }}>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: "700", color: "#475569" }}>ชื่อฉาก</label>
+              <input
+                type="text"
+                className="cm-input"
+                value={newSceneTitle}
+                onChange={(e) => { setNewSceneTitle(e.target.value); setCreateSceneError(""); }}
+                placeholder="เช่น การพบกับชายปริศนา"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  border: "1.5px solid #cbd5e1",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxSizing: "border-box"
+                }}
+                autoFocus
+              />
+              {createSceneError && (
+                <div style={{ color: "#ef4444", fontSize: "12.5px", fontWeight: "700", marginTop: "8px" }}>
+                  {createSceneError}
+                </div>
+              )}
+            </div>
+
+            <div className="se-modal-actions" style={{ display: "flex", gap: "10px", width: "100%" }}>
+              <button
+                type="button"
+                className="se-modal-btn se-modal-btn--cancel"
+                onClick={() => setIsCreatingScene(false)}
+                style={{ flex: 1 }}
+                disabled={isSubmittingScene || isSuccessCreatingScene}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="se-modal-btn"
+                onClick={handleConfirmCreateScene}
+                disabled={isSubmittingScene || isSuccessCreatingScene}
+                style={{
+                  flex: 1,
+                  background: isSuccessCreatingScene
+                    ? "#10b981"
+                    : "linear-gradient(135deg, #db2777 0%, #be185d 100%)",
+                  color: "#ffffff",
+                  border: "none",
+                  fontWeight: "700",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px"
+                }}
+              >
+                {isSubmittingScene ? (
+                  <>
+                    <div style={{
+                      display: "inline-block",
+                      width: "12px",
+                      height: "12px",
+                      border: "2px solid rgba(255,255,255,0.3)",
+                      borderTopColor: "#ffffff",
+                      borderRadius: "50%",
+                      animation: "cm-spin 0.8s linear infinite"
+                    }} />
+                    <span>กำลังสร้างฉาก...</span>
+                  </>
+                ) : isSuccessCreatingScene ? (
+                  <span>✓ สร้างฉากสำเร็จ</span>
+                ) : (
+                  "สร้างฉาก"
+                )}
               </button>
             </div>
           </div>
