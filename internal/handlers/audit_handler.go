@@ -62,11 +62,32 @@ func (h *AuditHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, auditResponse(*item))
 }
 
+func (h *AuditHandler) GetMetadata(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	metadata, err := h.service.GetMetadata(r.Context())
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "failed to get audit metadata")
+		return
+	}
+	WriteJSON(w, http.StatusOK, metadata)
+}
+
+
 func parseAuditFilter(r *http.Request) (dto.AuditLogFilter, error) {
 	query := r.URL.Query()
 	filter := dto.AuditLogFilter{Action: strings.TrimSpace(query.Get("action")), TargetType: strings.TrimSpace(query.Get("target_type")), Status: strings.TrimSpace(query.Get("status")), Page: 1, Limit: 50}
 	parseInt := func(name string) (int64, error) { return strconv.ParseInt(query.Get(name), 10, 64) }
-	if value := query.Get("actor_user_id"); value != "" {
+	if value := query.Get("actor"); value != "" {
+		trimmed := strings.TrimSpace(value)
+		if id, err := strconv.ParseInt(trimmed, 10, 64); err == nil && id > 0 {
+			actor := uint(id)
+			filter.ActorUserID = &actor
+		}
+		filter.ActorKeyword = trimmed
+	} else if value := query.Get("actor_user_id"); value != "" {
 		parsed, err := parseInt("actor_user_id")
 		if err != nil || parsed <= 0 {
 			return filter, errors.New("invalid actor_user_id")
@@ -121,5 +142,18 @@ func auditResponse(item models.AuditLog) dto.AuditLogResponse {
 	if len(item.Metadata) > 0 {
 		_ = json.Unmarshal(item.Metadata, &metadata)
 	}
-	return dto.AuditLogResponse{LogID: item.LogID, ActorUserID: item.ActorUserID, ActorRole: item.ActorRole, Action: item.Action, TargetType: item.TargetType, TargetID: item.TargetID, Status: item.Status, IPAddress: item.IPAddress, Metadata: metadata, CreatedAt: item.CreatedAt}
+	return dto.AuditLogResponse{
+		LogID:         item.LogID,
+		ActorUserID:   item.ActorUserID,
+		ActorUsername: item.ActorUsername,
+		ActorRole:     item.ActorRole,
+		Action:        item.Action,
+		TargetType:    item.TargetType,
+		TargetID:      item.TargetID,
+		TargetName:    item.TargetName,
+		Status:        item.Status,
+		IPAddress:     item.IPAddress,
+		Metadata:      metadata,
+		CreatedAt:     item.CreatedAt,
+	}
 }

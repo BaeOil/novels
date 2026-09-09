@@ -330,19 +330,20 @@ func (r *postgresAnalyticsRepository) GetNovelOverview(novelID int) (*models.Nov
 	}
 
 	// ─── 3. ending_stats ──────────────────────────────────────────────────────
-	// นับ distinct users ที่ปลดล็อก ending แต่ละประเภท
-	// GROUP BY ending_type เพื่อแยก Good/Bad/True/Secret Ending
-	// percentage คำนวณเทียบกับ unique_readers
+	// ดึงฉากจบทั้งหมดของนิยายเรื่องนี้ (รวมถึงฉากที่ยังไม่มีผู้อ่านปลดล็อก เพื่อให้นักเขียนเห็นสถิติครบทุกฉากจบ)
+	// ดึงทั้ง scene_id, ending_title, ending_type, และจำนวน distinct readers ที่ปลดล็อก
 	endingQuery := `
 		SELECT
-			COALESCE(s.ending_type, 'unknown')        AS ending_type,
-			COUNT(DISTINCT ue.user_id)                 AS cnt
-		FROM user_endings ue
-		JOIN scenes s ON s.scene_id = ue.scene_id
+			s.scene_id,
+			COALESCE(NULLIF(s.ending_title, ''), s.title)     AS ending_title,
+			COALESCE(NULLIF(s.ending_type, ''), 'Ending')      AS ending_type,
+			COUNT(DISTINCT ue.user_id)                         AS cnt
+		FROM scenes s
+		LEFT JOIN user_endings ue ON ue.scene_id = s.scene_id
 		WHERE s.novel_id = $1
-		  AND s.ending_type IS NOT NULL
-		GROUP BY s.ending_type
-		ORDER BY cnt DESC
+		  AND (LOWER(s.type) IN ('ending', 'end') OR s.ending_type IS NOT NULL OR s.ending_title IS NOT NULL)
+		GROUP BY s.scene_id, s.ending_title, s.title, s.ending_type
+		ORDER BY cnt DESC, s.scene_id ASC
 	`
 
 	endingRows, err := r.db.Query(endingQuery, novelID)
@@ -353,7 +354,7 @@ func (r *postgresAnalyticsRepository) GetNovelOverview(novelID int) (*models.Nov
 
 	for endingRows.Next() {
 		var es models.EndingStat
-		if err := endingRows.Scan(&es.EndingType, &es.Count); err != nil {
+		if err := endingRows.Scan(&es.SceneID, &es.EndingTitle, &es.EndingType, &es.Count); err != nil {
 			return nil, err
 		}
 		if stats.UniqueReaders > 0 {
@@ -374,7 +375,7 @@ func (r *postgresAnalyticsRepository) GetNovelOverview(novelID int) (*models.Nov
 	// drop_off_rate   = (visited_users - continued_users) / visited_users × 100
 	//
 	// ข้อจำกัด:
-	//   - Ending scenes ถูกกรองออก (type = 'ending') เพราะไม่มี outgoing choice
+	//   - Ending scenes ถูกกรองออก (type = 'ending' / 'end') เพราะไม่มี outgoing choice
 	//   - ผู้ที่ยังอ่านอยู่แต่ยังไม่เลือก จะถูกนับว่า drop-off ด้วย (limitation)
 	//   - ไม่ใช่ exact session drop-off
 	dropOffQuery := `
@@ -387,7 +388,7 @@ func (r *postgresAnalyticsRepository) GetNovelOverview(novelID int) (*models.Nov
 			FROM user_scene_history ush
 			JOIN scenes s ON s.scene_id = ush.scene_id
 			WHERE s.novel_id = $1
-			  AND s.type != 'ending'
+			  AND LOWER(s.type) NOT IN ('ending', 'end')
 			GROUP BY s.scene_id, s.title
 		),
 		scene_continued AS (
@@ -466,7 +467,7 @@ func (r *postgresAnalyticsRepository) GetAllScenesAnalytics(novelID int) ([]mode
 		SELECT sv.scene_id, sv.title,
 			COALESCE(sv.total_visit_count, 0) AS visit_count,
 			COALESCE(sv.visited_users, 0) AS unique_readers,
-			CASE WHEN sv.type = 'ending' OR sv.visited_users = 0 THEN 0
+			CASE WHEN LOWER(sv.type) IN ('ending', 'end') OR sv.visited_users = 0 THEN 0
 				ELSE ROUND((sv.visited_users - COALESCE(sc.continued_users, 0))::numeric * 100.0 / NULLIF(sv.visited_users, 0), 2)
 			END AS drop_off_rate
 		FROM scene_visit sv

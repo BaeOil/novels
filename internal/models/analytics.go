@@ -13,9 +13,11 @@ type NovelOverviewStats struct {
 
 // EndingStat สรุปสถิติการปลดล็อก Ending แต่ละประเภท
 type EndingStat struct {
-	EndingType string  `json:"ending_type"`
-	Count      int64   `json:"count"`      // จำนวน distinct users ที่ปลดล็อก
-	Percentage float64 `json:"percentage"` // สัดส่วนเทียบกับ unique_readers
+	SceneID     int     `json:"scene_id,omitempty"`
+	EndingTitle string  `json:"ending_title,omitempty"`
+	EndingType  string  `json:"ending_type"`
+	Count       int64   `json:"count"`      // จำนวน distinct users ที่ปลดล็อก
+	Percentage  float64 `json:"percentage"` // สัดส่วนเทียบกับ unique_readers
 }
 
 // DropOffScene แสดงฉากที่ผู้อ่านมักหยุดอ่าน (Approximate)

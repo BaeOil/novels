@@ -97,6 +97,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// เรียกใช้งาน Service ตัวจริง เพื่อเช็คข้อมูลใน DB และออก JWT Token ตัวจริง
 	res, err := h.authService.Login(r.Context(), req)
 	if err != nil {
+		recordAuditWithBackendActor(r, h.auditService, nil, "", service.AuditEvent{
+			Action:     "LOGIN_FAILED",
+			TargetType: "user",
+			TargetID:   nil,
+			Status:     "FAILURE",
+			Metadata: map[string]interface{}{
+				"email":  req.Email,
+				"reason": err.Error(),
+			},
+		})
 		// หากรหัสผิดหรือหาไม่เจอ จะเด้งข้อความแจ้งเตือนสีแดงออกไป
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -221,6 +231,13 @@ func (h *AuthHandler) UpdateOwnUsername(w http.ResponseWriter, r *http.Request) 
 
 	err := h.authService.UpdateUsername(r.Context(), userID, req.Username)
 	if err != nil {
+		recordAudit(r, h.auditService, service.AuditEvent{
+			Action:     "UPDATE_PROFILE",
+			TargetType: "user",
+			TargetID:   int64Pointer(int(userID)),
+			Status:     "FAILURE",
+			Metadata:   map[string]interface{}{"field": "username", "reason": err.Error()},
+		})
 		if errors.Is(err, repository.ErrUsernameTaken) {
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
@@ -260,12 +277,26 @@ func (h *AuthHandler) UpdateOwnEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := req.Validate(); err != nil {
+		recordAudit(r, h.auditService, service.AuditEvent{
+			Action:     "UPDATE_PROFILE",
+			TargetType: "user",
+			TargetID:   int64Pointer(int(userID)),
+			Status:     "FAILURE",
+			Metadata:   map[string]interface{}{"field": "email", "reason": err.Error()},
+		})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	err := h.authService.UpdateEmail(r.Context(), userID, req.Email)
 	if err != nil {
+		recordAudit(r, h.auditService, service.AuditEvent{
+			Action:     "UPDATE_PROFILE",
+			TargetType: "user",
+			TargetID:   int64Pointer(int(userID)),
+			Status:     "FAILURE",
+			Metadata:   map[string]interface{}{"field": "email", "reason": err.Error()},
+		})
 		if err.Error() == "email already in use" {
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
@@ -307,12 +338,26 @@ func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := req.Validate(); err != nil {
+		recordAudit(r, h.auditService, service.AuditEvent{
+			Action:     "UPDATE_PROFILE",
+			TargetType: "user",
+			TargetID:   int64Pointer(int(userID)),
+			Status:     "FAILURE",
+			Metadata:   map[string]interface{}{"field": "password", "reason": err.Error()},
+		})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	err := h.authService.ChangePassword(r.Context(), userID, req)
 	if err != nil {
+		recordAudit(r, h.auditService, service.AuditEvent{
+			Action:     "UPDATE_PROFILE",
+			TargetType: "user",
+			TargetID:   int64Pointer(int(userID)),
+			Status:     "FAILURE",
+			Metadata:   map[string]interface{}{"field": "password", "reason": err.Error()},
+		})
 		if err.Error() == "current password is incorrect" ||
 			err.Error() == "current password is required" ||
 			err.Error() == "new password is required" ||
@@ -332,7 +377,7 @@ func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "profile_picture"}})
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "password"}})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

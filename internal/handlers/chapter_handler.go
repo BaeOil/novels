@@ -50,7 +50,13 @@ func CreateChapterHandler(chapterService service.ChapterService, notificationSer
 		if err := notificationService.NotifyNovelChapterPublished(req.NovelID, chapterID); err != nil {
 			log.Printf("NotifyNovelChapterPublished failed: %v", err)
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": req.NovelID}})
+		chMeta := map[string]interface{}{"novel_id": req.NovelID, "chapter_title": req.Title}
+		if nov, err := novelService.GetNovelDetail(req.NovelID); err == nil && nov != nil {
+			if n, ok := nov.(*models.Novel); ok && n != nil {
+				chMeta["novel_title"] = n.Title
+			}
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: chMeta})
 
 		RespondWithJSON(w, http.StatusCreated, map[string]any{"message": "chapter created", "chapter_id": chapterID})
 	}
@@ -131,7 +137,13 @@ func UpdateChapterHandler(chapterService service.ChapterService, sceneService se
 			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": chapter.NovelID}})
+		updChMeta := map[string]interface{}{"novel_id": chapter.NovelID, "chapter_title": chapter.Title}
+		if nov, err := novelService.GetNovelDetail(chapter.NovelID); err == nil && nov != nil {
+			if n, ok := nov.(*models.Novel); ok && n != nil {
+				updChMeta["novel_title"] = n.Title
+			}
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: updChMeta})
 
 		responsePayload := map[string]any{
 			"message": "chapter updated",
@@ -177,7 +189,13 @@ func DeleteChapterHandler(chapterService service.ChapterService, novelService se
 			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": chapter.NovelID}})
+		delChMeta := map[string]interface{}{"novel_id": chapter.NovelID, "chapter_title": chapter.Title}
+		if nov, err := novelService.GetNovelDetail(chapter.NovelID); err == nil && nov != nil {
+			if n, ok := nov.(*models.Novel); ok && n != nil {
+				delChMeta["novel_title"] = n.Title
+			}
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: delChMeta})
 
 		RespondWithJSON(w, http.StatusOK, map[string]any{"message": "chapter deleted"})
 	}

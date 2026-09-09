@@ -1268,6 +1268,26 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
 
+  /api/admin/audit-logs/metadata:
+    get:
+      summary: Get audit logs filter metadata (actions, target_types, statuses)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Audit logs metadata options
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuditLogMetadataResponse'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
   /writer/{id}:
     get:
       summary: Get public writer profile by writer_id
@@ -1666,10 +1686,12 @@ components:
       properties:
         log_id: {type: integer, format: int64}
         actor_user_id: {type: integer, nullable: true}
+        actor_username: {type: string, nullable: true}
         actor_role: {type: string}
         action: {type: string}
         target_type: {type: string, nullable: true}
         target_id: {type: integer, format: int64, nullable: true}
+        target_name: {type: string, nullable: true}
         status: {type: string}
         ip_address: {type: string, nullable: true}
         metadata: {type: object, additionalProperties: true}
@@ -1685,3 +1707,18 @@ components:
         page: {type: integer}
         limit: {type: integer}
         total: {type: integer}
+
+    AuditLogMetadataResponse:
+      type: object
+      required: [actions, target_types, statuses]
+      properties:
+        actions:
+          type: array
+          items: {type: string}
+        target_types:
+          type: array
+          items: {type: string}
+        statuses:
+          type: array
+          items: {type: string}
+

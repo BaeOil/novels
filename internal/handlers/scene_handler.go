@@ -145,7 +145,16 @@ func CreateSceneHandler(sceneService service.SceneService, notificationService s
 		if err := notificationService.NotifySceneUpdated(req.NovelID, sceneID); err != nil {
 			log.Printf("NotifySceneUpdated failed: %v", err)
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": req.NovelID, "chapter_id": req.ChapterID}})
+		createMeta := map[string]interface{}{"novel_id": req.NovelID, "chapter_id": req.ChapterID}
+		if ch, err := chapterService.GetChapterByID(req.ChapterID); err == nil && ch != nil {
+			createMeta["chapter_title"] = ch.Title
+		}
+		if nov, err := novelService.GetNovelDetail(req.NovelID); err == nil && nov != nil {
+			if n, ok := nov.(*models.Novel); ok && n != nil {
+				createMeta["novel_title"] = n.Title
+			}
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: createMeta})
 
 		WriteJSON(w, http.StatusCreated, map[string]any{"message": "scene created", "scene_id": sceneID})
 	}
@@ -237,7 +246,16 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 				return
 			}
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": scene.NovelID, "chapter_id": scene.ChapterID}})
+		updateMeta := map[string]interface{}{"novel_id": scene.NovelID, "chapter_id": scene.ChapterID}
+		if ch, err := chapterService.GetChapterByID(scene.ChapterID); err == nil && ch != nil {
+			updateMeta["chapter_title"] = ch.Title
+		}
+		if nov, err := novelService.GetNovelDetail(scene.NovelID); err == nil && nov != nil {
+			if n, ok := nov.(*models.Novel); ok && n != nil {
+				updateMeta["novel_title"] = n.Title
+			}
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: updateMeta})
 
 		responsePayload := map[string]any{
 			"message": "scene updated",
@@ -279,7 +297,16 @@ func DeleteSceneHandler(sceneService service.SceneService, chapterService servic
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: map[string]interface{}{"novel_id": existingScene.NovelID, "chapter_id": existingScene.ChapterID}})
+		delMeta := map[string]interface{}{"novel_id": existingScene.NovelID, "chapter_id": existingScene.ChapterID}
+		if ch, err := chapterService.GetChapterByID(existingScene.ChapterID); err == nil && ch != nil {
+			delMeta["chapter_title"] = ch.Title
+		}
+		if nov, err := novelService.GetNovelDetail(existingScene.NovelID); err == nil && nov != nil {
+			if n, ok := nov.(*models.Novel); ok && n != nil {
+				delMeta["novel_title"] = n.Title
+			}
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: delMeta})
 
 		WriteJSON(w, http.StatusOK, map[string]any{"message": "scene deleted"})
 	}

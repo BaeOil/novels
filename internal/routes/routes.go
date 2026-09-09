@@ -221,7 +221,15 @@ func RegisterRoutes(
 	// PATCH /api/admin/reports/:id/status -> อัปเดตสถานะรีพอร์ต
 	mux.Handle("/api/admin/reports/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.UpdateReportStatus))))
 	mux.Handle("/api/admin/audit-logs", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(auditHandler.List))))
-	mux.Handle("/api/admin/audit-logs/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(auditHandler.GetByID))))
+	mux.Handle("/api/admin/audit-logs/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subPath := strings.TrimPrefix(r.URL.Path, "/api/admin/audit-logs/")
+		subPath = strings.Trim(subPath, "/")
+		if subPath == "metadata" {
+			auditHandler.GetMetadata(w, r)
+			return
+		}
+		auditHandler.GetByID(w, r)
+	}))))
 
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการหมวดหมู่นิยาย
 	adminCategoriesSubRouter := middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -73,8 +73,14 @@ func main() {
 	reportRepo := repository.NewReportRepository(dbConn)
 	auditRepo := repository.NewAuditRepository(dbConn)
 
-	// Ensure MinIO bucket exists
 	ctx := context.Background()
+	if err := auditRepo.EnsureIndexes(ctx); err != nil {
+		log.Printf("⚠️ warning: failed to ensure audit log indexes: %v", err)
+	} else {
+		fmt.Println("✅ Audit Log Indexes Ready")
+	}
+
+	// Ensure MinIO bucket exists
 	if err := mediaRepo.EnsureBucketExists(ctx, "novel-buckets"); err != nil {
 		log.Fatalf("❌ failed to ensure MinIO bucket: %v", err)
 	}

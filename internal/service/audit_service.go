@@ -26,6 +26,7 @@ type AuditService interface {
 	Record(ctx context.Context, event AuditEvent) error
 	List(ctx context.Context, filter dto.AuditLogFilter) ([]models.AuditLog, int, error)
 	GetByID(ctx context.Context, id int64) (*models.AuditLog, error)
+	GetMetadata(ctx context.Context) (dto.AuditLogMetadataResponse, error)
 }
 
 // BackendActorAuditService is an optional extension for events whose actor was
@@ -89,6 +90,10 @@ func (s *auditService) List(ctx context.Context, filter dto.AuditLogFilter) ([]m
 }
 func (s *auditService) GetByID(ctx context.Context, id int64) (*models.AuditLog, error) {
 	return s.repo.GetByID(ctx, id)
+}
+
+func (s *auditService) GetMetadata(ctx context.Context) (dto.AuditLogMetadataResponse, error) {
+	return s.repo.GetMetadata(ctx)
 }
 
 func normalizeIP(value string) string {
