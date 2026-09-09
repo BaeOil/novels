@@ -264,9 +264,8 @@ function StatisticsGraph() {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const [treeRes, novelRes, analyticsRes, scenesAnalyticsRes] = await Promise.all([
+      const [treeRes, analyticsRes, scenesAnalyticsRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`),
-        axios.get(`${API_BASE_URL}/novels/${novelId}`),
         axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics`, { headers }),
         axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes`, { headers })
       ]);
@@ -274,7 +273,7 @@ function StatisticsGraph() {
       const tree = treeRes.data?.data || treeRes.data || null;
       setTreeData(tree);
       
-      const title = tree?.NovelTitle || tree?.novel_title || novelRes.data?.data?.novel?.title || novelRes.data?.novel?.title || novelRes.data?.data?.title || novelRes.data?.title || novelRes.data?.data?.Title || novelRes.data?.Title;
+      const title = tree?.NovelTitle || tree?.novel_title;
       if (title) setNovelTitle(title);
 
       setOverallAnalytics(analyticsRes.data?.data || analyticsRes.data || null);
@@ -374,168 +373,29 @@ function StatisticsGraph() {
     });
   }, [rawNodes]);
 
-  // Map display layout
+  // Map display layout - ใช้ chapter grouping เท่านั้น ไม่ต้องรัน BFS ซ้ำ
   const chapterAndSceneDisplayMap = useMemo(() => {
     if (!uniqueNodes.length) return new Map();
 
-    const nodeIds = uniqueNodes.map((n) => getNodeId(n));
-    const localMap = new Map();
-    uniqueNodes.forEach((n) => localMap.set(getNodeId(n), n));
-
-    const edgeList = rawEdges.map((edge, index) => {
-      const source = normalizeId(edge.FromID || edge.from_id || edge.from || edge.source || "");
-      const target = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
-      return {
-        id: normalizeId(edge.id ?? edge.ID ?? `edge-${source}-${target}-${index}`),
-        source,
-        target,
-        label: edge.Label || edge.label || edge.choice_text || edge.text || "",
-        data: edge,
-      };
-    });
-
-    const adjacency = {};
-    const inDegree = {};
-    const nodeLevels = {};
-
-    nodeIds.forEach((id) => {
-      adjacency[id] = [];
-      inDegree[id] = 0;
-    });
-
-    edgeList.forEach((edge) => {
-      if (edge.source && edge.target && adjacency[edge.source] && inDegree[edge.target] !== undefined) {
-        adjacency[edge.source].push(edge.target);
-        inDegree[edge.target] += 1;
-      }
-    });
-
-    const queue = [];
-    nodeIds.forEach((id) => {
-      const scene = localMap.get(id);
-      const type = getNodeType(scene);
-      if (type === "start" || type === "starting" || inDegree[id] === 0) {
-        nodeLevels[id] = 0;
-        queue.push(id);
-      }
-    });
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      const level = nodeLevels[current] ?? 0;
-      adjacency[current].forEach((childId) => {
-        const offset = (inDegree[childId] >= 3) ? 2 : 1;
-        const nextLevel = level + offset;
-        if (nodeLevels[childId] === undefined || nodeLevels[childId] > nextLevel) {
-          nodeLevels[childId] = nextLevel;
-          queue.push(childId);
-        }
-      });
-    }
-
-    const levelsMap = {};
-    nodeIds.forEach((id) => {
-      const level = nodeLevels[id] ?? 0;
-      if (!levelsMap[level]) levelsMap[level] = [];
-      levelsMap[level].push(id);
-    });
-
-    const positions = {};
-    const sortedLevels = Object.keys(levelsMap).map(Number).sort((a, b) => a - b);
-    const HORIZONTAL_STEP = NODE_WIDTH + NODE_HORIZONTAL_GAP;
-    const VERTICAL_STEP = NODE_HEIGHT + NODE_VERTICAL_GAP;
-
-    if (sortedLevels.length > 0) {
-      const level0Ids = levelsMap[0] || [];
-      level0Ids.sort();
-      const total0 = level0Ids.length;
-      const offset0 = ((total0 - 1) * HORIZONTAL_STEP) / 2;
-      level0Ids.forEach((id, colIndex) => {
-        positions[id] = {
-          x: CANVAS_MARGIN + colIndex * HORIZONTAL_STEP - offset0,
-          y: CANVAS_MARGIN + 0 * VERTICAL_STEP,
-        };
-      });
-    }
-
-    const parentMap = {};
-    nodeIds.forEach((id) => {
-      parentMap[id] = [];
-    });
-    edgeList.forEach((edge) => {
-      if (edge.source && edge.target && parentMap[edge.target]) {
-        parentMap[edge.target].push(edge.source);
-      }
-    });
-
-    for (let i = 1; i < sortedLevels.length; i++) {
-      const level = sortedLevels[i];
-      const ids = levelsMap[level] || [];
-
-      const idealXValues = {};
-      ids.forEach((id) => {
-        const parents = parentMap[id] || [];
-        const activeParents = parents.filter((pId) => positions[pId] !== undefined);
-        if (activeParents.length > 0) {
-          const sumX = activeParents.reduce((sum, pId) => sum + positions[pId].x, 0);
-          idealXValues[id] = sumX / activeParents.length;
-        } else {
-          idealXValues[id] = 0;
-        }
-      });
-
-      ids.sort((a, b) => idealXValues[a] - idealXValues[b]);
-
-      const total = ids.length;
-      const offset = ((total - 1) * HORIZONTAL_STEP) / 2;
-      ids.forEach((id, colIndex) => {
-        positions[id] = {
-          x: CANVAS_MARGIN + colIndex * HORIZONTAL_STEP - offset,
-          y: CANVAS_MARGIN + level * VERTICAL_STEP,
-        };
-      });
-    }
-
-    const allY = Object.values(positions).map((pos) => pos.y);
-    const minY = Math.min(...allY, 0);
-    const shiftY = Math.max(CANVAS_MARGIN, CANVAS_MARGIN - minY);
-
-    Object.keys(positions).forEach((sceneId) => {
-      positions[sceneId].y += shiftY;
-    });
-
-    const tempNodes = nodeIds.map((sceneId) => {
-      const scene = localMap.get(sceneId);
-      const position = positions[sceneId] || { x: CANVAS_MARGIN, y: CANVAS_MARGIN };
-      return {
-        id: sceneId,
-        scene,
-        x: scene.x ?? position.x,
-        y: scene.y ?? position.y,
-      };
-    });
-
     const chapterGroups = new Map();
     const chapterOrder = [];
-    tempNodes.forEach((item) => {
-      const chapter = getNodeChapter(item.scene) || "อื่นๆ";
+    uniqueNodes.forEach((scene) => {
+      const chapter = getNodeChapter(scene) || "อื่นๆ";
       if (!chapterGroups.has(chapter)) {
         chapterGroups.set(chapter, []);
         chapterOrder.push(chapter);
       }
-      chapterGroups.get(chapter).push(item.scene);
+      chapterGroups.get(chapter).push(scene);
     });
 
-    const chapters = chapterOrder.map((chapter) => ({ title: chapter, scenes: chapterGroups.get(chapter) }));
-
     const displayMap = new Map();
-    chapters.forEach((chapter, chapterIndex) => {
-      chapter.scenes.forEach((scene, sceneIndex) => {
+    chapterOrder.forEach((chapter, chapterIndex) => {
+      chapterGroups.get(chapter).forEach((scene, sceneIndex) => {
         const id = getNodeId(scene);
         if (id) {
           displayMap.set(id, {
             display: `ฉากที่ ${chapterIndex + 1}.${sceneIndex + 1}`,
-            chapterName: chapter.title || `ตอนที่ ${chapterIndex + 1}`,
+            chapterName: chapter || `ตอนที่ ${chapterIndex + 1}`,
             chapterNum: chapterIndex + 1,
             sceneNum: sceneIndex + 1,
           });
@@ -544,9 +404,31 @@ function StatisticsGraph() {
     });
 
     return displayMap;
-  }, [uniqueNodes, rawEdges]);
+  }, [uniqueNodes]);
 
   // Node analytics data mapping
+  // Pre-build O(1) lookup maps for analytics data
+  const allScenesAnalyticsMap = useMemo(() => {
+    const m = new Map();
+    if (Array.isArray(allScenesAnalytics)) {
+      allScenesAnalytics.forEach((s) => {
+        const id = normalizeId(s.scene_id);
+        if (id) m.set(id, s);
+      });
+    }
+    return m;
+  }, [allScenesAnalytics]);
+
+  const topDropOffMap = useMemo(() => {
+    const m = new Map();
+    overallAnalytics?.top_drop_off_scenes?.forEach((d) => {
+      const id = normalizeId(d.scene_id);
+      if (id) m.set(id, d);
+    });
+    return m;
+  }, [overallAnalytics]);
+
+  // Node analytics data mapping - ใช้ Map.get() แทน .find() เพื่อความเร็ว O(1)
   const nodeAnalyticsMap = useMemo(() => {
     const analytics = new Map();
     
@@ -560,21 +442,16 @@ function StatisticsGraph() {
       let exitRate = 0;
       let returnRate = 0;
 
-      // Match with real data from get all scenes endpoint
-      if (Array.isArray(allScenesAnalytics)) {
-        const sceneData = allScenesAnalytics.find(s => normalizeId(s.scene_id) === id);
-        if (sceneData) {
-          visitors = sceneData.unique_readers ?? 0;
-          exitRate = Math.round(sceneData.drop_off_rate ?? 0);
-        }
+      const sceneData = allScenesAnalyticsMap.get(id);
+      if (sceneData) {
+        visitors = sceneData.unique_readers ?? 0;
+        exitRate = Math.round(sceneData.drop_off_rate ?? 0);
       }
 
-      if (overallAnalytics?.top_drop_off_scenes) {
-        const dropData = overallAnalytics.top_drop_off_scenes.find(d => normalizeId(d.scene_id) === id);
-        if (dropData) {
-          visitors = dropData.unique_readers ?? 0;
-          exitRate = Math.round(dropData.drop_off_rate ?? 0);
-        }
+      const dropData = topDropOffMap.get(id);
+      if (dropData) {
+        visitors = dropData.unique_readers ?? 0;
+        exitRate = Math.round(dropData.drop_off_rate ?? 0);
       }
 
       if (selectedSceneId === id && sceneAnalytics) {
@@ -589,14 +466,10 @@ function StatisticsGraph() {
         exitRate = 0;
       }
 
-      analytics.set(id, {
-        visitors,
-        exitRate,
-        returnRate,
-      });
+      analytics.set(id, { visitors, exitRate, returnRate });
     });
     return analytics;
-  }, [uniqueNodes, overallAnalytics, selectedSceneId, sceneAnalytics, allScenesAnalytics]);
+  }, [uniqueNodes, allScenesAnalyticsMap, topDropOffMap, selectedSceneId, sceneAnalytics]);
 
   // Edge Selection Map from API
   const edgeSelectionMap = useMemo(() => {
@@ -932,6 +805,36 @@ function StatisticsGraph() {
     };
   }, [selectedSceneId, uniqueNodes, chapterAndSceneDisplayMap]);
 
+  // Pre-compute ending stats ออกจาก JSX เพื่อไม่ให้ recalculate ทุก render
+  const mappedEndings = useMemo(() => {
+    const formatEndingTitle = (type) => {
+      if (!type) return "ฉากจบไม่ระบุประเภท";
+      const text = type.trim();
+      const lower = text.toLowerCase();
+      if (lower.endsWith(" ending")) {
+        const prefix = text.slice(0, text.length - 7).trim();
+        return `${prefix.charAt(0).toUpperCase() + prefix.slice(1)} Ending`;
+      } else if (lower === "ending") {
+        return "Ending";
+      } else {
+        return `${text.charAt(0).toUpperCase() + text.slice(1)} Ending`;
+      }
+    };
+
+    const rawEndings = overallAnalytics?.ending_stats || [];
+    const result = rawEndings.map((e) => {
+      const typeLabel = formatEndingTitle(e.ending_type);
+      const titleLabel = e.ending_title ? `${e.ending_title} (${typeLabel})` : typeLabel;
+      return {
+        title: titleLabel,
+        count: e.count ?? 0,
+        percentage: parseFloat(e.percentage !== undefined ? e.percentage : 0),
+      };
+    });
+    result.sort((a, b) => b.percentage - a.percentage || b.count - a.count);
+    return result;
+  }, [overallAnalytics]);
+
   if (isLoading) {
     return <LoadingScreen message="กำลังโหลดสถิติกราฟนิยาย..." />;
   }
@@ -1035,68 +938,34 @@ function StatisticsGraph() {
         <div className="wsg-kpi-card-large" style={{ height: "100%", padding: "10px 14px", justifyContent: "space-between" }}>
           <span className="wsg-kpi-label-new" style={{ fontSize: "0.75rem", fontWeight: 700 }}>🏁 จบแบบไหนบ้าง (เป็น %)</span>
           <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, justifyContent: "center", width: "100%" }}>
-            {(() => {
-              const rawEndings = overallAnalytics?.ending_stats || [];
-
-              const formatEndingTitle = (type) => {
-                if (!type) return "ฉากจบไม่ระบุประเภท";
-                let text = type.trim();
-                const lower = text.toLowerCase();
-                if (lower.endsWith(" ending")) {
-                  const prefix = text.slice(0, text.length - 7).trim();
-                  const capPrefix = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-                  return `${capPrefix} Ending`;
-                } else if (lower === "ending") {
-                  return "Ending";
-                } else {
-                  const capText = text.charAt(0).toUpperCase() + text.slice(1);
-                  return `${capText} Ending`;
-                }
-              };
-
-              const mappedEndings = rawEndings.map((e) => {
-                return {
-                  title: formatEndingTitle(e.ending_type),
-                  count: e.count ?? 0,
-                  percentage: parseFloat(e.percentage !== undefined ? e.percentage : 0),
-                };
-              });
-
-              mappedEndings.sort((a, b) => b.percentage - a.percentage || b.count - a.count);
-
-              if (mappedEndings.length === 0) {
-                return (
-                  <p style={{ fontSize: "0.72rem", color: "#94a3b8", margin: 0, textAlign: "center" }}>
-                    ไม่มีข้อมูลฉากจบ
-                  </p>
-                );
-              }
-
-              return mappedEndings.map((ending, idx) => {
-                const colors = ["#10b981", "#f43f5e", "#d97706", "#3b82f6", "#8b5cf6"];
-                const color = colors[idx % colors.length];
-                const isLast = idx === mappedEndings.length - 1;
-                return (
-                  <div 
-                    key={idx} 
-                    style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      fontSize: "0.72rem", 
-                      borderBottom: isLast ? "none" : "1px dashed #f1f5f9",
-                      padding: "2px 0"
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: color }}>
-                      {ending.title}({ending.count} คน)
-                    </span>
-                    <span style={{ fontWeight: 700 }}>
-                      {ending.percentage}%
-                    </span>
-                  </div>
-                );
-              });
-            })()}
+            {mappedEndings.length === 0 ? (
+              <p style={{ fontSize: "0.72rem", color: "#94a3b8", margin: 0, textAlign: "center" }}>
+                ไม่มีข้อมูลฉากจบ
+              </p>
+            ) : mappedEndings.map((ending, idx) => {
+              const colors = ["#10b981", "#f43f5e", "#d97706", "#3b82f6", "#8b5cf6"];
+              const color = colors[idx % colors.length];
+              const isLast = idx === mappedEndings.length - 1;
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "0.72rem",
+                    borderBottom: isLast ? "none" : "1px dashed #f1f5f9",
+                    padding: "2px 0"
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: color }}>
+                    {ending.title}({ending.count} คน)
+                  </span>
+                  <span style={{ fontWeight: 700 }}>
+                    {ending.percentage}%
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

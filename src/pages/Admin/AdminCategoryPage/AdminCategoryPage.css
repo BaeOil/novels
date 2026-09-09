@@ -546,3 +546,51 @@
   color: #475569;
   font-weight: 600;
 }
+
+.novel-count-text.is-empty {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+/* Search clear button */
+.categories-search-box input {
+  padding-right: 34px;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 10px;
+  background: #f1f5f9;
+  border: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.search-clear-btn:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+/* Sortable column header */
+.sortable-col {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease-in-out;
+}
+
+.sortable-col:hover {
+  color: #d81b7a;
+}
+
+.sort-indicator {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  color: #e91e8c;
+}

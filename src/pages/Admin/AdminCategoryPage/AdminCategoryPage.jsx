@@ -15,6 +15,53 @@ import "./AdminCategoryPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
+// ชุดสีสำหรับ badge หมวดหมู่ เลือกตามชื่อ (deterministic) เพื่อให้แยกหมวดหมู่ด้วยสายตาได้ง่ายขึ้น
+const BADGE_COLOR_PALETTE = [
+    { bg: "#FFF0F6", fg: "#E91E8C", border: "rgba(233, 30, 140, 0.15)" }, // pink (default)
+    { bg: "#EFF6FF", fg: "#2563EB", border: "rgba(37, 99, 235, 0.15)" },  // blue
+    { bg: "#F0FDF4", fg: "#16A34A", border: "rgba(22, 163, 74, 0.15)" },  // green
+    { bg: "#FFFBEB", fg: "#D97706", border: "rgba(217, 119, 6, 0.15)" },  // amber
+    { bg: "#F5F3FF", fg: "#7C3AED", border: "rgba(124, 58, 237, 0.15)" }, // violet
+    { bg: "#ECFEFF", fg: "#0891B2", border: "rgba(8, 145, 178, 0.15)" },  // cyan
+    { bg: "#FFF7ED", fg: "#EA580C", border: "rgba(234, 88, 12, 0.15)" },  // orange
+];
+
+function getBadgeColor(name) {
+    const str = String(name ?? "");
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+    }
+    return BADGE_COLOR_PALETTE[hash % BADGE_COLOR_PALETTE.length];
+}
+
+// เช็คว่านิยายเรื่องหนึ่งผูกอยู่กับหมวดหมู่ที่ระบุหรือไม่ (รองรับหลายรูปแบบ field ที่ backend อาจส่งมา)
+function novelBelongsToCategory(novel, cat) {
+    const rawCats = novel.categories ?? novel.Categories ?? novel.category_ids ?? novel.CategoryIDs ?? [];
+    if (!Array.isArray(rawCats)) return false;
+    return rawCats.some(c => {
+        if (!c) return false;
+        if (typeof c === "object") {
+            const catId = c.category_id ?? c.CategoryID ?? c.id;
+            if (catId !== undefined && catId !== null) {
+                return Number(catId) === Number(cat.category_id);
+            }
+            const catName = c.name ?? c.Name ?? c.title ?? c.Title ?? "";
+            return String(catName).trim().toLowerCase() === String(cat.name).trim().toLowerCase();
+        }
+        if (typeof c === "number") {
+            return Number(c) === Number(cat.category_id);
+        }
+        if (typeof c === "string") {
+            if (/^\d+$/.test(c)) {
+                return Number(c) === Number(cat.category_id);
+            }
+            return String(c).trim().toLowerCase() === String(cat.name).trim().toLowerCase();
+        }
+        return false;
+    });
+}
+
 
 
 export default function AdminCategoryPage() {
@@ -68,31 +115,7 @@ export default function AdminCategoryPage() {
 
             // Map counts to categories
             const mappedList = catList.map(cat => {
-                const count = novelList.filter(novel => {
-                    const rawCats = novel.categories ?? novel.Categories ?? novel.category_ids ?? novel.CategoryIDs ?? [];
-                    return Array.isArray(rawCats) && rawCats.some(c => {
-                        if (!c) return false;
-                        if (typeof c === "object") {
-                            const catId = c.category_id ?? c.CategoryID ?? c.id;
-                            if (catId !== undefined && catId !== null) {
-                                return Number(catId) === Number(cat.category_id);
-                            }
-                            const catName = c.name ?? c.Name ?? c.title ?? c.Title ?? "";
-                            return String(catName).trim().toLowerCase() === String(cat.name).trim().toLowerCase();
-                        }
-                        if (typeof c === "number") {
-                            return Number(c) === Number(cat.category_id);
-                        }
-                        if (typeof c === "string") {
-                            if (/^\d+$/.test(c)) {
-                                return Number(c) === Number(cat.category_id);
-                            }
-                            return String(c).trim().toLowerCase() === String(cat.name).trim().toLowerCase();
-                        }
-                        return false;
-                    });
-                }).length;
-
+                const count = novelList.filter(novel => novelBelongsToCategory(novel, cat)).length;
                 return {
                     ...cat,
                     novelCount: count
@@ -117,7 +140,7 @@ export default function AdminCategoryPage() {
     // 🟢 3. Handle auth errors (401/403)
     const handleAuthError = (status) => {
         if (status === 401) {
-            localStorage.clear();
+            localStorage.removeItem("token");
             window.location.replace("/login-register");
         } else if (status === 403) {
             setError("คุณไม่มีสิทธิ์ผู้ดูแลระบบ (Permission Denied)");
@@ -244,14 +267,34 @@ export default function AdminCategoryPage() {
         }
     };
 
+    const [sortOrder, setSortOrder] = useState(null); // null | "asc" | "desc"
+
     const filteredCategories = useMemo(() => {
-        if (!searchQuery.trim()) return categories;
         const query = searchQuery.toLowerCase().trim();
-        return categories.filter(c => 
-            c.name.toLowerCase().includes(query) ||
-            String(c.category_id).includes(query)
-        );
-    }, [categories, searchQuery]);
+        let list = !query
+            ? categories
+            : categories.filter(c => 
+                String(c.name ?? "").toLowerCase().includes(query) ||
+                String(c.category_id).includes(query)
+            );
+
+        if (sortOrder) {
+            list = [...list].sort((a, b) => {
+                const diff = (a.novelCount ?? 0) - (b.novelCount ?? 0);
+                return sortOrder === "asc" ? diff : -diff;
+            });
+        }
+
+        return list;
+    }, [categories, searchQuery, sortOrder]);
+
+    const toggleSort = () => {
+        setSortOrder(prev => {
+            if (prev === null) return "desc";
+            if (prev === "desc") return "asc";
+            return null;
+        });
+    };
 
     return (
         <div className="admin-categories-container">
@@ -303,6 +346,16 @@ export default function AdminCategoryPage() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                className="search-clear-btn"
+                                onClick={() => setSearchQuery("")}
+                                aria-label="ล้างคำค้นหา"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -329,7 +382,15 @@ export default function AdminCategoryPage() {
                                 <tr>
                                     <th>ID</th>
                                     <th>ชื่อหมวดหมู่</th>
-                                    <th>จำนวนนิยาย</th>
+                                    <th 
+                                        className="sortable-col" 
+                                        onClick={toggleSort}
+                                        title="คลิกเพื่อเรียงลำดับ"
+                                    >
+                                        จำนวนนิยาย
+                                        {sortOrder === "desc" && <span className="sort-indicator">▼</span>}
+                                        {sortOrder === "asc" && <span className="sort-indicator">▲</span>}
+                                    </th>
                                     <th className="align-center">การจัดการ</th>
                                 </tr>
                             </thead>
@@ -338,12 +399,19 @@ export default function AdminCategoryPage() {
                                     <tr key={item.category_id}>
                                         <td className="id-col">{item.category_id}</td>
                                         <td className="name-col">
-                                            <span className="category-tag-badge">
+                                            <span 
+                                                className="category-tag-badge"
+                                                style={{
+                                                    backgroundColor: getBadgeColor(item.name).bg,
+                                                    color: getBadgeColor(item.name).fg,
+                                                    borderColor: getBadgeColor(item.name).border,
+                                                }}
+                                            >
                                                 <strong>{item.name}</strong>
                                             </span>
                                         </td>
                                         <td className="count-col">
-                                            <span className="novel-count-text">
+                                            <span className={`novel-count-text${(item.novelCount ?? 0) === 0 ? " is-empty" : ""}`}>
                                                 {item.novelCount ?? 0} เรื่อง
                                             </span>
                                         </td>

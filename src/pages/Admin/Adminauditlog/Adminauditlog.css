@@ -367,6 +367,12 @@
   border: 1px solid #a7f3d0;
 }
 
+.admin-audit-status-badge--failure {
+  background-color: #ffe4e6;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
 .admin-audit-status-badge--other {
   background-color: #f1f5f9;
   color: #475569;

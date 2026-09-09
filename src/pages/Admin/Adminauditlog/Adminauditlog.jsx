@@ -10,7 +10,9 @@ import {
   FileText,
   Loader2,
   Inbox,
-  Shield
+  Shield,
+  Download,
+  Home
 } from "lucide-react";
 import "./Adminauditlog.css";
 
@@ -24,6 +26,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080
 export const ACTION_MAP = {
   REGISTER: { label: "สมัครสมาชิก", group: "gray", color: "#475569", bg: "#f1f5f9", border: "#cbd5e1" },
   LOGIN: { label: "เข้าสู่ระบบ", group: "gray", color: "#475569", bg: "#f1f5f9", border: "#cbd5e1" },
+  LOGIN_FAILED: { label: "เข้าสู่ระบบไม่สำเร็จ", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
   LOGOUT: { label: "ออกจากระบบ", group: "gray", color: "#475569", bg: "#f1f5f9", border: "#cbd5e1" },
   UPDATE_PROFILE: { label: "แก้ไขข้อมูลส่วนตัว", group: "blue", color: "#0284c7", bg: "#e0f2fe", border: "#bae6fd" },
   DELETE_ACCOUNT: { label: "ลบบัญชีตัวเอง", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
@@ -75,7 +78,10 @@ export const METADATA_KEY_MAP = {
   new_is_completed: "จบเรื่องแล้ว (ปัจจุบัน)",
   author_id: "รหัสผู้เขียน",
   novel_id: "รหัสนิยาย",
+  novel_title: "ชื่อนิยาย",
   chapter_id: "รหัสตอน",
+  chapter_title: "ชื่อตอน",
+  scene_title: "ชื่อฉาก",
   from_scene_id: "ฉากต้นทาง",
   to_scene_id: "ฉากปลายทาง",
   name: "ชื่อ",
@@ -185,7 +191,7 @@ const formatFullThaiDateTime = (dateString) => {
 };
 
 // แปลงค่า Value ให้อ่านง่ายเป็นภาษาไทย
-const formatMetadataValue = (key, val) => {
+const formatMetadataValue = (key, val, allMetadata = {}) => {
   if (val === null || val === undefined) return "-";
   if (typeof val === "boolean") return val ? "ใช่" : "ไม่ใช่";
   if (typeof val === "object") {
@@ -194,6 +200,15 @@ const formatMetadataValue = (key, val) => {
     } catch {
       return String(val);
     }
+  }
+
+  // ถ้าเป็น novel_id และมี novel_title ให้แสดงคู่กัน
+  if (key === "novel_id" && allMetadata.novel_title) {
+    return `${allMetadata.novel_title} (รหัส: ${val})`;
+  }
+  // ถ้าเป็น chapter_id และมี chapter_title ให้แสดงคู่กัน
+  if (key === "chapter_id" && allMetadata.chapter_title) {
+    return `${allMetadata.chapter_title} (รหัส: ${val})`;
   }
 
   const strVal = String(val).trim();
@@ -206,21 +221,53 @@ const formatMetadataValue = (key, val) => {
   return strVal;
 };
 
-// แสดงชื่อผู้กระทำ เช่น แอดมิน #5 หรือ ระบบ
-const renderActorName = (actorUserId, actorRole) => {
+// แสดงชื่อผู้กระทำ เช่น แอดมิน (admin_user) หรือ แอดมิน #5 หรือ ระบบ
+const renderActorName = (actorUserId, actorRole, actorUsername) => {
   if (!actorUserId) return "ระบบ";
   const roleName = ROLE_MAP[actorRole?.toLowerCase()] || actorRole || "ผู้ใช้";
+  if (actorUsername && actorUsername.trim() !== "") {
+    return `${roleName} (${actorUsername})`;
+  }
   return `${roleName} #${actorUserId}`;
 };
 
-// แสดงเป้าหมาย เช่น นิยาย #88 หรือ ผู้ใช้ #10
-const renderTargetName = (targetType, targetId) => {
+// แสดงเป้าหมาย เช่น นิยาย (ชื่อเรื่อง) หรือ นิยาย #88
+const renderTargetName = (targetType, targetId, targetName) => {
   if (!targetType && !targetId) return "-";
   const typeLabel = TARGET_TYPE_MAP[targetType?.toLowerCase()] || targetType || "เป้าหมาย";
+  if (targetName && targetName.trim() !== "") {
+    return `${typeLabel} (${targetName})`;
+  }
   if (targetId !== null && targetId !== undefined && targetId !== "") {
     return `${typeLabel} #${targetId}`;
   }
   return typeLabel;
+};
+
+// แสดง Badge สถานะ (SUCCESS = เขียว, FAILURE = แดง, อื่นๆ = ส้ม/เทา)
+const renderStatusBadge = (status) => {
+  const upper = (status || "").toUpperCase();
+  if (upper === "SUCCESS") {
+    return (
+      <span className="admin-audit-status-badge admin-audit-status-badge--success">
+        <CheckCircle2 size={13} />
+        <span>สำเร็จ</span>
+      </span>
+    );
+  }
+  if (upper === "FAILURE" || upper === "FAILED" || upper === "ERROR") {
+    return (
+      <span className="admin-audit-status-badge admin-audit-status-badge--failure">
+        <AlertCircle size={13} />
+        <span>ไม่สำเร็จ</span>
+      </span>
+    );
+  }
+  return (
+    <span className="admin-audit-status-badge admin-audit-status-badge--other">
+      {status || "-"}
+    </span>
+  );
 };
 
 // =========================================================================
@@ -234,6 +281,9 @@ export default function Adminauditlog() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [accessDenied, setAccessDenied] = useState(false);
+  const [metadata, setMetadata] = useState({ actions: [], target_types: [], statuses: [] });
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Pagination States
   const [page, setPage] = useState(1);
@@ -241,12 +291,22 @@ export default function Adminauditlog() {
 
   // Filter States
   const [actionFilter, setActionFilter] = useState("");
+  const [actorUserIdInput, setActorUserIdInput] = useState("");
   const [actorUserIdFilter, setActorUserIdFilter] = useState("");
   const [targetTypeFilter, setTargetTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
   const [filterValidationMsg, setFilterValidationMsg] = useState("");
+
+  // Debounce Actor User ID Input (400ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setActorUserIdFilter(actorUserIdInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [actorUserIdInput]);
 
   // Mobile Filter Drawer State
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -264,7 +324,7 @@ export default function Adminauditlog() {
   // ตรวจสอบว่ามี Filter ที่กำลังใช้งานอยู่หรือไม่
   const hasActiveFilters = Boolean(
     actionFilter ||
-    actorUserIdFilter ||
+    actorUserIdInput ||
     targetTypeFilter ||
     statusFilter ||
     dateFromFilter ||
@@ -272,15 +332,10 @@ export default function Adminauditlog() {
   );
 
   // 🟢 Fetch List Audit Logs
-  const fetchAuditLogs = useCallback(async () => {
+  const fetchAuditLogs = useCallback(async (isSilent = false) => {
     // Validate filters before calling API
     setFilterValidationMsg("");
     setError("");
-
-    if (actorUserIdFilter && (isNaN(Number(actorUserIdFilter)) || Number(actorUserIdFilter) <= 0)) {
-      setFilterValidationMsg("รหัสผู้กระทำต้องเป็นตัวเลขที่มากกว่า 0");
-      return;
-    }
 
     if (dateFromFilter && dateToFilter) {
       const fromD = new Date(dateFromFilter);
@@ -291,8 +346,14 @@ export default function Adminauditlog() {
       }
     }
 
-    setLoading(true);
+    // จุดที่ 4: ตรวจสอบ Token ว่างก่อนยิง API
     const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/login-register";
+      return;
+    }
+
+    if (!isSilent) setLoading(true);
 
     try {
       const params = new URLSearchParams();
@@ -300,8 +361,8 @@ export default function Adminauditlog() {
       params.set("limit", String(limit));
 
       if (actionFilter) params.set("action", actionFilter);
-      if (actorUserIdFilter && Number(actorUserIdFilter) > 0) {
-        params.set("actor_user_id", actorUserIdFilter);
+      if (actorUserIdFilter) {
+        params.set("actor", actorUserIdFilter);
       }
       if (targetTypeFilter) params.set("target_type", targetTypeFilter);
       if (statusFilter) params.set("status", statusFilter);
@@ -360,10 +421,105 @@ export default function Adminauditlog() {
     }
   }, [page, limit, actionFilter, actorUserIdFilter, targetTypeFilter, statusFilter, dateFromFilter, dateToFilter]);
 
+  // จุดที่ 6: Auto-refresh / Polling ทุก 30 วินาที
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      fetchAuditLogs(true);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchAuditLogs]);
+
+  // 🟢 Fetch Filter Metadata
+  const fetchMetadata = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs/metadata`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          setMetadata(json.data);
+        }
+      }
+    } catch (err) {
+      console.error("Fetch audit metadata error:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMetadata();
+  }, [fetchMetadata]);
+
   // Initial and reactive fetch
   useEffect(() => {
     fetchAuditLogs();
   }, [fetchAuditLogs]);
+
+  // จุดที่ 7: Export CSV (พร้อม BOM UTF-8 สำหรับภาษาไทย)
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/login-register";
+      return;
+    }
+
+    try {
+      // ดึงข้อมูล 100 รายการตาม filter ปัจจุบันเพื่อ export
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("limit", "100");
+      if (actionFilter) params.set("action", actionFilter);
+      if (actorUserIdFilter) {
+        params.set("actor", actorUserIdFilter);
+      }
+      if (targetTypeFilter) params.set("target_type", targetTypeFilter);
+      if (statusFilter) params.set("status", statusFilter);
+      if (dateFromFilter) params.set("date_from", new Date(dateFromFilter).toISOString());
+      if (dateToFilter) params.set("date_to", new Date(dateToFilter).toISOString());
+
+      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลเพื่อส่งออกได้");
+
+      const json = await res.json();
+      const items = json.data?.items || logs;
+
+      const headers = ["รหัสรายการ", "เวลา", "ผู้กระทำ", "การกระทำ", "เป้าหมาย", "สถานะ", "ไอพี"];
+      const csvRows = [headers.join(",")];
+
+      items.forEach((item) => {
+        const timeStr = `"${formatFullThaiDateTime(item.created_at)}"`;
+        const actorStr = `"${renderActorName(item.actor_user_id, item.actor_role, item.actor_username)}"`;
+        const actionStr = `"${ACTION_MAP[item.action]?.label || item.action}"`;
+        const targetStr = `"${renderTargetName(item.target_type, item.target_id, item.target_name)}"`;
+        const statusStr = `"${item.status === "SUCCESS" ? "สำเร็จ" : "ไม่สำเร็จ"}"`;
+        const ipStr = `"${item.ip_address || "-"}"`;
+
+        csvRows.push([item.log_id, timeStr, actorStr, actionStr, targetStr, statusStr, ipStr].join(","));
+      });
+
+      // ใส่ \uFEFF (UTF-8 BOM) เพื่อให้ Microsoft Excel รองรับภาษาไทยได้สมบูรณ์
+      const blob = new Blob(["\uFEFF" + csvRows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export CSV error:", err);
+      alert(err.message || "เกิดข้อผิดพลาดในการส่งออกไฟล์ CSV");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // 🟢 Fetch Single Audit Log Detail
   const fetchLogDetail = async (id) => {
@@ -374,6 +530,10 @@ export default function Adminauditlog() {
     setDetailData(null);
 
     const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/login-register";
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs/${id}`, {
         headers: {
@@ -427,8 +587,7 @@ export default function Adminauditlog() {
   };
 
   const handleActorUserIdChange = (e) => {
-    setActorUserIdFilter(e.target.value);
-    setPage(1);
+    setActorUserIdInput(e.target.value);
   };
 
   const handleTargetTypeChange = (e) => {
@@ -453,6 +612,7 @@ export default function Adminauditlog() {
 
   const handleClearFilters = () => {
     setActionFilter("");
+    setActorUserIdInput("");
     setActorUserIdFilter("");
     setTargetTypeFilter("");
     setStatusFilter("");
@@ -467,7 +627,7 @@ export default function Adminauditlog() {
     setPage(1);
   };
 
-  // 🟢 Handle 403 Forbidden Screen
+  // 🟢 จุดที่ 5: Handle 403 Forbidden Screen พร้อมปุ่มกลับหน้าแรก
   if (accessDenied) {
     return (
       <div className="admin-audit-container">
@@ -475,6 +635,10 @@ export default function Adminauditlog() {
           <Shield size={56} className="access-denied-icon" />
           <h2>คุณไม่มีสิทธิ์เข้าถึงหน้านี้</h2>
           <p>หน้านี้สงวนไว้สำหรับผู้ดูแลระบบ (Admin) เท่านั้น</p>
+          <a href="/" className="btn-back-home" style={{ marginTop: "16px", display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 20px", borderRadius: "8px", backgroundColor: "#0284c7", color: "#ffffff", textDecoration: "none", fontWeight: "600" }}>
+            <Home size={18} />
+            <span>กลับสู่หน้าหลัก</span>
+          </a>
         </div>
       </div>
     );
@@ -496,11 +660,24 @@ export default function Adminauditlog() {
               </span>
             </div>
           </div>
-          <div className="admin-audit-header__right">
+          <div className="admin-audit-header__right" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {/* จุดที่ 7: Export CSV Button */}
             <button
               type="button"
               className="admin-audit-btn-refresh"
-              onClick={fetchAuditLogs}
+              onClick={handleExportCSV}
+              disabled={isExporting || loading}
+              title="ดาวน์โหลดรายการ Log เป็นไฟล์ CSV"
+            >
+              <Download size={16} className={isExporting ? "spin" : ""} />
+              <span>{isExporting ? "กำลังส่งออก..." : "ส่งออก CSV"}</span>
+            </button>
+
+            {/* Refresh Button */}
+            <button
+              type="button"
+              className="admin-audit-btn-refresh"
+              onClick={() => fetchAuditLogs()}
               disabled={loading}
               title="รีเฟรชข้อมูลปัจจุบัน"
             >
@@ -554,16 +731,15 @@ export default function Adminauditlog() {
               </select>
             </div>
 
-            {/* 2. Actor User ID Filter */}
+            {/* 2. Actor Filter (Debounced) */}
             <div className="admin-audit-filter-item">
-              <label htmlFor="filter-actor" className="admin-audit-filter-label">รหัสผู้กระทำ</label>
+              <label htmlFor="filter-actor" className="admin-audit-filter-label">ผู้กระทำ (ชื่อผู้ใช้ / ID)</label>
               <input
                 id="filter-actor"
-                type="number"
-                min="1"
+                type="text"
                 className="admin-audit-input"
-                placeholder="กรอกรหัสผู้ใช้ เช่น 5"
-                value={actorUserIdFilter}
+                placeholder="ชื่อผู้ใช้ หรือ ID เช่น jane_writer"
+                value={actorUserIdInput}
                 onChange={handleActorUserIdChange}
               />
             </div>
@@ -596,7 +772,18 @@ export default function Adminauditlog() {
                 onChange={handleStatusChange}
               >
                 <option value="">ทุกสถานะ</option>
-                <option value="SUCCESS">สำเร็จ</option>
+                {metadata.statuses && metadata.statuses.length > 0 ? (
+                  metadata.statuses.map((st) => (
+                    <option key={st} value={st}>
+                      {st === "SUCCESS" ? "สำเร็จ" : st === "FAILURE" ? "ไม่สำเร็จ" : st}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="SUCCESS">สำเร็จ</option>
+                    <option value="FAILURE">ไม่สำเร็จ</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -713,7 +900,6 @@ export default function Adminauditlog() {
                       bg: "#f1f5f9",
                       border: "#cbd5e1",
                     };
-                    const isSuccess = log.status === "SUCCESS";
 
                     return (
                       <tr
@@ -734,7 +920,7 @@ export default function Adminauditlog() {
                         {/* ผู้กระทำ */}
                         <td>
                           <span className="admin-audit-actor">
-                            {renderActorName(log.actor_user_id, log.actor_role)}
+                            {renderActorName(log.actor_user_id, log.actor_role, log.actor_username)}
                           </span>
                         </td>
 
@@ -755,22 +941,13 @@ export default function Adminauditlog() {
                         {/* เป้าหมาย */}
                         <td>
                           <span className="admin-audit-target">
-                            {renderTargetName(log.target_type, log.target_id)}
+                            {renderTargetName(log.target_type, log.target_id, log.target_name)}
                           </span>
                         </td>
 
                         {/* สถานะ */}
                         <td>
-                          {isSuccess ? (
-                            <span className="admin-audit-status-badge admin-audit-status-badge--success">
-                              <CheckCircle2 size={13} />
-                              <span>สำเร็จ</span>
-                            </span>
-                          ) : (
-                            <span className="admin-audit-status-badge admin-audit-status-badge--other">
-                              {log.status || "-"}
-                            </span>
-                          )}
+                          {renderStatusBadge(log.status)}
                         </td>
 
                         {/* ไอพี */}
@@ -826,7 +1003,6 @@ export default function Adminauditlog() {
                   bg: "#f1f5f9",
                   border: "#cbd5e1",
                 };
-                const isSuccess = log.status === "SUCCESS";
 
                 return (
                   <div
@@ -838,16 +1014,7 @@ export default function Adminauditlog() {
                       <span className="mobile-card-time">
                         {formatShortThaiDateTime(log.created_at)}
                       </span>
-                      {isSuccess ? (
-                        <span className="admin-audit-status-badge admin-audit-status-badge--success">
-                          <CheckCircle2 size={12} />
-                          <span>สำเร็จ</span>
-                        </span>
-                      ) : (
-                        <span className="admin-audit-status-badge admin-audit-status-badge--other">
-                          {log.status || "-"}
-                        </span>
-                      )}
+                      {renderStatusBadge(log.status)}
                     </div>
 
                     <div className="mobile-card-body">
@@ -864,13 +1031,13 @@ export default function Adminauditlog() {
                       <div className="mobile-card-row">
                         <span className="mobile-card-label">ผู้กระทำ:</span>
                         <span className="mobile-card-value">
-                          {renderActorName(log.actor_user_id, log.actor_role)}
+                          {renderActorName(log.actor_user_id, log.actor_role, log.actor_username)}
                         </span>
                       </div>
                       <div className="mobile-card-row">
                         <span className="mobile-card-label">เป้าหมาย:</span>
                         <span className="mobile-card-value">
-                          {renderTargetName(log.target_type, log.target_id)}
+                          {renderTargetName(log.target_type, log.target_id, log.target_name)}
                         </span>
                       </div>
                     </div>
@@ -989,7 +1156,7 @@ export default function Adminauditlog() {
                         <tr>
                           <td className="detail-label">ผู้กระทำ</td>
                           <td className="detail-value">
-                            {renderActorName(detailData.actor_user_id, detailData.actor_role)}
+                            {renderActorName(detailData.actor_user_id, detailData.actor_role, detailData.actor_username)}
                           </td>
                         </tr>
                         <tr>
@@ -1001,20 +1168,29 @@ export default function Adminauditlog() {
                         <tr>
                           <td className="detail-label">เป้าหมาย</td>
                           <td className="detail-value">
-                            {renderTargetName(detailData.target_type, detailData.target_id)}
+                            {renderTargetName(detailData.target_type, detailData.target_id, detailData.target_name)}
                           </td>
                         </tr>
+                        {detailData.metadata?.novel_title && (
+                          <tr>
+                            <td className="detail-label">นิยาย</td>
+                            <td className="detail-value" style={{ fontWeight: 600, color: "#0284c7" }}>
+                              {detailData.metadata.novel_title} {detailData.metadata.novel_id ? `(#${detailData.metadata.novel_id})` : ""}
+                            </td>
+                          </tr>
+                        )}
+                        {detailData.metadata?.chapter_title && (
+                          <tr>
+                            <td className="detail-label">ตอน</td>
+                            <td className="detail-value" style={{ fontWeight: 600, color: "#475569" }}>
+                              {detailData.metadata.chapter_title} {detailData.metadata.chapter_id ? `(#${detailData.metadata.chapter_id})` : ""}
+                            </td>
+                          </tr>
+                        )}
                         <tr>
                           <td className="detail-label">สถานะ</td>
                           <td className="detail-value">
-                            {detailData.status === "SUCCESS" ? (
-                              <span className="admin-audit-status-badge admin-audit-status-badge--success">
-                                <CheckCircle2 size={13} />
-                                <span>สำเร็จ</span>
-                              </span>
-                            ) : (
-                              detailData.status || "-"
-                            )}
+                            {renderStatusBadge(detailData.status)}
                           </td>
                         </tr>
                         <tr>
@@ -1047,7 +1223,7 @@ export default function Adminauditlog() {
                         <tbody>
                           {Object.entries(detailData.metadata).map(([metaKey, metaVal]) => {
                             const labelThai = METADATA_KEY_MAP[metaKey] || metaKey;
-                            const formattedVal = formatMetadataValue(metaKey, metaVal);
+                            const formattedVal = formatMetadataValue(metaKey, metaVal, detailData.metadata);
 
                             return (
                               <tr key={metaKey}>
