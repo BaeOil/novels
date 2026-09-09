@@ -265,8 +265,8 @@ function StatisticsGraph() {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const [treeRes, novelRes, analyticsRes, scenesAnalyticsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`, { headers }),
-        axios.get(`${API_BASE_URL}/novels/${novelId}`, { headers }),
+        axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`),
+        axios.get(`${API_BASE_URL}/novels/${novelId}`),
         axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics`, { headers }),
         axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes`, { headers })
       ]);
@@ -281,7 +281,7 @@ function StatisticsGraph() {
       setAllScenesAnalytics(scenesAnalyticsRes.data?.data || scenesAnalyticsRes.data || []);
     } catch (err) {
       console.error("Error fetching analytics data:", err);
-      setError("ไม่สามารถดึงข้อมูลนิยายและสถิติได้");
+      setError("ไม่สามารถดึงข้อมูลนิยายและสถิติได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setIsLoading(false);
     }
@@ -373,13 +373,6 @@ function StatisticsGraph() {
       return true;
     });
   }, [rawNodes]);
-
-  const hasPublishedScenes = useMemo(() => {
-    return uniqueNodes.some((node) => {
-      const status = node.status || node.Status || "";
-      return status.toLowerCase() === "published";
-    });
-  }, [uniqueNodes]);
 
   // Map display layout
   const chapterAndSceneDisplayMap = useMemo(() => {
@@ -945,26 +938,10 @@ function StatisticsGraph() {
 
   if (error) {
     return (
-      <div className="wsg-page" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", backgroundColor: "#faf9f6" }}>
-        <div className="wst-loading-state" style={{ textAlign: "center", padding: "40px", background: "#fff", borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", maxWidth: "480px" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
-          <h3 style={{ fontSize: "1.25rem", fontWeight: "700", color: "#ef4444", marginBottom: "8px", fontFamily: "'Sarabun', sans-serif" }}>ไม่สามารถดึงข้อมูลนิยายและสถิติได้</h3>
-          <p style={{ fontSize: "0.95rem", color: "#475569", lineHeight: "1.6", margin: "0 0 24px 0", fontFamily: "'Sarabun', sans-serif" }}>
-            กรุณาลองใหม่อีกครั้ง
-          </p>
-          <button 
-            className="wst-error-button" 
-            onClick={fetchData}
-            style={{ 
-              background: "linear-gradient(135deg, #db2777 0%, #be185d 100%)", 
-              color: "#fff", 
-              border: "none", 
-              padding: "10px 24px", 
-              borderRadius: "10px", 
-              fontWeight: "700", 
-              cursor: "pointer" 
-            }}
-          >
+      <div className="wsg-page">
+        <div className="wst-loading-state">
+          <p className="wst-error-text">{error}</p>
+          <button className="wst-error-button" onClick={fetchData}>
             โหลดใหม่อีกครั้ง
           </button>
         </div>
@@ -1001,189 +978,131 @@ function StatisticsGraph() {
         </div>
       </header>
 
-      {!hasPublishedScenes ? (
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          flex: 1,
-          width: "100%",
-          padding: "40px 24px",
-          boxSizing: "border-box",
-          backgroundColor: "#faf9f6"
-        }}>
-          <div className="wst-loading-state" style={{
-            textAlign: "center",
-            padding: "60px 40px",
-            background: "#fff",
-            borderRadius: "16px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
-            maxWidth: "540px",
-            width: "100%",
-            boxSizing: "border-box"
-          }}>
-            <div style={{ fontSize: "56px", marginBottom: "20px" }}>📊</div>
-            <h3 style={{ fontSize: "1.4rem", fontWeight: "800", color: "#1f2937", marginBottom: "12px", fontFamily: "'Sarabun', sans-serif" }}>ยังไม่มีข้อมูลสถิติ</h3>
-            <p style={{ fontSize: "0.98rem", color: "#475569", lineHeight: "1.6", margin: "0 0 28px 0", fontFamily: "'Sarabun', sans-serif" }}>
-              กรุณาเผยแพร่นิยายและฉากอย่างน้อย 1 ฉาก เพื่อแสดงผลข้อมูลสถิติ
-            </p>
-            <button 
-              className="wst-error-button" 
-              onClick={() => navigate(`/writer/${novelId}/chapters`)}
-              style={{ 
-                background: "linear-gradient(135deg, #db2777 0%, #be185d 100%)", 
-                color: "#fff", 
-                border: "none", 
-                padding: "12px 28px", 
-                borderRadius: "10px", 
-                fontWeight: "700", 
-                cursor: "pointer",
-                fontSize: "0.92rem"
-              }}
-            >
-              ← กลับไปหน้าจัดการตอน
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* 🟢 KPI Dashboard แสดงตัวเลขภาพรวม 5 การ์ดตามเพื่อนแนะนำ และคัดกรองสิ่งอื่นออก */}
-          <section 
+      {/* 🟢 KPI Dashboard แสดงตัวเลขภาพรวม 5 การ์ดตามเพื่อนแนะนำ และคัดกรองสิ่งอื่นออก */}
+      <section 
         className="wsg-kpis-new-container" 
         style={{ 
           display: "grid", 
           gridTemplateColumns: "1fr 1fr 1.2fr 1.5fr 1.8fr", 
           gap: "16px", 
-          minHeight: "160px",
-          height: "auto", 
-          padding: "16px 24px",
+          height: "155px", 
+          padding: "12px 24px",
           backgroundColor: "#fff"
         }}
       >
         {/* การ์ด 1: ยอดวิวรวม */}
-        <div className="wsg-kpi-card-large" style={{ justifyContent: "space-between" }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="wsg-kpi-label-new" style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>👁️ ยอดวิวรวม</span>
+            <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 700 }}>👁️ ยอดวิวรวม</span>
           </div>
-          <div style={{ marginTop: "8px" }}>
-            <div className="wsg-kpi-val-large" style={{ color: "#0f172a", fontSize: "1.8rem", fontWeight: 800 }}>
+          <div>
+            <div className="wsg-kpi-val-large" style={{ color: "#1e293b", fontSize: "1.7rem", fontWeight: 800 }}>
               {overallAnalytics?.total_views ? overallAnalytics.total_views.toLocaleString() : "0"}
             </div>
-            <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 500 }}>ครั้งที่คนเปิดอ่านทั้งหมด</span>
+            <span style={{ fontSize: "0.7rem", color: "#64748b" }}>มีคนเปิดอ่านกี่ครั้ง</span>
           </div>
         </div>
 
         {/* การ์ด 2: จำนวนคนอ่านจริง */}
-        <div className="wsg-kpi-card-large" style={{ justifyContent: "space-between" }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="wsg-kpi-label-new" style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>👥 จำนวนคนอ่าน</span>
+            <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 700 }}>👥 จำนวนคนอ่าน</span>
           </div>
-          <div style={{ marginTop: "8px" }}>
-            <div className="wsg-kpi-val-large" style={{ color: "#0f766e", fontSize: "1.8rem", fontWeight: 800 }}>
+          <div>
+            <div className="wsg-kpi-val-large" style={{ color: "#0f766e", fontSize: "1.7rem", fontWeight: 800 }}>
               {overallAnalytics?.unique_readers ? overallAnalytics.unique_readers.toLocaleString() : "0"}
             </div>
-            <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 500 }}>คนอ่านทั้งหมด (ไม่ซ้ำกัน)</span>
+            <span style={{ fontSize: "0.7rem", color: "#64748b" }}>คน</span>
           </div>
         </div>
 
         {/* การ์ด 3: คนอ่านจบกี่คน / กี่ % */}
-        <div className="wsg-kpi-card-large" style={{ justifyContent: "space-between" }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", justifyContent: "space-between" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="wsg-kpi-label-new" style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>🏆 คนอ่านจบ</span>
+            <span className="wsg-kpi-label-new" style={{ fontSize: "0.8rem", fontWeight: 700 }}>🏆 คนอ่านจบ</span>
           </div>
-          <div style={{ marginTop: "8px" }}>
-            <div className="wsg-kpi-val-large" style={{ color: "#7c3aed", fontSize: "1.8rem", fontWeight: 800 }}>
+          <div>
+            <div className="wsg-kpi-val-large" style={{ color: "#7c3aed", fontSize: "1.5rem", fontWeight: 800 }}>
               {overallAnalytics?.completed_readers ? overallAnalytics.completed_readers.toLocaleString() : "0"} คน
             </div>
             <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#6d28d9" }}>
-              คิดเป็น {overallAnalytics?.completion_rate ? overallAnalytics.completion_rate : "0"}% ของผู้เริ่มอ่าน
+              คิดเป็น {overallAnalytics?.completion_rate ? overallAnalytics.completion_rate : "0"}%
             </span>
           </div>
         </div>
 
         {/* การ์ด 4: จบแบบไหนบ้าง (เป็น %) */}
-        <div className="wsg-kpi-card-large" style={{ padding: "14px 16px", justifyContent: "space-between" }}>
-          <span className="wsg-kpi-label-new" style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>🏁 จบแบบไหนบ้าง (เป็น %)</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, marginTop: "12px", width: "100%" }}>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", padding: "10px 14px", justifyContent: "space-between" }}>
+          <span className="wsg-kpi-label-new" style={{ fontSize: "0.75rem", fontWeight: 700 }}>🏁 จบแบบไหนบ้าง (เป็น %)</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, justifyContent: "center", width: "100%" }}>
             {(() => {
-              const allEndingsFromTree = uniqueNodes.filter(n => getNodeType(n) === "ending");
               const rawEndings = overallAnalytics?.ending_stats || [];
 
-              const mappedEndings = allEndingsFromTree.map((sceneNode) => {
-                const sId = getNodeId(sceneNode);
-                const sceneEndingTitle = sceneNode.ending_title || sceneNode.EndingTitle || sceneNode.title || sceneNode.Title || `ฉากจบที่ ${sId}`;
-                
-                const statsMatch = rawEndings.find(
-                  e => e.ending_type === sceneEndingTitle || 
-                       e.ending_type === (sceneNode.ending_title || sceneNode.EndingTitle) ||
-                       e.ending_type === (sceneNode.title || sceneNode.Title)
-                );
+              const formatEndingTitle = (type) => {
+                if (!type) return "ฉากจบไม่ระบุประเภท";
+                let text = type.trim();
+                const lower = text.toLowerCase();
+                if (lower.endsWith(" ending")) {
+                  const prefix = text.slice(0, text.length - 7).trim();
+                  const capPrefix = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+                  return `${capPrefix} Ending`;
+                } else if (lower === "ending") {
+                  return "Ending";
+                } else {
+                  const capText = text.charAt(0).toUpperCase() + text.slice(1);
+                  return `${capText} Ending`;
+                }
+              };
 
-                const count = statsMatch ? (statsMatch.count ?? 0) : 0;
-                const percentage = statsMatch ? (statsMatch.percentage !== undefined ? statsMatch.percentage : 0) : 0;
-
+              const mappedEndings = rawEndings.map((e) => {
                 return {
-                  title: sceneEndingTitle,
-                  count,
-                  percentage: parseFloat(percentage),
+                  title: formatEndingTitle(e.ending_type),
+                  count: e.count ?? 0,
+                  percentage: parseFloat(e.percentage !== undefined ? e.percentage : 0),
                 };
               });
 
               mappedEndings.sort((a, b) => b.percentage - a.percentage || b.count - a.count);
 
-              // Limit to top 3 to keep it readable, but wait, the prompt says "คงข้อมูลเดิมไว้"
-              // Just show all up to a reasonable height with scroll if there are too many endings, or just show them.
-              // A progress bar layout:
-
               if (mappedEndings.length === 0) {
                 return (
-                  <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: "8px 0 0 0", textAlign: "center" }}>
+                  <p style={{ fontSize: "0.72rem", color: "#94a3b8", margin: 0, textAlign: "center" }}>
                     ไม่มีข้อมูลฉากจบ
                   </p>
                 );
               }
 
-              // Let's render max 3 to keep layout clean, or let it scroll if too many
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "100px", overflowY: "auto", paddingRight: "4px" }}>
-                  {mappedEndings.map((ending, idx) => {
-                    const colors = ["#10b981", "#f43f5e", "#d97706", "#3b82f6", "#8b5cf6"];
-                    const color = colors[idx % colors.length];
-                    const isLast = idx === mappedEndings.length - 1;
-                    return (
-                      <div 
-                        key={idx} 
-                        style={{ 
-                          display: "flex", 
-                          flexDirection: "column",
-                          gap: "4px",
-                          borderBottom: isLast ? "none" : "1px solid #f1f5f9",
-                          paddingBottom: isLast ? "0px" : "6px"
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.72rem", gap: "8px" }}>
-                          <span style={{ fontWeight: 600, color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, textAlign: "left" }} title={ending.title}>
-                            🏁 {ending.title}
-                          </span>
-                          <span style={{ fontWeight: 700, color: color, flexShrink: 0 }}>
-                            {ending.percentage}% ({ending.count} คน)
-                          </span>
-                        </div>
-                        <div style={{ width: "100%", height: "4px", backgroundColor: "#f1f5f9", borderRadius: "10px", overflow: "hidden" }}>
-                          <div style={{ width: `${ending.percentage}%`, height: "100%", backgroundColor: color, borderRadius: "10px", transition: "width 0.3s ease" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
+              return mappedEndings.map((ending, idx) => {
+                const colors = ["#10b981", "#f43f5e", "#d97706", "#3b82f6", "#8b5cf6"];
+                const color = colors[idx % colors.length];
+                const isLast = idx === mappedEndings.length - 1;
+                return (
+                  <div 
+                    key={idx} 
+                    style={{ 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      fontSize: "0.72rem", 
+                      borderBottom: isLast ? "none" : "1px dashed #f1f5f9",
+                      padding: "2px 0"
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: color }}>
+                      {ending.title}({ending.count} คน)
+                    </span>
+                    <span style={{ fontWeight: 700 }}>
+                      {ending.percentage}%
+                    </span>
+                  </div>
+                );
+              });
             })()}
           </div>
         </div>
 
         {/* การ์ด 5: ฉากคนหนีเยอะสุด */}
-        <div className="wsg-kpi-card-large" style={{ borderColor: "#fecdd3", background: "linear-gradient(180deg, #ffffff 0%, #fff5f5 100%)", justifyContent: "space-between" }}>
-          <span className="wsg-kpi-label-new" style={{ fontSize: "0.85rem", fontWeight: 700, color: "#be123c" }}>🔥 ฉากที่คนกดออกเยอะสุด</span>
+        <div className="wsg-kpi-card-large" style={{ height: "100%", borderColor: "#fca5a5", backgroundColor: "#fff5f5", justifyContent: "space-between" }}>
+          <span className="wsg-kpi-label-new" style={{ fontSize: "0.75rem", fontWeight: 700, color: "#991b1b" }}>🔥 ฉากที่คนกดออกเยอะสุด</span>
           {(() => {
             const topDrop = overallAnalytics?.top_drop_off_scenes?.[0];
             if (topDrop) {
@@ -1578,7 +1497,6 @@ function StatisticsGraph() {
           </div>
         </div>
       </div>
-      </>)}
     </div>
   );
 }
