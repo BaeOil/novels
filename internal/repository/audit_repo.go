@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -427,6 +428,9 @@ func (r *sqlAuditRepository) GetMetadata(ctx context.Context) (dto.AuditLogMetad
 				actionMap[action] = true
 			}
 		}
+		if err := rows.Err(); err != nil {
+			log.Printf("audit metadata: distinct action query row error: %v", err)
+		}
 		rows.Close()
 	}
 
@@ -438,6 +442,9 @@ func (r *sqlAuditRepository) GetMetadata(ctx context.Context) (dto.AuditLogMetad
 				targetTypeMap[tt] = true
 			}
 		}
+		if err := rows.Err(); err != nil {
+			log.Printf("audit metadata: distinct target_type query row error: %v", err)
+		}
 		rows.Close()
 	}
 
@@ -448,6 +455,9 @@ func (r *sqlAuditRepository) GetMetadata(ctx context.Context) (dto.AuditLogMetad
 			if err := rows.Scan(&st); err == nil && st != "" {
 				statusMap[st] = true
 			}
+		}
+		if err := rows.Err(); err != nil {
+			log.Printf("audit metadata: distinct status query row error: %v", err)
 		}
 		rows.Close()
 	}
