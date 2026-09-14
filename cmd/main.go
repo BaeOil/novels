@@ -72,6 +72,7 @@ func main() {
 	writerRepo := repository.NewWriterRepository(dbConn) // 👈 ผูกเชื่อมตารางสมัครนักเขียนเข้าฐานข้อมูลจริง
 	reportRepo := repository.NewReportRepository(dbConn)
 	auditRepo := repository.NewAuditRepository(dbConn)
+	dashboardRepo := repository.NewDashboardRepository(dbConn)
 
 	ctx := context.Background()
 	if err := auditRepo.EnsureIndexes(ctx); err != nil {
@@ -110,6 +111,29 @@ func main() {
 	notificationService := service.NewNotificationService(dbConn)
 	reportService := service.NewReportService(reportRepo)
 	auditService := service.NewAuditService(auditRepo)
+	dashboardService := service.NewDashboardService(dashboardRepo)
+
+	// 🟢 ผูก audit service เข้ากับ middleware แบบ decoupled (ผ่าน function type ไม่ import service เข้า middleware ตรงๆ
+	// เพราะ audit_service.go import middleware อยู่แล้ว ถ้า middleware import service กลับไปด้วยจะเกิด import cycle)
+	// ทำให้ RequireAuth/RequireRole ใน auth_middleware.go บันทึก audit log ได้ตอน token หาย/ผิด/หมดอายุ หรือ role ไม่ตรง
+	middleware.SetUnauthorizedRecorder(func(r *http.Request, reason, role string, uid uint, hasUID bool) {
+		var actor *uint
+		if hasUID {
+			actor = &uid
+		}
+		if err := service.RecordWithBackendActor(auditService, r.Context(), actor, role, service.AuditEvent{
+			Action:     "UNAUTHORIZED_ACCESS",
+			TargetType: "route",
+			Status:     "FAILURE",
+			Metadata: map[string]interface{}{
+				"path":   r.URL.Path,
+				"method": r.Method,
+				"reason": reason, // "missing_token" | "invalid_or_expired_token" | "role_mismatch"
+			},
+		}); err != nil {
+			log.Printf("audit log (unauthorized access) write failed: %v", err)
+		}
+	})
 
 	// 🟢 Analytics Service
 	analyticsRepo := repository.NewAnalyticsRepository(dbConn)
@@ -137,6 +161,7 @@ func main() {
 		reportService,
 		analyticsService,
 		auditService,
+		dashboardService,
 	)
 
 	// -----------------------

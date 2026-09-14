@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"strings"
 	"novel-be/internal/dto"
 	"novel-be/internal/models"
 	"novel-be/internal/repository"
+	"strings"
 
 	"github.com/microcosm-cc/bluemonday" // go get github.com/microcosm-cc/bluemonday
 )
@@ -78,7 +78,7 @@ func (s *writerService) ApplyForWriter(ctx context.Context, userID uint, req dto
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	if existingWriter != nil && existingWriter.Status != "rejected" {
+	if existingWriter != nil && existingWriter.Status != "rejected" && existingWriter.Status != "revoked" {
 		return ErrAlreadyApply
 	}
 

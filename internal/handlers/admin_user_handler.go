@@ -185,7 +185,7 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 	if previous != nil {
 		metadata["previous_role"] = previous.Role
 	}
-	recordAudit(r, h.auditService, service.AuditEvent{Action: "CHANGE_ROLE", TargetType: "user", TargetID: int64Pointer(userID), Status: "SUCCESS", Metadata: metadata})
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "DEMOTE_USER", TargetType: "user", TargetID: int64Pointer(userID), Status: "SUCCESS", Metadata: metadata})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "ย้ายสถานะผู้ใช้เป็น reader สำเร็จแล้ว"})

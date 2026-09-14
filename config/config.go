@@ -36,7 +36,7 @@ func LoadConfig() (Config, error) {
 	viper.SetDefault("POSTGRES.PORT", 5432)
 	viper.SetDefault("POSTGRES.USER", "postgres")
 	viper.SetDefault("POSTGRES.PASSWORD", "")
-	viper.SetDefault("POSTGRES.DBNAME", "novel") 
+	viper.SetDefault("POSTGRES.DBNAME", "novel")
 	viper.SetDefault("POSTGRES.SSLMODE", "disable")
 
 	// MinIO defaults
@@ -64,7 +64,7 @@ func LoadConfig() (Config, error) {
 }
 
 func (c *Config) GetConnectionString() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=UTC",
 		c.DatabaseHost,
 		c.DatabasePort,
 		c.DatabaseUser,

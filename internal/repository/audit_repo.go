@@ -83,9 +83,45 @@ func auditWhere(filter dto.AuditLogFilter) (string, []interface{}) {
 		add("al.created_at >= $%d", *filter.DateFrom)
 	}
 	if filter.DateTo != nil {
-		add("al.created_at < $%d", *filter.DateTo)
+		add("al.created_at <= $%d", *filter.DateTo)
 	}
 	return strings.Join(conditions, " AND "), args
+}
+
+// resolveTargetName คืนชื่อเป้าหมาย โดยลองจากผลของ live JOIN ก่อน (กรณีข้อมูลต้นทางยังไม่ถูกลบ)
+// ถ้า live JOIN ได้ค่าว่าง (เช่น novel/chapter/user/category ถูกลบไปแล้ว) ให้ fallback ไปอ่านจาก
+// metadata ที่บันทึกไว้ตอนเกิดเหตุการณ์แทน — ใช้ฟังก์ชันเดียวกันนี้ทั้งใน List และ GetByID
+// เพื่อไม่ให้พฤติกรรมของทั้งสอง endpoint ต่างกัน (ปัญหาที่พบจากการตรวจสอบจริง)
+func resolveTargetName(liveName string, targetType string, metadata json.RawMessage) string {
+	if liveName != "" {
+		return liveName
+	}
+	if len(metadata) == 0 {
+		return ""
+	}
+	var meta map[string]interface{}
+	if err := json.Unmarshal(metadata, &meta); err != nil {
+		return ""
+	}
+	var fallbackKey string
+	switch targetType {
+	case "novel":
+		fallbackKey = "title"
+	case "user":
+		fallbackKey = "username"
+	case "category":
+		fallbackKey = "name"
+	case "chapter":
+		fallbackKey = "chapter_title"
+	case "scene":
+		fallbackKey = "scene_title"
+	default:
+		return ""
+	}
+	if v, ok := meta[fallbackKey].(string); ok {
+		return v
+	}
+	return ""
 }
 
 func (r *sqlAuditRepository) List(ctx context.Context, filter dto.AuditLogFilter) ([]models.AuditLog, error) {
@@ -159,11 +195,12 @@ func (r *sqlAuditRepository) List(ctx context.Context, filter dto.AuditLogFilter
 		if len(item.Metadata) == 0 {
 			item.Metadata = json.RawMessage(`{}`)
 		}
+		// จุดที่แก้: fallback ไปอ่านชื่อจาก metadata ถ้า live JOIN หาไม่เจอ (เช่นถูกลบไปแล้ว)
+		item.TargetName = resolveTargetName(item.TargetName, item.TargetType, item.Metadata)
 		logs = append(logs, item)
 	}
 	return logs, rows.Err()
 }
-
 
 func (r *sqlAuditRepository) GetByID(ctx context.Context, id int64) (*models.AuditLog, error) {
 	var item models.AuditLog
@@ -222,6 +259,8 @@ func (r *sqlAuditRepository) GetByID(ctx context.Context, id int64) (*models.Aud
 		item.Metadata = json.RawMessage(`{}`)
 	}
 	r.enrichMetadata(ctx, &item)
+	// จุดที่แก้: fallback แบบเดียวกับ List ทำหลัง enrichMetadata เพื่อให้เห็น key ที่ enrich เพิ่มมาด้วย (เช่น chapter_title)
+	item.TargetName = resolveTargetName(item.TargetName, item.TargetType, item.Metadata)
 	return &item, nil
 }
 
@@ -305,6 +344,34 @@ func (r *sqlAuditRepository) enrichMetadata(ctx context.Context, item *models.Au
 		}
 	}
 
+	// 5. ถ้ามี from_scene_id/to_scene_id (action กลุ่ม choice: CREATE/UPDATE/DELETE_CHOICE) แต่ยังไม่มีชื่อฉาก
+	// ให้ดึงชื่อฉากมาใส่ ไม่งั้นแอดมินเห็นแต่เลข ID ดิบๆ บอกไม่ได้ว่าเป็นฉากอะไร
+	if fromSceneID, ok := getIntID(meta["from_scene_id"]); ok && meta["from_scene_title"] == nil {
+		var title string
+		if err := r.db.QueryRowContext(ctx, `SELECT title FROM scenes WHERE scene_id = $1`, fromSceneID).Scan(&title); err == nil && title != "" {
+			meta["from_scene_title"] = title
+		}
+	}
+	if toSceneID, ok := getIntID(meta["to_scene_id"]); ok && meta["to_scene_title"] == nil {
+		var title string
+		if err := r.db.QueryRowContext(ctx, `SELECT title FROM scenes WHERE scene_id = $1`, toSceneID).Scan(&title); err == nil && title != "" {
+			meta["to_scene_title"] = title
+		}
+	}
+	// old_to_scene_id / new_to_scene_id มาจาก diff ของ UPDATE_CHOICE (ตอนเปลี่ยนฉากปลายทาง)
+	if oldToSceneID, ok := getIntID(meta["old_to_scene_id"]); ok && meta["old_to_scene_title"] == nil {
+		var title string
+		if err := r.db.QueryRowContext(ctx, `SELECT title FROM scenes WHERE scene_id = $1`, oldToSceneID).Scan(&title); err == nil && title != "" {
+			meta["old_to_scene_title"] = title
+		}
+	}
+	if newToSceneID, ok := getIntID(meta["new_to_scene_id"]); ok && meta["new_to_scene_title"] == nil {
+		var title string
+		if err := r.db.QueryRowContext(ctx, `SELECT title FROM scenes WHERE scene_id = $1`, newToSceneID).Scan(&title); err == nil && title != "" {
+			meta["new_to_scene_title"] = title
+		}
+	}
+
 	if updated, err := json.Marshal(meta); err == nil {
 		item.Metadata = updated
 	}
@@ -328,9 +395,12 @@ func (r *sqlAuditRepository) GetMetadata(ctx context.Context) (dto.AuditLogMetad
 		"CREATE_CHOICE", "UPDATE_CHOICE", "DELETE_CHOICE",
 		"CREATE_CATEGORY", "UPDATE_CATEGORY", "DELETE_CATEGORY",
 		"UPDATE_REPORT_STATUS",
+		"DEMOTE_USER",         // เพิ่ม: บันทึกจริงจาก admin_user_handler.go แต่ขาดจาก default list เดิม
+		"UNAUTHORIZED_ACCESS", // เพิ่ม: wire จริงจาก middleware แล้ว แต่ขาดจาก default list เดิม
 	}
 	defaultTargetTypes := []string{
 		"user", "novel", "chapter", "scene", "choice", "category", "writer", "report",
+		"route", // เพิ่ม: target_type ที่ UNAUTHORIZED_ACCESS ใช้
 	}
 	defaultStatuses := []string{
 		"SUCCESS", "FAILURE",
@@ -401,4 +471,3 @@ func (r *sqlAuditRepository) GetMetadata(ctx context.Context) (dto.AuditLogMetad
 		Statuses:    statuses,
 	}, nil
 }
-

@@ -11,7 +11,7 @@ import (
 
 type ReportRepository interface {
 	CreateReport(ctx context.Context, report models.Report) error
-	GetPendingReports(ctx context.Context) ([]dto.ReportResponse, error)
+	GetPendingReports(ctx context.Context, page, limit int) ([]dto.ReportResponse, int, error)
 	GetStatus(ctx context.Context, reportID int) (string, error)
 	UpdateReportStatus(ctx context.Context, reportID int, status string) error
 	CreateAppeal(ctx context.Context, authorUserID int, appeal dto.CreateAppealRequest) error
@@ -42,8 +42,14 @@ func (r *sqlReportRepository) CreateReport(ctx context.Context, report models.Re
 }
 
 // 📌 2. ฟังก์ชันดึงรายการ Report ทั้งหมดที่ยังไม่อนุมัติ (ฝั่งแอดมิน)
-func (r *sqlReportRepository) GetPendingReports(ctx context.Context) ([]dto.ReportResponse, error) {
+func (r *sqlReportRepository) GetPendingReports(ctx context.Context, page, limit int) ([]dto.ReportResponse, int, error) {
 	// ✅ JOIN ตาราง writers และใช้ชื่อคอลัมน์ที่ถูกต้อง[cite: 10]
+	offset := (page - 1) * limit
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM reports WHERE status = 'pending'`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
 	query := `
 		SELECT 
 			r.report_id, 
@@ -62,12 +68,14 @@ func (r *sqlReportRepository) GetPendingReports(ctx context.Context) ([]dto.Repo
 		LEFT JOIN users u ON r.user_id = u.user_id
 		LEFT JOIN novels n ON r.novel_id = n.novel_id
 		LEFT JOIN writers w ON n.author_id = w.writer_id
-		ORDER BY r.created_at DESC
+		WHERE r.status = 'pending'
+		ORDER BY r.created_at DESC, r.report_id DESC
+		LIMIT $1 OFFSET $2
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -93,7 +101,7 @@ func (r *sqlReportRepository) GetPendingReports(ctx context.Context) ([]dto.Repo
 			&authorUserID, // 🟢 เพิ่มมารับค่าตรงนี้
 		)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		// 🟢 แปลงจากค่าที่ครอบ Null ไว้ กลับเป็นชนิดข้อมูลปกติ เพื่อส่งให้ Frontend
@@ -114,10 +122,10 @@ func (r *sqlReportRepository) GetPendingReports(ctx context.Context) ([]dto.Repo
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return reports, nil
+	return reports, total, nil
 }
 
 // 📌 3. ฟังก์ชันอัปเดตสถานะ Report, แบนนิยาย และแจ้งเตือน (ฝั่งแอดมินกดจัดการ)

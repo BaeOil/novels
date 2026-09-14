@@ -370,12 +370,36 @@ func (r *sqlAuthRepository) UpdateUserStatus(ctx context.Context, userID uint, s
 }
 
 func (r *sqlAuthRepository) DemoteUserToReader(ctx context.Context, userID uint, adminID uint) error {
-	query := `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `
 		UPDATE users
 		SET role = 'reader', last_action_by_admin_id = $1, updated_at = NOW()
-		WHERE user_id = $2`
-	_, err := r.db.ExecContext(ctx, query, adminID, userID)
-	return err
+		WHERE user_id = $2`, adminID, userID)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE writers
+		SET status = 'revoked', acted_by_admin_id = $1
+		WHERE user_id = $2 AND status = 'approved'`, adminID, userID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (r *sqlAuthRepository) DeleteUser(ctx context.Context, userID uint) error {

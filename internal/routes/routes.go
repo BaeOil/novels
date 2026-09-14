@@ -26,6 +26,7 @@ func RegisterRoutes(
 	reportService service.ReportService,
 	analytics service.AnalyticsService,
 	audit service.AuditService,
+	dashboard service.DashboardService,
 ) {
 	// ประกาศตัวด่านหน้าสำหรับ Authen และ ระบบคำขอนักเขียน
 	authHandler := handlers.NewAuthHandler(&auth, media, audit)
@@ -34,6 +35,7 @@ func RegisterRoutes(
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	reportHandler := handlers.NewReportHandler(reportService, audit)
 	auditHandler := handlers.NewAuditHandler(audit)
+	dashboardHandler := handlers.NewDashboardHandler(dashboard)
 
 	// ------------------------------------------
 	// 🟢 Health & Authen Endpoints
@@ -230,6 +232,8 @@ func RegisterRoutes(
 		}
 		auditHandler.GetByID(w, r)
 	}))))
+	mux.Handle("/api/admin/dashboard/summary", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(dashboardHandler.Summary))))
+	mux.Handle("/api/admin/dashboard/trend", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(dashboardHandler.Trend))))
 
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการหมวดหมู่นิยาย
 	adminCategoriesSubRouter := middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

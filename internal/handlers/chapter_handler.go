@@ -110,6 +110,7 @@ func UpdateChapterHandler(chapterService service.ChapterService, sceneService se
 		}
 
 		oldStatus := chapter.Status
+		oldTitle := chapter.Title
 
 		if strings.TrimSpace(req.Title) != "" {
 			chapter.Title = req.Title
@@ -138,6 +139,15 @@ func UpdateChapterHandler(chapterService service.ChapterService, sceneService se
 			return
 		}
 		updChMeta := map[string]interface{}{"novel_id": chapter.NovelID, "chapter_title": chapter.Title}
+		// เก็บ diff เฉพาะ field ที่เปลี่ยนจริง เหมือนแนวทางที่ UPDATE_NOVEL ใช้อยู่แล้ว
+		if oldTitle != chapter.Title {
+			updChMeta["old_title"] = oldTitle
+			updChMeta["new_title"] = chapter.Title
+		}
+		if oldStatus != chapter.Status {
+			updChMeta["old_status"] = oldStatus
+			updChMeta["new_status"] = chapter.Status
+		}
 		if nov, err := novelService.GetNovelDetail(chapter.NovelID); err == nil && nov != nil {
 			if n, ok := nov.(*models.Novel); ok && n != nil {
 				updChMeta["novel_title"] = n.Title

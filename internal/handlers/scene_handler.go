@@ -247,6 +247,19 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 			}
 		}
 		updateMeta := map[string]interface{}{"novel_id": scene.NovelID, "chapter_id": scene.ChapterID}
+		// เก็บ diff เฉพาะ field ที่เปลี่ยนจริง (title/type/status) เทียบ existingScene (ค่าก่อนแก้) กับ scene (ค่าหลังแก้)
+		if existingScene.Title != scene.Title {
+			updateMeta["old_title"] = existingScene.Title
+			updateMeta["new_title"] = scene.Title
+		}
+		if existingScene.Type != scene.Type {
+			updateMeta["old_type"] = existingScene.Type
+			updateMeta["new_type"] = scene.Type
+		}
+		if existingScene.Status != scene.Status {
+			updateMeta["old_status"] = existingScene.Status
+			updateMeta["new_status"] = scene.Status
+		}
 		if ch, err := chapterService.GetChapterByID(scene.ChapterID); err == nil && ch != nil {
 			updateMeta["chapter_title"] = ch.Title
 		}

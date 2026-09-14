@@ -3,6 +3,8 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -51,20 +53,63 @@ func RequestLogger(next http.Handler) http.Handler {
 	})
 }
 
+// ค่า default ถ้าไม่ได้ตั้ง ALLOWED_ORIGINS ไว้ใน env เลย (กันไม่ให้ local dev พังถ้าลืมตั้งค่า)
+var defaultAllowedOrigins = []string{
+	"http://localhost:5173",
+	"http://127.0.0.1:5173",
+}
+
+// isOriginAllowed เช็คว่า origin ที่ request เข้ามาอยู่ใน whitelist หรือไม่
+// รองรับ wildcard แบบ "*.vercel.app" สำหรับ preview deployment ของ Vercel ที่โดเมนสุ่มทุกครั้ง
+func isOriginAllowed(origin string, allowedOrigins []string) bool {
+	if origin == "" {
+		return false
+	}
+	for _, allowed := range allowedOrigins {
+		allowed = strings.TrimSpace(allowed)
+		if allowed == "" {
+			continue
+		}
+		if allowed == origin {
+			return true
+		}
+		if strings.HasPrefix(allowed, "*.") {
+			suffix := strings.TrimPrefix(allowed, "*")
+			if strings.HasSuffix(origin, suffix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getAllowedOrigins() []string {
+	raw := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+	if raw == "" {
+		return defaultAllowedOrigins
+	}
+	origins := strings.Split(raw, ",")
+	for i := range origins {
+		origins[i] = strings.TrimSpace(origins[i])
+	}
+	return origins
+}
+
 func CORSMiddleware(next http.Handler) http.Handler {
+	allowedOrigins := getAllowedOrigins()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin == "" {
-			origin = "http://localhost:5173"
+
+		// ตอบ Allow-Origin เฉพาะตอนที่ origin นี้อยู่ใน whitelist จริงๆ เท่านั้น
+		// (ห้ามตอบค่า hardcode กลับไปเหมือนโค้ดเดิม เพราะ browser จะเทียบกับ origin จริง ถ้าไม่ตรงจะบล็อกอยู่ดี
+		//  และถ้าไม่ตรงแล้วยังตอบไปแบบผิดๆ จะดูเหมือนใช้งานได้แต่จริงๆ ถูกบล็อกเงียบๆ ทำให้ debug ยาก)
+		if isOriginAllowed(origin, allowedOrigins) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Vary", "Origin")
 		}
 
-		allowedOrigin := origin
-		if origin != "http://localhost:5173" && origin != "http://127.0.0.1:5173" {
-			allowedOrigin = "http://localhost:5173"
-		}
-
-		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Type, Authorization")

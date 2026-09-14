@@ -26,6 +26,44 @@ const (
 // เป็น role admin ได้ทันที นี่คือช่องโหว่ร้ายแรงที่สุดในไฟล์นี้
 var jwtSecret = loadJWTSecret()
 
+// UnauthorizedRecorder คือ signature ของฟังก์ชันที่ใช้บันทึก audit log เวลามีการเข้าถึงโดยไม่มีสิทธิ์
+// ใช้ function type แทนการ import "novel-be/internal/service" ตรงๆ เพราะ service package (audit_service.go)
+// import middleware package อยู่แล้ว — ถ้า middleware import service กลับไปด้วยจะเกิด import cycle ทันที
+// วิธีนี้ทำให้ middleware ไม่ต้องรู้จัก service.AuditService เลย แค่รู้จัก signature ฟังก์ชันนี้พอ
+type UnauthorizedRecorder func(r *http.Request, reason string, attemptedRole string, userID uint, hasUserID bool)
+
+var unauthorizedRecorder UnauthorizedRecorder
+
+// SetUnauthorizedRecorder ให้ main.go เรียกตอน startup ครั้งเดียว เพื่อผูก audit service เข้ากับ middleware
+// เช่น middleware.SetUnauthorizedRecorder(func(r *http.Request, reason, role string, uid uint, hasUID bool) {
+//     var actor *uint
+//     if hasUID { actor = &uid }
+//     _ = auditService.RecordWithActor(r.Context(), actor, role, service.AuditEvent{
+//         Action: "UNAUTHORIZED_ACCESS", TargetType: "route", Status: "FAILURE",
+//         Metadata: map[string]interface{}{"path": r.URL.Path, "reason": reason},
+//     })
+// })
+func SetUnauthorizedRecorder(fn UnauthorizedRecorder) {
+	unauthorizedRecorder = fn
+}
+
+// recordUnauthorized เรียก recorder แบบ non-blocking (goroutine) กัน audit write ช้าไปดึงเวลา response
+// ใส่ recover กันไม่ให้ panic ใน audit logging ทำให้ request หลักพังไปด้วย
+func recordUnauthorized(r *http.Request, reason string, attemptedRole string) {
+	if unauthorizedRecorder == nil {
+		return
+	}
+	userID, hasUserID := GetUserIDFromContext(r.Context())
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("audit log (unauthorized) recorder panic: %v", rec)
+			}
+		}()
+		unauthorizedRecorder(r, reason, attemptedRole, userID, hasUserID)
+	}()
+}
+
 func loadJWTSecret() []byte {
 	if s := strings.TrimSpace(os.Getenv("JWT_SECRET")); s != "" {
 		return []byte(s)
@@ -49,6 +87,7 @@ func RequireAuth(next http.Handler) http.Handler {
 			tokenString = r.URL.Query().Get("token")
 		}
 		if tokenString == "" {
+			recordUnauthorized(r, "missing_token", "")
 			http.Error(w, "ไม่พบบัตรผ่าน (Token) กรุณาเข้าสู่ระบบค่ะ", http.StatusUnauthorized)
 			return
 		}
@@ -61,6 +100,7 @@ func RequireAuth(next http.Handler) http.Handler {
 		})
 
 		if err != nil || !token.Valid {
+			recordUnauthorized(r, "invalid_or_expired_token", "")
 			http.Error(w, "บัตรผ่านไม่ถูกต้อง หรือหมดอายุแล้ว", http.StatusUnauthorized)
 			return
 		}
@@ -113,6 +153,7 @@ func RequireRole(requiredRole string, next http.Handler) http.Handler {
 	return RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		role, ok := GetRoleFromContext(r.Context())
 		if !ok || role != requiredRole {
+			recordUnauthorized(r, "role_mismatch", role)
 			http.Error(w, "Forbidden: คุณไม่มีสิทธิ์เข้าถึงเส้นทางนี้", http.StatusForbidden)
 			return
 		}

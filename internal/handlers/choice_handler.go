@@ -114,7 +114,17 @@ func UpdateChoiceHandler(sceneService service.SceneService, chapterService servi
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_CHOICE", TargetType: "choice", TargetID: int64Pointer(choiceID), Status: "SUCCESS", Metadata: map[string]interface{}{"from_scene_id": existingChoice.FromSceneID, "to_scene_id": req.ToSceneID}})
+		choiceUpdMeta := map[string]interface{}{"from_scene_id": existingChoice.FromSceneID}
+		// เก็บ diff เฉพาะ field ที่เปลี่ยนจริง (label/to_scene_id)
+		if existingChoice.Label != req.Label {
+			choiceUpdMeta["old_label"] = existingChoice.Label
+			choiceUpdMeta["new_label"] = req.Label
+		}
+		if existingChoice.ToSceneID != req.ToSceneID {
+			choiceUpdMeta["old_to_scene_id"] = existingChoice.ToSceneID
+			choiceUpdMeta["new_to_scene_id"] = req.ToSceneID
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_CHOICE", TargetType: "choice", TargetID: int64Pointer(choiceID), Status: "SUCCESS", Metadata: choiceUpdMeta})
 
 		WriteJSON(w, http.StatusOK, map[string]any{"message": "choice updated"})
 	}

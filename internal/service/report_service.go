@@ -10,7 +10,7 @@ import (
 
 type ReportService interface {
 	CreateReport(ctx context.Context, userID int, req dto.CreateReportRequest) error
-	GetPendingReports(ctx context.Context) ([]dto.ReportResponse, error)
+	GetPendingReports(ctx context.Context, page, limit int) ([]dto.ReportResponse, int, error)
 	GetReportStatus(ctx context.Context, reportID int) (string, error)
 	UpdateReportStatus(ctx context.Context, reportID int, req dto.UpdateReportStatusRequest) error
 	CreateAppeal(ctx context.Context, userID int, req dto.CreateAppealRequest) error
@@ -43,8 +43,8 @@ func (s *reportService) CreateReport(ctx context.Context, userID int, req dto.Cr
 }
 
 // 📌 2. ดึงรีพอร์ตให้แอดมินดู
-func (s *reportService) GetPendingReports(ctx context.Context) ([]dto.ReportResponse, error) {
-	return s.repo.GetPendingReports(ctx)
+func (s *reportService) GetPendingReports(ctx context.Context, page, limit int) ([]dto.ReportResponse, int, error) {
+	return s.repo.GetPendingReports(ctx, page, limit)
 }
 
 // 📌 3. อัปเดตสถานะรีพอร์ต (ฝั่งแอดมิน)

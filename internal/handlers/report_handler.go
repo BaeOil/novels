@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,14 +49,52 @@ func (h *ReportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 
 // 📌 2. API: ดึงรายการรีพอร์ตให้แอดมิน
 func (h *ReportHandler) GetPendingReports(w http.ResponseWriter, r *http.Request) {
-	reports, err := h.service.GetPendingReports(r.Context())
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	page, limit, err := parseReportPagination(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	reports, total, err := h.service.GetPendingReports(r.Context(), page, limit)
 	if err != nil {
 		http.Error(w, "failed to get reports", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(reports)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"reports": reports,
+		"page":    page,
+		"limit":   limit,
+		"total":   total,
+	})
+}
+
+func parseReportPagination(r *http.Request) (int, int, error) {
+	page := 1
+	limit := 20
+	query := r.URL.Query()
+
+	if value := query.Get("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			return 0, 0, errors.New("invalid page")
+		}
+		page = parsed
+	}
+	if value := query.Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			return 0, 0, errors.New("limit must be between 1 and 100")
+		}
+		limit = parsed
+	}
+	return page, limit, nil
 }
 
 // 📌 3. API: แอดมินกดเปลี่ยนสถานะรีพอร์ต
