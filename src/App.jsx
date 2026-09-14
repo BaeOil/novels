@@ -893,8 +893,9 @@ function App() {
         {/* Admin Routes */}
         <Route path="/admin/users" element={<RequireAdminRoute><Manageusers /></RequireAdminRoute>} />
         <Route path="/admin/manage-users" element={<RequireAdminRoute><WriterRequestsPage /></RequireAdminRoute>} />
-        {/* 🟢 2. เพิ่ม Route หน้ารายงาน/แจ้งลบ */}
+        {/* 🟢 2. เพิ่ม Route หน้ารายงาน/แจ้งลบ & จัดการเนื้อหา */}
         <Route path="/admin/reports" element={<RequireAdminRoute><AdminReportsDashboard /></RequireAdminRoute>} />
+        <Route path="/admin/content-reports" element={<RequireAdminRoute><AdminReportsDashboard /></RequireAdminRoute>} />
         <Route path="/admin/categories" element={<RequireAdminRoute><AdminCategoryPage /></RequireAdminRoute>} />
         <Route path="/admin/audit-logs" element={<RequireAdminRoute><Adminauditlog /></RequireAdminRoute>} />
 

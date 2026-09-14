@@ -222,7 +222,7 @@ const Manageusers = () => {
         {/* ส่วนหัวหน้าจัดการ */}
         <header className="admin-header-sec">
           <h1 className="admin-title">จัดการผู้ใช้งาน</h1>
-          <p className="admin-subtitle">ผู้ใช้ทั้งหมด {stats.total.toLocaleString()} บัญชีในระบบ</p>
+          <p className="admin-subtitle">จัดการข้อมูลและสถานะของผู้ใช้งานในระบบ</p>
           <svg className="header-branch-accent" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true">
             <path d="M0 8 H70 M70 8 C 78 8, 78 2, 86 2 H130 M70 8 C 78 8, 78 14, 86 14 H130 M130 2 H200 M130 14 H160" />
           </svg>

@@ -125,10 +125,10 @@ const AdminNavbar = () => {
                         </Link>
                     </li>
 
-                    <li className={`admin-nav-item ${isActive("/admin/reports") ? "admin-nav-item--active" : ""}`}>
+                    <li className={`admin-nav-item ${isActive("/admin/reports") || isActive("/admin/content-reports") ? "admin-nav-item--active" : ""}`}>
                         <Link to="/admin/reports">
                             <Flag size={18} strokeWidth={2} />
-                            <span>รายงาน/แจ้งลบ</span>
+                            <span>จัดการเนื้อหาและการรายงาน</span>
                         </Link>
                     </li>
 

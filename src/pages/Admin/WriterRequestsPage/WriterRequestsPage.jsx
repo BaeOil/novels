@@ -594,9 +594,9 @@ const WriterRequestsPage = () => {
     <div className="wr-container">
       <div className="wr-content">
         <div className="wr-header">
-          <h1 className="wr-title">อนุมัติผู้ขอสมัครนักเขียน</h1>
-          <p className="wr-subtitle">ตรวจสอบและพิจารณาคำขอสิทธิ์การเขียนนิยายในระบบ</p>
-          <svg className="wr-header-branch-accent" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true">
+          <h1 className="wr-title">อนุมัตินักเขียน</h1>
+          <p className="wr-subtitle">ตรวจสอบและจัดการคำขอสมัครเป็นนักเขียน</p>
+          <svg className="header-branch-accent" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true">
             <path d="M0 8 H70 M70 8 C 78 8, 78 2, 86 2 H130 M70 8 C 78 8, 78 14, 86 14 H130 M130 2 H200 M130 14 H160" />
           </svg>
         </div>

@@ -37,11 +37,29 @@
 }
 
 .admin-audit-title {
-  font-size: 1.5rem;
+  font-size: 1.875rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
   letter-spacing: -0.02em;
+}
+
+.admin-audit-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 8px 0 0 0;
+  font-weight: 400;
+}
+
+.header-branch-accent {
+  width: 200px;
+  height: 14px;
+  margin-top: 16px;
+  stroke: var(--pink-300, #f9a8d4);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  display: block;
 }
 
 .admin-audit-badge-total {
@@ -56,32 +74,84 @@
   border: 1px solid #fbcfe8;
 }
 
-.admin-audit-btn-refresh {
-  display: inline-flex;
+.admin-audit-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-audit-export-group {
+  display: flex;
   align-items: center;
   gap: 8px;
-  background: #ffffff;
-  color: #334155;
-  border: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+/* Base button */
+.admin-audit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border-radius: 10px;
   padding: 8px 16px;
+  height: 38px;
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
-.admin-audit-btn-refresh:hover:not(:disabled) {
-  background-color: #f8fafc;
-  border-color: #cbd5e1;
-  color: #0f172a;
-  transform: translateY(-1px);
-}
-
-.admin-audit-btn-refresh:disabled {
+.admin-audit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none !important;
+}
+
+/* 1 & 2. Export Buttons (Equal Visual Weight - Neutral Outline Style) */
+.admin-audit-btn--export {
+  background: #ffffff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.admin-audit-btn--export:hover:not(:disabled) {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.admin-audit-btn--export:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: #f3f4f6;
+}
+
+/* 3. Refresh Button (Soft Neutral Filled - Visible Utility Action) */
+.admin-audit-btn--refresh {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  margin-left: 6px;
+}
+
+.admin-audit-btn--refresh:hover:not(:disabled) {
+  background-color: #e5e7eb;
+  border-color: #9ca3af;
+  color: #111827;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.admin-audit-btn--refresh:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: #d1d5db;
 }
 
 /* -------------------------------------------------------------------------
@@ -875,6 +945,32 @@
 @media (max-width: 768px) {
   .admin-audit-container {
     padding: 20px 14px;
+  }
+
+  .admin-audit-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .admin-audit-header__actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .admin-audit-export-group {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+  }
+
+  .admin-audit-export-group .admin-audit-btn {
+    flex: 1;
+  }
+
+  .admin-audit-btn--refresh {
+    margin-left: 0;
   }
 
   .admin-audit-mobile-filter-trigger {

@@ -15,26 +15,6 @@ import "./AdminCategoryPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-// ชุดสีสำหรับ badge หมวดหมู่ เลือกตามชื่อ (deterministic) เพื่อให้แยกหมวดหมู่ด้วยสายตาได้ง่ายขึ้น
-const BADGE_COLOR_PALETTE = [
-    { bg: "#FFF0F6", fg: "#E91E8C", border: "rgba(233, 30, 140, 0.15)" }, // pink (default)
-    { bg: "#EFF6FF", fg: "#2563EB", border: "rgba(37, 99, 235, 0.15)" },  // blue
-    { bg: "#F0FDF4", fg: "#16A34A", border: "rgba(22, 163, 74, 0.15)" },  // green
-    { bg: "#FFFBEB", fg: "#D97706", border: "rgba(217, 119, 6, 0.15)" },  // amber
-    { bg: "#F5F3FF", fg: "#7C3AED", border: "rgba(124, 58, 237, 0.15)" }, // violet
-    { bg: "#ECFEFF", fg: "#0891B2", border: "rgba(8, 145, 178, 0.15)" },  // cyan
-    { bg: "#FFF7ED", fg: "#EA580C", border: "rgba(234, 88, 12, 0.15)" },  // orange
-];
-
-function getBadgeColor(name) {
-    const str = String(name ?? "");
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
-    }
-    return BADGE_COLOR_PALETTE[hash % BADGE_COLOR_PALETTE.length];
-}
-
 // เช็คว่านิยายเรื่องหนึ่งผูกอยู่กับหมวดหมู่ที่ระบุหรือไม่ (รองรับหลายรูปแบบ field ที่ backend อาจส่งมา)
 function novelBelongsToCategory(novel, cat) {
     const rawCats = novel.categories ?? novel.Categories ?? novel.category_ids ?? novel.CategoryIDs ?? [];
@@ -399,15 +379,8 @@ export default function AdminCategoryPage() {
                                     <tr key={item.category_id}>
                                         <td className="id-col">{item.category_id}</td>
                                         <td className="name-col">
-                                            <span 
-                                                className="category-tag-badge"
-                                                style={{
-                                                    backgroundColor: getBadgeColor(item.name).bg,
-                                                    color: getBadgeColor(item.name).fg,
-                                                    borderColor: getBadgeColor(item.name).border,
-                                                }}
-                                            >
-                                                <strong>{item.name}</strong>
+                                            <span className="category-tag-badge">
+                                                {item.name}
                                             </span>
                                         </td>
                                         <td className="count-col">
@@ -478,7 +451,7 @@ export default function AdminCategoryPage() {
                                         type="text" 
                                         id="category-name-input"
                                         className="form-input"
-                                        placeholder="ตัวอย่างเช่น: แฟนตาซี, โรแมนติก, สืบสวน"
+                                        placeholder="ตัวอย่างเช่น แฟนตาซี, โรแมนติก, สืบสวน"
                                         value={categoryName}
                                         onChange={(e) => setCategoryName(e.target.value)}
                                         disabled={mutationLoading}
@@ -504,10 +477,10 @@ export default function AdminCategoryPage() {
                                     {mutationLoading ? (
                                         <>
                                             <Loader2 size={14} className="spin" />
-                                            <span>กำลังบันทึก...</span>
+                                            <span>{modalMode === "edit" ? "กำลังบันทึกการแก้ไข..." : "กำลังเพิ่มหมวดหมู่..."}</span>
                                         </>
                                     ) : (
-                                        <span>บันทึกข้อมูล</span>
+                                        <span>{modalMode === "edit" ? "บันทึกการแก้ไข" : "เพิ่มหมวดหมู่"}</span>
                                     )}
                                 </button>
                             </div>
@@ -521,7 +494,9 @@ export default function AdminCategoryPage() {
                 <div className="admin-modal-overlay" onClick={() => !deleteLoading && setIsDeleteModalOpen(false)}>
                     <div className="admin-modal admin-modal--delete" onClick={(e) => e.stopPropagation()}>
                         <div className="admin-modal__header">
-                            <div className="admin-modal__heading">ยืนยันการลบหมวดหมู่</div>
+                            <div className="admin-modal__heading">
+                                {(categoryToDelete?.novelCount ?? 0) > 0 ? "ไม่สามารถลบหมวดหมู่" : "ยืนยันการลบหมวดหมู่"}
+                            </div>
                             <button 
                                 className="admin-modal__close" 
                                 onClick={() => setIsDeleteModalOpen(false)}
@@ -539,42 +514,66 @@ export default function AdminCategoryPage() {
                                     <span>{deleteError}</span>
                                 </div>
                             )}
-                            <p className="delete-modal-desc">
-                                คุณต้องการที่จะทำการลบหมวดหมู่นิยาย <strong>"{categoryToDelete?.name}"</strong> ออกจากระบบอย่างถาวรหรือไม่?
-                            </p>
-                            <div className="delete-modal-warning">
-                                <AlertTriangle size={15} />
-                                <strong>การดำเนินการนี้ไม่สามารถยกเลิกได้ในภายหลัง</strong>
-                            </div>
-                            <p className="delete-modal-note">
-                                หมายเหตุ: ข้อมูลหมวดหมู่จะไม่สามารถกู้คืนได้ และจะลบไม่สำเร็จหากยังมีนิยายผูกอยู่กับหมวดหมู่นี้อยู่
-                            </p>
+
+                            {(categoryToDelete?.novelCount ?? 0) > 0 ? (
+                                <div className="delete-modal-blocked">
+                                    <p className="delete-modal-desc">
+                                        หมวดหมู่ “<strong>{categoryToDelete?.name}</strong>” ยังมีนิยายอยู่ {categoryToDelete?.novelCount} เรื่อง
+                                    </p>
+                                    <div className="delete-modal-warning">
+                                        <AlertTriangle size={15} />
+                                        <span>กรุณาลบนิยายในหมวดหมู่นี้ออกก่อน จึงจะสามารถลบหมวดหมู่ได้</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="delete-modal-allowed">
+                                    <p className="delete-modal-desc">
+                                        คุณต้องการลบหมวดหมู่ “<strong>{categoryToDelete?.name}</strong>” หรือไม่?
+                                    </p>
+                                    <div className="delete-modal-warning">
+                                        <AlertTriangle size={15} />
+                                        <span>ข้อมูลจะถูกลบถาวรและไม่สามารถกู้คืนได้</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="admin-modal__footer">
-                            <button 
-                                type="button" 
-                                className="btn-modal-secondary"
-                                onClick={() => setIsDeleteModalOpen(false)}
-                                disabled={deleteLoading}
-                            >
-                                ยกเลิก
-                            </button>
-                            <button 
-                                type="button" 
-                                className="btn-modal-danger"
-                                onClick={handleDeleteCategory}
-                                disabled={deleteLoading}
-                            >
-                                {deleteLoading ? (
-                                    <>
-                                        <Loader2 size={14} className="spin" />
-                                        <span>กำลังลบ...</span>
-                                    </>
-                                ) : (
-                                    <span>ยืนยันลบถาวร</span>
-                                )}
-                            </button>
+                            {(categoryToDelete?.novelCount ?? 0) > 0 ? (
+                                <button 
+                                    type="button" 
+                                    className="btn-modal-secondary"
+                                    onClick={() => setIsDeleteModalOpen(false)}
+                                >
+                                    ปิด
+                                </button>
+                            ) : (
+                                <>
+                                    <button 
+                                        type="button" 
+                                        className="btn-modal-secondary"
+                                        onClick={() => setIsDeleteModalOpen(false)}
+                                        disabled={deleteLoading}
+                                    >
+                                        ยกเลิก
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        className="btn-modal-danger"
+                                        onClick={handleDeleteCategory}
+                                        disabled={deleteLoading}
+                                    >
+                                        {deleteLoading ? (
+                                            <>
+                                                <Loader2 size={14} className="spin" />
+                                                <span>กำลังลบหมวดหมู่...</span>
+                                            </>
+                                        ) : (
+                                            <span>ลบหมวดหมู่</span>
+                                        )}
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

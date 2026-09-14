@@ -12,8 +12,10 @@ import {
   Inbox,
   Shield,
   Download,
+  FileSpreadsheet,
   Home
 } from "lucide-react";
+import ExcelJS from "exceljs";
 import "./Adminauditlog.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -283,7 +285,8 @@ export default function Adminauditlog() {
   const [accessDenied, setAccessDenied] = useState(false);
   const [metadata, setMetadata] = useState({ actions: [], target_types: [], statuses: [] });
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Pagination States
   const [page, setPage] = useState(1);
@@ -458,24 +461,24 @@ export default function Adminauditlog() {
     fetchAuditLogs();
   }, [fetchAuditLogs]);
 
-  // จุดที่ 7: Export CSV (พร้อม BOM UTF-8 สำหรับภาษาไทย)
-  const handleExportCSV = async () => {
-    setIsExporting(true);
+  // Helper: ดึงข้อมูลทั้งหมดตามตัวกรองที่เลือกไว้ (ดึงทีละ 100 รายการจนครบ)
+  const fetchFilteredLogsForExport = async () => {
     const token = localStorage.getItem("token");
     if (!token) {
       window.location.href = "/login-register";
-      return;
+      return null;
     }
 
-    try {
-      // ดึงข้อมูล 100 รายการตาม filter ปัจจุบันเพื่อ export
+    let allItems = [];
+    let currentPage = 1;
+    let hasMore = true;
+
+    while (hasMore && allItems.length < 5000) {
       const params = new URLSearchParams();
-      params.set("page", "1");
+      params.set("page", String(currentPage));
       params.set("limit", "100");
       if (actionFilter) params.set("action", actionFilter);
-      if (actorUserIdFilter) {
-        params.set("actor", actorUserIdFilter);
-      }
+      if (actorUserIdFilter) params.set("actor", actorUserIdFilter);
       if (targetTypeFilter) params.set("target_type", targetTypeFilter);
       if (statusFilter) params.set("status", statusFilter);
       if (dateFromFilter) params.set("date_from", new Date(dateFromFilter).toISOString());
@@ -487,7 +490,26 @@ export default function Adminauditlog() {
       if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลเพื่อส่งออกได้");
 
       const json = await res.json();
-      const items = json.data?.items || logs;
+      const pageItems = json.data?.items || [];
+      const totalItems = json.data?.total || pageItems.length;
+
+      allItems = [...allItems, ...pageItems];
+      if (allItems.length >= totalItems || pageItems.length === 0) {
+        hasMore = false;
+      } else {
+        currentPage++;
+      }
+    }
+
+    return allItems.length > 0 ? allItems : logs;
+  };
+
+  // 1. Export CSV (พร้อม BOM UTF-8 สำหรับภาษาไทย)
+  const handleExportCSV = async () => {
+    setIsExportingCSV(true);
+    try {
+      const items = await fetchFilteredLogsForExport();
+      if (!items) return;
 
       const headers = ["รหัสรายการ", "เวลา", "ผู้กระทำ", "การกระทำ", "เป้าหมาย", "สถานะ", "ไอพี"];
       const csvRows = [headers.join(",")];
@@ -497,13 +519,13 @@ export default function Adminauditlog() {
         const actorStr = `"${renderActorName(item.actor_user_id, item.actor_role, item.actor_username)}"`;
         const actionStr = `"${ACTION_MAP[item.action]?.label || item.action}"`;
         const targetStr = `"${renderTargetName(item.target_type, item.target_id, item.target_name)}"`;
-        const statusStr = `"${item.status === "SUCCESS" ? "สำเร็จ" : "ไม่สำเร็จ"}"`;
+        const statusStr = `"${item.status === "SUCCESS" ? "สำเร็จ" : (item.status === "FAILURE" ? "ไม่สำเร็จ" : item.status || "-")}"`;
         const ipStr = `"${item.ip_address || "-"}"`;
 
         csvRows.push([item.log_id, timeStr, actorStr, actionStr, targetStr, statusStr, ipStr].join(","));
       });
 
-      // ใส่ \uFEFF (UTF-8 BOM) เพื่อให้ Microsoft Excel รองรับภาษาไทยได้สมบูรณ์
+      // ใส่ \uFEFF (UTF-8 BOM) เพื่อให้ Microsoft Excel และ WPS Office รองรับภาษาไทยได้สมบูรณ์
       const blob = new Blob(["\uFEFF" + csvRows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -517,7 +539,140 @@ export default function Adminauditlog() {
       console.error("Export CSV error:", err);
       alert(err.message || "เกิดข้อผิดพลาดในการส่งออกไฟล์ CSV");
     } finally {
-      setIsExporting(false);
+      setIsExportingCSV(false);
+    }
+  };
+
+  // 2. Export Excel (.xlsx) ด้วย ExcelJS พร้อม formatting, column widths, wrap text, auto-filter, freeze header
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const items = await fetchFilteredLogsForExport();
+      if (!items) return;
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "StoryVerse Admin";
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet("ประวัติการใช้งาน", {
+        views: [{ state: "frozen", xSplit: 0, ySplit: 1, activeCell: "A2" }]
+      });
+
+      // กำหนดคอลัมน์พร้อมความกว้างที่เหมาะสมและอ่านง่ายทันที
+      worksheet.columns = [
+        { header: "รหัสรายการ", key: "log_id", width: 14 },
+        { header: "เวลา", key: "created_at", width: 28 },
+        { header: "ผู้กระทำ", key: "actor", width: 32 },
+        { header: "การกระทำ", key: "action", width: 26 },
+        { header: "เป้าหมาย", key: "target", width: 34 },
+        { header: "สถานะ", key: "status", width: 16 },
+        { header: "ไอพี", key: "ip_address", width: 18 },
+      ];
+
+      // จัดรูปแบบ Header (แถวที่ 1)
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 30;
+      headerRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: "Sarabun",
+          size: 11,
+          bold: true,
+          color: { argb: "FFFFFFFF" }
+        };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDB2777" } // StoryVerse signature theme pink (#DB2777)
+        };
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: colNumber === 1 || colNumber === 6 || colNumber === 7 ? "center" : "left",
+          wrapText: true
+        };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFBE185D" } },
+          left: { style: "thin", color: { argb: "FFBE185D" } },
+          bottom: { style: "medium", color: { argb: "FF9D174D" } },
+          right: { style: "thin", color: { argb: "FFBE185D" } },
+        };
+      });
+
+      // ใส่ข้อมูลแถว
+      items.forEach((item, index) => {
+        const row = worksheet.addRow({
+          log_id: item.log_id,
+          created_at: formatFullThaiDateTime(item.created_at),
+          actor: renderActorName(item.actor_user_id, item.actor_role, item.actor_username),
+          action: ACTION_MAP[item.action]?.label || item.action,
+          target: renderTargetName(item.target_type, item.target_id, item.target_name),
+          status: item.status === "SUCCESS" ? "สำเร็จ" : (item.status === "FAILURE" ? "ไม่สำเร็จ" : item.status || "-"),
+          ip_address: item.ip_address || "-",
+        });
+
+        // จัดความสูงและจัด alignment ของแถวข้อมูล
+        row.height = 26;
+        const isEven = index % 2 === 1;
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.font = {
+            name: "Sarabun",
+            size: 10.5,
+            color: { argb: "FF1E293B" }
+          };
+          if (isEven) {
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFFAFBFC" } // Zebra striping
+            };
+          }
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: colNumber === 1 || colNumber === 6 || colNumber === 7 ? "center" : "left",
+            wrapText: true
+          };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+            right: { style: "thin", color: { argb: "FFE2E8F0" } },
+          };
+
+          // ปรับสีตัวหนังสือสถานะ
+          if (colNumber === 6) {
+            if (item.status === "SUCCESS") {
+              cell.font = { name: "Sarabun", size: 10.5, bold: true, color: { argb: "FF059669" } };
+            } else if (item.status === "FAILURE") {
+              cell.font = { name: "Sarabun", size: 10.5, bold: true, color: { argb: "FFE11D48" } };
+            }
+          }
+        });
+      });
+
+      // เปิดใช้งาน Auto Filter ที่หัวตาราง
+      worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: 7 }
+      };
+
+      // เขียน Buffer และดาวน์โหลดไฟล์ .xlsx
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `audit_logs_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export Excel error:", err);
+      alert(err.message || "เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel (.xlsx)");
+    } finally {
+      setIsExportingExcel(false);
     }
   };
 
@@ -654,34 +809,52 @@ export default function Adminauditlog() {
         <header className="admin-audit-header">
           <div className="admin-audit-header__left">
             <div className="admin-audit-title-wrap">
-              <h2 className="admin-audit-title">ประวัติการใช้งานระบบ</h2>
+              <h1 className="admin-audit-title">ประวัติการใช้งานระบบ</h1>
               <span className="admin-audit-badge-total">
                 ทั้งหมด {total.toLocaleString()} รายการ
               </span>
             </div>
+            <p className="admin-audit-subtitle">ตรวจสอบและติดตามกิจกรรมต่าง ๆ ที่เกิดขึ้นภายในระบบ</p>
+            <svg className="header-branch-accent" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0 8 H70 M70 8 C 78 8, 78 2, 86 2 H130 M70 8 C 78 8, 78 14, 86 14 H130 M130 2 H200 M130 14 H160" />
+            </svg>
           </div>
-          <div className="admin-audit-header__right" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {/* จุดที่ 7: Export CSV Button */}
-            <button
-              type="button"
-              className="admin-audit-btn-refresh"
-              onClick={handleExportCSV}
-              disabled={isExporting || loading}
-              title="ดาวน์โหลดรายการ Log เป็นไฟล์ CSV"
-            >
-              <Download size={16} className={isExporting ? "spin" : ""} />
-              <span>{isExporting ? "กำลังส่งออก..." : "ส่งออก CSV"}</span>
-            </button>
+          <div className="admin-audit-header__actions">
+            <div className="admin-audit-export-group">
+              {/* 1. ส่งออก CSV Button (Outline) */}
+              <button
+                type="button"
+                className="admin-audit-btn admin-audit-btn--export"
+                onClick={handleExportCSV}
+                disabled={isExportingExcel || isExportingCSV || loading}
+                title="ดาวน์โหลดรายการ Log เป็นไฟล์ CSV"
+              >
+                <Download size={15} className={isExportingCSV ? "spin" : ""} />
+                <span>{isExportingCSV ? "กำลังส่งออก CSV..." : "ส่งออก CSV"}</span>
+              </button>
 
-            {/* Refresh Button */}
+              {/* 2. ส่งออก Excel Button (Outline, Equal Visual Weight) */}
+              <button
+                type="button"
+                className="admin-audit-btn admin-audit-btn--export"
+                onClick={handleExportExcel}
+                disabled={isExportingExcel || isExportingCSV || loading}
+                title="ดาวน์โหลดรายการ Log เป็นไฟล์ Excel (.xlsx) พร้อมจัดรูปแบบ"
+              >
+                <Download size={15} className={isExportingExcel ? "spin" : ""} />
+                <span>{isExportingExcel ? "กำลังส่งออก Excel..." : "ส่งออก Excel"}</span>
+              </button>
+            </div>
+
+            {/* 3. Refresh Button (Ghost / Light Neutral) */}
             <button
               type="button"
-              className="admin-audit-btn-refresh"
+              className="admin-audit-btn admin-audit-btn--refresh"
               onClick={() => fetchAuditLogs()}
               disabled={loading}
               title="รีเฟรชข้อมูลปัจจุบัน"
             >
-              <RotateCw size={16} className={loading ? "spin" : ""} />
+              <RotateCw size={15} className={loading ? "spin" : ""} />
               <span>รีเฟรช</span>
             </button>
           </div>
