@@ -382,7 +382,8 @@ const ChoiceCard = ({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || errData?.message || "สร้างฉากใหม่ไม่สำเร็จ");
+        const errMsg = (typeof errData?.error === "object" ? errData.error?.message : errData?.error) || errData?.message;
+        throw new Error(errMsg || "สร้างฉากใหม่ไม่สำเร็จ");
       }
 
       const resData = await res.json();
@@ -2061,7 +2062,8 @@ const SceneEditorPage = ({
 
       if (!response.ok) {
         const errData = await response.json().catch(() => null);
-        throw new Error(errData?.error || errData?.message || "ไม่สามารถบันทึกข้อมูลฉากได้");
+        const errMsg = (typeof errData?.error === "object" ? errData.error?.message : errData?.error) || errData?.message;
+        throw new Error(errMsg || "ไม่สามารถบันทึกข้อมูลฉากได้");
       }
 
       clearDraft();

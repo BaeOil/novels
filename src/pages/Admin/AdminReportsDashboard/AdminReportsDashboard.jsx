@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Search,
     X,
@@ -18,19 +18,13 @@ import {
     Flag,
     BookOpen,
     FileText,
-    Undo2
+    Undo2,
+    Clock,
+    ShieldCheck
 } from "lucide-react";
 import "./AdminReportsDashboard.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-
-// ตัวเลือกช่วงเวลาของฟิลเตอร์วันที่
-const DATE_FILTER_OPTIONS = [
-    { key: "all", label: "ทั้งหมด" },
-    { key: "today", label: "วันนี้" },
-    { key: "7days", label: "7 วันที่ผ่านมา" },
-    { key: "30days", label: "30 วันที่ผ่านมา" },
-];
 
 // แปลงวันที่เป็นรูปแบบภาษาไทยที่อ่านง่าย
 const formatThaiDate = (dateString) => {
@@ -50,32 +44,19 @@ const formatThaiDate = (dateString) => {
     }
 };
 
-// ตรวจสอบช่วงวันที่สำหรับ filter
-const isWithinDateRange = (dateString, filterKey) => {
-    if (filterKey === "all" || !dateString) return true;
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return true;
-
-    const now = new Date();
-    const diffMs = now - date;
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-    if (filterKey === "today") {
-        return date.toDateString() === now.toDateString();
-    }
-    if (filterKey === "7days") {
-        return diffDays <= 7;
-    }
-    if (filterKey === "30days") {
-        return diffDays <= 30;
-    }
-    return true;
-};
-
 // ล้าง HTML tags
 const stripHtml = (text) => {
     if (!text) return "";
     return text.replace(/<[^>]*>/g, "").trim();
+};
+
+const getApiErrorMessage = async (res, fallback) => {
+    try {
+        const data = await res.json();
+        return data?.error?.message || data?.message || fallback;
+    } catch {
+        return fallback;
+    }
 };
 
 export default function AdminReportsDashboard() {
@@ -90,6 +71,9 @@ export default function AdminReportsDashboard() {
     const [novels, setNovels] = useState([]);
     const [categories, setCategories] = useState([]);
     const [reports, setReports] = useState([]);
+    const [reportStats, setReportStats] = useState({ pending: 0, resolved: 0, rejected: 0 });
+    const [storyTotal, setStoryTotal] = useState(0);
+    const [reportTotal, setReportTotal] = useState(0);
 
     const [loadingStories, setLoadingStories] = useState(false);
     const [loadingReports, setLoadingReports] = useState(false);
@@ -104,9 +88,8 @@ export default function AdminReportsDashboard() {
     // -------------------------------------------------------------
     const [storySearch, setStorySearch] = useState("");
     const [debouncedStorySearch, setDebouncedStorySearch] = useState("");
-    const [storyStatusFilter, setStoryStatusFilter] = useState("all"); // all, published, suspended, draft, deleted
+    const [storyStatusFilter, setStoryStatusFilter] = useState("all"); // all, published, suspended
     const [storyCategoryFilter, setStoryCategoryFilter] = useState("all");
-    const [storyDateFilter, setStoryDateFilter] = useState("all");
     const [storyPage, setStoryPage] = useState(1);
     const [storyPageSize, setStoryPageSize] = useState(20);
 
@@ -127,11 +110,13 @@ export default function AdminReportsDashboard() {
     const [storyModalType, setStoryModalType] = useState(null); // 'suspend' | 'unsuspend' | 'delete' | null
     const [selectedStory, setSelectedStory] = useState(null);
     const [actionReason, setActionReason] = useState("");
+    const [deleteConfirmChecked, setDeleteConfirmChecked] = useState(false);
     const [actionSubmitting, setActionSubmitting] = useState(false);
     const [actionError, setActionError] = useState("");
 
     // Report Review Modal
     const [selectedReport, setSelectedReport] = useState(null);
+    const [reportDecisionReason, setReportDecisionReason] = useState("");
     const [reportActionSubmitting, setReportActionSubmitting] = useState(false);
     const [reportActionError, setReportActionError] = useState("");
 
@@ -167,7 +152,7 @@ export default function AdminReportsDashboard() {
     // -------------------------------------------------------------
     // Fetch Data
     // -------------------------------------------------------------
-    const fetchCategories = async () => {
+    const fetchCategories = useCallback(async () => {
         try {
             const res = await fetch(`${API_BASE_URL}/categories`);
             if (res.ok) {
@@ -178,9 +163,9 @@ export default function AdminReportsDashboard() {
         } catch (err) {
             console.warn("Fetch categories error:", err);
         }
-    };
+    }, []);
 
-    const fetchStories = async (silent = false) => {
+    const fetchStories = useCallback(async (silent = false) => {
         if (!silent) setLoadingStories(true);
         setStoriesError("");
         const token = localStorage.getItem("token");
@@ -189,31 +174,46 @@ export default function AdminReportsDashboard() {
             const headers = {};
             if (token) headers["Authorization"] = `Bearer ${token}`;
 
-            const res = await fetch(`${API_BASE_URL}/novels`, { headers });
+            const params = new URLSearchParams({
+                search: debouncedStorySearch.trim(),
+                status: storyStatusFilter,
+                page: String(storyPage),
+                limit: String(storyPageSize),
+            });
+            if (storyCategoryFilter !== "all") params.set("category_id", storyCategoryFilter);
+            const res = await fetch(`${API_BASE_URL}/api/admin/novels?${params}`, { headers });
             if (!res.ok) {
                 if (res.status === 401) throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
                 if (res.status === 403) throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
-                throw new Error("ไม่สามารถโหลดรายการเรื่องได้ กรุณาลองใหม่อีกครั้ง");
+                throw new Error(await getApiErrorMessage(res, "ไม่สามารถโหลดรายการเรื่องได้ กรุณาลองใหม่อีกครั้ง"));
             }
 
             const data = await res.json();
             const list = Array.isArray(data) ? data : (data?.novels ?? data?.data ?? []);
             setNovels(list);
+            setStoryTotal(Number(data?.total ?? list.length));
         } catch (err) {
             console.error("Fetch stories error:", err);
             setStoriesError(err.message || "เกิดข้อผิดพลาดในการโหลดรายการเรื่อง");
         } finally {
             if (!silent) setLoadingStories(false);
         }
-    };
+    }, [debouncedStorySearch, storyCategoryFilter, storyPage, storyPageSize, storyStatusFilter]);
 
-    const fetchReports = async (silent = false) => {
+    const fetchReports = useCallback(async (silent = false) => {
         if (!silent) setLoadingReports(true);
         setReportsError("");
         const token = localStorage.getItem("token");
 
         try {
-            const res = await fetch(`${API_BASE_URL}/api/admin/reports`, {
+            const params = new URLSearchParams({
+                status: reportStatusFilter,
+                type: reportTypeFilter,
+                search: debouncedReportSearch.trim(),
+                page: String(reportPage),
+                limit: String(reportPageSize),
+            });
+            const res = await fetch(`${API_BASE_URL}/api/admin/reports?${params}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -222,26 +222,63 @@ export default function AdminReportsDashboard() {
             if (!res.ok) {
                 if (res.status === 401) throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
                 if (res.status === 403) throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
-                throw new Error("ไม่สามารถดึงข้อมูลรายการรายงานได้ กรุณาลองใหม่อีกครั้ง");
+                throw new Error(await getApiErrorMessage(res, "ไม่สามารถดึงข้อมูลรายการรายงานได้ กรุณาลองใหม่อีกครั้ง"));
             }
 
             const data = await res.json();
             const list = Array.isArray(data) ? data : (data?.reports ?? []);
             setReports(list);
+            setReportTotal(Number(data?.total ?? list.length));
         } catch (err) {
             console.error("Fetch reports error:", err);
             setReportsError(err.message || "เกิดข้อผิดพลาดในการโหลดรายการรายงาน");
         } finally {
             if (!silent) setLoadingReports(false);
         }
-    };
+    }, [debouncedReportSearch, reportPage, reportPageSize, reportStatusFilter, reportTypeFilter]);
 
-    // Initial Load
-    useEffect(() => {
-        fetchCategories();
-        fetchStories();
-        fetchReports();
+    const fetchReportStats = useCallback(async () => {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
+        const getCount = async (status) => {
+            const params = new URLSearchParams({ status, type: "all", page: "1", limit: "1" });
+            const res = await fetch(`${API_BASE_URL}/api/admin/reports?${params}`, { headers });
+            if (!res.ok) throw new Error(await getApiErrorMessage(res, "ไม่สามารถดึงสรุปจำนวนรายงานได้"));
+            const data = await res.json();
+            return Number(data?.total ?? 0);
+        };
+
+        try {
+            const [pending, resolved, rejected] = await Promise.all([
+                getCount("pending"),
+                getCount("resolved"),
+                getCount("rejected"),
+            ]);
+            setReportStats({
+                pending,
+                resolved,
+                rejected,
+            });
+        } catch (err) {
+            console.warn("Fetch report stats error:", err);
+        }
     }, []);
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchCategories();
+    }, [fetchCategories]);
+
+    useEffect(() => {
+        if (activeTab === "stories") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void fetchStories();
+            return;
+        }
+
+        void fetchReports();
+        void fetchReportStats();
+    }, [activeTab, fetchReportStats, fetchReports, fetchStories]);
 
     // Refresh Handler
     const handleRefresh = async () => {
@@ -250,7 +287,7 @@ export default function AdminReportsDashboard() {
             if (activeTab === "stories") {
                 await Promise.all([fetchStories(true), fetchCategories()]);
             } else {
-                await fetchReports(true);
+                await Promise.all([fetchReports(true), fetchReportStats()]);
             }
             showToast("รีเฟรชข้อมูลล่าสุดสำเร็จ", "success");
         } catch (e) {
@@ -267,7 +304,7 @@ export default function AdminReportsDashboard() {
         const rawStatus = (novel?.status || novel?.Status || "").toLowerCase();
         const isPublished = novel?.is_published ?? novel?.IsPublished ?? false;
 
-        if (rawStatus === "banned" || rawStatus === "suspended" || rawStatus === "ระงับ") {
+        if (rawStatus === "suspended" || rawStatus === "ระงับ") {
             return {
                 key: "suspended",
                 label: "ระงับ",
@@ -281,7 +318,7 @@ export default function AdminReportsDashboard() {
                 className: "status-badge status-badge--deleted",
             };
         }
-        if (isPublished || rawStatus === "published" || rawStatus === "completed-published" || rawStatus === "active") {
+        if (isPublished || rawStatus === "published" || rawStatus === "completed-published") {
             return {
                 key: "published",
                 label: "เผยแพร่",
@@ -345,112 +382,14 @@ export default function AdminReportsDashboard() {
         return ["ทั่วไป"];
     };
 
-    // -------------------------------------------------------------
-    // Filtered Stories
-    // -------------------------------------------------------------
-    const filteredStories = useMemo(() => {
-        return novels.filter((novel) => {
-            const title = (novel.title || novel.Title || "").toLowerCase();
-            const author = (
-                novel.pen_name ||
-                novel.PenName ||
-                novel.author_name ||
-                novel.AuthorName ||
-                novel.username ||
-                novel.author?.pen_name ||
-                ""
-            ).toLowerCase();
-
-            // 1. Search filter
-            if (debouncedStorySearch.trim()) {
-                const q = debouncedStorySearch.toLowerCase().trim();
-                if (!title.includes(q) && !author.includes(q)) {
-                    return false;
-                }
-            }
-
-            // 2. Status filter
-            const statusInfo = getNovelStatusInfo(novel);
-            if (storyStatusFilter !== "all") {
-                if (statusInfo.key !== storyStatusFilter) return false;
-            }
-
-            // 3. Category filter
-            if (storyCategoryFilter !== "all") {
-                const catNames = getNovelCategoryNames(novel);
-                const matchCat = catNames.some(
-                    (c) => String(c).toLowerCase() === String(storyCategoryFilter).toLowerCase()
-                );
-                if (!matchCat) return false;
-            }
-
-            // 4. Date filter
-            const dateVal = novel.created_at || novel.CreatedAt || novel.published_at;
-            if (!isWithinDateRange(dateVal, storyDateFilter)) {
-                return false;
-            }
-
-            return true;
-        });
-    }, [novels, debouncedStorySearch, storyStatusFilter, storyCategoryFilter, storyDateFilter, categories]);
-
-    // Paginated Stories
-    const totalStoryPages = Math.ceil(filteredStories.length / storyPageSize) || 1;
-    const paginatedStories = useMemo(() => {
-        const start = (storyPage - 1) * storyPageSize;
-        return filteredStories.slice(start, start + storyPageSize);
-    }, [filteredStories, storyPage, storyPageSize]);
-
-    // -------------------------------------------------------------
-    // Filtered Reports
-    // -------------------------------------------------------------
-    const filteredReports = useMemo(() => {
-        return reports.filter((item) => {
-            const title = (item.novel_title || item.novelTitle || "").toLowerCase();
-            const reporter = (item.username || item.reporter_name || "").toLowerCase();
-            const reason = (item.reason || "").toLowerCase();
-
-            // 1. Search
-            if (debouncedReportSearch.trim()) {
-                const q = debouncedReportSearch.toLowerCase().trim();
-                if (!title.includes(q) && !reporter.includes(q) && !reason.includes(q)) {
-                    return false;
-                }
-            }
-
-            // 2. Status
-            const rawStatus = (item.status || "").toLowerCase();
-            if (reportStatusFilter !== "all") {
-                if (reportStatusFilter === "pending") {
-                    if (rawStatus !== "pending" && rawStatus !== "appeal_pending") return false;
-                } else if (reportStatusFilter === "resolved") {
-                    if (rawStatus !== "resolved") return false;
-                } else if (reportStatusFilter === "rejected") {
-                    if (rawStatus !== "rejected") return false;
-                }
-            }
-
-            // 3. Type
-            if (reportTypeFilter !== "all") {
-                const isAppeal = rawStatus === "appeal_pending" || item.type === "appeal" || item.appeal_reason;
-                if (reportTypeFilter === "appeal" && !isAppeal) return false;
-                if (reportTypeFilter === "report" && isAppeal) return false;
-            }
-
-            return true;
-        });
-    }, [reports, debouncedReportSearch, reportStatusFilter, reportTypeFilter]);
-
-    // Paginated Reports
-    const totalReportPages = Math.ceil(filteredReports.length / reportPageSize) || 1;
-    const paginatedReports = useMemo(() => {
-        const start = (reportPage - 1) * reportPageSize;
-        return filteredReports.slice(start, start + reportPageSize);
-    }, [filteredReports, reportPage, reportPageSize]);
+    const paginatedStories = novels;
+    const totalStoryPages = Math.ceil(storyTotal / storyPageSize) || 1;
+    const paginatedReports = reports;
+    const totalReportPages = Math.ceil(reportTotal / reportPageSize) || 1;
 
     // Pending Reports Count
     const pendingReportsCount = useMemo(() => {
-        return reports.filter((r) => r.status === "pending" || r.status === "appeal_pending").length;
+        return reports.filter((r) => r.status === "pending").length;
     }, [reports]);
 
     // -------------------------------------------------------------
@@ -483,6 +422,7 @@ export default function AdminReportsDashboard() {
         setSelectedStory(story);
         setStoryModalType("delete");
         setActionReason("");
+        setDeleteConfirmChecked(false);
         setActionError("");
     };
 
@@ -491,6 +431,7 @@ export default function AdminReportsDashboard() {
         setStoryModalType(null);
         setSelectedStory(null);
         setActionReason("");
+        setDeleteConfirmChecked(false);
         setActionError("");
     };
 
@@ -504,40 +445,40 @@ export default function AdminReportsDashboard() {
         setActionError("");
 
         try {
-            if (storyModalType === "suspend") {
-                const res = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
-                    method: "PUT",
+            if (storyModalType === "suspend" || storyModalType === "delete") {
+                const reason = actionReason.trim();
+                if (!reason) {
+                    throw new Error(storyModalType === "suspend" ? "กรุณาระบุเหตุผลก่อนระงับนิยาย" : "กรุณาระบุเหตุผลก่อนลบนิยาย");
+                }
+                if (storyModalType === "delete" && !deleteConfirmChecked) {
+                    throw new Error("กรุณายืนยันว่าคุณต้องการลบเรื่องนี้จริงเพื่อดำเนินการต่อ");
+                }
+                const action = storyModalType === "suspend" ? "suspend" : "delete";
+                const res = await fetch(`${API_BASE_URL}/api/admin/novels/${novelId}/moderation`, {
+                    method: "PATCH",
                     headers: {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({
-                        status: "suspended",
-                        is_published: false,
+                        action,
                         reason: actionReason.trim() || undefined,
                     }),
                 });
 
                 if (!res.ok) {
                     if (res.status === 403) throw new Error("คุณไม่มีสิทธิ์ดำเนินการนี้");
+                    if (res.status === 409) throw new Error(await getApiErrorMessage(res, "สถานะนิยายไม่รองรับการดำเนินการนี้"));
                     if (res.status === 404) throw new Error("ไม่พบเรื่องที่ต้องการระงับ");
-                    throw new Error("ไม่สามารถระงับเรื่องได้ กรุณาลองใหม่อีกครั้ง");
+                    throw new Error(await getApiErrorMessage(res, "ไม่สามารถดำเนินการกับเรื่องได้ กรุณาลองใหม่อีกครั้ง"));
                 }
 
-                setNovels((prev) =>
-                    prev.map((n) => {
-                        const nId = n.novel_id || n.id || n.NovelID;
-                        if (nId === novelId) {
-                            return { ...n, status: "suspended", is_published: false };
-                        }
-                        return n;
-                    })
-                );
-                showToast(`ระงับเรื่อง “${selectedStory.title || selectedStory.Title}” สำเร็จ`, "success");
+                await fetchStories(true);
+                showToast(`${storyModalType === "suspend" ? "ระงับ" : "ลบ"}เรื่อง “${selectedStory.title || selectedStory.Title}” สำเร็จ`, "success");
                 setStoryModalType(null);
                 setSelectedStory(null);
             } else if (storyModalType === "unsuspend") {
-                let res = await fetch(`${API_BASE_URL}/api/admin/novels/${novelId}/unban`, {
+                const res = await fetch(`${API_BASE_URL}/api/admin/novels/${novelId}/unban`, {
                     method: "PATCH",
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -545,61 +486,14 @@ export default function AdminReportsDashboard() {
                 });
 
                 if (!res.ok) {
-                    res = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
-                        method: "PUT",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({
-                            status: "published",
-                            is_published: true,
-                        }),
-                    });
-                }
-
-                if (!res.ok) {
                     if (res.status === 403) throw new Error("คุณไม่มีสิทธิ์ดำเนินการนี้");
+                    if (res.status === 409) throw new Error(await getApiErrorMessage(res, "สถานะนิยายไม่รองรับการยกเลิกการระงับ"));
                     if (res.status === 404) throw new Error("ไม่พบเรื่องที่ต้องการยกเลิกการระงับ");
-                    throw new Error("ไม่สามารถยกเลิกการระงับเรื่องได้ กรุณาลองใหม่อีกครั้ง");
+                    throw new Error(await getApiErrorMessage(res, "ไม่สามารถยกเลิกการระงับเรื่องได้ กรุณาลองใหม่อีกครั้ง"));
                 }
 
-                setNovels((prev) =>
-                    prev.map((n) => {
-                        const nId = n.novel_id || n.id || n.NovelID;
-                        if (nId === novelId) {
-                            return { ...n, status: "published", is_published: true };
-                        }
-                        return n;
-                    })
-                );
+                await fetchStories(true);
                 showToast(`ยกเลิกการระงับเรื่อง “${selectedStory.title || selectedStory.Title}” สำเร็จ`, "success");
-                setStoryModalType(null);
-                setSelectedStory(null);
-            } else if (storyModalType === "delete") {
-                const res = await fetch(`${API_BASE_URL}/novels/${novelId}`, {
-                    method: "DELETE",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-                if (!res.ok) {
-                    if (res.status === 403) throw new Error("คุณไม่มีสิทธิ์ดำเนินการนี้");
-                    if (res.status === 404) throw new Error("ไม่พบเรื่องที่ต้องการลบ");
-                    throw new Error("ไม่สามารถลบเรื่องได้ กรุณาลองใหม่อีกครั้ง");
-                }
-
-                setNovels((prev) =>
-                    prev.map((n) => {
-                        const nId = n.novel_id || n.id || n.NovelID;
-                        if (nId === novelId) {
-                            return { ...n, status: "deleted", is_published: false };
-                        }
-                        return n;
-                    })
-                );
-                showToast(`ลบเรื่อง “${selectedStory.title || selectedStory.Title}” สำเร็จ`, "success");
                 setStoryModalType(null);
                 setSelectedStory(null);
             }
@@ -616,6 +510,7 @@ export default function AdminReportsDashboard() {
     // -------------------------------------------------------------
     const handleUpdateReportStatus = async (report, newStatus) => {
         if (!report) return;
+        if (report.report_type === "appeal" && report.status !== "appeal_pending") return;
         setReportActionSubmitting(true);
         setReportActionError("");
         const token = localStorage.getItem("token");
@@ -627,40 +522,24 @@ export default function AdminReportsDashboard() {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({ status: newStatus, reason: reportDecisionReason.trim() }),
             });
 
             if (!res.ok) {
                 if (res.status === 403) throw new Error("คุณไม่มีสิทธิ์ดำเนินการนี้");
+                if (res.status === 409) throw new Error(await getApiErrorMessage(res, "สถานะรายงานไม่รองรับการดำเนินการนี้"));
                 if (res.status === 404) throw new Error("ไม่พบรายงานนี้ในระบบ");
-                throw new Error("ไม่สามารถอัปเดตสถานะรายงานได้ กรุณาลองใหม่อีกครั้ง");
+                throw new Error(await getApiErrorMessage(res, "ไม่สามารถอัปเดตสถานะรายงานได้ กรุณาลองใหม่อีกครั้ง"));
             }
 
-            setReports((prev) =>
-                prev.map((r) => (r.report_id === report.report_id ? { ...r, status: newStatus } : r))
-            );
-
-            if (newStatus === "resolved") {
-                const isAppeal = report.status === "appeal_pending";
-                setNovels((prev) =>
-                    prev.map((n) => {
-                        const nId = n.novel_id || n.id || n.NovelID;
-                        if (nId === report.novel_id) {
-                            return isAppeal
-                                ? { ...n, status: "published", is_published: true }
-                                : { ...n, status: "suspended", is_published: false };
-                        }
-                        return n;
-                    })
-                );
-            }
+            await Promise.all([fetchReports(true), fetchReportStats(), fetchStories(true)]);
 
             const successText =
                 newStatus === "resolved"
-                    ? report.status === "appeal_pending"
+                    ? report.report_type === "appeal"
                         ? "อนุมัติคำขอปลดแบนเรียบร้อยแล้ว"
                         : "ดำเนินการระงับเรื่องตามรายงานเรียบร้อยแล้ว"
-                    : "บันทึกว่าไม่พบการละเมิด / ปฏิเสธคำขอเรียบร้อยแล้ว";
+                    : "บันทึกผลพิจารณาเรียบร้อยแล้ว";
 
             showToast(successText, "success");
             setSelectedReport(null);
@@ -685,7 +564,7 @@ export default function AdminReportsDashboard() {
             return { label: "ดำเนินการแล้ว", className: "report-badge report-badge--resolved" };
         }
         if (s === "rejected") {
-            return { label: "ไม่พบการละเมิด", className: "report-badge report-badge--rejected" };
+            return { label: "ปฏิเสธ / ยังมีปัญหา", className: "report-badge report-badge--rejected" };
         }
         return { label: status || "-", className: "report-badge report-badge--neutral" };
     };
@@ -833,9 +712,7 @@ export default function AdminReportsDashboard() {
                                     >
                                         <option value="all">ทุกสถานะ</option>
                                         <option value="published">เผยแพร่</option>
-                                        <option value="suspended">ระงับ</option>
-                                        <option value="draft">แบบร่าง</option>
-                                        <option value="deleted">ลบ</option>
+                                            <option value="suspended">ระงับ</option>
                                     </select>
                                 </div>
 
@@ -857,31 +734,9 @@ export default function AdminReportsDashboard() {
                                         {categories.map((cat) => (
                                             <option
                                                 key={cat.category_id || cat.id || cat.name}
-                                                value={cat.name}
+                                                value={cat.category_id ?? cat.id}
                                             >
                                                 {cat.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Date Filter */}
-                                <div className="admin-select-wrapper">
-                                    <label htmlFor="story-date-select" className="admin-filter-label">
-                                        วันที่เผยแพร่:
-                                    </label>
-                                    <select
-                                        id="story-date-select"
-                                        className="admin-select"
-                                        value={storyDateFilter}
-                                        onChange={(e) => {
-                                            setStoryDateFilter(e.target.value);
-                                            setStoryPage(1);
-                                        }}
-                                    >
-                                        {DATE_FILTER_OPTIONS.map((opt) => (
-                                            <option key={opt.key} value={opt.key}>
-                                                {opt.label}
                                             </option>
                                         ))}
                                     </select>
@@ -890,8 +745,7 @@ export default function AdminReportsDashboard() {
                                 {/* Reset Filter Button (if active) */}
                                 {(storySearch ||
                                     storyStatusFilter !== "all" ||
-                                    storyCategoryFilter !== "all" ||
-                                    storyDateFilter !== "all") && (
+                                    storyCategoryFilter !== "all") && (
                                     <button
                                         type="button"
                                         className="admin-btn admin-btn--reset"
@@ -899,7 +753,6 @@ export default function AdminReportsDashboard() {
                                             setStorySearch("");
                                             setStoryStatusFilter("all");
                                             setStoryCategoryFilter("all");
-                                            setStoryDateFilter("all");
                                             setStoryPage(1);
                                         }}
                                     >
@@ -945,7 +798,7 @@ export default function AdminReportsDashboard() {
                                         </div>
                                     ))}
                                 </div>
-                            ) : filteredStories.length === 0 ? (
+                            ) : storyTotal === 0 ? (
                                 /* Empty State */
                                 <div className="admin-empty-state">
                                     <div className="admin-empty-state__icon">
@@ -954,23 +807,20 @@ export default function AdminReportsDashboard() {
                                     <h3 className="admin-empty-state__title">
                                         {storySearch ||
                                         storyStatusFilter !== "all" ||
-                                        storyCategoryFilter !== "all" ||
-                                        storyDateFilter !== "all"
+                                        storyCategoryFilter !== "all"
                                             ? "ไม่พบเรื่องที่ตรงกับเงื่อนไข"
                                             : "ยังไม่มีข้อมูลเรื่องในระบบ"}
                                     </h3>
                                     <p className="admin-empty-state__desc">
                                         {storySearch ||
                                         storyStatusFilter !== "all" ||
-                                        storyCategoryFilter !== "all" ||
-                                        storyDateFilter !== "all"
+                                        storyCategoryFilter !== "all"
                                             ? "ลองเปลี่ยนคำค้นหาหรือตัวกรองใหม่อีกครั้ง"
                                             : "เมื่อมีนิยายสร้างขึ้นในระบบ จะปรากฏในตารางนี้"}
                                     </p>
                                     {(storySearch ||
                                         storyStatusFilter !== "all" ||
-                                        storyCategoryFilter !== "all" ||
-                                        storyDateFilter !== "all") && (
+                                        storyCategoryFilter !== "all") && (
                                         <button
                                             type="button"
                                             className="admin-btn admin-btn--reset-empty"
@@ -978,7 +828,6 @@ export default function AdminReportsDashboard() {
                                                 setStorySearch("");
                                                 setStoryStatusFilter("all");
                                                 setStoryCategoryFilter("all");
-                                                setStoryDateFilter("all");
                                                 setStoryPage(1);
                                             }}
                                         >
@@ -1034,7 +883,6 @@ export default function AdminReportsDashboard() {
                                                                         <span className="admin-story-title" title={title}>
                                                                             {title}
                                                                         </span>
-                                                                        <span className="admin-story-id">ID: #{novelId}</span>
                                                                     </div>
                                                                 </div>
                                                             </td>
@@ -1232,9 +1080,9 @@ export default function AdminReportsDashboard() {
                                             แสดง{" "}
                                             <strong>
                                                 {(storyPage - 1) * storyPageSize + 1} -{" "}
-                                                {Math.min(storyPage * storyPageSize, filteredStories.length)}
+                                                {Math.min(storyPage * storyPageSize, storyTotal)}
                                             </strong>{" "}
-                                            จาก <strong>{filteredStories.length.toLocaleString()}</strong> รายการ
+                                            จาก <strong>{storyTotal.toLocaleString()}</strong> รายการ
                                         </div>
 
                                         <div className="admin-pagination-controls">
@@ -1292,6 +1140,56 @@ export default function AdminReportsDashboard() {
                    ------------------------------------------------------------- */}
                 {activeTab === "reports" && (
                     <div className="admin-tab-pane" role="tabpanel">
+                        <div className="admin-report-stats-grid" aria-label="สรุปสถานะรายงาน">
+                            <button
+                                type="button"
+                                className={`admin-report-stat-card admin-report-stat-card--pending ${reportStatusFilter === "pending" ? "admin-report-stat-card--active" : ""}`}
+                                onClick={() => {
+                                    setReportStatusFilter("pending");
+                                    setReportPage(1);
+                                }}
+                                aria-pressed={reportStatusFilter === "pending"}
+                            >
+                                <span className="admin-report-stat-icon"><Clock size={20} /></span>
+                                <span>
+                                    <span className="admin-report-stat-label">รอตรวจสอบ</span>
+                                    <span className="admin-report-stat-value">{reportStats.pending.toLocaleString()}</span>
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className={`admin-report-stat-card admin-report-stat-card--resolved ${reportStatusFilter === "resolved" ? "admin-report-stat-card--active" : ""}`}
+                                onClick={() => {
+                                    setReportStatusFilter("resolved");
+                                    setReportPage(1);
+                                }}
+                                aria-pressed={reportStatusFilter === "resolved"}
+                            >
+                                <span className="admin-report-stat-icon"><ShieldCheck size={20} /></span>
+                                <span>
+                                    <span className="admin-report-stat-label">อนุมัติแล้ว</span>
+                                    <span className="admin-report-stat-value">{reportStats.resolved.toLocaleString()}</span>
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className={`admin-report-stat-card admin-report-stat-card--rejected ${reportStatusFilter === "rejected" ? "admin-report-stat-card--active" : ""}`}
+                                onClick={() => {
+                                    setReportStatusFilter("rejected");
+                                    setReportPage(1);
+                                }}
+                                aria-pressed={reportStatusFilter === "rejected"}
+                            >
+                                <span className="admin-report-stat-icon"><X size={20} /></span>
+                                <span>
+                                    <span className="admin-report-stat-label">ปฏิเสธแล้ว</span>
+                                    <span className="admin-report-stat-value">{reportStats.rejected.toLocaleString()}</span>
+                                </span>
+                            </button>
+                        </div>
+
                         {/* Filters Bar */}
                         <div className="admin-filter-card">
                             <div className="admin-filter-grid">
@@ -1333,6 +1231,7 @@ export default function AdminReportsDashboard() {
                                     >
                                         <option value="all">ทุกสถานะ</option>
                                         <option value="pending">รอตรวจสอบ</option>
+                                        <option value="appeal_pending">คำขอปลดแบนรอตรวจสอบ</option>
                                         <option value="resolved">ดำเนินการแล้ว (อนุมัติ)</option>
                                         <option value="rejected">ไม่พบการละเมิด (ปฏิเสธ)</option>
                                     </select>
@@ -1413,7 +1312,7 @@ export default function AdminReportsDashboard() {
                                         </div>
                                     ))}
                                 </div>
-                            ) : filteredReports.length === 0 ? (
+                            ) : reportTotal === 0 ? (
                                 /* Empty State */
                                 <div className="admin-empty-state">
                                     <div className="admin-empty-state__icon">
@@ -1464,7 +1363,7 @@ export default function AdminReportsDashboard() {
                                             <tbody>
                                                 {paginatedReports.map((report) => {
                                                     const statusInfo = getReportStatusInfo(report.status);
-                                                    const isAppeal = report.status === "appeal_pending";
+                                                    const isAppeal = report.report_type === "appeal";
                                                     const cleanReason = stripHtml(report.reason);
 
                                                     return (
@@ -1530,7 +1429,10 @@ export default function AdminReportsDashboard() {
                                                                 <button
                                                                     type="button"
                                                                     className="admin-action-btn admin-action-btn--inspect"
-                                                                    onClick={() => setSelectedReport(report)}
+                                                                    onClick={() => {
+                                                                        setSelectedReport(report);
+                                                                        setReportDecisionReason("");
+                                                                    }}
                                                                     title="ตรวจสอบรายละเอียดรายงาน"
                                                                 >
                                                                     <FileText size={14} />
@@ -1548,7 +1450,7 @@ export default function AdminReportsDashboard() {
                                     <div className="admin-cards-mobile">
                                         {paginatedReports.map((report) => {
                                             const statusInfo = getReportStatusInfo(report.status);
-                                            const isAppeal = report.status === "appeal_pending";
+                                            const isAppeal = report.report_type === "appeal";
                                             const cleanReason = stripHtml(report.reason);
 
                                             return (
@@ -1578,7 +1480,10 @@ export default function AdminReportsDashboard() {
                                                     <button
                                                         type="button"
                                                         className="admin-action-btn admin-action-btn--inspect admin-btn--block"
-                                                        onClick={() => setSelectedReport(report)}
+                                                        onClick={() => {
+                                                            setSelectedReport(report);
+                                                            setReportDecisionReason("");
+                                                        }}
                                                     >
                                                         <FileText size={14} />
                                                         <span>ตรวจสอบรายงาน</span>
@@ -1594,9 +1499,9 @@ export default function AdminReportsDashboard() {
                                             แสดง{" "}
                                             <strong>
                                                 {(reportPage - 1) * reportPageSize + 1} -{" "}
-                                                {Math.min(reportPage * reportPageSize, filteredReports.length)}
+                                                {Math.min(reportPage * reportPageSize, reportTotal)}
                                             </strong>{" "}
-                                            จาก <strong>{filteredReports.length.toLocaleString()}</strong> รายการ
+                                            จาก <strong>{reportTotal.toLocaleString()}</strong> รายการ
                                         </div>
 
                                         <div className="admin-pagination-controls">
@@ -1720,11 +1625,11 @@ export default function AdminReportsDashboard() {
                                 </p>
                             )}
 
-                            {/* Optional Reason Input for Suspend & Delete */}
+                            {/* Required Reason Input for Suspend & Delete */}
                             {(storyModalType === "suspend" || storyModalType === "delete") && (
                                 <div className="admin-modal-form-group">
                                     <label htmlFor="action-reason" className="admin-form-label">
-                                        เหตุผล (ระบุหรือไม่ก็ได้):
+                                        เหตุผลที่ต้องระบุ:
                                     </label>
                                     <textarea
                                         id="action-reason"
@@ -1736,6 +1641,18 @@ export default function AdminReportsDashboard() {
                                         disabled={actionSubmitting}
                                     />
                                 </div>
+                            )}
+
+                            {storyModalType === "delete" && (
+                                <label className="admin-confirm-check">
+                                    <input
+                                        type="checkbox"
+                                        checked={deleteConfirmChecked}
+                                        onChange={(e) => setDeleteConfirmChecked(e.target.checked)}
+                                        disabled={actionSubmitting}
+                                    />
+                                    <span>ฉันยืนยันว่าต้องการลบเรื่องนี้จริง และจะไม่กดโดย mistake</span>
+                                </label>
                             )}
 
                             {/* Action Error */}
@@ -1819,7 +1736,7 @@ export default function AdminReportsDashboard() {
                                     <FileText size={20} />
                                 </div>
                                 <h3 className="admin-modal-title">
-                                    {selectedReport.status === "appeal_pending"
+                                    {selectedReport.report_type === "appeal"
                                         ? "ตรวจสอบคำขอปลดแบน"
                                         : "ตรวจสอบรายงานเนื้อหา"}
                                 </h3>
@@ -1878,7 +1795,7 @@ export default function AdminReportsDashboard() {
 
                                         <div className="admin-review-field">
                                             <label className="admin-review-label">
-                                                {selectedReport.status === "appeal_pending"
+                                                {selectedReport.report_type === "appeal"
                                                     ? "ผู้ยื่นคำขอ:"
                                                     : "ผู้รายงาน:"}
                                             </label>
@@ -1912,7 +1829,7 @@ export default function AdminReportsDashboard() {
 
                                     <div className="admin-review-field">
                                         <label className="admin-review-label">
-                                            {selectedReport.status === "appeal_pending"
+                                            {selectedReport.report_type === "appeal"
                                                 ? "เหตุผลในการขอปลดแบน:"
                                                 : "เหตุผลที่รายงาน:"}
                                         </label>
@@ -1930,6 +1847,24 @@ export default function AdminReportsDashboard() {
                                     <span>{reportActionError}</span>
                                 </div>
                             )}
+                            {((selectedReport.report_type === "appeal" &&
+                                selectedReport.status === "appeal_pending") ||
+                                (selectedReport.report_type === "report" &&
+                                    selectedReport.status === "pending")) && (
+                                <div className="admin-modal-form-group">
+                                    <label htmlFor="report-decision-reason" className="admin-form-label">
+                                        เหตุผลการพิจารณา:
+                                    </label>
+                                    <textarea
+                                        id="report-decision-reason"
+                                        className="admin-form-textarea"
+                                        rows={3}
+                                        value={reportDecisionReason}
+                                        onChange={(e) => setReportDecisionReason(e.target.value)}
+                                        disabled={reportActionSubmitting}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Footer Actions */}
@@ -1944,7 +1879,8 @@ export default function AdminReportsDashboard() {
                             </button>
 
                             {/* แสดงปุ่ม Action เฉพาะเมื่อสถานะยังรอการตรวจสอบ (pending หรือ appeal_pending) */}
-                            {selectedReport.status === "appeal_pending" ? (
+                            {selectedReport.report_type === "appeal" &&
+                            selectedReport.status === "appeal_pending" ? (
                                 /* Appeal Actions (รอพิจารณาคำขอปลดแบน) */
                                 <div className="admin-review-action-btns">
                                     <button
@@ -1990,7 +1926,7 @@ export default function AdminReportsDashboard() {
                                         ) : (
                                             <Check size={16} />
                                         )}
-                                        <span>ไม่พบการละเมิด (ยกเลิกรายงาน)</span>
+                                        <span>ปฏิเสธรายงาน / ไม่มีการละเมิด</span>
                                     </button>
 
                                     <button
@@ -2017,7 +1953,7 @@ export default function AdminReportsDashboard() {
                                         </span>
                                     ) : (
                                         <span className="notice-badge notice-badge--rejected">
-                                            <X size={15} /> ดำเนินการปฏิเสธ / ไม่พบการละเมิดแล้ว
+                                            <X size={15} /> ดำเนินการปฏิเสธ / ยังมีปัญหาอยู่
                                         </span>
                                     )}
                                 </div>

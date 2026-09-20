@@ -170,14 +170,16 @@ const Manageusers = () => {
     } catch (err) {
       console.error(err);
       const status = err.response?.status;
+      const data = err.response?.data;
+      const errMsg = (typeof data?.error === "object" ? data.error?.message : data?.error) || data?.message;
       if (status === 400) {
-        alert(err.response?.data?.error || err.response?.data?.message || "username ไม่ถูกต้อง");
+        alert(errMsg || "username ไม่ถูกต้อง");
       } else if (status === 409) {
-        alert(err.response?.data?.error || err.response?.data?.message || "username ซ้ำ");
+        alert(errMsg || "username ซ้ำ");
       } else if (status === 401) {
-        alert(err.response?.data?.error || err.response?.data?.message || "token หมดอายุ");
+        alert(errMsg || "token หมดอายุ");
       } else if (status === 403) {
-        alert(err.response?.data?.error || err.response?.data?.message || "ไม่มีสิทธิ์ admin");
+        alert(errMsg || "ไม่มีสิทธิ์ admin");
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึกการเปลี่ยนแปลง กรุณาลองใหม่อีกครั้ง");
       }

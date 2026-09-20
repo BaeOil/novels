@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   RotateCw,
   Filter,
@@ -34,6 +34,7 @@ export const ACTION_MAP = {
   DELETE_ACCOUNT: { label: "ลบบัญชีตัวเอง", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
   SUSPEND_USER: { label: "ระงับการใช้งานผู้ใช้", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
   UNSUSPEND_USER: { label: "ยกเลิกการระงับผู้ใช้", group: "green", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
+  RESTORE_WRITER_ACCESS: { label: "คืนสิทธิ์นักเขียน", group: "green", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
   CHANGE_ROLE: { label: "เปลี่ยนสิทธิ์ผู้ใช้", group: "orange", color: "#ea580c", bg: "#ffedd5", border: "#fed7aa" },
   DELETE_USER: { label: "ลบผู้ใช้", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
   APPROVE_WRITER: { label: "อนุมัติคำขอเป็นนักเขียน", group: "green", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
@@ -56,9 +57,74 @@ export const ACTION_MAP = {
   UPDATE_CATEGORY: { label: "แก้ไขหมวดหมู่", group: "blue", color: "#0284c7", bg: "#e0f2fe", border: "#bae6fd" },
   DELETE_CATEGORY: { label: "ลบหมวดหมู่", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
   UPDATE_REPORT_STATUS: { label: "อัปเดตสถานะรายงาน", group: "orange", color: "#ea580c", bg: "#ffedd5", border: "#fed7aa" },
+  DEMOTE_USER: { label: "ปลดสิทธิ์ผู้ใช้", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
+  UNAUTHORIZED_ACCESS: { label: "พยายามเข้าถึงโดยไม่มีสิทธิ์", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
+  // เพิ่ม: มีอยู่จริงใน backend (novel_handler.go, chapter_handler.go, scene_handler.go,
+  // report_handler.go, admin_user_handler.go) แต่ยังไม่มีคำแปลใน frontend มาก่อน
+  // หมายเหตุ: ไม่ใส่ BAN_NOVEL เพราะตรวจโค้อ backend แล้วยืนยันว่าไม่เคยถูกเรียกใช้จริง
+  // (ทีม backend ยืนยันแล้วว่าลบออกจาก defaultActions ของ audit_repo.go แล้วด้วย)
+  PUBLISH_CHAPTER: { label: "เผยแพร่ตอน", group: "green", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
+  UNPUBLISH_CHAPTER: { label: "ยกเลิกการเผยแพร่ตอน", group: "orange", color: "#ea580c", bg: "#ffedd5", border: "#fed7aa" },
+  PUBLISH_SCENE: { label: "เผยแพร่ฉาก", group: "green", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
+  UNPUBLISH_SCENE: { label: "ยกเลิกการเผยแพร่ฉาก", group: "orange", color: "#ea580c", bg: "#ffedd5", border: "#fed7aa" },
+  SUSPEND_NOVEL: { label: "ระงับการเผยแพร่นิยาย", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
+  // UNSUSPEND_NOVEL คือชื่อ action ปัจจุบัน (backend เปลี่ยนจาก UNBAN_NOVEL เพื่อให้
+  // สมมาตรกับ SUSPEND_NOVEL แล้ว — ยืนยันจากทีม backend ว่า ณ ตอนแก้ไม่มี record เก่า
+  // ที่ใช้ชื่อ UNBAN_NOVEL อยู่ในฐานข้อมูลจริงเลย) ให้ label เดียวกันทั้งคู่ เผื่ออนาคต
+  // มี record เก่าโผล่มา (เช่น migrate ข้อมูลจากที่อื่น หรือ deploy ผิดเวอร์ชันชั่วคราว)
+  // จะได้ยังกรอง/แสดงผลถูกต้อง ไม่ต้องแก้โค้ดฉุกเฉิน
+  UNSUSPEND_NOVEL: { label: "ยกเลิกการระงับนิยาย", group: "green", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
+  // hiddenInFilter: ไม่โชว์เป็นตัวเลือกในดรอปดาวน์ตัวกรอง (จะซ้ำหน้าตากับ
+  // UNSUSPEND_NOVEL ด้านบนเป๊ะ ทำให้แอดมินงงว่าเลือกอันไหนดี) เก็บไว้แค่ให้
+  // ACTION_MAP[log.action] แปล label ถูกต้อง ถ้า log เก่าที่ใช้ชื่อนี้โผล่มาจริง
+  UNBAN_NOVEL: { label: "ยกเลิกการระงับนิยาย", group: "green", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0", hiddenInFilter: true },
+  ADMIN_UPDATE_USERNAME: { label: "แอดมินแก้ไขชื่อผู้ใช้", group: "blue", color: "#0284c7", bg: "#e0f2fe", border: "#bae6fd" },
+  SUBMIT_REPORT: { label: "ยื่นรายงาน", group: "gray", color: "#475569", bg: "#f1f5f9", border: "#cbd5e1" },
+  SUBMIT_APPEAL: { label: "ยื่นอุทธรณ์", group: "gray", color: "#475569", bg: "#f1f5f9", border: "#cbd5e1" },
+  SUSPEND_OWN_ACCOUNT: { label: "ระงับบัญชีตัวเอง", group: "red", color: "#e11d48", bg: "#ffe4e6", border: "#fecdd3" },
 };
 
-// ตารางแปล Metadata key เป็นภาษาไทย
+// จัดกลุ่ม action สำหรับแสดงเป็น <optgroup> ในดรอปดาวน์ตัวกรอง "การกระทำ"
+// แยกจาก ACTION_MAP เพื่อไม่ต้องแก้ทุกรายการเดิม แค่กำหนดว่า key ไหนอยู่กลุ่มไหน
+// action ที่ hiddenInFilter=true (เช่น UNBAN_NOVEL) จะถูกกรองออกจากทุกกลุ่มอัตโนมัติ
+export const ACTION_GROUPS = [
+  {
+    label: "บัญชีผู้ใช้",
+    keys: ["REGISTER", "LOGIN", "LOGIN_FAILED", "LOGOUT", "UPDATE_PROFILE", "DELETE_ACCOUNT", "SUSPEND_OWN_ACCOUNT"],
+  },
+  {
+    label: "การจัดการผู้ใช้ (แอดมิน)",
+    keys: ["SUSPEND_USER", "UNSUSPEND_USER", "RESTORE_WRITER_ACCESS", "DELETE_USER", "DEMOTE_USER", "ADMIN_UPDATE_USERNAME"],
+  },
+  {
+    label: "นักเขียน",
+    keys: ["APPROVE_WRITER", "REJECT_WRITER"],
+  },
+  {
+    label: "นิยาย / ตอน / ฉาก / ตัวเลือก",
+    keys: [
+      "CREATE_NOVEL", "UPDATE_NOVEL", "PUBLISH_NOVEL", "UNPUBLISH_NOVEL", "DELETE_NOVEL",
+      "SUSPEND_NOVEL", "UNSUSPEND_NOVEL",
+      "CREATE_CHAPTER", "UPDATE_CHAPTER", "PUBLISH_CHAPTER", "UNPUBLISH_CHAPTER", "DELETE_CHAPTER",
+      "CREATE_SCENE", "UPDATE_SCENE", "PUBLISH_SCENE", "UNPUBLISH_SCENE", "DELETE_SCENE",
+      "CREATE_CHOICE", "UPDATE_CHOICE", "DELETE_CHOICE",
+    ],
+  },
+  {
+    label: "หมวดหมู่นิยาย",
+    keys: ["CREATE_CATEGORY", "UPDATE_CATEGORY", "DELETE_CATEGORY"],
+  },
+  {
+    label: "รายงาน / อุทธรณ์",
+    keys: ["SUBMIT_REPORT", "SUBMIT_APPEAL", "UPDATE_REPORT_STATUS"],
+  },
+  {
+    label: "ความปลอดภัย",
+    keys: ["UNAUTHORIZED_ACCESS"],
+  },
+];
+
+
 export const METADATA_KEY_MAP = {
   email: "อีเมล",
   username: "ชื่อผู้ใช้",
@@ -90,6 +156,27 @@ export const METADATA_KEY_MAP = {
   old_name: "ชื่อเดิม",
   new_name: "ชื่อใหม่",
   profile_picture: "รูปโปรไฟล์",
+  // key ที่ระบบสร้างได้จริงจาก before/after diff (scene/choice) และ UNAUTHORIZED_ACCESS แต่ยังไม่มีคำแปล
+  old_type: "ประเภทเดิม",
+  new_type: "ประเภทใหม่",
+  old_label: "ข้อความตัวเลือกเดิม",
+  new_label: "ข้อความตัวเลือกใหม่",
+  old_to_scene_id: "ฉากปลายทางเดิม",
+  new_to_scene_id: "ฉากปลายทางใหม่",
+  path: "เส้นทางที่พยายามเข้าถึง",
+  method: "HTTP Method",
+  // เพิ่ม: พบจริงใน handler แต่ยังไม่มีคำแปลมาก่อน
+  old_username: "ชื่อผู้ใช้เดิม",
+  new_username: "ชื่อผู้ใช้ใหม่",
+  previous_is_published: "เผยแพร่อยู่หรือไม่ (ก่อนหน้า)",
+  new_is_published: "เผยแพร่อยู่หรือไม่ (ปัจจุบัน)",
+  choices_diff: "การเปลี่ยนแปลงตัวเลือก",
+  created_count: "สร้างใหม่ (จำนวน)",
+  updated_count: "แก้ไข (จำนวน)",
+  deleted_count: "ลบ (จำนวน)",
+  report_type: "ประเภทรายงาน",
+  author_user_id: "รหัสบัญชีผู้ใช้ของผู้เขียน",
+  author_name: "ชื่อผู้เขียน",
 };
 
 // ตารางแปล Target Type ดิบเป็นภาษาไทย
@@ -102,6 +189,7 @@ export const TARGET_TYPE_MAP = {
   category: "หมวดหมู่",
   writer: "นักเขียน",
   report: "รายงาน",
+  route: "เส้นทาง (Route)",
 };
 
 // ตารางแปล Role
@@ -117,15 +205,22 @@ export const VALUE_MAP = {
   suspended: "ระงับการใช้งาน",
   draft: "แบบร่าง",
   published: "เผยแพร่แล้ว",
+  "completed-published": "เผยแพร่แล้ว (จบเรื่อง)",
   pending: "รอตรวจสอบ",
   appeal_pending: "รอตรวจสอบ",
   resolved: "อนุมัติแล้ว",
   rejected: "ปฏิเสธแล้ว",
+  report: "รายงาน",
+  appeal: "อุทธรณ์",
   admin: "แอดมิน",
   writer: "นักเขียน",
   reader: "นักอ่าน",
   true: "ใช่",
   false: "ไม่ใช่",
+  // ค่า reason แบบ coded จาก UNAUTHORIZED_ACCESS (string คงที่จาก middleware ไม่ใช่ข้อความอิสระ)
+  missing_token: "ไม่ได้แนบ Token เข้ามาในคำขอ",
+  invalid_or_expired_token: "Token ไม่ถูกต้องหรือหมดอายุ",
+  role_mismatch: "สิทธิ์ผู้ใช้ไม่ตรงกับที่เส้นทางนี้ต้องการ",
 };
 
 // ตารางแปลข้อความ Error จาก backend (400)
@@ -194,8 +289,18 @@ const formatFullThaiDateTime = (dateString) => {
 
 // แปลงค่า Value ให้อ่านง่ายเป็นภาษาไทย
 const formatMetadataValue = (key, val, allMetadata = {}) => {
-  if (val === null || val === undefined) return "-";
+  if (val === null || val === undefined || (typeof val === "string" && val.trim() === "")) return "-";
   if (typeof val === "boolean") return val ? "ใช่" : "ไม่ใช่";
+  // choices_diff เป็น object สรุปจำนวนตัวเลือกที่สร้าง/แก้/ลบตอนแก้ไขฉาก
+  // (มาจาก SyncSceneChoices) แสดงเป็นข้อความไทยแทนการโชว์ JSON ดิบให้แอดมินอ่านเอง
+  if (key === "choices_diff" && typeof val === "object") {
+    const { created_count = 0, updated_count = 0, deleted_count = 0 } = val;
+    const parts = [];
+    if (created_count > 0) parts.push(`สร้างใหม่ ${created_count} รายการ`);
+    if (updated_count > 0) parts.push(`แก้ไข ${updated_count} รายการ`);
+    if (deleted_count > 0) parts.push(`ลบ ${deleted_count} รายการ`);
+    return parts.length > 0 ? parts.join(", ") : "ไม่มีการเปลี่ยนแปลง";
+  }
   if (typeof val === "object") {
     try {
       return JSON.stringify(val);
@@ -279,6 +384,8 @@ const renderStatusBadge = (status) => {
 export default function Adminauditlog() {
   // Main Data States
   const [logs, setLogs] = useState([]);
+  // จุดที่แก้ noise: แยก security log (login/logout/สมัคร/เข้าถึงไม่มีสิทธิ์) ออกจาก content activity
+  const [logView, setLogView] = useState("all"); // "all" | "content" | "security"
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -332,6 +439,24 @@ export default function Adminauditlog() {
     statusFilter ||
     dateFromFilter ||
     dateToFilter
+  );
+
+  // action กลุ่ม "security" (เข้า/ออกระบบ, สมัครสมาชิก, พยายามเข้าถึงโดยไม่มีสิทธิ์) — ใช้แยกออกจาก content activity
+  const SECURITY_ACTIONS = new Set(["LOGIN", "LOGOUT", "LOGIN_FAILED", "UNAUTHORIZED_ACCESS", "REGISTER", "SUSPEND_OWN_ACCOUNT"]);
+
+  // กรอง logs ที่ได้จาก server อีกชั้นด้วย logView — client-side เท่านั้น
+  // ⚠️ กรองเฉพาะภายในหน้าที่โหลดมาแล้ว (ตาม limit ต่อหน้า) ไม่ใช่กรองทั้งระบบเหมือน filter อื่นที่ยิงไป backend จริง
+  // เพราะ backend ยังไม่รองรับกรองหลาย action พร้อมกันในคำขอเดียว (action_in)
+  const visibleLogs = useMemo(() => {
+    if (logView === "all") return logs;
+    return logs.filter((log) =>
+      logView === "content" ? !SECURITY_ACTIONS.has(log.action) : SECURITY_ACTIONS.has(log.action)
+    );
+  }, [logs, logView]);
+
+  const securityCount = useMemo(
+    () => logs.filter((l) => SECURITY_ACTIONS.has(l.action)).length,
+    [logs]
   );
 
   // 🟢 Fetch List Audit Logs
@@ -408,7 +533,7 @@ export default function Adminauditlog() {
       }
 
       if (!res.ok) {
-        const rawMsg = resJson.message || resJson.error || "";
+        const rawMsg = (typeof resJson?.error === "object" ? resJson.error?.message : resJson?.error) || resJson?.message || "";
         const thaiMsg = ERROR_MESSAGE_MAP[rawMsg] || rawMsg || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
         throw new Error(thaiMsg);
       }
@@ -721,7 +846,7 @@ export default function Adminauditlog() {
       }
 
       if (!res.ok) {
-        const rawMsg = resJson.message || resJson.error || "";
+        const rawMsg = (typeof resJson?.error === "object" ? resJson.error?.message : resJson?.error) || resJson?.message || "";
         const thaiMsg = ERROR_MESSAGE_MAP[rawMsg] || (res.status === 404 ? "ไม่พบรายการนี้" : "เกิดข้อผิดพลาด กรุณาลองใหม่");
         throw new Error(thaiMsg);
       }
@@ -861,6 +986,42 @@ export default function Adminauditlog() {
         </header>
 
         {/* =======================================================
+            1.5 Quick View Toggle — ซ่อน login/logout ที่ท่วม log ได้ในคลิกเดียว
+            client-side เท่านั้น กรองภายในหน้าที่โหลดอยู่ (ไม่ใช่ query แยกไป backend)
+           ======================================================= */}
+        <div className="admin-audit-view-toggle" role="tablist" aria-label="มุมมอง Log">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={logView === "all"}
+            className={`admin-audit-view-btn ${logView === "all" ? "active" : ""}`}
+            onClick={() => setLogView("all")}
+          >
+            ทั้งหมด
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={logView === "content"}
+            className={`admin-audit-view-btn ${logView === "content" ? "active" : ""}`}
+            onClick={() => setLogView("content")}
+            title="ซ่อนรายการ เข้าสู่ระบบ / ออกจากระบบ / สมัครสมาชิก"
+          >
+            เฉพาะกิจกรรมเนื้อหา
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={logView === "security"}
+            className={`admin-audit-view-btn ${logView === "security" ? "active" : ""}`}
+            onClick={() => setLogView("security")}
+            title="ดูเฉพาะ เข้าสู่ระบบ / ออกจากระบบ / พยายามเข้าถึงโดยไม่มีสิทธิ์"
+          >
+            เฉพาะ Security {securityCount > 0 && `(${securityCount})`}
+          </button>
+        </div>
+
+        {/* =======================================================
             2. Filter Bar
            ======================================================= */}
         <div className="admin-audit-filter-card">
@@ -896,10 +1057,16 @@ export default function Adminauditlog() {
                 onChange={handleActionChange}
               >
                 <option value="">ทุกการกระทำ</option>
-                {Object.entries(ACTION_MAP).map(([actionKey, info]) => (
-                  <option key={actionKey} value={actionKey}>
-                    {info.label}
-                  </option>
+                {ACTION_GROUPS.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.keys
+                      .filter((actionKey) => ACTION_MAP[actionKey] && !ACTION_MAP[actionKey].hiddenInFilter)
+                      .map((actionKey) => (
+                        <option key={actionKey} value={actionKey}>
+                          {ACTION_MAP[actionKey].label}
+                        </option>
+                      ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -1052,7 +1219,7 @@ export default function Adminauditlog() {
                       <td><div className="skeleton-bar" style={{ width: "100%" }} /></td>
                     </tr>
                   ))
-                ) : logs.length === 0 ? (
+                ) : visibleLogs.length === 0 ? (
                   // Empty State Row
                   <tr>
                     <td colSpan={7}>
@@ -1065,7 +1232,7 @@ export default function Adminauditlog() {
                   </tr>
                 ) : (
                   // Data Rows
-                  logs.map((log) => {
+                  visibleLogs.map((log) => {
                     const actionInfo = ACTION_MAP[log.action] || {
                       label: log.action,
                       group: "gray",
@@ -1161,14 +1328,14 @@ export default function Adminauditlog() {
                   <div className="skeleton-bar" style={{ width: "50%", height: "14px" }} />
                 </div>
               ))
-            ) : logs.length === 0 ? (
+            ) : visibleLogs.length === 0 ? (
               <div className="admin-audit-empty-state">
                 <Inbox size={48} className="empty-icon" />
                 <h3>ไม่พบประวัติการใช้งาน</h3>
                 {hasActiveFilters && <p>ลองปรับตัวกรองใหม่อีกครั้ง</p>}
               </div>
             ) : (
-              logs.map((log) => {
+              visibleLogs.map((log) => {
                 const actionInfo = ACTION_MAP[log.action] || {
                   label: log.action,
                   group: "gray",

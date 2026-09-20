@@ -5,6 +5,14 @@ import "./NotificationDropdown.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
+const NOTIFICATION_TYPE_LABEL = {
+  system: "ระบบ",
+  novel_update: "นิยาย",
+  comment: "คอมเมนต์",
+  like: "ถูกใจ",
+  follower: "ผู้ติดตาม",
+};
+
 const normalizeNotification = (item = {}) => ({
   id: item.id ?? item.notification_id,
   type: item.type === "follow" ? "follower" : item.type || "system",
@@ -16,6 +24,7 @@ const normalizeNotification = (item = {}) => ({
   referenceId: item.reference_id ?? item.referenceId ?? null,
   referenceType: item.reference_type ?? item.referenceType ?? "system",
   createdAt: item.created_at ?? item.createdAt ?? new Date().toISOString(),
+  typeLabel: NOTIFICATION_TYPE_LABEL[item.type === "follow" ? "follower" : item.type || "system"] || "ระบบ",
 });
 
 const formatTime = (date) => {
@@ -159,8 +168,11 @@ export default function NotificationDropdown({ unreadCount = 0 }) {
                     {notification.actorName.charAt(0)}
                   </span>
                   <span className="notification-dropdown__copy">
-                    <strong>{notification.actorName}</strong>
-                    <span>{notification.title}</span>
+                    <span className="notification-dropdown__meta-row">
+                      <strong>{notification.actorName}</strong>
+                      <span className="notification-dropdown__tag">{notification.typeLabel}</span>
+                    </span>
+                    <span className="notification-dropdown__title">{notification.title}</span>
                     {notification.body && <small>{notification.body}</small>}
                     <time>{formatTime(notification.createdAt)}</time>
                   </span>

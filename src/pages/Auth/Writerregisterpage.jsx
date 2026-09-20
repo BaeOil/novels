@@ -611,7 +611,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => null);
-                throw new Error(errData?.message || "การส่งใบสมัครล้มเหลว กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง");
+                throw new Error(errData?.error?.message || errData?.message || "การส่งใบสมัครล้มเหลว กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง");
             }
 
             clearSavedData(); // เคลียร์ข้อมูลทิ้งเมื่อส่งสำเร็จแล้ว

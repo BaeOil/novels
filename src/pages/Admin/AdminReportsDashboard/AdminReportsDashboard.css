@@ -242,6 +242,100 @@
 /* -------------------------------------------------------------------------
    3. Filter Section
    ------------------------------------------------------------------------- */
+.admin-report-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.admin-report-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 18px 20px;
+  border: 1px solid #ffe3ec;
+  border-top: 3px solid transparent;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(255, 105, 180, 0.05);
+  color: #0f172a;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-report-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(255, 105, 180, 0.08);
+}
+
+.admin-report-stat-card:focus-visible {
+  outline: 2px solid #ec4899;
+  outline-offset: 2px;
+}
+
+.admin-report-stat-card--active {
+  box-shadow: 0 0 0 2px currentColor, 0 10px 22px rgba(255, 105, 180, 0.1);
+}
+
+.admin-report-stat-card--pending {
+  border-top-color: #ff4d6d;
+}
+
+.admin-report-stat-card--pending .admin-report-stat-icon {
+  background: #fff0f6;
+  color: #ff4d6d;
+}
+
+.admin-report-stat-card--resolved {
+  border-top-color: #0ca678;
+}
+
+.admin-report-stat-card--resolved .admin-report-stat-icon {
+  background: #e6fcf5;
+  color: #0ca678;
+}
+
+.admin-report-stat-card--rejected {
+  border-top-color: #adb5bd;
+}
+
+.admin-report-stat-card--rejected .admin-report-stat-icon {
+  background: #f1f3f5;
+  color: #868e96;
+}
+
+.admin-report-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.admin-report-stat-label,
+.admin-report-stat-value {
+  display: block;
+}
+
+.admin-report-stat-label {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-report-stat-value {
+  color: #0f172a;
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
 .admin-filter-card {
   background: #ffffff;
   border: 1px solid #f1f5f9;
@@ -1028,6 +1122,27 @@
   margin-top: 14px;
 }
 
+.admin-confirm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 12px;
+  border-radius: 10px;
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #9f1239;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.admin-confirm-check input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: #e11d48;
+}
+
 .admin-form-label {
   display: block;
   font-size: 0.85rem;
@@ -1426,6 +1541,10 @@
    15. Media Queries
    ------------------------------------------------------------------------- */
 @media (max-width: 900px) {
+  .admin-report-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
   .admin-table-responsive {
     display: none;
   }

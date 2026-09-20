@@ -514,7 +514,7 @@ const WriterRequestsPage = () => {
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
-        throw new Error(errData?.message || (action === 'approve' ? 'ไม่สามารถอนุมัติคำขอได้' : 'ไม่สามารถปฏิเสธคำขอได้'));
+        throw new Error(errData?.error?.message || errData?.message || (action === 'approve' ? 'ไม่สามารถอนุมัติคำขอได้' : 'ไม่สามารถปฏิเสธคำขอได้'));
       }
       setConfirmModal({ isOpen: false, writerId: null, action: '', userName: '', reason: '', busy: false, error: '' });
       setDetailModal({ isOpen: false, user: null });
