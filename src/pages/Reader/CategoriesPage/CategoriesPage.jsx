@@ -2,11 +2,18 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
-import { Eye, Heart, GitBranch, BookmarkPlus } from "lucide-react";
+import { Eye, Heart, Bookmark, Pencil } from "lucide-react";
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./CategoriesPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
+const formatNumber = (num) => {
+  if (!num) return 0;
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M+";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "k+";
+  return num;
+};
 
 // เดิม hardcode "http://minio:9000" -> "http://localhost:9000" ไว้ตรงๆ ในโค้ด
 // (พังทันทีถ้า deploy จริงหรือเปลี่ยน infra) ย้ายมาตั้งผ่าน env แทน — ค่า default ยังเหมือนเดิมทุกอย่าง
@@ -185,10 +192,10 @@ const CategoriesPage = () => {
       );
     }
 
-    // 3. กรองประเภทสถานะ (จบแล้ว vs กำลังเขียน ต้องเช็ค isCompleted ไม่ใช่ published)
+    // 3. กรองประเภทสถานะ (จบแล้ว vs ยังไม่จบ)
     if (statusFilter === "finished") {
       result = result.filter(n => n.isCompleted);
-    } else if (statusFilter === "writing") {
+    } else if (statusFilter === "ongoing" || statusFilter === "writing") {
       result = result.filter(n => !n.isCompleted);
     }
 
@@ -285,11 +292,11 @@ const CategoriesPage = () => {
               </button>
               <button 
                 type="button" 
-                className={`status-tab-btn ${statusFilter === "writing" ? "active" : ""}`}
-                aria-pressed={statusFilter === "writing"}
-                onClick={() => { setStatusFilter("writing"); setCurrentPage(1); }}
+                className={`status-tab-btn ${statusFilter === "ongoing" || statusFilter === "writing" ? "active" : ""}`}
+                aria-pressed={statusFilter === "ongoing" || statusFilter === "writing"}
+                onClick={() => { setStatusFilter("ongoing"); setCurrentPage(1); }}
               >
-                กำลังเขียน
+                ยังไม่จบ
               </button>
               <button 
                 type="button" 
@@ -353,14 +360,12 @@ const CategoriesPage = () => {
           <div className="search-empty-state">
             <div className="empty-icon">🔍</div>
             <h3>ยังไม่มีนิยายที่ตรงกับตัวเลือกนี้</h3>
-            <p>ลองเปลี่ยนหมวดหมู่หรือสถานะการแสดงผล
-เพื่อค้นพบเรื่องใหม่ ๆ ที่น่าสนใจ</p>
+            <p>ลองเปลี่ยนหมวดหมู่หรือสถานะการแสดงผล เพื่อค้นพบเรื่องใหม่ ๆ ที่น่าสนใจ</p>
           </div>
         ) : viewMode === "grid" ? (
           /* 📌 Grid View */
           <div className="novel-grid-layout">
             {paginatedNovels.map((novel) => {
-              // จบแล้ว = isCompleted เท่านั้น ไม่เกี่ยวกับ isPublished/เผยแพร่
               const isFinished = novel.isCompleted;
 
               return (
@@ -377,10 +382,6 @@ const CategoriesPage = () => {
                   role="link"
                   tabIndex={0}
                 >
-                  <span className={`card-status-tag ${isFinished ? "finished" : "writing"}`}>
-                    {isFinished ? "จบแล้ว" : "กำลังเขียน"}
-                  </span>
-                  
                   <div className="novel-grid-cover">
                     {novel.coverImage ? (
                       <img 
@@ -391,15 +392,14 @@ const CategoriesPage = () => {
                     ) : (
                       <div className="grid-cover-placeholder">📘</div>
                     )}
+                    {isFinished && (
+                      <span className="card-status-tag finished">
+                        จบแล้ว
+                      </span>
+                    )}
                   </div>
 
                   <div className="novel-grid-body">
-                    <h3 className="novel-grid-title" title={novel.title}>{novel.title}</h3>
-                    {novel.synopsis && (
-                      <p className="novel-grid-synopsis" title={novel.synopsis}>{novel.synopsis}</p>
-                    )}
-                    <span className="novel-grid-author">✍️ {novel.author}</span>
-                    
                     <div className="novel-grid-tags">
                       {novel.categories.slice(0, 2).map((cat, cIdx) => (
                         <span key={cIdx} className="grid-tag-item">{cat}</span>
@@ -409,19 +409,28 @@ const CategoriesPage = () => {
                       )}
                     </div>
 
-                    {/* แสดงไอคอนสถิติเหมือนหน้าชั้นหนังสือ */}
+                    <h3 className="novel-grid-title" title={novel.title}>{novel.title}</h3>
+                    
+                    <div className="novel-grid-author">
+                      <Pencil size={12} className="novel-author-icon" /> <span>{novel.author}</span>
+                    </div>
+
+                    <p className="novel-grid-synopsis" title={novel.synopsis || ""}>
+                      {novel.synopsis || ""}
+                    </p>
+
                     <div className="novel-grid-stats">
-                      <div className="novel-grid-stat-item" title="เพิ่มเข้าชั้นหนังสือ">
-                        <BookmarkPlus size={15} color="#db2777" />
-                        <span>{novel.stats.bookshelfCount.toLocaleString()}</span>
+                      <div className="novel-grid-stat-item" title="เพิ่มเข้าชั้น">
+                        <Bookmark size={13} />
+                        <span>{formatNumber(novel.stats.bookshelfCount)}</span>
                       </div>
                       <div className="novel-grid-stat-item" title="ยอดเข้าชม">
-                        <Eye size={15} color="#db2777" />
-                        <span>{novel.stats.views.toLocaleString()}</span>
+                        <Eye size={13} />
+                        <span>{formatNumber(novel.stats.views)}</span>
                       </div>
                       <div className="novel-grid-stat-item" title="ยอดถูกใจ">
-                        <Heart size={15} color="#db2777" />
-                        <span>{novel.stats.likes.toLocaleString()}</span>
+                        <Heart size={13} />
+                        <span>{formatNumber(novel.stats.likes)}</span>
                       </div>
                     </div>
                   </div>
@@ -433,7 +442,6 @@ const CategoriesPage = () => {
           /* 📌 List View */
           <div className="novel-list-vertical">
             {paginatedNovels.map((novel) => {
-              // จบแล้ว = isCompleted เท่านั้น ไม่เกี่ยวกับ isPublished/เผยแพร่
               const isFinished = novel.isCompleted;
 
               return (
@@ -460,43 +468,48 @@ const CategoriesPage = () => {
                     ) : (
                       <div className="novel-cover-placeholder">📘</div>
                     )}
+                    {isFinished && (
+                      <span className="card-status-tag finished">
+                        จบแล้ว
+                      </span>
+                    )}
                   </div>
 
                   <div className="novel-horiz-details">
-                    <div className="novel-horiz-header">
-                      <h3 className="novel-horiz-title">{novel.title}</h3>
-                      <span className="novel-horiz-author">✍️ {novel.author}</span>
+                    <div className="novel-tags">
+                      {novel.categories.slice(0, 2).map((cat, cIdx) => (
+                        <span key={cIdx} className="novel-tag-item">{cat}</span>
+                      ))}
+                      {novel.categories.length > 2 && (
+                        <span className="novel-tag-item">+{novel.categories.length - 2}</span>
+                      )}
                     </div>
 
-                    <p className="novel-horiz-synopsis">{novel.synopsis}</p>
+                    <div className="novel-horiz-header">
+                      <h3 className="novel-horiz-title" title={novel.title}>{novel.title}</h3>
+                      <span className="novel-horiz-author">
+                        <Pencil size={12} className="novel-author-icon" /> <span>{novel.author}</span>
+                      </span>
+                    </div>
+
+                    <p className="novel-horiz-synopsis" title={novel.synopsis || ""}>
+                      {novel.synopsis || ""}
+                    </p>
 
                     <div className="novel-horiz-footer">
-                      <div className="novel-tags">
-                        {novel.categories.slice(0, 2).map((cat, cIdx) => (
-                          <span key={cIdx} className="novel-tag-item">{cat}</span>
-                        ))}
-                        {novel.categories.length > 2 && (
-                          <span className="novel-tag-item">+{novel.categories.length - 2}</span>
-                        )}
-                      </div>
-
-                      {/* แสดงไอคอนสถิติเหมือนหน้าชั้นหนังสือ */}
                       <div className="novel-meta-info">
-                        <div className="novel-horiz-stat-item" title="เพิ่มเข้าชั้นหนังสือ">
-                          <BookmarkPlus size={15} color="#db2777" />
-                          <span>{novel.stats.bookshelfCount.toLocaleString()}</span>
+                        <div className="novel-horiz-stat-item" title="เพิ่มเข้าชั้น">
+                          <Bookmark size={13} />
+                          <span>{formatNumber(novel.stats.bookshelfCount)}</span>
                         </div>
                         <div className="novel-horiz-stat-item" title="ยอดเข้าชม">
-                          <Eye size={15} color="#db2777" />
-                          <span>{novel.stats.views.toLocaleString()}</span>
+                          <Eye size={13} />
+                          <span>{formatNumber(novel.stats.views)}</span>
                         </div>
                         <div className="novel-horiz-stat-item" title="ยอดถูกใจ">
-                          <Heart size={15} color="#db2777" />
-                          <span>{novel.stats.likes.toLocaleString()}</span>
+                          <Heart size={13} />
+                          <span>{formatNumber(novel.stats.likes)}</span>
                         </div>
-                        <span className={`status-badge ${isFinished ? "finished" : "writing"}`}>
-                          {isFinished ? "จบแล้ว" : "กำลังเขียน"}
-                        </span>
                       </div>
                     </div>
                   </div>

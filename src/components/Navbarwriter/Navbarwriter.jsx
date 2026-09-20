@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import ReactDOM from "react-dom";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Bell } from "lucide-react";
+import { Bell, Menu, X } from "lucide-react";
 import "./Navbarwriter.css";
 import { getNovelStatusInfo } from "../../utils/novelStatus";
 
@@ -17,6 +17,7 @@ const Navbarwriter = () => {
 
     // ── UI & Auth States ──────────────────────────────────────────
     const [isScrolled, setIsScrolled] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoadingUser, setIsLoadingUser] = useState(false);
@@ -568,28 +569,60 @@ const Navbarwriter = () => {
                         </button>
                     </div>
 
+                    {/* ปุ่มเมนูมือถือ */}
+                    <button
+                        type="button"
+                        className="nav-hamburger"
+                        onClick={() => setIsMenuOpen((prev) => !prev)}
+                        aria-label={isMenuOpen ? "ปิดเมนู" : "เปิดเมนู"}
+                        aria-expanded={isMenuOpen}
+                    >
+                        {isMenuOpen ? <X size={22} /> : <Menu size={22} />}
+                    </button>
+
+                    {/* Backdrop Overlay สำหรับเมนูมือถือ */}
+                    <div
+                        className={`nav-menu-overlay ${isMenuOpen ? "active" : ""}`}
+                        onClick={() => setIsMenuOpen(false)}
+                        aria-hidden="true"
+                    />
+
                     {/* Center Menu */}
-                    <ul className="nav-menu">
+                    <ul className={`nav-menu ${isMenuOpen ? "active" : ""}`}>
+                        <li className="nav-menu__drawer-header">
+                            <div className="nav-menu__drawer-title">
+                                <span>{isWriterMode ? "เมนูนักเขียน" : "เมนูหลัก"}</span>
+                            </div>
+                            <button
+                                type="button"
+                                className="nav-menu__drawer-close"
+                                onClick={() => setIsMenuOpen(false)}
+                                aria-label="ปิดเมนู"
+                            >
+                                <X size={20} />
+                            </button>
+                        </li>
+
                         {!isWriterMode ? (
                             <>
                                 <li className={`nav-item ${location.pathname === '/' ? 'active-menu' : ''}`}>
-                                    <Link to="/">หน้าแรก</Link>
+                                    <Link to="/" onClick={() => setIsMenuOpen(false)}>หน้าแรก</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith('/categories') ? 'active-menu' : ''}`}>
-                                    <Link to="/categories">หมวดหมู่</Link>
+                                    <Link to="/categories" onClick={() => setIsMenuOpen(false)}>หมวดหมู่</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith('/bookshelf') ? 'active-menu' : ''}`}>
-                                    <Link to="/bookshelf">ชั้นหนังสือ</Link>
+                                    <Link to="/bookshelf" onClick={() => setIsMenuOpen(false)}>ชั้นหนังสือ</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith('/history') ? 'active-menu' : ''}`}>
-                                    <Link to="/history">ประวัติการอ่าน</Link>
+                                    <Link to="/history" onClick={() => setIsMenuOpen(false)}>ประวัติการอ่าน</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith('/following-writers') ? 'active-menu' : ''}`}>
-                                    <Link to="/following-writers">นักเขียนที่ติดตาม</Link>
+                                    <Link to="/following-writers" onClick={() => setIsMenuOpen(false)}>นักเขียนที่ติดตาม</Link>
                                 </li>
                                 {userData.role === "writer" && (
                                     <li className={`nav-item ${location.pathname.startsWith('/writer/dashboard') ? 'active-menu' : ''}`}>
-                                        <Link to="/writer/dashboard">สตูดิโอนักเขียน</Link>
+                                        <Link to="/writer/dashboard" onClick={() => setIsMenuOpen(false)}>สตูดิโอนักเขียน</Link>
                                     </li>
                                 )}
                             </>
@@ -601,6 +634,7 @@ const Navbarwriter = () => {
                                         onClick={() => {
                                             localStorage.removeItem("selectedNovel");
                                             setSelectedNovel(null);
+                                            setIsMenuOpen(false);
                                         }}
                                     >
                                         Dashboard
@@ -609,13 +643,32 @@ const Navbarwriter = () => {
 
                                 {selectedNovel && (
                                     <>
+                                        <li className="nav-item">
+                                            <button
+                                                type="button"
+                                                className="selected-novel-btn"
+                                                onClick={() => {
+                                                    setIsMenuOpen(false);
+                                                    openNovelPopup(popupTarget);
+                                                }}
+                                                title="คลิกเพื่อเปลี่ยนนิยายที่กำลังแก้ไข"
+                                            >
+                                                <span className="selected-dot"></span>
+                                                <span className="selected-title">
+                                                    {selectedNovel.title || "ไม่ระบุชื่อนิยาย"}
+                                                </span>
+                                            </button>
+                                        </li>
                                         <li className="nav-item nav-item-divider-container">
                                             <span className="nav-menu-divider"></span>
                                         </li>
                                          <li className="nav-item">
                                              <button 
                                                  className={`nav-menu-btn--pink ${location.pathname.includes("/chapters") ? "active" : ""}`} 
-                                                 onClick={() => handleNovelMenu("chapters")}
+                                                 onClick={() => {
+                                                     setIsMenuOpen(false);
+                                                     handleNovelMenu("chapters");
+                                                 }}
                                              >
                                                  จัดการตอน
                                              </button>
@@ -623,7 +676,10 @@ const Navbarwriter = () => {
                                         <li className="nav-item">
                                             <button 
                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/scene/") ? "active" : ""}`} 
-                                                onClick={() => handleNovelMenu("write")}
+                                                onClick={() => {
+                                                    setIsMenuOpen(false);
+                                                    handleNovelMenu("write");
+                                                }}
                                             >
                                                 เขียนเนื้อหา
                                             </button>
@@ -631,7 +687,10 @@ const Navbarwriter = () => {
                                         <li className="nav-item">
                                             <button 
                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/storytree") ? "active" : ""}`} 
-                                                onClick={() => handleNovelMenu("tree")}
+                                                onClick={() => {
+                                                    setIsMenuOpen(false);
+                                                    handleNovelMenu("tree");
+                                                }}
                                             >
                                                 โครงสร้างเนื้อเรื่อง
                                             </button>
@@ -639,7 +698,10 @@ const Navbarwriter = () => {
                                         <li className="nav-item">
                                             <button 
                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/analytics") ? "active" : ""}`} 
-                                                onClick={() => handleNovelMenu("analytics")}
+                                                onClick={() => {
+                                                    setIsMenuOpen(false);
+                                                    handleNovelMenu("analytics");
+                                                }}
                                             >
                                                 สถิติทางเลือก
                                             </button>

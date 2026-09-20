@@ -297,8 +297,16 @@ export default function NotificationPage() {
 
     const refType = notification.referenceType || "system";
     const refId = notification.referenceId ?? null;
+    const userRole = JSON.parse(localStorage.getItem("user") || "{}").role;
+    const isWriter = userRole === "writer" || userRole === "admin";
+    const textToCheck = `${notification.title || ""} ${notification.body || ""}`.toLowerCase();
+    const isBanOrReportNotice = textToCheck.includes("ระงับ") || textToCheck.includes("แบน") || textToCheck.includes("รายงาน") || textToCheck.includes("ban") || textToCheck.includes("suspend") || textToCheck.includes("appeal") || refType === "report" || refType === "ban";
 
     try {
+      if ((isBanOrReportNotice || isWriter) && refId && (refType === "novel" || refType === "chapter" || refType === "report" || refType === "ban" || refType === "system")) {
+        navigate(`/writer/${refId}/chapters`);
+        return;
+      }
       if (refType === "novel" && refId) {
         navigate(`/novel/${refId}`);
         return;

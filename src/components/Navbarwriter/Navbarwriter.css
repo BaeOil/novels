@@ -522,29 +522,253 @@
   color: #94a3b8;
 }
 
-/* RESPONSIVE */
+/* Backdrop Overlay for mobile drawer */
+.nav-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.nav-menu-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.nav-menu__drawer-header {
+  display: none;
+}
+
+.nav-hamburger {
+  display: none;
+  border: none;
+  background: transparent;
+  color: #1f2937;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.nav-hamburger:hover {
+  background: #f3f4f6;
+}
+
+/* ══════════════════════════════════════════
+   📱 Responsive Media Queries
+   ══════════════════════════════════════════ */
 
 @media (max-width: 1200px) {
+  .nav-container {
+    gap: 16px;
+    padding: 0 20px;
+  }
   .nav-menu {
     gap: 16px;
   }
-
   .navbar__search {
     width: 180px;
   }
+  .selected-novel-btn {
+    padding: 0 12px;
+  }
+  .selected-title {
+    max-width: 130px;
+  }
 }
 
-@media (max-width: 992px) {
+@media (max-width: 991px) {
+  .nav-container {
+    height: 72px;
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .nav-hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .navbar__search {
+    display: none;
+  }
+
+  /* Off-canvas mobile drawer */
   .nav-menu {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: min(300px, 85vw);
+    height: 100vh;
+    background: #ffffff;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 20px;
+    transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
+    z-index: 1001;
+    overflow-y: auto;
+  }
+
+  .nav-menu.active {
+    right: 0;
+  }
+
+  .nav-menu__drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 14px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .nav-menu__drawer-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--pink-500);
+  }
+
+  .nav-menu__drawer-close {
+    border: none;
+    background: #f8fafc;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .nav-menu__drawer-close:hover {
+    background: #fee2e2;
+    color: #ef4444;
+  }
+
+  .nav-menu .nav-item {
+    width: 100%;
+  }
+
+  .nav-menu .nav-item a,
+  .nav-menu .nav-menu-btn,
+  .nav-menu .nav-menu-btn--pink {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 12px;
+    font-size: 14.5px;
+  }
+
+  .nav-menu .nav-item a:hover,
+  .nav-menu .nav-menu-btn:hover,
+  .nav-menu .nav-menu-btn--pink:hover {
+    background: #fff5fa;
+  }
+
+  .nav-menu .nav-item.active-menu a,
+  .nav-menu .nav-menu-btn--pink.active {
+    background: #fdf2f8;
+    color: #db2777 !important;
+    text-decoration: none !important;
+    font-weight: 800;
+  }
+
+  .nav-item-divider-container {
     display: none;
   }
 
   .selected-novel-btn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .selected-title {
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .nav-container {
+    height: 68px;
+    padding: 0 14px;
+    gap: 10px;
+  }
+
+  .logo-img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .navbar__logo-story,
+  .navbar__logo-verse {
+    font-size: 16px;
+  }
+
+  .mode-toggle {
+    padding: 2px;
+  }
+
+  .mode-toggle__btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .nav-switch-btn {
+    display: none;
+  }
+}
+
+@media (max-width: 540px) {
+  .nav-container {
+    height: 64px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .nav-logo {
+    gap: 8px;
+  }
+
+  .logo-img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .navbar__logo-story,
+  .navbar__logo-verse {
+    font-size: 15px;
+  }
+
+  .navbar__logo-mode {
     display: none;
   }
 
-  .navbar__search {
+  .mode-toggle {
     display: none;
+  }
+
+  .navbar__right {
+    gap: 8px;
+  }
+
+  .nav-profile-trigger {
+    width: 36px;
+    height: 36px;
+  }
+
+  .nav-login-btn {
+    padding: 7px 12px;
+    font-size: 11.5px;
   }
 }
 

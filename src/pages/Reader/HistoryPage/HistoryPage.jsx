@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { ArrowLeft, ChevronDown, ChevronUp, Trash2, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Trash2, X, Map, Play } from "lucide-react";
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./HistoryPage.css";
 
@@ -153,7 +153,7 @@ const normalizeBook = (item) => {
   };
 };
 
-const HistoryCard = ({ book, onContinue, onRequestDelete }) => {
+const HistoryCard = ({ book, onContinue, onViewMap, onRequestDelete }) => {
   const [expanded, setExpanded] = useState(false);
   const status = STATUS_MAP[book.reading_status] || STATUS_MAP.reading;
   const percent = book.totalRoutes ? Math.round((book.routeFound / book.totalRoutes) * 100) : 0;
@@ -161,13 +161,24 @@ const HistoryCard = ({ book, onContinue, onRequestDelete }) => {
 
   const endingsLabel =
     book.totalEndings > 0
-      ? `${book.endingCount}/${book.totalEndings}`
-      : book.reading_status === "finished"
-      ? `${book.endingCount}/${book.endingCount}`
-      : `${book.endingCount}/?`;
+      ? `${book.endingCount} / ${book.totalEndings} ตอนจบ`
+      : `${book.endingCount} ตอนจบ`;
 
   return (
     <div className="history-card">
+      <button
+        type="button"
+        className="history-card__delete-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRequestDelete(book);
+        }}
+        aria-label={`ลบประวัติการอ่าน ${book.title}`}
+        title="ลบออกจากประวัติการอ่าน"
+      >
+        <Trash2 size={14} />
+      </button>
+
       <div className="history-card__cover">
         {book.coverImage ? (
           <img src={book.coverImage} alt={book.title} />
@@ -182,22 +193,11 @@ const HistoryCard = ({ book, onContinue, onRequestDelete }) => {
         {book.novelCompleted && (
           <span className="history-card__novel-status">จบ</span>
         )}
-        <button
-          type="button"
-          className={`history-card__delete-btn${book.novelCompleted ? " history-card__delete-btn--below-status" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRequestDelete(book);
-          }}
-          aria-label={`ลบประวัติการอ่าน ${book.title}`}
-        >
-          <Trash2 size={15} />
-        </button>
       </div>
 
       <div className="history-card__main">
         <div className="history-card__heading">
-          <div className="history-card__title">{book.title}</div>
+          <div className="history-card__title" title={book.title}>{book.title}</div>
           <div className="history-card__author">{book.author}</div>
         </div>
 
@@ -230,7 +230,7 @@ const HistoryCard = ({ book, onContinue, onRequestDelete }) => {
             aria-expanded={expanded}
           >
             {expanded ? "ซ่อนรายละเอียด" : "ดูรายละเอียดเพิ่มเติม"}
-            {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
 
@@ -265,9 +265,24 @@ const HistoryCard = ({ book, onContinue, onRequestDelete }) => {
           </div>
         )}
 
-        <button type="button" className="history-card__continue-btn" onClick={() => onContinue(book)}>
-          อ่านต่อ
-        </button>
+        <div className="history-card__actions">
+          <button
+            type="button"
+            className="history-card__tree-btn"
+            onClick={() => onViewMap(book)}
+          >
+            <Map size={15} className="history-card__btn-icon" />
+            <span>ดูแผนผังการอ่าน</span>
+          </button>
+          <button
+            type="button"
+            className="history-card__continue-btn"
+            onClick={() => onContinue(book)}
+          >
+            <Play size={15} className="history-card__btn-icon" />
+            <span>อ่านต่อ</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -371,17 +386,21 @@ const HistoryPage = () => {
 
   const statusCounts = useMemo(
     () => ({
+      all: books.length,
       reading: books.filter((book) => book.reading_status === "reading").length,
       finished: books.filter((book) => book.reading_status === "finished").length,
     }),
     [books]
   );
 
-  const statusOptions = [
-    { key: "all", label: "ทั้งหมด" },
-    { key: "reading", label: "กำลังอ่าน" },
-    { key: "finished", label: "อ่านจบ" },
-  ];
+  const statusOptions = useMemo(
+    () => [
+      { key: "all", label: "ทั้งหมด", count: statusCounts.all },
+      { key: "reading", label: "กำลังอ่าน", count: statusCounts.reading },
+      { key: "finished", label: "อ่านจบแล้ว", count: statusCounts.finished },
+    ],
+    [statusCounts]
+  );
 
   const handleContinue = (book) => {
     const targetScene = book.currentSceneId;
@@ -472,7 +491,7 @@ const HistoryPage = () => {
       </div>
 
       <div className="history-page__container">
-        <div className="history-page__filters">
+        <div className="history-page__filters" role="tablist" aria-label="กรองสถานะการอ่าน">
           {statusOptions.map((option) => (
             <button
               key={option.key}
@@ -483,7 +502,7 @@ const HistoryPage = () => {
               onClick={() => setFilter(option.key)}
             >
               {option.label}
-              {option.key !== "all" && ` · ${statusCounts[option.key]}`}
+              <span className="history-page__filter-count"> ({option.count})</span>
             </button>
           ))}
         </div>
@@ -503,6 +522,7 @@ const HistoryPage = () => {
                 key={book.id || `${book.title}-${book.author}`}
                 book={book}
                 onContinue={handleContinue}
+                onViewMap={(b) => navigate(`/storytree/${b.id}`)}
                 onRequestDelete={handleRequestDelete}
               />
             ))}

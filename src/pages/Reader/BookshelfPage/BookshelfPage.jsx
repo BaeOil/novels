@@ -1,22 +1,69 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import GenreTag from "../../../components/GenreTag/GenreTag";
-import ActionButtons from "../../../components/ActionButtons/ActionButtons";
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import "./BookshelfPage.css";
 import {
     ArrowLeft,
-    ChevronDown,
-    ChevronUp,
-    Eye,
-    Heart,
-    BookmarkPlus,
     Trash2,
     BookOpen,
+    Play,
+    RotateCw,
+    Pencil,
+    Clock,
+    Eye,
+    Heart,
+    Bookmark,
+    Map,
+    X,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
+const formatNumber = (num) => {
+    if (!num) return 0;
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M+";
+    if (num >= 1000) return (num / 1000).toFixed(1) + "k+";
+    return num;
+};
+
+const THAI_MONTHS_SHORT = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+];
+
+const formatThaiDate = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const day = d.getDate();
+    const month = THAI_MONTHS_SHORT[d.getMonth()];
+    const year = d.getFullYear() + 543;
+    return `${day} ${month} ${year}`;
+};
+
+const formatThaiDateTime = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const day = d.getDate();
+    const month = THAI_MONTHS_SHORT[d.getMonth()];
+    const year = d.getFullYear() + 543;
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+};
+
+const formatLastReadInfo = (book) => {
+    if (book.reading_status === "want_to_read") {
+        return "";
+    }
+    if (book.lastReadAt) {
+        const dateTimeStr = formatThaiDateTime(book.lastReadAt);
+        if (dateTimeStr) return `อ่านล่าสุด ${dateTimeStr}`;
+    }
+    return "";
+};
 
 const FILTER_OPTIONS = [
     { value: "all", label: "ทั้งหมด" },
@@ -35,6 +82,33 @@ const getBookshelfApiUrl = (userId) => {
     return userId ? `${base}?user_id=${userId}` : base;
 };
 
+const extractBookshelfList = (payload) => {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+
+    // Check top-level properties
+    if (Array.isArray(payload.bookshelf)) return payload.bookshelf;
+    if (Array.isArray(payload.bookshelves)) return payload.bookshelves;
+    if (Array.isArray(payload.books)) return payload.books;
+    if (Array.isArray(payload.novels)) return payload.novels;
+    if (Array.isArray(payload.items)) return payload.items;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload.results)) return payload.results;
+
+    // Check nested payload.data properties (e.g. { data: { bookshelf: [...] } })
+    if (payload.data && typeof payload.data === "object") {
+        if (Array.isArray(payload.data.bookshelf)) return payload.data.bookshelf;
+        if (Array.isArray(payload.data.bookshelves)) return payload.data.bookshelves;
+        if (Array.isArray(payload.data.books)) return payload.data.books;
+        if (Array.isArray(payload.data.novels)) return payload.data.novels;
+        if (Array.isArray(payload.data.items)) return payload.data.items;
+        if (Array.isArray(payload.data.data)) return payload.data.data;
+        if (Array.isArray(payload.data.results)) return payload.data.results;
+    }
+
+    return [];
+};
+
 const normalizeCategoryName = (cat) => {
     if (!cat) return "";
     if (typeof cat === "string") return cat.trim();
@@ -51,25 +125,6 @@ const stripHtml = (html = "") => {
 
 const getBookId = (item = {}) => {
     return item.novel_id || item.id || item._id || item.novel?.id || 0;
-};
-
-const formatRelative = (iso) => {
-    if (!iso) return "ยังไม่เคยอ่าน";
-
-    const timestamp = Date.parse(iso);
-    if (Number.isNaN(timestamp)) return "ยังไม่เคยอ่าน";
-
-    const diff = (Date.now() - timestamp) / 1000;
-    if (diff < 60) return "เมื่อสักครู่";
-    if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} นาทีที่แล้ว`;
-    if (diff < 86400) return `${Math.max(1, Math.floor(diff / 3600))} ชั่วโมงที่แล้ว`;
-    if (diff < 604800) return `${Math.max(1, Math.floor(diff / 86400))} วันที่แล้ว`;
-
-    return new Date(timestamp).toLocaleDateString("th-TH", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-    });
 };
 
 // นิยายจะถือว่า "จบ" ก็ต่อเมื่อตัวนิยายเองถูกทำเครื่องหมายว่าจบแล้วโดยผู้เขียน/ระบบ
@@ -173,6 +228,10 @@ const normalizeBook = (item) => {
                 item.Categories ??
                 item.CategoryIDs ??
                 item.category_ids ??
+                item.novel?.categories ??
+                item.novel?.Categories ??
+                item.novel?.category_ids ??
+                item.novel?.CategoryIDs ??
                 [];
 
             if (!Array.isArray(cats) || cats.length === 0) return ["ทั่วไป"];
@@ -206,8 +265,12 @@ const normalizeBook = (item) => {
             item.lastReadAt ||
             item.updated_at ||
             item.updatedAt ||
+            null,
+
+        savedAt:
             item.created_at ||
             item.createdAt ||
+            item.saved_at ||
             null,
 
         lastReadSceneTitle:
@@ -233,33 +296,45 @@ const normalizeBook = (item) => {
             item.shelf_count ||
             item.saved_count ||
             item.added_count ||
+            item.novel?.bookshelf_count ||
+            item.novel?.bookshelfCount ||
+            item.novel?.shelf_count ||
+            item.novel?.saved_count ||
             0,
 
         visitedCount:
             item.visited_count ||
             item.VisitedCount ||
+            item.novel?.visited_count ||
             0,
 
         endingCount:
             item.ending_count ||
             item.endingCount ||
+            item.novel?.ending_count ||
             0,
 
         totalScenes:
             item.total_scenes ||
             item.totalScenes ||
             item.scene_count ||
+            item.novel?.total_scenes ||
+            item.novel?.totalScenes ||
             0,
 
         views:
             item.views ||
             item.view_count ||
+            item.novel?.views ||
+            item.novel?.view_count ||
             0,
 
         likes:
             item.like_count ||
             item.likeCount ||
             item.likes ||
+            item.novel?.like_count ||
+            item.novel?.likes ||
             0,
     };
 };
@@ -276,105 +351,97 @@ const BookshelfPage = () => {
     const [filter, setFilter] = useState("all");
     const [books, setBooks] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [removingBookId, setRemovingBookId] = useState(null);
-    const [expandedBookIds, setExpandedBookIds] = useState(() => new Set());
+    const [deleteTarget, setDeleteTarget] = useState(null); // book object
+    const [deleting, setDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState(null);
+    const deleteModalCloseRef = useRef(null);
 
-    const getCurrentUserId = () => {
-        const userJson = localStorage.getItem("user");
-        if (!userJson) return 0;
+    useEffect(() => {
+        if (!deleteTarget) return undefined;
+
+        deleteModalCloseRef.current?.focus();
+        const handleModalKeyDown = (event) => {
+            if (event.key === "Escape" && !deleting) handleCancelDelete();
+        };
+        document.addEventListener("keydown", handleModalKeyDown);
+        return () => document.removeEventListener("keydown", handleModalKeyDown);
+    }, [deleteTarget, deleting]);
+
+    const getStoredUser = () => {
+        const raw = localStorage.getItem("user");
+        if (!raw) return null;
         try {
-            const user = JSON.parse(userJson);
-            return user?.id || user?.user_id || 0;
+            return JSON.parse(raw);
         } catch {
-            return 0;
+            return null;
+        }
+    };
+
+    const isTokenExpired = (token) => {
+        if (!token) return true;
+        try {
+            const [, payloadBase64] = token.split(".");
+            if (!payloadBase64) return true;
+            const payload = JSON.parse(atob(payloadBase64));
+            if (!payload.exp) return false;
+            return payload.exp < Math.floor(Date.now() / 1000);
+        } catch {
+            return true;
         }
     };
 
     useEffect(() => {
-        let active = true;
+        let isMounted = true;
 
-        const loadBookshelf = async () => {
-            setLoading(true);
+        const fetchBookshelf = async () => {
+            const token = localStorage.getItem("token");
+            if (!token || isTokenExpired(token)) {
+                if (isMounted) setLoading(false);
+                return;
+            }
+
+            const storedUser = getStoredUser();
+            const userId = storedUser?.id || storedUser?.user_id;
+
             try {
-                const token = localStorage.getItem("token");
-                const userId = getCurrentUserId();
-                const headers = { "Content-Type": "application/json" };
+                const headers = {};
                 if (token) headers.Authorization = `Bearer ${token}`;
 
-                const [shelfResult, historyResult] = await Promise.allSettled([
-                    axios.get(getBookshelfApiUrl(userId), { headers }),
-                    axios.get(`${API_BASE_URL}/history`, { headers }),
-                ]);
-
-                const shelfPayload = shelfResult.status === "fulfilled"
-                    ? (
-                        shelfResult.value?.data?.data?.bookshelf ||
-                        shelfResult.value?.data?.bookshelf ||
-                        shelfResult.value?.data?.novels ||
-                        shelfResult.value?.data ||
-                        []
-                    )
-                    : [];
-
-                const historyPayload = historyResult.status === "fulfilled"
-                    ? (
-                        historyResult.value?.data?.data?.history ||
-                        historyResult.value?.data?.history ||
-                        historyResult.value?.data?.novels ||
-                        historyResult.value?.data ||
-                        []
-                    )
-                    : [];
-
-                const bookList = Array.isArray(shelfPayload) ? shelfPayload : [];
-                const historyList = Array.isArray(historyPayload) ? historyPayload : [];
-                const normalizedHistory = historyList.map(normalizeBook);
-                const historyIndex = new Map(normalizedHistory.map((book) => [String(book.id), book]));
-
-                const mergedBooks = bookList.map((item) => {
-                    const baseBook = normalizeBook(item);
-                    const historyBook = historyIndex.get(String(baseBook.id));
-
-                    if (!historyBook) return baseBook;
-
-                    // history endpoint สะท้อนความคืบหน้าการอ่านล่าสุดได้แม่นกว่า bookshelf endpoint
-                    // จึงให้ค่าจาก historyBook ชนะสำหรับ field ที่เกี่ยวกับ "ความคืบหน้า"
-                    // ส่วน field ที่เป็นข้อมูลของตัวนิยาย/สถิติ ให้ยึดจาก baseBook เป็นหลัก
-                    // แล้วค่อย fallback ไป historyBook ถ้า baseBook ไม่มีค่า
-                    return {
-                        ...baseBook,
-                        title: baseBook.title || historyBook.title,
-                        author: baseBook.author || historyBook.author,
-                        description: baseBook.description || historyBook.description || "",
-                        coverImage: baseBook.coverImage || historyBook.coverImage,
-                        reading_status: historyBook.reading_status || baseBook.reading_status,
-                        currentSceneId: historyBook.currentSceneId || baseBook.currentSceneId || 0,
-                        lastReadAt: historyBook.lastReadAt || baseBook.lastReadAt || null,
-                        lastReadSceneTitle: historyBook.lastReadSceneTitle || baseBook.lastReadSceneTitle || "ยังไม่มีประวัติการอ่าน",
-                        bookshelfCount: baseBook.bookshelfCount || historyBook.bookshelfCount || 0,
-                        endingCount: baseBook.endingCount || historyBook.endingCount || 0,
-                        totalScenes: baseBook.totalScenes || historyBook.totalScenes || 0,
-                        views: baseBook.views || historyBook.views || 0,
-                        likes: baseBook.likes || historyBook.likes || 0,
-                    };
+                const response = await axios.get(getBookshelfApiUrl(userId), {
+                    headers,
                 });
 
-                if (active) {
-                    setBooks(mergedBooks);
+                const rawItems = extractBookshelfList(response.data);
+                const mapped = rawItems.map(normalizeBook);
+
+                if (isMounted) {
+                    setBooks(mapped);
                 }
             } catch (err) {
-                console.error("Bookshelf API error:", err);
-                if (active) {
-                    setBooks([]);
+                console.error("Bookshelf fetch error:", err);
+                if (err.response?.status === 401) {
+                    localStorage.removeItem("token");
                 }
             } finally {
-                if (active) setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
-        loadBookshelf();
+        fetchBookshelf();
+
+        const handleSync = () => {
+            fetchBookshelf();
+        };
+
+        window.addEventListener("bookshelf-updated", handleSync);
+        window.addEventListener("reading-history-updated", handleSync);
+        window.addEventListener("focus", handleSync);
+
         return () => {
-            active = false;
+            isMounted = false;
+            window.removeEventListener("bookshelf-updated", handleSync);
+            window.removeEventListener("reading-history-updated", handleSync);
+            window.removeEventListener("focus", handleSync);
         };
     }, []);
 
@@ -391,37 +458,50 @@ const BookshelfPage = () => {
         return counts;
     }, [books]);
 
-    const handleRemoveBook = async (bookId, title) => {
-        if (window.confirm(`คุณต้องการนำ "${title}" ออกจากชั้นหนังสือใช่หรือไม่?`)) {
-            if (removingBookId) return;
-            setRemovingBookId(bookId);
-            try {
-                const token = localStorage.getItem("token");
-                const headers = { "Content-Type": "application/json" };
-                if (token) headers.Authorization = `Bearer ${token}`;
+    const filterOptions = useMemo(
+        () => [
+            { value: "all", label: "ทั้งหมด", count: statusCounts.all },
+            { value: "want_to_read", label: "ยังไม่อ่าน", count: statusCounts.want_to_read },
+            { value: "reading", label: "กำลังอ่าน", count: statusCounts.reading },
+            { value: "finished", label: "อ่านจบแล้ว", count: statusCounts.finished },
+        ],
+        [statusCounts]
+    );
 
-                await axios.delete(`${API_BASE_URL}/bookshelves`, {
-                    headers,
-                    data: { novel_id: bookId },
-                });
-
-                setBooks((prev) => prev.filter((b) => b.id !== bookId));
-            } catch (err) {
-                console.error("Remove from bookshelf error:", err);
-                alert("ไม่สามารถลบนิยายออกจากชั้นหนังสือได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
-            } finally {
-                setRemovingBookId(null);
-            }
-        }
+    const handleRequestDelete = (book) => {
+        setDeleteError(null);
+        setDeleteTarget(book);
     };
 
-    const toggleBookDetails = (bookId) => {
-        setExpandedBookIds((previous) => {
-            const next = new Set(previous);
-            if (next.has(bookId)) next.delete(bookId);
-            else next.add(bookId);
-            return next;
-        });
+    const handleCancelDelete = () => {
+        if (deleting) return;
+        setDeleteTarget(null);
+        setDeleteError(null);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        setDeleteError(null);
+        try {
+            const token = localStorage.getItem("token");
+            const headers = { "Content-Type": "application/json" };
+            if (token) headers.Authorization = `Bearer ${token}`;
+
+            const bookId = deleteTarget.id;
+            await axios.delete(`${API_BASE_URL}/bookshelves`, {
+                headers,
+                data: { novel_id: bookId },
+            });
+
+            setBooks((prev) => prev.filter((b) => b.id !== bookId));
+            setDeleteTarget(null);
+        } catch (err) {
+            console.error("Remove from bookshelf error:", err);
+            setDeleteError("ไม่สามารถนำนิยายออกจากชั้นหนังสือได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
+        } finally {
+            setDeleting(false);
+        }
     };
 
     return (
@@ -433,28 +513,29 @@ const BookshelfPage = () => {
                             <ArrowLeft size={18} />
                         </button>
                         <div className="bookshelf-page__labels">
-                            <p className="bookshelf-page__eyebrow">ชั้นหนังสือของฉัน</p>
-                            <h1 className="bookshelf-page__title">นิยายที่บันทึกไว้</h1>
+                            <div className="bookshelf-page__eyebrow">ชั้นหนังสือของฉัน</div>
+                            <div className="bookshelf-page__title">นิยายที่บันทึกไว้</div>
                         </div>
                     </div>
-
-                    <div className="bookshelf-page__count">ทั้งหมด {books.length} เรื่อง</div>
+                    <div className="bookshelf-page__top-actions">
+                        <div className="bookshelf-page__count">ทั้งหมด {books.length} เรื่อง</div>
+                    </div>
                 </div>
             </div>
 
             <div className="bookshelf-page__container">
                 <div className="bookshelf-page__filters" role="tablist" aria-label="กรองสถานะการอ่าน">
-                    {FILTER_OPTIONS.map((option) => (
+                    {filterOptions.map((option) => (
                         <button
                             key={option.value}
                             type="button"
                             role="tab"
                             aria-selected={filter === option.value}
-                            className={`bookshelf-page__filter-button${filter === option.value ? " active" : ""}`}
+                            className={`bookshelf-page__filter-button ${filter === option.value ? "active" : ""}`}
                             onClick={() => setFilter(option.value)}
                         >
                             {option.label}
-                            {option.value !== "all" && ` · ${statusCounts[option.value] ?? 0}`}
+                            <span className="bookshelf-page__filter-count"> ({option.count})</span>
                         </button>
                     ))}
                 </div>
@@ -471,10 +552,9 @@ const BookshelfPage = () => {
                         ) : (
                             <div className="bookshelf-page__grid">
                                 {filteredBooks.map((book) => {
-                                    const isFinished = book.reading_status === 'finished';
-                                    const isReading = book.reading_status === 'reading';
-                                    const isWantToRead = book.reading_status === 'want_to_read';
-                                    const isExpanded = expandedBookIds.has(book.id);
+                                    const isFinished = book.reading_status === "finished";
+                                    const isReading = book.reading_status === "reading";
+                                    const isWantToRead = book.reading_status === "want_to_read";
 
                                     const handleRead = () => {
                                         if (isWantToRead) {
@@ -482,7 +562,6 @@ const BookshelfPage = () => {
                                                 navigate(`/reading/${book.id}/${book.startSceneId}`);
                                                 return;
                                             }
-
                                             window.alert("นิยายเรื่องนี้ยังไม่มีฉากเริ่มต้นให้เปิดอ่านได้ในตอนนี้");
                                             navigate(`/novel/${book.id}`);
                                             return;
@@ -511,124 +590,205 @@ const BookshelfPage = () => {
                                             key={book.id}
                                             className="bookshelf-card"
                                         >
-                                            <div className="bookshelf-card__cover">
-                                                <button
-                                                    type="button"
-                                                    className="bookshelf-card__cover-button"
-                                                    onClick={() => navigate(`/novel/${book.id}`)}
-                                                    aria-label={`เปิดรายละเอียด ${book.title}`}
-                                                >
-                                                <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
-                                                </button>
-                                                <span className={`bookshelf-card__status bookshelf-card__status--${filter !== "all" ? filter : book.reading_status}`}>
-                                                    {filter !== "all" ? statusLabels[filter] : statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
-                                                </span>
-                                                {book.novelCompleted && (
-                                                    <span className="bookshelf-card__novel-status">จบแล้ว</span>
-                                                )}
-                                                <button
-                                                    className="bookshelf-card__remove-btn"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleRemoveBook(book.id, book.title);
-                                                    }}
-                                                    title="นำออกจากชั้นหนังสือ"
-                                                    disabled={removingBookId === book.id}
-                                                >
-                                                    {removingBookId === book.id ? "..." : <Trash2 size={16} />}
-                                                </button>
-                                            </div>
-                                            <div className="bookshelf-card__body">
-                                                <button
-                                                    type="button"
-                                                    className="bookshelf-card__title"
-                                                    onClick={() => navigate(`/novel/${book.id}`)}
-                                                >
-                                                    {book.title}
-                                                </button>
+                                            <button
+                                                type="button"
+                                                className="bookshelf-card__remove-btn"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRequestDelete(book);
+                                                }}
+                                                title="นำออกจากชั้นหนังสือ"
+                                                aria-label={`นำ ${book.title} ออกจากชั้นหนังสือ`}
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
 
-                                                <p className="bookshelf-card__author">✍️ {book.author}</p>
-
-                                                <div className="bookshelf-card__categories">
-                                                    {book.categories.slice(0, 2).map((category) => (
-                                                        <GenreTag
-                                                            key={`${book.id}-${category}`}
-                                                            label={category}
-                                                            variant="primary"
-                                                        />
-                                                    ))}
-                                                    {book.categories.length > 2 && (
-                                                        <span className="bookshelf-card__extra-categories">
-                                                            +{book.categories.length - 2}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="bookshelf-card__stats">
-                                                    <div className="bookshelf-card__stat">
-                                                        <BookmarkPlus size={17} color="#F526A2" />
-                                                        <span>{book.bookshelfCount}</span>
-                                                    </div>
-                                                    <div className="bookshelf-card__stat">
-                                                        <Eye size={17} color="#F526A2" />
-                                                        <span>{book.views}</span>
-                                                    </div>
-                                                    <div className="bookshelf-card__stat">
-                                                        <Heart size={17} color="#F526A2" />
-                                                        <span>{book.likes}</span>
-                                                    </div>
-                                                </div>
-
-                                                <button
-                                                    type="button"
-                                                    className="bookshelf-card__details-toggle"
-                                                    aria-expanded={isExpanded}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleBookDetails(book.id);
-                                                    }}
-                                                >
-                                                    {isExpanded ? "ซ่อนรายละเอียด" : "ดูรายละเอียด"}
-                                                    {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                                                </button>
-
-                                                {isExpanded && (
-                                                    <div className="bookshelf-card__details">
-                                                        {book.description && (
-                                                            <p className="bookshelf-card__description">{book.description}</p>
-                                                        )}
-
-                                                        {!isWantToRead && (
-                                                            <div className="bookshelf-card__latest-read">
-                                                                <span>อ่านล่าสุด</span>
-                                                                <span>{book.lastReadAt ? formatRelative(book.lastReadAt) : "ยังไม่มีประวัติการอ่าน"}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {(isWantToRead || isReading || isFinished) && (
-                                                    <button
-                                                        type="button"
-                                                        className={`bookshelf-card__read-btn bookshelf-card__read-btn--${isReading ? 'continue' : isFinished ? 'reread' : 'start'}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRead();
-                                                        }}
+                                            <div className="bookshelf-card__main-content">
+                                                {/* Left: Cover Image with Status Badge */}
+                                                <div className="bookshelf-card__cover-wrap">
+                                                    <div
+                                                        className="bookshelf-card__cover"
+                                                        onClick={() => navigate(`/novel/${book.id}`)}
                                                     >
-                                                        {isReading ? "📖 อ่านต่อ" : isFinished ? "↺ อ่านอีกครั้ง" : "▶ อ่านเลย"}
-                                                    </button>
-                                                )}
+                                                        <img src={book.coverImage} alt={`${book.title} ปกนิยาย`} />
+                                                        <span className={`bookshelf-card__status bookshelf-card__status--${book.reading_status}`}>
+                                                            {statusLabels[book.reading_status] || "ไม่ระบุสถานะ"}
+                                                        </span>
+                                                        {book.novelCompleted && (
+                                                            <span className="bookshelf-card__novel-status">จบแล้ว</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Right: Info details */}
+                                                <div className="bookshelf-card__info-col">
+                                                    <div className="bookshelf-card__info-top">
+                                                        <h3
+                                                            className="bookshelf-card__title"
+                                                            onClick={() => navigate(`/novel/${book.id}`)}
+                                                            title={book.title}
+                                                        >
+                                                            {book.title}
+                                                        </h3>
+
+                                                        <div className="bookshelf-card__author">
+                                                            <Pencil size={12} className="bookshelf-card__author-icon" />
+                                                            <span>{book.author}</span>
+                                                        </div>
+
+                                                        <div className="bookshelf-card__categories">
+                                                            {book.categories.slice(0, 2).map((category, index) => (
+                                                                <span
+                                                                    key={`${book.id}-${category}-${index}`}
+                                                                    className="bookshelf-card__tag"
+                                                                >
+                                                                    {category}
+                                                                </span>
+                                                            ))}
+                                                            {book.categories.length > 2 && (
+                                                                <span className="bookshelf-card__extra-categories">
+                                                                    +{book.categories.length - 2}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <p className="bookshelf-card__description" title={book.description || ""}>
+                                                            {book.description || ""}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="bookshelf-card__info-bottom">
+                                                        {formatLastReadInfo(book) ? (
+                                                            <div className="bookshelf-card__time-meta">
+                                                                <Clock size={12} className="bookshelf-card__time-icon" />
+                                                                <span>{formatLastReadInfo(book)}</span>
+                                                            </div>
+                                                        ) : null}
+
+                                                        <div className="bookshelf-card__stats">
+                                                            <div className="bookshelf-card__stat" title="ยอดวิว">
+                                                                <Eye size={13} />
+                                                                <span>{formatNumber(book.views)}</span>
+                                                            </div>
+                                                            <div className="bookshelf-card__stat" title="ยอดถูกใจ">
+                                                                <Heart size={13} />
+                                                                <span>{formatNumber(book.likes)}</span>
+                                                            </div>
+                                                            <div className="bookshelf-card__stat" title="เพิ่มเข้าชั้น">
+                                                                <Bookmark size={13} />
+                                                                <span>{formatNumber(book.bookshelfCount)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Bottom: Action Buttons (Read + Story Tree / Map) */}
+                                            <div className="bookshelf-card__actions">
+                                                <button
+                                                    type="button"
+                                                    className={`bookshelf-card__read-btn bookshelf-card__read-btn--${
+                                                        isReading ? "continue" : isFinished ? "reread" : "start"
+                                                    }`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRead();
+                                                    }}
+                                                >
+                                                    {isReading ? (
+                                                        <>
+                                                            <Play size={14} fill="currentColor" />
+                                                            <span>อ่านต่อ</span>
+                                                        </>
+                                                    ) : isFinished ? (
+                                                        <>
+                                                            <RotateCw size={14} />
+                                                            <span>อ่านอีกครั้ง</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Play size={14} fill="currentColor" />
+                                                            <span>อ่านเลย</span>
+                                                        </>
+                                                    )}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    className="bookshelf-card__map-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/storytree/${book.id}`);
+                                                    }}
+                                                    title="ดูแผนผังการอ่าน"
+                                                >
+                                                    <Map size={14} />
+                                                    <span>แผนผัง</span>
+                                                </button>
                                             </div>
                                         </article>
                                     );
                                 })}
                             </div>
                         )}
-
                     </>
                 )}
             </div>
+
+            {deleteTarget && (
+                <div className="bookshelf-delete-modal__overlay" onClick={handleCancelDelete}>
+                    <div
+                        className="bookshelf-delete-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="bookshelf-delete-modal-title"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            className="bookshelf-delete-modal__close"
+                            ref={deleteModalCloseRef}
+                            onClick={handleCancelDelete}
+                            aria-label="ปิด"
+                            disabled={deleting}
+                        >
+                            <X size={18} />
+                        </button>
+
+                        <div className="bookshelf-delete-modal__icon">
+                            <Trash2 size={22} />
+                        </div>
+
+                        <div id="bookshelf-delete-modal-title" className="bookshelf-delete-modal__title">
+                            นำออกจากชั้นหนังสือ?
+                        </div>
+                        <div className="bookshelf-delete-modal__body">
+                            ต้องการนำนิยาย "{deleteTarget.title}" ออกจากชั้นหนังสือใช่หรือไม่
+                        </div>
+
+                        {deleteError && <div className="bookshelf-delete-modal__error">{deleteError}</div>}
+
+                        <div className="bookshelf-delete-modal__actions">
+                            <button
+                                type="button"
+                                className="bookshelf-delete-modal__cancel-btn"
+                                onClick={handleCancelDelete}
+                                disabled={deleting}
+                            >
+                                ยกเลิก
+                            </button>
+                            <button
+                                type="button"
+                                className="bookshelf-delete-modal__confirm-btn"
+                                onClick={handleConfirmDelete}
+                                disabled={deleting}
+                            >
+                                {deleting ? "กำลังนำออก..." : "นำออก"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

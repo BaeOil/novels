@@ -142,220 +142,220 @@
 }
 
 /* ─────────────────────────────────────────────
-   KPI Cards Section (New Premium 2-Column Design)
+   KPI Cards Section (Responsive Horizontal Scrollable Container)
    ───────────────────────────────────────────── */
 .wsg-kpis-new-container {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 14px;
   padding: 12px 24px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
   box-sizing: border-box;
   flex-shrink: 0;
   height: auto;
-  min-height: 135px;
+  min-height: 120px;
+  overflow-x: auto;
+  align-items: stretch;
+  -webkit-overflow-scrolling: touch;
 }
 
-.wsg-kpis-left-panel {
-  flex: 3.2;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.wsg-kpis-new-container::-webkit-scrollbar {
+  height: 5px;
+}
+.wsg-kpis-new-container::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+.wsg-kpis-new-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.wsg-kpis-new-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-.wsg-kpis-right-panel {
-  flex: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-left: 1px solid #e2e8f0;
-  padding-left: 20px;
-}
-
-.wsg-kpis-header-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.wsg-panel-title-icon {
-  font-size: 0.95rem;
-}
-
-.wsg-panel-title {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-}
-
-/* Grid ของสถิติ */
-.wsg-kpis-grid-layout {
-  display: flex;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-}
-
-/* การ์ดใบใหญ่ */
+/* KPI Card Base */
 .wsg-kpi-card-large {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 185px;
   background: #ffffff;
-  border: 1px solid #f1f5f9;
-  border-radius: 16px;
-  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-width: 150px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
+  position: relative;
 }
 
 .wsg-kpi-card-large:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(219, 39, 119, 0.08), 0 4px 6px -2px rgba(219, 39, 119, 0.03);
-  border-color: #fbcfe8;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
+  border-color: #cbd5e1;
 }
 
-.wsg-kpis-small-grid {
-  flex: 2.4;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  min-height: 0;
-}
-
-/* การ์ดใบเล็ก */
-.wsg-kpi-card-small {
-  background: #ffffff; /* เปลี่ยนเป็นสีขาวคลีนสบายตา */
-  border: 1px solid #ffe4e6; /* ขอบชมพูพาสเทลอ่อนโทนเดียวกับแถบข้าง */
-  border-radius: 10px;
-  padding: 6px 10px;
+.wsg-kpi-card-header {
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  transition: transform 0.2s, box-shadow 0.2s;
-  box-sizing: border-box;
-}
-
-.wsg-kpi-card-small-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.wsg-kpi-text-col {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  min-width: 0;
-}
-
-.wsg-kpi-card-small:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(219, 39, 119, 0.04);
-}
-
-/* ลบพื้นหลังหลากหลายสีออก ให้ใช้สีขาวโทนเดียวกันสบายตา */
-.card-blue {
-  background: #ffffff;
-  border-color: #ffe4e6;
-}
-.card-blue:hover {
-  box-shadow: 0 4px 8px rgba(219, 39, 119, 0.04);
-}
-
-.card-red {
-  background: #ffffff;
-  border-color: #ffe4e6;
-}
-.card-red:hover {
-  box-shadow: 0 4px 8px rgba(219, 39, 119, 0.04);
-}
-
-.card-purple {
-  background: #ffffff;
-  border-color: #ffe4e6;
-}
-.card-purple:hover {
-  box-shadow: 0 4px 8px rgba(219, 39, 119, 0.04);
-}
-
-.card-orange {
-  background: #ffffff;
-  border-color: #ffe4e6;
-}
-.card-orange:hover {
-  box-shadow: 0 4px 8px rgba(219, 39, 119, 0.04);
-}
-
-/* ป้ายไอคอนหัวการ์ด */
-.wsg-kpi-badge-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  margin-bottom: 0px;
-  flex-shrink: 0;
-}
-
-.small-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  margin-bottom: 0px;
+  margin-bottom: 4px;
 }
 
 .wsg-kpi-label-new {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .wsg-kpi-val-large {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #166534;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
   margin: 0;
-  line-height: 1.1;
+  line-height: 1.15;
   font-family: inherit;
 }
 
-.wsg-kpi-val-small {
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin: 0;
-  line-height: 1.1;
+.color-teal {
+  color: #0d9488 !important;
 }
 
-.text-blue { color: #1e40af; }
-.text-red { color: #991b1b; }
-.text-purple { color: #5b21b6; }
-.text-orange { color: #c2410c; }
+.color-purple {
+  color: #7c3aed !important;
+}
 
-.wsg-kpi-sub-new {
-  font-size: 0.62rem;
+.text-red {
+  color: #dc2626 !important;
+}
+
+.wsg-kpi-sub-text {
+  font-size: 0.72rem;
   color: #64748b;
-  margin-top: 0px;
+  font-weight: 500;
+  margin-top: 2px;
+  display: block;
 }
 
-/* ฝั่งข้อแนะนำระบบ ปรับบางกระชับพร้อม Scrollbar แนวตั้ง */
-.wsg-insights-column {
+.wsg-kpi-rate-text {
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin-top: 2px;
+  display: block;
+}
+
+/* Card 4: Endings Scrollable List */
+.wsg-kpi-card-endings {
+  flex: 1.3 1 0;
+  min-width: 225px;
+}
+
+.wsg-endings-scroll-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex: 1;
-  max-height: 100px;
+  max-height: 60px;
   overflow-y: auto;
   padding-right: 4px;
+  margin-top: 2px;
+}
+
+.wsg-endings-scroll-list::-webkit-scrollbar {
+  width: 4px;
+}
+.wsg-endings-scroll-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wsg-endings-scroll-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.wsg-ending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  padding: 2px 0;
+  border-bottom: 1px dashed #f1f5f9;
+}
+
+.wsg-ending-row.last {
+  border-bottom: none;
+}
+
+.wsg-ending-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 155px;
+}
+
+.wsg-ending-pct {
+  font-weight: 700;
+  color: #0f172a;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.wsg-endings-empty {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-style: italic;
+  margin: 4px 0;
+}
+
+/* Card 5: Top Drop-off Scene */
+.wsg-kpi-card-dropoff {
+  flex: 1.3 1 0;
+  min-width: 225px;
+}
+
+.wsg-dropoff-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wsg-dropoff-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #dc2626;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 215px;
+}
+
+.wsg-dropoff-stats {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.wsg-dropoff-stats strong {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.wsg-dropoff-empty {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.wsg-dropoff-footnote {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  margin-top: 3px;
+  line-height: 1.2;
 }
 
 .wsg-insights-column::-webkit-scrollbar {
@@ -1028,48 +1028,139 @@
 
 
 
-/* Legend Overlay inside canvas - ย้ายไปอยู่มุมขวาบนของกราฟ */
+/* ─────────────────────────────────────────────
+   Canvas Floating Hint Pill
+   ───────────────────────────────────────────── */
+.wsg-canvas-hint-pill {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid #cbd5e1;
+  border-radius: 30px;
+  padding: 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  z-index: 10;
+  pointer-events: none;
+  max-width: 90%;
+  box-sizing: border-box;
+}
+
+.wsg-canvas-hint-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.wsg-canvas-hint-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─────────────────────────────────────────────
+   Legend Overlay inside canvas (Collapsible Dropdown)
+   ───────────────────────────────────────────── */
 .wsg-legend-overlay {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 16px;
+  right: 16px;
   left: auto;
-  background: rgba(255, 255, 255, 0.98);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
   z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 250px;
   font-family: inherit;
   pointer-events: auto;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.wsg-legend-overlay.is-collapsed {
+  width: auto;
+  min-width: 175px;
+  padding: 8px 12px;
+}
+
+.wsg-legend-overlay.is-open {
+  width: 260px;
+  padding: 12px 14px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+}
+
+.wsg-legend-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #1e293b;
+  font-family: inherit;
+  user-select: none;
+  gap: 8px;
+}
+
+.wsg-legend-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.wsg-legend-icon {
+  font-size: 0.85rem;
+}
+
+.wsg-legend-toggle-icon {
+  display: flex;
+  align-items: center;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.wsg-legend-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 8px;
 }
 
 .wsg-legend-overlay__section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .wsg-legend-overlay__title {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 4px 0;
-  border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 6px;
+  color: #475569;
+  margin: 0 0 2px 0;
 }
 
 .wsg-legend-overlay__row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 0.75rem;
+  gap: 8px;
+  font-size: 0.72rem;
   font-weight: 500;
   color: #475569;
 }
@@ -1161,10 +1252,12 @@
   display: block;
 }
 
-/* Responsive Layout Media Queries */
-@media (max-width: 1200px) {
-  .wsg-kpis-new-container {
-    grid-template-columns: repeat(3, 1fr);
+/* ─────────────────────────────────────────────
+   Responsive Layout Media Queries
+   ───────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .wsg-sidebar {
+    width: 340px;
   }
 }
 
@@ -1172,33 +1265,32 @@
   .wsg-topbar {
     height: auto;
     flex-direction: column;
-    align-items: flex-start;
-    padding: 12px 16px;
-    gap: 8px;
+    align-items: stretch;
+    padding: 10px 16px;
+    gap: 10px;
   }
   .wsg-topbar__left {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
+  }
+  .wsg-topbar__title {
+    font-size: 1rem;
   }
   .wsg-toggle-wrap {
     width: 100%;
-    justify-content: space-around;
+    justify-content: center;
   }
   .wsg-kpis-new-container {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    gap: 12px !important;
-    padding: 10px 16px !important;
-    height: 120px !important;
-    min-height: 120px !important;
+    padding: 8px 14px;
+    gap: 10px;
+    min-height: 110px;
   }
   .wsg-kpi-card-large {
-    flex: 0 0 200px !important;
-    height: 100% !important;
-    box-sizing: border-box !important;
+    min-width: 165px;
+    padding: 10px 12px;
+  }
+  .wsg-kpi-val-large {
+    font-size: 1.2rem;
   }
   .wsg-body {
     flex-direction: column;
@@ -1212,12 +1304,28 @@
     position: relative !important;
     transform: none !important;
     box-shadow: 0 -4px 15px rgba(15, 23, 42, 0.05);
+    order: 2;
   }
   .wsg-sidebar.collapsed {
     display: none !important;
     height: 0 !important;
     width: 0 !important;
-    transform: none !important;
+  }
+  .wsg-canvas-area {
+    flex: 1;
+    min-height: 350px;
+    order: 1;
+  }
+  .wsg-canvas-hint-pill {
+    top: 10px;
+    padding: 6px 12px;
+  }
+  .wsg-canvas-hint-text {
+    font-size: 0.72rem;
+  }
+  .wsg-legend-overlay {
+    top: 10px;
+    right: 10px;
   }
 }
 
@@ -1225,13 +1333,9 @@
   .wsg-sidebar {
     height: 280px !important;
   }
-}
-
-/* Legend Overlay Collapsed Styling */
-.wsg-legend-overlay.collapsed {
-  width: auto;
-  min-width: 175px;
-  gap: 0;
-  padding: 8px 12px;
+  .wsg-legend-overlay.is-open {
+    width: calc(100vw - 40px);
+    right: 10px;
+  }
 }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import "./WriterDashboardPage.css";
 import { getNovelStatusInfo } from "../../../utils/novelStatus";
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
+import { ShieldAlert, X, Layers, FileText, Pencil, BarChart2 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -27,6 +28,11 @@ const STAT_CARDS = [
   { key: "totalBookmarks", label: "จำนวนเพิ่มเข้าชั้น", icon: "📥", colorClass: "scard--green" },
 ];
 
+const isBannedNovel = (novel) => {
+  const status = (novel?.status || novel?.Status || "").toLowerCase();
+  return status === "banned" || status === "suspended" || status === "ระงับ" || novel?.is_banned === true || novel?.isBanned === true;
+};
+
 const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   const [stats, setStats] = useState({
     totalNovels: 0,
@@ -38,6 +44,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   
   const buildAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -152,13 +159,24 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     return <LoadingScreen message="กำลังดึงข้อมูลแดชบอร์ดนักเขียน..." />;
   }
 
+  const suspendedNovels = novels.filter(isBannedNovel);
+
+  const handleContinueSuspension = () => {
+    if (suspendedNovels.length === 1) {
+      handleEdit(suspendedNovels[0]);
+    } else if (suspendedNovels.length > 1) {
+      setShowSuspendedModal(true);
+    }
+  };
+
   const filteredNovels = novels.filter(novel => {
     const title = novel.title || novel.Title || "";
     return title.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   return (
-    <div className="wdb">
+    <div className="wdb-page">
+      <div className="wdb">
       <div className="wdb__header">
         <div>
           <h1 className="wdb__title">Dashboard</h1>
@@ -171,6 +189,32 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
           สร้างนิยายใหม่
         </button>
       </div>
+
+      {/* 🔴 แถบแจ้งเตือนเมื่อมีนิยายถูกระงับ (ตามรูปที่ 1) */}
+      {suspendedNovels.length > 0 && (
+        <div className="wdb-ban-alert-banner" role="alert">
+          <div className="wdb-ban-alert-banner__left">
+            <div className="wdb-ban-alert-banner__icon-box">
+              <ShieldAlert size={22} className="wdb-ban-alert-banner__shield-icon" />
+            </div>
+            <div className="wdb-ban-alert-banner__content">
+              <h3 className="wdb-ban-alert-banner__title">
+                มี {suspendedNovels.length} นิยายถูกระงับ ต้องดำเนินการ
+              </h3>
+              <p className="wdb-ban-alert-banner__sub">
+                ตรวจสอบและยื่นคำขอปลดแบนเพื่อกลับมาเผยแพร่
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            className="wdb-ban-alert-banner__btn"
+            onClick={handleContinueSuspension}
+          >
+            ดำเนินการต่อ <span>→</span>
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="wdb__error-banner" style={{ background: "#FEE2E2", color: "#DC2626", padding: "12px", borderRadius: "8px", marginBottom: "20px", textAlign: "center" }}>
@@ -247,6 +291,51 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
             <span className="wdb__empty-sub">เริ่มเรื่องราวใหม่ของคุณ</span>
           </button>
         )}
+      </div>
+
+      {/* 🔴 Modal เลือกลิสต์นิยายที่ถูกระงับเมื่อมีหลายเรื่อง */}
+      {showSuspendedModal && suspendedNovels.length > 1 && (
+        <div className="cm-modal-overlay" onClick={() => setShowSuspendedModal(false)}>
+          <div className="wdb-suspended-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="wdb-suspended-modal__header">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div className="wdb-ban-alert-banner__icon-box" style={{ width: 36, height: 36 }}>
+                  <ShieldAlert size={18} className="wdb-ban-alert-banner__shield-icon" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#1e293b" }}>นิยายที่ถูกระงับ ({suspendedNovels.length} เรื่อง)</h3>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>เลือกนิยายที่ต้องการตรวจสอบและยื่นคำขอปลดแบน</p>
+                </div>
+              </div>
+              <button type="button" className="wdb-suspended-modal__close" onClick={() => setShowSuspendedModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="wdb-suspended-modal__list">
+              {suspendedNovels.map((sn) => (
+                <div key={sn.id || sn.novel_id} className="wdb-suspended-item">
+                  <div className="wdb-suspended-item__info">
+                    <strong className="wdb-suspended-item__title">{sn.title || sn.Title}</strong>
+                    <span className="wdb-suspended-item__reason">
+                      สาเหตุ: {sn.ban_reason || sn.banReason || sn.reason || "ละเมิดลิขสิทธิ์ / นำผลงานผู้อื่นมาลง"}
+                    </span>
+                  </div>
+                  <button 
+                    type="button" 
+                    className="wdb-suspended-item__btn"
+                    onClick={() => {
+                      setShowSuspendedModal(false);
+                      handleEdit(sn);
+                    }}
+                  >
+                    จัดการเรื่องนี้ →
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
@@ -347,12 +436,18 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
 
       {/* ── Body Zone ── */}
       <div className="nvc__body">
-        <h3 className="nvc__title" title={title}>{title}</h3>
+        <div className="nvc__header-info">
+          <h3 className="nvc__title" title={title}>{title}</h3>
+          <p className="nvc__date">{updatedAtText}</p>
+        </div>
         
-        <p className="nvc__date">{updatedAtText}</p>        
         <div className="nvc__story-stats">
-          <span>📄 {chapterCount} ตอน</span>
-          <span>🎬 {sceneCount} ฉาก</span>
+          <span>
+            <Layers size={13} className="nvc__stat-icon" /> {chapterCount} ตอน
+          </span>
+          <span>
+            <FileText size={13} className="nvc__stat-icon" /> {sceneCount} ฉาก
+          </span>
         </div>
         
         <div className="nvc__categories-row">
@@ -363,16 +458,38 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
           ) : (
             <span style={{ fontSize: "10px", color: "#9ca3af", fontStyle: "italic" }}>#ไม่มีหมวดหมู่</span>
           )}
-
-          {remainingCount > 0 && (
-            <span className="nvc__tag-more">+{remainingCount}</span>
-          )}
         </div>
 
-        <div className="nvc__actions" style={{ display: "flex", gap: "8px" }}>
-          <button className="nvc__btn nvc__btn--edit" style={{ flex: 1 }} onClick={onEdit}>✏️ แก้ไข</button>
-          <button className="nvc__btn nvc__btn--stats" style={{ flex: 1 }} onClick={onAnalytics}>📊 สถิติ</button>
-        </div>
+        {isBanned ? (
+          <div className="nvc__banned-actions">
+            <div 
+              className="nvc__banned-reason-box" 
+              title={`สาเหตุ: ${novel.ban_reason || novel.banReason || novel.reason || "ละเมิดลิขสิทธิ์ / นำผลงานผู้อื่นมาลง"}`}
+            >
+              <span className="nvc__banned-reason-text">
+                ⚠️ สาเหตุ: {novel.ban_reason || novel.banReason || novel.reason || "ละเมิดลิขสิทธิ์ / นำผลงานผู้อื่นมาลง"}
+              </span>
+            </div>
+            <button 
+              type="button" 
+              className="nvc__banned-appeal-btn" 
+              onClick={onEdit}
+            >
+              ยื่นคำขอปลดแบน <span>→</span>
+            </button>
+          </div>
+        ) : (
+          <div className="nvc__actions">
+            <button className="nvc__btn nvc__btn--edit" onClick={onEdit}>
+              <Pencil size={13} strokeWidth={2.4} />
+              <span>แก้ไข</span>
+            </button>
+            <button className="nvc__btn nvc__btn--stats" onClick={onAnalytics}>
+              <BarChart2 size={14} strokeWidth={2.2} />
+              <span>สถิติ</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Delete confirm overlay */}

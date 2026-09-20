@@ -899,124 +899,171 @@
   border-color: #dc2626;
 }
 
-.cm-btn--add-scene {
+/* ══════════════════════════════════════════
+   🔴 Ban Warning Card (Image 3)
+   ══════════════════════════════════════════ */
+.cm-ban-warning-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #fff5f5;
+  border: 1px solid #fecdd3;
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.04);
+}
+
+.cm-ban-warning-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.cm-ban-warning-card__icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fee2e2;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 14px;
-  border-radius: 10px;
-  border: 2px dashed var(--pink-200);
-  background: transparent;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--pink-500);
-  cursor: pointer;
-  transition: all .2s;
-  margin-top: 12px;
+  flex-shrink: 0;
 }
 
-.cm-btn--add-scene:hover {
-  background: var(--pink-50);
-  border-color: var(--pink-400);
+.cm-ban-warning-card__shield-icon {
+  color: #ef4444;
 }
 
-.cm-input,
-.cm-select {
-  width: 100%;
-  background: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 10px 14px;
+.cm-ban-warning-card__header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.cm-ban-warning-card__title {
+  margin: 0 0 2px 0;
   font-family: 'Sarabun', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.cm-ban-warning-card__row {
+  margin: 0;
   font-size: 13.5px;
-  color: #1f2937;
-  outline: none;
-  transition: all .2s ease;
+  line-height: 1.5;
+  color: #1e293b;
 }
 
-.cm-input:focus,
-.cm-select:focus {
-  border-color: var(--pink-500);
-  box-shadow: 0 0 0 3px rgba(233, 30, 140, 0.08);
+.cm-ban-warning-card__row strong {
+  color: #334155;
+  font-weight: 700;
 }
 
-.cm-input::placeholder {
-  color: #9ca3af;
+.cm-ban-warning-card__row--sub {
+  color: #64748b;
+  font-size: 13px;
 }
 
-.cm-loading-fullscreen, 
-.cm-loading-box, 
-.cm-empty-state, 
-.cm-empty-scenes {
-  padding: 40px;
-  text-align: center;
-  color: #6b7280;
-  font-size: 14px;
+.cm-ban-warning-card__steps-box {
   background: #ffffff;
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  margin: 20px 0;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
 }
 
-/* ══════════════════════════════════════════
-   Ban Warning Banner
-══════════════════════════════════════════ */
-.cm-ban-banner {
+.cm-ban-warning-card__steps-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  margin: 0;
+  text-align: left;
+}
+
+.cm-ban-warning-card__steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cm-ban-warning-step {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 16px;
-  padding: 20px 24px;
-  margin-bottom: 20px;
-  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.06);
+  gap: 12px;
 }
 
-.cm-ban-banner__icon {
-  font-size: 24px;
-  line-height: 1;
+.cm-ban-warning-step__num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.cm-ban-banner__body {
-  flex: 1;
-  min-width: 0;
+.cm-ban-warning-step__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
 }
 
-.cm-ban-banner__title {
-  margin: 0 0 8px 0;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 15.5px;
-  font-weight: 700;
-  color: #b91c1c;
-}
-
-.cm-ban-banner__text {
-  margin: 0 0 4px 0;
+.cm-ban-warning-step__title {
   font-size: 13.5px;
-  line-height: 1.6;
-  color: #7f1d1d;
+  font-weight: 700;
+  color: #1e293b;
 }
 
-.cm-ban-banner__action {
-  flex-shrink: 0;
-  align-self: center;
+.cm-ban-warning-step__desc {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.cm-ban-warning-card__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ef4444;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  width: fit-content;
+  margin-top: 4px;
+}
+
+.cm-ban-warning-card__btn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
 }
 
 /* ══════════════════════════════════════════
-   Generic Modal (used by AppealModal)
-══════════════════════════════════════════ */
+   🔴 Appeal Modal (Image 4)
+   ══════════════════════════════════════════ */
 .cm-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1024,6 +1071,195 @@
   padding: 16px;
 }
 
+.cm-appeal-modal-box {
+  background-color: #ffffff;
+  padding: 24px;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.cm-appeal-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 12px;
+}
+
+.cm-appeal-modal__title {
+  margin: 0;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.cm-appeal-modal__sub {
+  margin: 2px 0 0 0;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.cm-appeal-modal__close-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.cm-appeal-modal__close-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.cm-appeal-modal__reason-box {
+  background: #fff5f5;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+
+.cm-appeal-modal__reason-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cm-appeal-modal__reason-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.cm-appeal-modal__reason-details {
+  font-size: 13px;
+  color: #475569;
+}
+
+.cm-appeal-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cm-appeal-modal__form-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  text-align: left;
+}
+
+.cm-appeal-modal__textarea {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 95px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.cm-appeal-modal__textarea:focus {
+  border-color: #f472b6;
+  box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.15);
+}
+
+.cm-appeal-modal__counter {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: left;
+  margin-top: 2px;
+}
+
+.cm-appeal-modal__warning-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 6px;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.cm-appeal-modal__warning-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.cm-appeal-modal__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.cm-appeal-modal__cancel-btn {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.cm-appeal-modal__cancel-btn:hover {
+  background-color: #f1f5f9;
+}
+
+.cm-appeal-modal__submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fca5a5;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: not-allowed;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cm-appeal-modal__submit-btn.is-valid {
+  background: #f87171;
+  cursor: pointer;
+}
+
+.cm-appeal-modal__submit-btn.is-valid:hover {
+  background: #ef4444;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+}
+
+/* ══════════════════════════════════════════
+   Generic Confirm Modal
+   ══════════════════════════════════════════ */
 .cm-modal-box {
   background-color: #ffffff;
   padding: 24px;

@@ -36,9 +36,10 @@ import StatisticsGraph from "./pages/Writer/StatisticsGraph/StatisticsGraph";
 
 import Manageusers from "./pages/Admin/Manageusers/Manageusers";
 import WriterRequestsPage from "./pages/Admin/WriterRequestsPage/WriterRequestsPage";
-import AdminReportsDashboard from "./pages/Admin/AdminReportsDashboard/AdminReportsDashboard"; // 🟢 1. นำเข้า AdminReportsDashboard
+import AdminReportsDashboard from "./pages/Admin/AdminReportsDashboard/AdminReportsDashboard";
 import AdminCategoryPage from "./pages/Admin/AdminCategoryPage/AdminCategoryPage";
 import Adminauditlog from "./pages/Admin/Adminauditlog/Adminauditlog";
+import AdminDashboardPage from "./pages/Admin/AdminDashboardPage/AdminDashboardPage";
 
 import AuthPage from "./pages/Auth/AuthPage";
 import WriterRegisterPage from "./pages/Auth/WriterRegisterPage";
@@ -744,7 +745,7 @@ const RequireAdminRoute = ({ children }) => {
 const RedirectAdminIfNeeded = ({ children }) => {
   const role = getRoleFromToken();
   if (role === 'admin') {
-    return <Navigate to="/admin/manage-users" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
   }
   return children;
 };
@@ -891,6 +892,8 @@ function App() {
         <Route path="/writer/:novelId/edit" element={<RequireWriterRoute><EditNovelRoute /></RequireWriterRoute>} />
           
         {/* Admin Routes */}
+        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="/admin/dashboard" element={<RequireAdminRoute><AdminDashboardPage /></RequireAdminRoute>} />
         <Route path="/admin/users" element={<RequireAdminRoute><Manageusers /></RequireAdminRoute>} />
         <Route path="/admin/manage-users" element={<RequireAdminRoute><WriterRequestsPage /></RequireAdminRoute>} />
         {/* 🟢 2. เพิ่ม Route หน้ารายงาน/แจ้งลบ & จัดการเนื้อหา */}

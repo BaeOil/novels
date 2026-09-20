@@ -1,7 +1,28 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import {
+    Menu,
+    X,
+    Search,
+    Home,
+    LayoutGrid,
+    Bookmark,
+    History,
+    Users,
+    TrendingUp,
+    User,
+    Settings,
+    LogOut,
+    LayoutDashboard,
+    Layers,
+    PenTool,
+    GitFork,
+    BarChart2,
+    BookOpen,
+    LogIn,
+    Bell,
+} from "lucide-react";
 import "./Navbar.css";
 import { useAuthUser, useNotifications, useNavSearch } from "../../hooks/useNavbar.jsx";
 import NotificationDropdown from "../NotificationDropdown/NotificationDropdown";
@@ -153,10 +174,6 @@ const Navbar = () => {
             return;
         }
         if (target === "write") {
-            // เดิมพยายามเดา sceneId แรกแล้วพาไปตรงๆ แต่ถ้า API คืนข้อมูลไม่ตรง
-            // สมมุติฐาน หรือฉากนั้นถูกลบไปแล้ว จะพาไปเจอหน้า error ดิบๆ ทันที
-            // เปลี่ยนมาเช็คแค่ "มีฉากอยู่จริงไหม" (ด้วย res.ok) ถ้าไม่ชัวร์ 100%
-            // ให้พาไปหน้าจัดการตอนแทน ปลอดภัยกว่าการเดา URL ตรงๆ
             try {
                 const token = localStorage.getItem("token");
                 const headers = { Authorization: `Bearer ${token}` };
@@ -180,7 +197,7 @@ const Navbar = () => {
                     if (!chId) continue;
 
                     const sceneRes = await fetch(`${API_BASE_URL}/chapters/${chId}/scenes`, { headers });
-                    if (!sceneRes.ok) continue; // เช็คไม่ผ่านก็ข้ามไปตอนถัดไป ไม่ด่วนสรุปว่าไม่มี
+                    if (!sceneRes.ok) continue;
 
                     const sceneData = await sceneRes.json();
                     const scenes = sceneData?.data?.scenes || sceneData?.scenes || sceneData?.data || [];
@@ -200,7 +217,6 @@ const Navbar = () => {
                 navigate(`/writer/${novelId}/scene/${foundSceneId}`);
             } catch (err) {
                 console.error("ดึงข้อมูลฉากแรกล้มเหลว:", err);
-                // เชื่อมต่อ API ไม่สำเร็จเลย -> พาไปหน้าจัดการตอนแทนหน้า error ดิบ
                 navigate(`/writer/${novelId}/chapters`);
             }
         }
@@ -214,12 +230,6 @@ const Navbar = () => {
         navigateToNovelPage(selectedNovel.id || selectedNovel.novel_id, target);
     };
 
-    // บั๊กเดิม: ปุ่มชื่อเรื่องที่กำลังแก้ไข (selected-novel-btn) เปิด popup ด้วย
-    // openNovelPopup(null) เสมอ พอเลือกนิยายใหม่ handleSelectNovel เห็น popupTarget
-    // เป็น null เลยไม่ navigate ไปไหน -> selectedNovel/title บน navbar เปลี่ยนถูก
-    // แต่ URL ยังค้างอยู่หน้าของนิยายเก่า เนื้อหาในหน้าเลยไม่ตามไปด้วย
-    // แก้โดยเดา "section" ปัจจุบันจาก URL ก่อนเปิด popup เพื่อให้พอเลือกนิยายใหม่
-    // แล้ว navigate ไปหน้า section เดียวกันของนิยายใหม่ให้อัตโนมัติ
     const getCurrentNovelSection = () => {
         if (/^\/writer\/[^/]+\/chapters/.test(location.pathname)) return "chapters";
         if (/^\/writer\/[^/]+\/storytree/.test(location.pathname)) return "tree";
@@ -271,9 +281,9 @@ const Navbar = () => {
                         </div>
                     </div>
 
-                    {/* ปุ่มสลับโหมด นักอ่าน/นักเขียน — โผล่เฉพาะบัญชีที่เป็นนักเขียนแล้วเท่านั้น */}
+                    {/* ปุ่มสลับโหมด นักอ่าน/นักเขียน — โผล่เฉพาะบัญชีที่เป็นนักเขียนแล้วเท่านั้น (บนเดสก์ท็อป) */}
                     {isLoggedIn && userData.role === "writer" && (
-                        <div className="mode-toggle">
+                        <div className="mode-toggle mode-toggle--desktop">
                             <button
                                 className={`mode-toggle__btn ${!isWriterMode ? "mode-toggle__btn--active" : ""}`}
                                 onClick={() => navigate("/")}
@@ -293,19 +303,8 @@ const Navbar = () => {
                         </div>
                     )}
 
-                    {/* ปุ่มเมนูมือถือ — โผล่เฉพาะจอเล็ก (ควบคุมด้วย CSS) */}
-                    <button
-                        type="button"
-                        className="nav-hamburger"
-                        onClick={() => setIsMenuOpen((prev) => !prev)}
-                        aria-label={isMenuOpen ? "ปิดเมนู" : "เปิดเมนู"}
-                        aria-expanded={isMenuOpen}
-                    >
-                        {isMenuOpen ? <X size={22} /> : <Menu size={22} />}
-                    </button>
-
-                    {/* เมนูกลาง */}
-                    <ul className={`nav-menu ${isMenuOpen ? "active" : ""}`}>
+                    {/* เมนูกลาง (แสดงบนเดสก์ท็อป) */}
+                    <ul className="nav-menu">
                         {isWriterMode ? (
                             <>
                                 <li className={`nav-item ${location.pathname === "/writer/dashboard" ? "active-menu" : ""}`}>
@@ -314,6 +313,7 @@ const Navbar = () => {
                                         onClick={() => {
                                             localStorage.removeItem("selectedNovel");
                                             setSelectedNovel(null);
+                                            setIsMenuOpen(false);
                                         }}
                                     >
                                         Dashboard
@@ -323,33 +323,23 @@ const Navbar = () => {
                                 {selectedNovel && (
                                     <>
                                         <li className="nav-item">
-                                            <button
-                                                type="button"
-                                                className="selected-novel-btn"
-                                                onClick={() => openNovelPopup(getCurrentNovelSection())}
-                                                title="คลิกเพื่อเปลี่ยนนิยายที่กำลังแก้ไข"
-                                            >
-                                                <span className="selected-dot"></span>
-                                                <span className="selected-title">
-                                                    {selectedNovel.title || "ไม่ระบุชื่อนิยาย"}
-                                                </span>
-                                            </button>
-                                        </li>
-                                        <li className="nav-item-divider-container">
-                                            <span className="nav-menu-divider"></span>
-                                        </li>
-                                        <li className="nav-item">
                                             <button 
                                                  className={`nav-menu-btn--pink ${location.pathname.includes("/chapters") ? "active" : ""}`} 
-                                                 onClick={() => handleNovelMenu("chapters")}
+                                                 onClick={() => {
+                                                     setIsMenuOpen(false);
+                                                     handleNovelMenu("chapters");
+                                                 }}
                                              >
                                                  จัดการตอน
                                              </button>
-                                        </li>
+                                         </li>
                                          <li className="nav-item">
                                              <button 
                                                  className={`nav-menu-btn--pink ${location.pathname.includes("/scene/") ? "active" : ""}`} 
-                                                 onClick={() => handleNovelMenu("write")}
+                                                 onClick={() => {
+                                                     setIsMenuOpen(false);
+                                                     handleNovelMenu("write");
+                                                 }}
                                              >
                                                  เขียนเนื้อหา
                                              </button>
@@ -357,7 +347,10 @@ const Navbar = () => {
                                         <li className="nav-item">
                                             <button 
                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/storytree") ? "active" : ""}`} 
-                                                onClick={() => handleNovelMenu("tree")}
+                                                onClick={() => {
+                                                    setIsMenuOpen(false);
+                                                    handleNovelMenu("tree");
+                                                }}
                                             >
                                                 โครงสร้างเนื้อเรื่อง
                                             </button>
@@ -365,7 +358,10 @@ const Navbar = () => {
                                         <li className="nav-item">
                                             <button 
                                                 className={`nav-menu-btn--pink ${location.pathname.includes("/analytics") ? "active" : ""}`} 
-                                                onClick={() => handleNovelMenu("analytics")}
+                                                onClick={() => {
+                                                    setIsMenuOpen(false);
+                                                    handleNovelMenu("analytics");
+                                                }}
                                             >
                                                 สถิติทางเลือก
                                             </button>
@@ -376,23 +372,23 @@ const Navbar = () => {
                         ) : (
                             <>
                                 <li className={`nav-item ${location.pathname === "/" ? "active-menu" : ""}`}>
-                                    <Link to="/">หน้าแรก</Link>
+                                    <Link to="/" onClick={() => setIsMenuOpen(false)}>หน้าแรก</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith("/categories") ? "active-menu" : ""}`}>
-                                    <Link to="/categories">หมวดหมู่</Link>
+                                    <Link to="/categories" onClick={() => setIsMenuOpen(false)}>หมวดหมู่</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith("/bookshelf") ? "active-menu" : ""}`}>
-                                    <Link to="/bookshelf">ชั้นหนังสือ</Link>
+                                    <Link to="/bookshelf" onClick={() => setIsMenuOpen(false)}>ชั้นหนังสือ</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith("/history") ? "active-menu" : ""}`}>
-                                    <Link to="/history">ประวัติการอ่าน</Link>
+                                    <Link to="/history" onClick={() => setIsMenuOpen(false)}>ประวัติการอ่าน</Link>
                                 </li>
                                 <li className={`nav-item ${location.pathname.startsWith("/following-writers") ? "active-menu" : ""}`}>
-                                    <Link to="/following-writers">นักเขียนที่ติดตาม</Link>
+                                    <Link to="/following-writers" onClick={() => setIsMenuOpen(false)}>นักเขียนที่ติดตาม</Link>
                                 </li>
                                 {isLoggedIn && userData.role !== "writer" && (
                                     <li className={`nav-item ${location.pathname.startsWith("/registerwriter") ? "active-menu" : ""}`}>
-                                        <Link to="/registerwriter">สมัครนักเขียน</Link>
+                                        <Link to="/registerwriter" onClick={() => setIsMenuOpen(false)}>สมัครนักเขียน</Link>
                                     </li>
                                 )}
                             </>
@@ -401,6 +397,21 @@ const Navbar = () => {
 
                     {/* ฝั่งขวา */}
                     <div className="navbar__right">
+
+                        {/* ชิปชื่อนิยายที่กำลังแก้อยู่ (โหมดนักเขียน) — ด้านหน้ากระดิ่ง */}
+                        {isWriterMode && selectedNovel && (
+                            <button
+                                type="button"
+                                className="selected-novel-btn"
+                                onClick={() => openNovelPopup(getCurrentNovelSection())}
+                                title="คลิกเพื่อเปลี่ยนนิยายที่กำลังแก้ไข"
+                            >
+                                <span className="selected-dot"></span>
+                                <span className="selected-title">
+                                    {selectedNovel.title || "ไม่ระบุชื่อนิยาย"}
+                                </span>
+                            </button>
+                        )}
 
                         {/* กล่องค้นหา — โชว์เฉพาะโหมดนักอ่าน */}
                         {!isWriterMode && (
@@ -650,9 +661,381 @@ const Navbar = () => {
                                 </Link>
                             )}
                         </div>
+
+                        {/* ปุ่มเมนูมือถือ (ขีดสามขีด) — โผล่เฉพาะจอเล็ก */}
+                        <button
+                            type="button"
+                            className="nav-hamburger"
+                            onClick={() => setIsMenuOpen(true)}
+                            aria-label="เปิดแถบเมนูด้านข้าง"
+                            aria-expanded={isMenuOpen}
+                        >
+                            <Menu size={22} />
+                        </button>
                     </div>
                 </div>
             </nav>
+
+            {/* Backdrop Overlay สำหรับ Slide-out Drawer */}
+            <div
+                className={`nav-drawer-overlay ${isMenuOpen ? "active" : ""}`}
+                onClick={() => setIsMenuOpen(false)}
+                aria-hidden="true"
+            />
+
+            {/* Slide-out Mobile Drawer */}
+            <aside className={`nav-drawer ${isMenuOpen ? "active" : ""}`} aria-label="แถบเมนูด้านข้าง">
+                {/* 1. Header: Logo + StoryVerse + Mode + Close Button (Same format as navbar) */}
+                <div className="nav-drawer__header">
+                    <div
+                        className="nav-logo"
+                        onClick={() => {
+                            setIsMenuOpen(false);
+                            if (isWriterMode) {
+                                localStorage.removeItem("selectedNovel");
+                                setSelectedNovel(null);
+                                navigate("/writer/dashboard");
+                            } else {
+                                navigate("/");
+                            }
+                        }}
+                    >
+                        <img src="/logo192.png" alt="logo" className="logo-img" />
+                        <div className="navbar__logo-text">
+                            <span className="navbar__logo-story">Story</span>
+                            <span className="navbar__logo-verse">Verse</span>
+                            <span className="navbar__logo-mode">
+                                {isWriterMode ? "Writer Mode" : "Reader Mode"}
+                            </span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        className="nav-drawer__close-btn"
+                        onClick={() => setIsMenuOpen(false)}
+                        aria-label="ปิดแถบเมนู"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* 2. Toggle Switch สำหรับบัญชีที่มีสิทธิ์นักเขียน (แสดงทั้งโหมดนักอ่านและนักเขียน) */}
+                {isLoggedIn && userData.role === "writer" && (
+                    <div className="nav-drawer__toggle-wrap">
+                        <div className="mode-toggle mode-toggle--drawer">
+                            <button
+                                type="button"
+                                className={`mode-toggle__btn ${!isWriterMode ? "mode-toggle__btn--active" : ""}`}
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    navigate("/");
+                                }}
+                            >
+                                โหมดนักอ่าน
+                            </button>
+                            <button
+                                type="button"
+                                className={`mode-toggle__btn ${isWriterMode ? "mode-toggle__btn--active" : ""}`}
+                                onClick={() => {
+                                    localStorage.removeItem("selectedNovel");
+                                    setSelectedNovel(null);
+                                    setIsMenuOpen(false);
+                                    navigate("/writer/dashboard");
+                                }}
+                            >
+                                โหมดนักเขียน
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* 3. Drawer Scrollable Body Menu */}
+                <div className="nav-drawer__body">
+                    {isWriterMode ? (
+                        <>
+                            <div className="nav-drawer__section-title">เมนูนักเขียน</div>
+                            <nav className="nav-drawer__nav-list">
+                                <button
+                                    type="button"
+                                    className={`nav-drawer__nav-item ${location.pathname === "/writer/dashboard" ? "active" : ""}`}
+                                    onClick={() => {
+                                        localStorage.removeItem("selectedNovel");
+                                        setSelectedNovel(null);
+                                        setIsMenuOpen(false);
+                                        navigate("/writer/dashboard");
+                                    }}
+                                >
+                                    <LayoutDashboard size={19} className="nav-drawer__item-icon" />
+                                    <span>แดชบอร์ด</span>
+                                </button>
+
+                                {selectedNovel && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className={`nav-drawer__nav-item ${location.pathname.includes("/chapters") ? "active" : ""}`}
+                                            onClick={() => {
+                                                setIsMenuOpen(false);
+                                                handleNovelMenu("chapters");
+                                            }}
+                                        >
+                                            <BookOpen size={19} className="nav-drawer__item-icon" />
+                                            <span>จัดการตอน</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`nav-drawer__nav-item ${location.pathname.includes("/scene/") ? "active" : ""}`}
+                                            onClick={() => {
+                                                setIsMenuOpen(false);
+                                                handleNovelMenu("write");
+                                            }}
+                                        >
+                                            <PenTool size={19} className="nav-drawer__item-icon" />
+                                            <span>เขียนเนื้อหา</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`nav-drawer__nav-item ${location.pathname.includes("/storytree") ? "active" : ""}`}
+                                            onClick={() => {
+                                                setIsMenuOpen(false);
+                                                handleNovelMenu("tree");
+                                            }}
+                                        >
+                                            <GitFork size={19} className="nav-drawer__item-icon" />
+                                            <span>โครงสร้างเนื้อเรื่อง</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`nav-drawer__nav-item ${location.pathname.includes("/analytics") ? "active" : ""}`}
+                                            onClick={() => {
+                                                setIsMenuOpen(false);
+                                                handleNovelMenu("analytics");
+                                            }}
+                                        >
+                                            <BarChart2 size={19} className="nav-drawer__item-icon" />
+                                            <span>สถิติทางเลือก</span>
+                                        </button>
+                                    </>
+                                )}
+                            </nav>
+                        </>
+                    ) : (
+                        <>
+                            <div className="nav-drawer__section-title">เมนูนักอ่าน</div>
+                            <nav className="nav-drawer__nav-list">
+                                <button
+                                    type="button"
+                                    className={`nav-drawer__nav-item ${location.pathname === "/" ? "active" : ""}`}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        navigate("/");
+                                    }}
+                                >
+                                    <Home size={19} className="nav-drawer__item-icon" />
+                                    <span>หน้าแรก</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`nav-drawer__nav-item ${location.pathname.startsWith("/categories") ? "active" : ""}`}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        navigate("/categories");
+                                    }}
+                                >
+                                    <LayoutGrid size={19} className="nav-drawer__item-icon" />
+                                    <span>หมวดหมู่</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`nav-drawer__nav-item ${location.pathname.startsWith("/bookshelf") ? "active" : ""}`}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        navigate("/bookshelf");
+                                    }}
+                                >
+                                    <Bookmark size={19} className="nav-drawer__item-icon" />
+                                    <span>ชั้นหนังสือ</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`nav-drawer__nav-item ${location.pathname.startsWith("/history") ? "active" : ""}`}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        navigate("/history");
+                                    }}
+                                >
+                                    <History size={19} className="nav-drawer__item-icon" />
+                                    <span>ประวัติการอ่าน</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`nav-drawer__nav-item ${location.pathname.startsWith("/following-writers") ? "active" : ""}`}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        navigate("/following-writers");
+                                    }}
+                                >
+                                    <Users size={19} className="nav-drawer__item-icon" />
+                                    <span>นักเขียนที่ติดตาม</span>
+                                </button>
+
+                                {isLoggedIn && userData.role !== "writer" && (
+                                    <button
+                                        type="button"
+                                        className={`nav-drawer__nav-item ${location.pathname.startsWith("/registerwriter") ? "active" : ""}`}
+                                        onClick={() => {
+                                            setIsMenuOpen(false);
+                                            navigate("/registerwriter");
+                                        }}
+                                    >
+                                        <PenTool size={19} className="nav-drawer__item-icon" />
+                                        <span>สมัครนักเขียน</span>
+                                    </button>
+                                )}
+                            </nav>
+                        </>
+                    )}
+
+                    {/* Section: Account (หมวดบัญชี) */}
+                    <div className="nav-drawer__section-title">บัญชี</div>
+                    <nav className="nav-drawer__nav-list">
+                        {isLoggedIn ? (
+                            <>
+                                {isWriterMode ? (
+                                    <button
+                                        type="button"
+                                        className={`nav-drawer__nav-item ${location.pathname === "/writer/profile" ? "active" : ""}`}
+                                        onClick={() => {
+                                            setIsMenuOpen(false);
+                                            navigate("/writer/profile");
+                                        }}
+                                    >
+                                        <User size={19} className="nav-drawer__item-icon" />
+                                        <span>โปรไฟล์</span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className={`nav-drawer__nav-item ${location.pathname === "/notifications" ? "active" : ""}`}
+                                        onClick={() => {
+                                            setIsMenuOpen(false);
+                                            navigate("/notifications");
+                                        }}
+                                    >
+                                        <div className="nav-drawer__icon-wrap">
+                                            <Bell size={19} className="nav-drawer__item-icon" />
+                                            {unreadCount > 0 && (
+                                                <span className="nav-drawer__item-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                                            )}
+                                        </div>
+                                        <span>การแจ้งเตือน</span>
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    className={`nav-drawer__nav-item ${location.pathname.startsWith("/settings") ? "active" : ""}`}
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        navigate("/settings");
+                                    }}
+                                >
+                                    <Settings size={19} className="nav-drawer__item-icon" />
+                                    <span>ตั้งค่าบัญชี</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="nav-drawer__nav-item nav-drawer__nav-item--logout"
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        setShowLogoutModal(true);
+                                    }}
+                                >
+                                    <LogOut size={19} className="nav-drawer__item-icon" />
+                                    <span>ออกจากระบบ</span>
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className="nav-drawer__nav-item active"
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    navigate("/login-register");
+                                }}
+                            >
+                                <LogIn size={19} className="nav-drawer__item-icon" />
+                                <span>เข้าสู่ระบบ / สมัครสมาชิก</span>
+                            </button>
+                        )}
+                    </nav>
+                </div>
+
+                {/* 4. Drawer Footer */}
+                <div className="nav-drawer__footer">
+                    {isLoggedIn ? (
+                        <>
+                            <div className="nav-drawer__footer-user">
+                                <div className="nav-drawer__footer-avatar">
+                                    {userData.pic_profile ? (
+                                        <img src={userData.pic_profile} alt="" className="nav-drawer__avatar-img" />
+                                    ) : (
+                                        <span>{(userData.username || "U").charAt(0).toUpperCase()}</span>
+                                    )}
+                                </div>
+                                <div className="nav-drawer__footer-details">
+                                    <span className="nav-drawer__footer-name">
+                                        {userData.username || "ผู้ใช้งาน"}
+                                    </span>
+                                    <span className="nav-drawer__footer-role">
+                                        {userData.role === "writer" ? "นักเขียน" : "นักอ่าน"}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="nav-drawer__footer-logout-btn"
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    setShowLogoutModal(true);
+                                }}
+                            >
+                                ออก
+                            </button>
+                        </>
+                    ) : (
+                        <div className="nav-drawer__footer-guest">
+                            <div className="nav-drawer__footer-user">
+                                <div className="nav-drawer__footer-avatar">
+                                    <span>👤</span>
+                                </div>
+                                <div className="nav-drawer__footer-details">
+                                    <span className="nav-drawer__footer-name">ผู้มาเยือน</span>
+                                    <span className="nav-drawer__footer-role">ยินดีต้อนรับสู่ StoryVerse</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="nav-drawer__footer-login-btn"
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    navigate("/login-register");
+                                }}
+                            >
+                                เข้าสู่ระบบ
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </aside>
 
             {/* Popup เลือกนิยาย (เฉพาะโหมดนักเขียน) */}
             {showNovelPopup && (

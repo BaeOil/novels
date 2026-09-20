@@ -7,6 +7,7 @@ import { getNovelStatusInfo } from "../../../utils/novelStatus";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import LoadingScreen from "../../../components/LoadingScreen/LoadingScreen";
 import { getChoiceConnectionBlockReason, getChoiceConnectionMessage } from "../../../utils/choiceValidation";
+import { ShieldAlert, X, AlertCircle, Send } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 const IMAGE_BASE_URL = import.meta.env.VITE_IMAGE_BASE_URL || "http://localhost:9000";
@@ -74,16 +75,16 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabe
   );
 };
 
-// ข้อความ default ของแบนเนอร์แจ้งเตือนแบน — ส่งผ่าน props มา override ได้ ไม่ hardcode ในตัว UI
+// ข้อความ default ของแบนเนอร์แจ้งเตือนแบน
 const BAN_NOTICE_DEFAULTS = {
-  reason: "ตรวจพบเนื้อหาที่ละเมิดข้อตกลงและเงื่อนไขการใช้งานของแพลตฟอร์ม",
-  solution: "โปรดตรวจสอบและแก้ไขเนื้อหาให้ถูกต้องตามกฎระเบียบชุมชน จากนั้นกดปุ่มส่งเรื่องขอปลดแบนเพื่อแจ้งแอดมิน",
+  reason: "ละเมิดลิขสิทธิ์ / นำผลงานผู้อื่นมาลง",
+  details: "เอาโรบ็อตมาทำปก",
 };
 
-// 🔒 ข้อความแจ้งเตือนเดียว ใช้ร่วมกันทุกจุดที่บล็อกการกระทำเมื่อนิยายถูกแบน (กันเขียนซ้ำหลายที่)
+// 🔒 ข้อความแจ้งเตือนเดียว ใช้ร่วมกันทุกจุดที่บล็อกการกระทำเมื่อนิยายถูกแบน
 const BAN_ACTION_BLOCKED_MSG = "นิยายเรื่องนี้ถูกระงับการเผยแพร่ กรุณาตรวจสอบข้อหา แก้ไขเนื้อหา และส่งเรื่องขอปลดแบนให้แอดมินตรวจสอบก่อน";
 
-// เรียกก่อนทำ action ใดๆที่มีผลต่อการเผยแพร่ (สร้าง/ลบ/เผยแพร่ตอน-ฉาก ฯลฯ) — คืนค่า true ถ้าโดนบล็อก (และ alert แจ้งให้แล้ว)
+// เรียกก่อนทำ action ใดๆที่มีผลต่อการเผยแพร่
 const blockIfBanned = (novelOrStatusInfo) => {
   const isBanned = novelOrStatusInfo?.isBanned ?? getNovelStatusInfo(novelOrStatusInfo)?.isBanned;
   if (isBanned) {
@@ -93,29 +94,74 @@ const blockIfBanned = (novelOrStatusInfo) => {
   return false;
 };
 
+/* 🔴 แถบแจ้งเตือนเรื่องการโดนระงับอยู่ด้านบนรายละเอียดนิยาย (ตามรูปที่ 3) */
 const BanWarningBanner = ({
-  reason = BAN_NOTICE_DEFAULTS.reason,
-  solution = BAN_NOTICE_DEFAULTS.solution,
+  reason,
+  details,
   onRequestAppeal,
 }) => {
+  const displayReason = reason || BAN_NOTICE_DEFAULTS.reason;
+  const displayDetails = details || BAN_NOTICE_DEFAULTS.details;
+
   return (
-    <div className="cm-ban-banner" role="alert">
-      <div className="cm-ban-banner__icon">🚫</div>
-      <div className="cm-ban-banner__body">
-        <h3 className="cm-ban-banner__title">นิยายเรื่องนี้ถูกระงับการเผยแพร่ (Banned)</h3>
-        <p className="cm-ban-banner__text"><strong>สาเหตุ:</strong> {reason}</p>
-        <p className="cm-ban-banner__text"><strong>วิธีแก้ไข:</strong> {solution}</p>
+    <div className="cm-ban-warning-card" role="alert">
+      <div className="cm-ban-warning-card__top">
+        <div className="cm-ban-warning-card__icon-box">
+          <ShieldAlert size={22} className="cm-ban-warning-card__shield-icon" />
+        </div>
+        <div className="cm-ban-warning-card__header-info">
+          <h3 className="cm-ban-warning-card__title">นิยายเรื่องนี้ถูกระงับการเผยแพร่</h3>
+          <p className="cm-ban-warning-card__row">
+            <strong>สาเหตุ:</strong> <span>{displayReason}</span>
+          </p>
+          {displayDetails && (
+            <p className="cm-ban-warning-card__row cm-ban-warning-card__row--sub">
+              <strong>รายละเอียด:</strong> <span>{displayDetails}</span>
+            </p>
+          )}
+        </div>
       </div>
-      <div className="cm-ban-banner__action">
-        <button type="button" className="cm-btn cm-btn--sm cm-btn--danger" onClick={onRequestAppeal}>
-          📨 ส่งเรื่องขอปลดแบน
-        </button>
+
+      <div className="cm-ban-warning-card__steps-box">
+        <h4 className="cm-ban-warning-card__steps-title">ขั้นตอนการยื่นคำขอปลดแบน</h4>
+        <div className="cm-ban-warning-card__steps-list">
+          <div className="cm-ban-warning-step">
+            <span className="cm-ban-warning-step__num">1</span>
+            <div className="cm-ban-warning-step__content">
+              <strong className="cm-ban-warning-step__title">ตรวจสอบเนื้อหาที่ถูกแจ้ง</strong>
+              <span className="cm-ban-warning-step__desc">อ่านสาเหตุและรายละเอียดด้านบน</span>
+            </div>
+          </div>
+          <div className="cm-ban-warning-step">
+            <span className="cm-ban-warning-step__num">2</span>
+            <div className="cm-ban-warning-step__content">
+              <strong className="cm-ban-warning-step__title">แก้ไขเนื้อหาให้ถูกต้อง</strong>
+              <span className="cm-ban-warning-step__desc">แก้ปก/เนื้อหาที่ละเมิดกฎ</span>
+            </div>
+          </div>
+          <div className="cm-ban-warning-step">
+            <span className="cm-ban-warning-step__num">3</span>
+            <div className="cm-ban-warning-step__content">
+              <strong className="cm-ban-warning-step__title">ยื่นคำขอปลดแบน</strong>
+              <span className="cm-ban-warning-step__desc">กดปุ่มด้านล่างเพื่อชี้แจง</span>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <button 
+        type="button" 
+        className="cm-ban-warning-card__btn" 
+        onClick={onRequestAppeal}
+      >
+        ยื่นคำขอปลดแบน <span>→</span>
+      </button>
     </div>
   );
 };
 
-const AppealModal = ({ isOpen, onSubmit, onCancel, isSubmitting = false }) => {
+/* 🔴 Pop up ยื่นคำขอปลดแบน (ตามรูปที่ 4 - ไม่มีช่องยืนยันก่อนยื่นคำขอ) */
+const AppealModal = ({ isOpen, novel, onSubmit, onCancel, isSubmitting = false }) => {
   const [reasonText, setReasonText] = useState("");
 
   useEffect(() => {
@@ -124,33 +170,85 @@ const AppealModal = ({ isOpen, onSubmit, onCancel, isSubmitting = false }) => {
 
   if (!isOpen) return null;
   const trimmedReason = reasonText.trim();
+  const displayReason = novel?.ban_reason || novel?.banReason || novel?.reason || BAN_NOTICE_DEFAULTS.reason;
+  const displayDetails = novel?.ban_details || novel?.banDetails || novel?.details || novel?.report_details || BAN_NOTICE_DEFAULTS.details;
+  const isValidLength = trimmedReason.length >= 10;
 
   return (
-    <div className="cm-modal-overlay">
-      <div className="cm-modal-box">
-        <h3 className="cm-modal-box__title">ส่งเรื่องขอปลดแบน</h3>
-        <p className="cm-modal-box__desc">
-          กรุณาชี้แจงรายละเอียดการแก้ไขหรือเหตุผลที่ต้องการขอปลดแบนนิยายเรื่องนี้ ทีมงานจะตรวจสอบและติดต่อกลับ
-        </p>
-        <textarea
-          className="cm-input cm-modal-box__textarea"
-          rows={5}
-          placeholder="พิมพ์ข้อความชี้แจงของคุณที่นี่..."
-          value={reasonText}
-          onChange={(e) => setReasonText(e.target.value)}
-          disabled={isSubmitting}
-        />
-        <div className="cm-modal-box__actions">
-          <button type="button" className="cm-btn cm-btn--outline cm-btn--sm" onClick={onCancel} disabled={isSubmitting}>
+    <div className="cm-modal-overlay" onClick={onCancel}>
+      <div className="cm-appeal-modal-box" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="cm-appeal-modal__header">
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div className="cm-ban-warning-card__icon-box" style={{ width: 40, height: 40 }}>
+              <ShieldAlert size={20} className="cm-ban-warning-card__shield-icon" />
+            </div>
+            <div>
+              <h3 className="cm-appeal-modal__title">ยื่นคำขอปลดแบน</h3>
+              <p className="cm-appeal-modal__sub">ทีมงานจะตรวจสอบและติดต่อกลับ</p>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            className="cm-appeal-modal__close-btn" 
+            onClick={onCancel} 
+            disabled={isSubmitting}
+            aria-label="ปิด"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Top Banned Reason Box */}
+        <div className="cm-appeal-modal__reason-box">
+          <span className="cm-appeal-modal__reason-label">สาเหตุที่ถูกระงับ</span>
+          <strong className="cm-appeal-modal__reason-val">{displayReason}</strong>
+          {displayDetails && (
+            <span className="cm-appeal-modal__reason-details">{displayDetails}</span>
+          )}
+        </div>
+
+        {/* Textarea Form */}
+        <div className="cm-appeal-modal__form">
+          <label className="cm-appeal-modal__form-label">
+            ชี้แจงรายละเอียดการแก้ไข / เหตุผล
+          </label>
+          <textarea
+            className="cm-appeal-modal__textarea"
+            rows={4}
+            placeholder="พิมพ์ข้อความชี้แจงของคุณที่นี่..."
+            value={reasonText}
+            onChange={(e) => setReasonText(e.target.value)}
+            disabled={isSubmitting}
+          />
+          <div className="cm-appeal-modal__counter">
+            {trimmedReason.length}/10 ตัวอักษรขั้นต่ำ
+          </div>
+
+          <div className="cm-appeal-modal__warning-note">
+            <AlertCircle size={14} className="cm-appeal-modal__warning-icon" />
+            <span>การรายงานเท็จหรือกลั่นแกล้งผู้อื่น อาจส่งผลให้บัญชีของคุณถูกระงับการใช้งาน</span>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="cm-appeal-modal__actions">
+          <button
+            type="button"
+            className="cm-appeal-modal__cancel-btn"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
             ยกเลิก
           </button>
           <button
             type="button"
-            className="cm-btn cm-btn--sm cm-btn--primary"
+            className={`cm-appeal-modal__submit-btn ${isValidLength ? "is-valid" : ""}`}
             onClick={() => onSubmit(trimmedReason)}
-            disabled={isSubmitting || !trimmedReason}
+            disabled={isSubmitting || !isValidLength}
           >
-            {isSubmitting ? "กำลังส่ง..." : "ยืนยันส่งเรื่อง"}
+            <Send size={15} />
+            <span>{isSubmitting ? "กำลังส่ง..." : "ยืนยันส่งเรื่อง"}</span>
           </button>
         </div>
       </div>
@@ -2588,13 +2686,24 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         body: JSON.stringify({ novel_id: currentNovelId, reason: reasonText.trim() })
       });
 
-      if (!res.ok) throw new Error(`ส่งคำขอไม่สำเร็จ (status ${res.status})`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData.error || errData.message || "";
+        if (errMsg.includes("unauthorized or novel is not currently banned")) {
+          throw new Error("ไม่สามารถยื่นคำขอปลดแบนได้ เนื่องจากนิยายเรื่องนี้ไม่ได้อยู่ในสถานะถูกระงับการเผยแพร่ (suspended) ในระบบ หรือคุณไม่ใช่เจ้าของนิยายเรื่องนี้");
+        } else if (errMsg.includes("appeal already pending")) {
+          throw new Error("คุณได้ยื่นคำขอปลดแบนนิยายเรื่องนี้ไว้แล้ว และกำลังอยู่ในระหว่างรอแอดมินตรวจสอบ");
+        } else if (errMsg.includes("unauthorized")) {
+          throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
+        }
+        throw new Error(errMsg || `ส่งคำขอไม่สำเร็จ (status ${res.status})`);
+      }
 
       setIsAppealModalOpen(false);
       alert("ส่งเรื่องขอปลดแบนเรียบร้อยแล้ว");
     } catch (err) {
       console.error("ส่งเรื่องขอปลดแบนล้มเหลว:", err);
-      alert("เกิดข้อผิดพลาด ไม่สามารถส่งเรื่องขอปลดแบนได้ กรุณาลองใหม่อีกครั้ง");
+      alert(err.message || "เกิดข้อผิดพลาด ไม่สามารถส่งเรื่องขอปลดแบนได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setIsSubmittingAppeal(false);
     }
@@ -3052,10 +3161,12 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
         {(novel?.status === "banned" ||
           novel?.status === "ban" ||
           novel?.status === "suspended" ||
+          novel?.status === "ระงับ" ||
           novel?.is_banned === true ||
           novel?.isBanned === true) && (
             <BanWarningBanner
-              reason={novel?.ban_reason || novel?.banReason}
+              reason={novel?.ban_reason || novel?.banReason || novel?.reason}
+              details={novel?.ban_details || novel?.banDetails || novel?.details || novel?.report_details}
               onRequestAppeal={handleOpenAppealModal}
             />
           )}
@@ -3340,6 +3451,7 @@ const ChapterManagerPage = ({ onNavigate, novelId }) => {
       <AppealModal
         isOpen={isAppealModalOpen}
         isSubmitting={isSubmittingAppeal}
+        novel={novel}
         onSubmit={handleSubmitAppeal}
         onCancel={handleCloseAppealModal}
       />
