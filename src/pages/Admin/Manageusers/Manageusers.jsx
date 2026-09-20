@@ -153,6 +153,10 @@ const Manageusers = () => {
         await axios.patch(`${API_BASE_URL}/api/admin/users/${user.id}/demote`, {}, { headers });
       }
 
+      if (user.role === "reader" && role === "writer" && user.had_writer_history && user.status === "active") {
+        await axios.patch(`${API_BASE_URL}/api/admin/users/${user.id}/restore-writer`, {}, { headers });
+      }
+
       if (status !== user.status) {
         await axios.patch(
           `${API_BASE_URL}/api/admin/users/${user.id}/status`,
@@ -710,9 +714,8 @@ const Manageusers = () => {
                 <div className="edit-form-group">
                   <label className="form-lbl">บทบาท</label>
 
-                  {/* กฎสำคัญ: หน้านี้ "ถอด" สิทธิ์นักเขียนได้อย่างเดียว (writer -> reader)
-                      ห้ามตั้ง role เป็น writer หรือ admin จากหน้านี้เด็ดขาด
-                      การมอบสิทธิ์ writer ต้องผ่านหน้าอนุมัติใบสมัคร (/admin/writers) เท่านั้น */}
+                    {/* กฎสำคัญ: หน้านี้ไม่เปิดให้มอบสิทธิ์ writer ใหม่
+                      ยกเว้นการคืนสิทธิ์ให้ reader ที่มีประวัติ revoked เท่านั้น */}
                   {editUserModal.user.role === "writer" ? (
                     <select
                       className="admin-form-select"
@@ -721,6 +724,15 @@ const Manageusers = () => {
                     >
                       <option value="writer">นักเขียน (ไม่เปลี่ยนแปลง)</option>
                       <option value="reader">เลื่อนลง → นักอ่าน (ถอดสิทธิ์นักเขียน)</option>
+                    </select>
+                  ) : editUserModal.user.role === "reader" && editUserModal.user.had_writer_history ? (
+                    <select
+                      className="admin-form-select"
+                      value={editUserModal.role}
+                      onChange={(e) => setEditUserModal(prev => ({ ...prev, role: e.target.value }))}
+                    >
+                      <option value="reader">นักอ่าน (ไม่เปลี่ยนแปลง)</option>
+                      <option value="writer">คืนสิทธิ์นักเขียนจากประวัติเดิม</option>
                     </select>
                   ) : (
                     <div className="admin-form-select admin-form-select--readonly">
