@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"novel-be/internal/models"
@@ -30,11 +31,59 @@ func deriveNovelStateForResponse(dbStatus, latestBanReason string) (string, bool
 	}
 }
 
+func publishedNovelScope(alias, writerAlias string) string {
+	if alias == "" {
+		alias = "n"
+	}
+	if writerAlias == "" {
+		writerAlias = "w"
+	}
+	return "(" + alias + ".is_published = TRUE AND " + alias + ".status NOT IN ('suspended', 'banned') AND " + writerAlias + ".status = 'approved')"
+}
+
+func matchesPublishedScope(status string, isPublished bool, writerStatus string) bool {
+	if !isPublished {
+		return false
+	}
+	if strings.TrimSpace(strings.ToLower(writerStatus)) != "approved" {
+		return false
+	}
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case "suspended", "banned":
+		return false
+	default:
+		return true
+	}
+}
+
+func matchesStatusFilter(status string, isPublished bool, writerStatus string, filter string) bool {
+	switch strings.TrimSpace(strings.ToLower(filter)) {
+	case "all":
+		return true
+	case "published":
+		return matchesPublishedScope(status, isPublished, writerStatus)
+	case "suspended":
+		return strings.TrimSpace(strings.ToLower(status)) == "suspended"
+	case "banned":
+		return strings.TrimSpace(strings.ToLower(status)) == "banned"
+	default:
+		return true
+	}
+}
+
+func buildNovelWhereClause(filters []string) string {
+	if len(filters) == 0 {
+		return ""
+	}
+	return "WHERE " + strings.Join(filters, " AND ")
+}
+
 func GetNovels(db *sql.DB) ([]models.Novel, error) {
 	rows, err := db.Query(`
 		SELECT 
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
+				WHEN n.status = 'suspended' THEN 'suspended'
 				WHEN n.status = 'banned' THEN 'banned'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
@@ -69,7 +118,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 		LEFT JOIN novel_categories nc ON n.novel_id = nc.novel_id
 		LEFT JOIN categories c ON nc.category_id = c.category_id
 		LEFT JOIN likes l ON n.novel_id = l.novel_id
-		WHERE n.is_published = TRUE
+		WHERE " + publishedNovelScope("n", "w") + "
 		GROUP BY n.novel_id, w.writer_id
 		ORDER BY n.created_at DESC
 	`)
@@ -126,11 +175,112 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 	return novels, nil
 }
 
+func (r *postgresNovelRepository) ListAdminNovels(ctx context.Context, search, status string, categoryID, page, limit int) ([]models.Novel, int, error) {
+	offset := (page - 1) * limit
+	args := []interface{}{}
+	addArg := func(value interface{}) string {
+		args = append(args, value)
+		return "$" + strconv.Itoa(len(args))
+	}
+	where := []string{}
+
+	switch status {
+	case "published":
+		where = append(where, publishedNovelScope("n", "w"))
+	case "suspended":
+		where = append(where, "n.status = "+addArg("suspended"))
+	case "banned":
+		where = append(where, "n.status = "+addArg("banned"))
+	case "draft":
+		where = append(where, "n.is_published = FALSE AND n.status NOT IN ('suspended', 'banned')")
+	}
+	if search != "" {
+		placeholder := addArg("%" + search + "%")
+		where = append(where, "(n.title ILIKE "+placeholder+" OR w.pen_name ILIKE "+placeholder+" OR w.name_lastname ILIKE "+placeholder+")")
+	}
+	if categoryID > 0 {
+		where = append(where, "nc.category_id = "+addArg(categoryID))
+	}
+	whereClause := buildNovelWhereClause(where)
+
+	countQuery := `
+		SELECT COUNT(DISTINCT n.novel_id)
+		FROM novels n
+		LEFT JOIN writers w ON n.author_id = w.writer_id
+		LEFT JOIN novel_categories nc ON n.novel_id = nc.novel_id
+		` + whereClause
+	var total int
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	query := `
+		SELECT
+			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
+			n.status, n.is_published, n.is_completed, n.author_id,
+			n.views, n.created_at, n.updated_at,
+			(SELECT COUNT(*) FROM chapters ch WHERE ch.novel_id = n.novel_id),
+			(SELECT COUNT(*) FROM scenes s WHERE s.novel_id = n.novel_id),
+			w.name_lastname, w.pen_name,
+			(SELECT COUNT(*) FROM likes l WHERE l.novel_id = n.novel_id),
+			(SELECT COUNT(*) FROM bookshelves b WHERE b.novel_id = n.novel_id),
+			COALESCE(json_agg(json_build_object('category_id', c.category_id, 'name', c.name)) FILTER (WHERE c.category_id IS NOT NULL), '[]')
+		FROM novels n
+		LEFT JOIN writers w ON n.author_id = w.writer_id
+		LEFT JOIN novel_categories nc ON n.novel_id = nc.novel_id
+		LEFT JOIN categories c ON nc.category_id = c.category_id
+		` + whereClause + `
+		GROUP BY n.novel_id, w.writer_id
+		ORDER BY n.created_at DESC, n.novel_id DESC
+		LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+
+	queryArgs := append(append([]interface{}{}, args...), limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	novels := make([]models.Novel, 0)
+	for rows.Next() {
+		var novel models.Novel
+		var authorName, penName *string
+		var categoriesJSON []byte
+		if err := rows.Scan(
+			&novel.ID, &novel.Title, &novel.Captions, &novel.Introduction, &novel.CoverImage,
+			&novel.Status, &novel.IsPublished, &novel.IsCompleted, &novel.AuthorID,
+			&novel.Views, &novel.CreatedAt, &novel.UpdatedAt,
+			&novel.ChapterCount, &novel.SceneCount, &authorName, &penName,
+			&novel.LikeCount, &novel.BookshelfCount, &categoriesJSON,
+		); err != nil {
+			return nil, 0, err
+		}
+		if authorName != nil {
+			novel.AuthorName = *authorName
+		}
+		if penName != nil {
+			novel.PenName = *penName
+		}
+		if err := json.Unmarshal(categoriesJSON, &novel.Categories); err != nil {
+			return nil, 0, err
+		}
+		for _, category := range novel.Categories {
+			novel.CategoryIDs = append(novel.CategoryIDs, category.CategoryID)
+		}
+		novels = append(novels, novel)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return novels, total, nil
+}
+
 func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 	row := db.QueryRow(`
 		SELECT 
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
+				WHEN n.status = 'suspended' THEN 'suspended'
 				WHEN n.status = 'banned' THEN 'banned'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
@@ -332,6 +482,7 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 		SELECT 
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
+				WHEN n.status = 'suspended' THEN 'suspended'
 				WHEN n.status = 'banned' THEN 'banned'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
