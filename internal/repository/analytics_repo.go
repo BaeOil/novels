@@ -16,6 +16,7 @@ type AnalyticsRepository interface {
 	GetSceneChoiceAnalytics(novelID, sceneID int) (*models.SceneChoiceAnalyticsStats, error)
 	// GetAllScenesAnalytics คืน stats สรุปของทุกฉากในนิยาย
 	GetAllScenesAnalytics(novelID int) ([]models.AllScenesAnalyticsStats, error)
+	GetEdgeAnalytics(novelID int) ([]models.EdgeAnalyticsStats, error)
 }
 
 type postgresAnalyticsRepository struct {
@@ -176,7 +177,7 @@ func (r *postgresAnalyticsRepository) GetSceneAnalytics(novelID, sceneID int) (*
 		JOIN scenes s_from ON s_from.scene_id = c.from_scene_id
 		LEFT JOIN user_choice_history uch ON uch.choice_id = c.choice_id
 		WHERE c.to_scene_id = $1 AND s_from.novel_id = $2
-		GROUP BY s_from.scene_id, s_from.title, c.choice_id
+		GROUP BY s_from.scene_id, s_from.title
 		ORDER BY transition_count DESC, s_from.scene_id ASC
 	`
 
@@ -264,9 +265,12 @@ func (r *postgresAnalyticsRepository) GetSceneAnalytics(novelID, sceneID int) (*
 			SELECT COUNT(DISTINCT uch.user_id)
 			FROM user_choice_history uch
 			JOIN choices c ON c.choice_id = uch.choice_id
-			WHERE c.from_scene_id = $1
+			JOIN scenes s ON s.scene_id = c.from_scene_id
+			WHERE c.from_scene_id = $1 AND s.novel_id = $2
 		`
-		_ = r.db.QueryRow(contQuery, sceneID).Scan(&continuedUsers)
+		if err := r.db.QueryRow(contQuery, sceneID, novelID).Scan(&continuedUsers); err != nil {
+			return nil, err
+		}
 
 		if stats.UniqueReaders > continuedUsers {
 			stats.DropOffRate = roundFloat2(float64(stats.UniqueReaders-continuedUsers) * 100.0 / float64(stats.UniqueReaders))
@@ -491,6 +495,46 @@ func (r *postgresAnalyticsRepository) GetAllScenesAnalytics(novelID int) ([]mode
 			s.DropOffRate = dropOffRate.Float64
 		}
 		results = append(results, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (r *postgresAnalyticsRepository) GetEdgeAnalytics(novelID int) ([]models.EdgeAnalyticsStats, error) {
+	query := `
+		WITH edge_counts AS (
+			SELECT c.from_scene_id, c.to_scene_id, c.choice_id, c.label,
+				COALESCE(s_to.title, '') AS target_scene_title,
+				COUNT(uch.id) AS selection_count
+			FROM choices c
+			JOIN scenes s_from ON s_from.scene_id = c.from_scene_id AND s_from.novel_id = $1
+			LEFT JOIN scenes s_to ON s_to.scene_id = c.to_scene_id
+			LEFT JOIN user_choice_history uch ON uch.choice_id = c.choice_id
+			GROUP BY c.from_scene_id, c.to_scene_id, c.choice_id, c.label, s_to.title
+		)
+		SELECT from_scene_id, to_scene_id, choice_id, label, target_scene_title,
+			selection_count,
+			CASE WHEN SUM(selection_count) OVER (PARTITION BY from_scene_id) = 0 THEN 0
+				ELSE ROUND(selection_count::numeric * 100.0 / SUM(selection_count) OVER (PARTITION BY from_scene_id), 2)
+			END AS percentage
+		FROM edge_counts
+		ORDER BY from_scene_id, choice_id`
+
+	rows, err := r.db.Query(query, novelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := []models.EdgeAnalyticsStats{}
+	for rows.Next() {
+		var edge models.EdgeAnalyticsStats
+		if err := rows.Scan(&edge.FromSceneID, &edge.ToSceneID, &edge.ChoiceID, &edge.ChoiceLabel, &edge.TargetTitle, &edge.SelectionCount, &edge.Percentage); err != nil {
+			return nil, err
+		}
+		results = append(results, edge)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

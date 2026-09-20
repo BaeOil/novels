@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"novel-be/internal/models"
 )
@@ -76,9 +77,34 @@ func (r *postgresNovelRepository) DeleteNovel(id int) error {
 }
 
 // UnbanNovel updates novel status to draft and clears ban flags.
-func (r *postgresNovelRepository) UnbanNovel(id int) error {
-	_, err := r.db.Exec(`UPDATE novels SET status = $1, is_banned = false, ban_reason = NULL, updated_at = NOW() WHERE novel_id = $2`, "draft", id)
-	return err
+func (r *postgresNovelRepository) SuspendNovel(ctx context.Context, id int) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE novels SET status = $1, is_published = false, updated_at = NOW() WHERE novel_id = $2`, "suspended", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *postgresNovelRepository) UnbanNovel(ctx context.Context, id int) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE novels SET status = $1, is_published = false, updated_at = NOW() WHERE novel_id = $2`, "draft", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // ======= Scene Repository Methods =======

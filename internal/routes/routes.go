@@ -58,7 +58,7 @@ func RegisterRoutes(
 			authHandler.UpdateOwnUsername(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})))
 	mux.Handle("/api/me/username", updateOwnUsernameHandler)
 	mux.Handle("/me/username", updateOwnUsernameHandler)
@@ -69,7 +69,7 @@ func RegisterRoutes(
 			authHandler.UpdateOwnEmail(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})))
 	mux.Handle("/api/me/email", updateOwnEmailHandler)
 	mux.Handle("/me/email", updateOwnEmailHandler)
@@ -80,7 +80,7 @@ func RegisterRoutes(
 			authHandler.UpdateOwnPassword(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})))
 	mux.Handle("/api/me/password", updateOwnPasswordHandler)
 	mux.Handle("/me/password", updateOwnPasswordHandler)
@@ -91,7 +91,7 @@ func RegisterRoutes(
 			authHandler.UpdateOwnProfilePicture(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})))
 	mux.Handle("/api/me/profile-picture", updateOwnProfilePictureHandler)
 	mux.Handle("/me/profile-picture", updateOwnProfilePictureHandler)
@@ -102,7 +102,7 @@ func RegisterRoutes(
 			authHandler.DeleteOwnAccount(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})))
 	mux.Handle("/api/me", deleteOwnAccountHandler)
 	mux.Handle("/me", deleteOwnAccountHandler)
@@ -113,7 +113,7 @@ func RegisterRoutes(
 			authHandler.SuspendOwnAccount(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})))
 	mux.Handle("/api/me/suspend", suspendOwnAccountHandler)
 	mux.Handle("/me/suspend", suspendOwnAccountHandler)
@@ -128,7 +128,7 @@ func RegisterRoutes(
 			notificationHandler.UpdateSettings(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})))
 	mux.Handle("/api/me/notification-settings", notificationSettingsHandler)
 	mux.Handle("/me/notification-settings", notificationSettingsHandler)
@@ -158,6 +158,10 @@ func RegisterRoutes(
 			return
 		}
 		if r.Method == http.MethodGet {
+			if strings.HasSuffix(r.URL.Path, "/analytics/edges") {
+				middleware.RequireAuth(handlers.EdgeAnalyticsHandler(analytics, novel, writer)).ServeHTTP(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.Path, "/analytics/scenes") {
 				middleware.RequireAuth(handlers.AllScenesAnalyticsHandler(analytics, novel, writer)).ServeHTTP(w, r)
 				return
@@ -201,7 +205,7 @@ func RegisterRoutes(
 				adminUserHandler.AdminUpdateUsername(w, r)
 				return
 			}
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		case strings.HasSuffix(r.URL.Path, "/status"):
 			adminUserHandler.UpdateUserStatus(w, r)
 		case strings.HasSuffix(r.URL.Path, "/demote"):
@@ -260,7 +264,7 @@ func RegisterRoutes(
 		case http.MethodDelete:
 			handlers.AdminDeleteCategoryHandler(category, audit)(w, r)
 		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 	})))
 	mux.Handle("/api/admin/categories", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -268,7 +272,7 @@ func RegisterRoutes(
 			handlers.AdminCreateCategoryHandler(category, audit)(w, r)
 			return
 		}
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}))))
 	mux.Handle("/api/admin/categories/", adminCategoriesSubRouter)
 
@@ -324,7 +328,7 @@ func RegisterRoutes(
 	// ------------------------------------------
 	// 🟢 Reading Flow & Social (คุมพฤติกรรม)
 	// ------------------------------------------
-	mux.Handle("/progress", middleware.RequestLogger(middleware.RequireAdminReadOnly(handlers.ProgressHandler(reading, novel, writer))))
+	mux.Handle("/progress", middleware.RequestLogger(middleware.RequireAdminReadOnly(handlers.ProgressHandler(reading, novel, writer, scene, chapter))))
 	mux.Handle("/history", middleware.RequestLogger(middleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			handlers.GetReadingHistoryHandler(reading)(w, r)
@@ -456,7 +460,7 @@ func novelSubRouter(novel service.NovelService, scene service.SceneService, chap
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/comments"):
 			handlers.GetCommentsByNovelHandler(social)(w, r)
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/story-tree"):
-			handlers.GetStoryTreeHandler(scene, novel, chapter, writer)(w, r)
+			handlers.GetStoryTreeHandler(scene, novel, writer)(w, r)
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/start"):
 			handlers.StartReadingHandler(scene, novel, writer, chapter)(w, r)
 		case r.Method == http.MethodPost && strings.HasSuffix(path, "/restart"):

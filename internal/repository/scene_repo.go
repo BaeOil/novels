@@ -271,7 +271,7 @@ func (r *postgresSceneRepository) GetNodesByNovelID(novelID int) ([]models.Scene
 
 func (r *postgresSceneRepository) GetEdgesByNovelID(novelID int) ([]models.SceneEdge, error) {
 	query := `
-		SELECT c.from_scene_id, c.to_scene_id, c.label
+		SELECT c.choice_id, c.from_scene_id, c.to_scene_id, c.label
 		FROM choices c
 		JOIN scenes s ON c.from_scene_id = s.scene_id
 		WHERE s.novel_id = $1`
@@ -284,7 +284,7 @@ func (r *postgresSceneRepository) GetEdgesByNovelID(novelID int) ([]models.Scene
 	var edges []models.SceneEdge
 	for rows.Next() {
 		var e models.SceneEdge
-		if err := rows.Scan(&e.FromID, &e.ToID, &e.Label); err != nil {
+		if err := rows.Scan(&e.ChoiceID, &e.FromID, &e.ToID, &e.Label); err != nil {
 			return nil, err
 		}
 		edges = append(edges, e)
@@ -351,14 +351,15 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 	// ใช้ LEFT JOIN กับ user_scene_history เพื่อเช็คว่า User เคยมาที่นี่หรือยัง
 	// 🎯 เพิ่มการดึง content, ending_title, ending_description สำหรับแสดงข้อมูลครบถ้วน
 	query := `
-        SELECT s.scene_id, s.title, s.type, c.title AS chapter_title, c.episode AS chapter_episode, s.content,
+		SELECT s.scene_id, s.title, s.type, c.title AS chapter_title, c.episode AS chapter_episode, s.content,
                s.ending_title, s.ending_description, s.node_x, s.node_y,
+		       CASE WHEN LOWER(s.status) = 'published' AND LOWER(c.status) = 'published' THEN 'published' ELSE 'draft' END AS node_status,
                ROW_NUMBER() OVER (PARTITION BY s.chapter_id ORDER BY s.scene_id) AS scene_number_in_chapter,
-               CASE WHEN ush.id IS NOT NULL OR ue.id IS NOT NULL THEN true ELSE false END as is_unlocked
+		       CASE WHEN EXISTS (SELECT 1 FROM user_scene_history ush WHERE ush.scene_id = s.scene_id AND ush.user_id = $2)
+		              OR EXISTS (SELECT 1 FROM user_endings ue WHERE ue.scene_id = s.scene_id AND ue.user_id = $2)
+		            THEN true ELSE false END AS is_unlocked
         FROM scenes s
         LEFT JOIN chapters c ON s.chapter_id = c.chapter_id
-        LEFT JOIN user_scene_history ush ON s.scene_id = ush.scene_id AND ush.user_id = $2
-        LEFT JOIN user_endings ue ON s.scene_id = ue.scene_id AND ue.user_id = $2
         WHERE s.novel_id = $1`
 
 	rows, err := r.db.Query(query, novelID, userID)
@@ -376,7 +377,7 @@ func (r *postgresSceneRepository) GetNodesByNovelIDForUser(novelID int, userID i
 		var nodeY sql.NullFloat64
 
 		if err := rows.Scan(&n.ID, &n.Title, &n.Type, &n.ChapterTitle, &n.ChapterEpisode, &n.Content,
-			&endingTitle, &endingDesc, &nodeX, &nodeY, &n.SceneNumberInChapter, &n.IsUnlocked); err != nil {
+			&endingTitle, &endingDesc, &nodeX, &nodeY, &n.Status, &n.SceneNumberInChapter, &n.IsUnlocked); err != nil {
 			return nil, err
 		}
 

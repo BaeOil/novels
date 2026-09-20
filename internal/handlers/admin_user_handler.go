@@ -25,7 +25,7 @@ func NewAdminUserHandler(authService service.AuthService, auditService service.A
 
 func (h *AdminUserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -37,7 +37,7 @@ func (h *AdminUserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	users, err := h.authService.ListUsers(r.Context(), role, status, search, page, limit)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -47,24 +47,24 @@ func (h *AdminUserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdminUserHandler) GetUserDetail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	pathID := strings.TrimPrefix(r.URL.Path, "/api/admin/users/")
 	userID, err := strconv.Atoi(pathID)
 	if err != nil || userID <= 0 {
-		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รหัสผู้ใช้ไม่ถูกต้อง")
 		return
 	}
 
 	user, err := h.authService.GetUserForAdmin(r.Context(), uint(userID))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if user == nil {
-		http.Error(w, "ไม่พบผู้ใช้งาน", http.StatusNotFound)
+		WriteError(w, http.StatusNotFound, "ไม่พบผู้ใช้งาน")
 		return
 	}
 
@@ -74,7 +74,7 @@ func (h *AdminUserHandler) GetUserDetail(w http.ResponseWriter, r *http.Request)
 
 func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 	pathID = strings.TrimSuffix(pathID, "/status")
 	userID, err := strconv.Atoi(pathID)
 	if err != nil || userID <= 0 {
-		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รหัสผู้ใช้ไม่ถูกต้อง")
 		return
 	}
 
@@ -97,11 +97,11 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 		Reason *string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 	if req.Status != "active" && req.Status != "suspended" {
-		http.Error(w, "status ต้องเป็น active หรือ suspended เท่านั้น", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "status ต้องเป็น active หรือ suspended เท่านั้น")
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 			WriteError(w, http.StatusForbidden, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	action := "UNSUSPEND_USER"
@@ -148,7 +148,7 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 
 func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -156,7 +156,7 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 	pathID = strings.TrimSuffix(pathID, "/demote")
 	userID, err := strconv.Atoi(pathID)
 	if err != nil || userID <= 0 {
-		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รหัสผู้ใช้ไม่ถูกต้อง")
 		return
 	}
 
@@ -178,7 +178,7 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusForbidden, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	metadata := map[string]interface{}{"new_role": "reader"}
@@ -193,7 +193,7 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdminUserHandler) RestoreUserWriterAccess(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -201,7 +201,7 @@ func (h *AdminUserHandler) RestoreUserWriterAccess(w http.ResponseWriter, r *htt
 	pathID = strings.TrimSuffix(pathID, "/restore-writer")
 	userID, err := strconv.Atoi(pathID)
 	if err != nil || userID <= 0 {
-		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รหัสผู้ใช้ไม่ถูกต้อง")
 		return
 	}
 
@@ -231,7 +231,7 @@ func (h *AdminUserHandler) RestoreUserWriterAccess(w http.ResponseWriter, r *htt
 			WriteError(w, http.StatusForbidden, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	metadata := map[string]interface{}{"new_role": "writer"}
@@ -246,14 +246,14 @@ func (h *AdminUserHandler) RestoreUserWriterAccess(w http.ResponseWriter, r *htt
 
 func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	pathID := strings.TrimPrefix(r.URL.Path, "/api/admin/users/")
 	userID, err := strconv.Atoi(pathID)
 	if err != nil || userID <= 0 {
-		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รหัสผู้ใช้ไม่ถูกต้อง")
 		return
 	}
 
@@ -270,21 +270,21 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	hasWriterNovels, err := h.authService.HasWriterNovels(r.Context(), uint(userID))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if hasWriterNovels {
-		http.Error(w, "ต้องระงับบัญชีแทนการลบ เนื่องจากมีนิยายอยู่ในระบบ", http.StatusConflict)
+		WriteError(w, http.StatusConflict, "ต้องระงับบัญชีแทนการลบ เนื่องจากมีนิยายอยู่ในระบบ")
 		return
 	}
 
 	previous, err := h.authService.GetUserForAdmin(r.Context(), uint(userID))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if previous == nil {
-		http.Error(w, "ไม่พบผู้ใช้งาน", http.StatusNotFound)
+		WriteError(w, http.StatusNotFound, "ไม่พบผู้ใช้งาน")
 		return
 	}
 	err = h.authService.DeleteUser(r.Context(), uint(userID), adminID)
@@ -294,10 +294,10 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, errors.New("must not delete")) {
-			http.Error(w, "ต้องระงับบัญชีแทนการลบ เนื่องจากมีนิยายอยู่ในระบบ", http.StatusConflict)
+			WriteError(w, http.StatusConflict, "ต้องระงับบัญชีแทนการลบ เนื่องจากมีนิยายอยู่ในระบบ")
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	metadata := map[string]interface{}{"username": previous.Username, "email": previous.Email, "role": previous.Role, "status": previous.Status}
@@ -309,7 +309,7 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -318,7 +318,7 @@ func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Re
 	pathID = strings.TrimSuffix(pathID, "/username")
 	userID, err := strconv.Atoi(pathID)
 	if err != nil || userID <= 0 {
-		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รหัสผู้ใช้ไม่ถูกต้อง")
 		return
 	}
 
@@ -330,7 +330,7 @@ func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Re
 
 	var req dto.UpdateUsernameRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 
@@ -343,20 +343,20 @@ func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Re
 	err = h.authService.UpdateUsername(r.Context(), uint(userID), req.Username)
 	if err != nil {
 		if errors.Is(err, repository.ErrUsernameTaken) {
-			http.Error(w, err.Error(), http.StatusConflict)
+			WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
 		if err.Error() == "user not found" {
-			http.Error(w, "ไม่พบผู้ใช้งาน", http.StatusNotFound)
+			WriteError(w, http.StatusNotFound, "ไม่พบผู้ใช้งาน")
 			return
 		}
 		if err.Error() == "username is required" ||
 			err.Error() == "username length must be between 3 and 50 characters" ||
 			err.Error() == "username must contain only letters, numbers, and underscores" {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 

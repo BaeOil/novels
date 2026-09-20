@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"novel-be/internal/models"
+	"novel-be/internal/repository"
 	"novel-be/internal/service"
 )
 
@@ -153,7 +155,13 @@ func UpdateChapterHandler(chapterService service.ChapterService, sceneService se
 				updChMeta["novel_title"] = n.Title
 			}
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_CHAPTER", TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: updChMeta})
+		chapterAction := "UPDATE_CHAPTER"
+		if strings.EqualFold(oldStatus, "draft") && strings.EqualFold(chapter.Status, "published") {
+			chapterAction = "PUBLISH_CHAPTER"
+		} else if strings.EqualFold(oldStatus, "published") && strings.EqualFold(chapter.Status, "draft") {
+			chapterAction = "UNPUBLISH_CHAPTER"
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: chapterAction, TargetType: "chapter", TargetID: int64Pointer(chapterID), Status: "SUCCESS", Metadata: updChMeta})
 
 		responsePayload := map[string]any{
 			"message": "chapter updated",
@@ -196,6 +204,10 @@ func DeleteChapterHandler(chapterService service.ChapterService, novelService se
 		}
 
 		if err := chapterService.DeleteChapter(chapterID); err != nil {
+			if errors.Is(err, repository.ErrChapterHasStartScene) || errors.Is(err, repository.ErrChapterHasIncomingChoices) {
+				RespondWithError3(w, http.StatusConflict, err.Error())
+				return
+			}
 			RespondWithError3(w, http.StatusInternalServerError, err.Error())
 			return
 		}

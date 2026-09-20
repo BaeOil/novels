@@ -26,21 +26,33 @@ func (h *ReportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 	// 🟢 ดึง userID จริงผ่าน Helper Function ของ Middleware (แปลงเป็น int เพื่อส่งต่อให้ service)
 	userIDUint, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userIDUint == 0 {
-		http.Error(w, "unauthorized: invalid or missing user token", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized: invalid or missing user token")
 		return
 	}
 	userID := int(userIDUint)
 
 	var req dto.CreateReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.service.CreateReport(r.Context(), userID, req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	reportMeta := map[string]interface{}{
+		"novel_id": req.NovelID,
+		"reason":   req.Reason,
+	}
+	recordAudit(r, h.auditService, service.AuditEvent{
+		Action:     "SUBMIT_REPORT",
+		TargetType: "novel",
+		TargetID:   int64Pointer(req.NovelID),
+		Status:     "SUCCESS",
+		Metadata:   reportMeta,
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -48,21 +60,35 @@ func (h *ReportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 }
 
 // 📌 2. API: ดึงรายการรีพอร์ตให้แอดมิน
-func (h *ReportHandler) GetPendingReports(w http.ResponseWriter, r *http.Request) {
+func (h *ReportHandler) GetReports(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	page, limit, err := parseReportPagination(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	reports, total, err := h.service.GetPendingReports(r.Context(), page, limit)
+	statusFilter := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("status")))
+	if statusFilter == "" {
+		statusFilter = "all"
+	}
+	reportType := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("type")))
+	if reportType == "" {
+		reportType = "all"
+	}
+	if reportType != "all" && reportType != "report" && reportType != "appeal" {
+		WriteError(w, http.StatusBadRequest, "type must be all, report, or appeal")
+		return
+	}
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+
+	reports, total, err := h.service.GetReports(r.Context(), statusFilter, reportType, search, page, limit)
 	if err != nil {
-		http.Error(w, "failed to get reports", http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, "failed to get reports")
 		return
 	}
 
@@ -101,7 +127,7 @@ func parseReportPagination(r *http.Request) (int, int, error) {
 func (h *ReportHandler) UpdateReportStatus(w http.ResponseWriter, r *http.Request) {
 	// 🟢 1. ตรวจสอบว่าต้องเป็น PATCH Method เท่านั้น
 	if r.Method != http.MethodPatch {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -111,26 +137,51 @@ func (h *ReportHandler) UpdateReportStatus(w http.ResponseWriter, r *http.Reques
 
 	reportID, err := strconv.Atoi(idStr)
 	if err != nil || reportID <= 0 {
-		http.Error(w, "invalid report ID", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "invalid report ID")
 		return
 	}
 
 	var req dto.UpdateReportStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		WriteError(w, http.StatusBadRequest, "admin reason is required")
 		return
 	}
 
-	previousStatus, err := h.service.GetReportStatus(r.Context(), reportID)
+	previousStatus, reportType, novelID, novelTitle, authorID, err := h.service.GetReportDetail(r.Context(), reportID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := h.service.UpdateReportStatus(r.Context(), reportID, req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if errors.Is(err, service.ErrInvalidReportTransition) {
+			WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_REPORT_STATUS", TargetType: "report", TargetID: int64Pointer(reportID), Status: "SUCCESS", Metadata: map[string]interface{}{"old_status": previousStatus, "new_status": req.Status}})
+	reportMetadata := map[string]interface{}{"old_status": previousStatus, "new_status": req.Status, "report_type": reportType, "reason": req.Reason}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_REPORT_STATUS", TargetType: "report", TargetID: int64Pointer(reportID), Status: "SUCCESS", Metadata: reportMetadata})
+	if reportType == "report" && previousStatus == "pending" && req.Status == "resolved" {
+		recordAudit(r, h.auditService, service.AuditEvent{
+			Action:     "SUSPEND_NOVEL",
+			TargetType: "novel",
+			TargetID:   int64Pointer(novelID),
+			Status:     "SUCCESS",
+			Metadata: map[string]interface{}{
+				"novel_id":        novelID,
+				"title":           novelTitle,
+				"author_id":       authorID,
+				"previous_status": "published",
+				"new_status":      "suspended",
+				"reason":          req.Reason,
+			},
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -140,32 +191,44 @@ func (h *ReportHandler) UpdateReportStatus(w http.ResponseWriter, r *http.Reques
 // 📌 4. API: รับเรื่องขอปลดแบนจากนักเขียน (POST /api/writer/novels/appeal)
 func (h *ReportHandler) CreateAppeal(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	// ดึง userID ของนักเขียนจาก Token
 	userIDUint, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userIDUint == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.CreateAppealRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if req.NovelID <= 0 || req.Reason == "" {
-		http.Error(w, "novel_id and reason are required", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "novel_id and reason are required")
 		return
 	}
 
 	if err := h.service.CreateAppeal(r.Context(), int(userIDUint), req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	appealMeta := map[string]interface{}{
+		"novel_id": req.NovelID,
+		"reason":   req.Reason,
+	}
+	recordAudit(r, h.auditService, service.AuditEvent{
+		Action:     "SUBMIT_APPEAL",
+		TargetType: "novel",
+		TargetID:   int64Pointer(req.NovelID),
+		Status:     "SUCCESS",
+		Metadata:   appealMeta,
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

@@ -26,6 +26,7 @@ type AnalyticsService interface {
 	GetSceneAnalytics(novelID, sceneID int) (*models.SceneAnalyticsStats, error)
 	GetSceneChoiceAnalytics(novelID, sceneID int) (*models.SceneChoiceAnalyticsStats, error)
 	GetAllScenesAnalytics(novelID int) ([]models.AllScenesAnalyticsStats, error)
+	GetEdgeAnalytics(novelID int) ([]models.EdgeAnalyticsStats, error)
 }
 
 type analyticsService struct {
@@ -170,6 +171,10 @@ func (s *analyticsService) GetSceneChoiceAnalytics(novelID, sceneID int) (*model
 
 func (s *analyticsService) GetAllScenesAnalytics(novelID int) ([]models.AllScenesAnalyticsStats, error) {
 	return s.repo.GetAllScenesAnalytics(novelID)
+}
+
+func (s *analyticsService) GetEdgeAnalytics(novelID int) ([]models.EdgeAnalyticsStats, error) {
+	return s.repo.GetEdgeAnalytics(novelID)
 }
 
 // calcPercentage คำนวณ part/total × 100 ปัดทศนิยม 2 ตำแหน่ง

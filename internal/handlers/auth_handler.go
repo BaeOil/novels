@@ -24,14 +24,14 @@ func NewAuthHandler(as *service.AuthService, ms service.MediaService, auditServi
 // 📝 1. ท่อสมัครสมาชิก (Register) - รับ Multipart Form เผื่อการอัปโหลดรูปภาพ
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	// จำกัดขนาดไฟล์รูปโปรไฟล์รวมไม่เกิน 5MB
 	err := r.ParseMultipartForm(5 << 20)
 	if err != nil {
-		http.Error(w, "รูปภาพขนาดใหญ่เกินไป (จำกัด 5MB)", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปภาพขนาดใหญ่เกินไป (จำกัด 5MB)")
 		return
 	}
 
@@ -43,14 +43,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := req.Validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	avatarURL := ""
 	file, handler, err := r.FormFile("profileImage")
 	if err != nil && err != http.ErrMissingFile {
-		http.Error(w, "ไม่สามารถอ่านไฟล์รูปภาพได้", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "ไม่สามารถอ่านไฟล์รูปภาพได้")
 		return
 	}
 	if err == nil {
@@ -58,7 +58,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 		uploadedURL, uploadErr := h.mediaService.UploadImage(r.Context(), handler)
 		if uploadErr != nil {
-			http.Error(w, "ไม่สามารถอัปโหลดรูปภาพได้: "+uploadErr.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, "ไม่สามารถอัปโหลดรูปภาพได้: "+uploadErr.Error())
 			return
 		}
 		avatarURL = uploadedURL
@@ -66,7 +66,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.authService.Register(r.Context(), req, avatarURL)
 	if err != nil {
-		http.Error(w, "สมัครสมาชิกไม่สำเร็จ: "+err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, "สมัครสมาชิกไม่สำเร็จ: "+err.Error())
 		return
 	}
 	recordAuditWithBackendActor(r, h.auditService, &res.User.ID, res.User.Role, service.AuditEvent{Action: "REGISTER", TargetType: "user", TargetID: int64Pointer(int(res.User.ID)), Status: "SUCCESS", Metadata: map[string]interface{}{"email": res.User.Email, "username": res.User.Username}})
@@ -79,18 +79,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 // 🔑 2. ท่อเข้าสู่ระบบ (Login) - รับข้อมูลรูปแบบ JSON
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	var req dto.LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 	if req.Email == "" || req.Password == "" {
-		http.Error(w, "กรุณากรอกอีเมลและรหัสผ่าน", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "กรุณากรอกอีเมลและรหัสผ่าน")
 		return
 	}
 
@@ -108,7 +108,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 		// หากรหัสผิดหรือหาไม่เจอ จะเด้งข้อความแจ้งเตือนสีแดงออกไป
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 	recordAuditWithBackendActor(r, h.auditService, &res.User.ID, res.User.Role, service.AuditEvent{Action: "LOGIN", TargetType: "user", TargetID: int64Pointer(int(res.User.ID)), Status: "SUCCESS", Metadata: map[string]interface{}{"email": res.User.Email}})
@@ -119,22 +119,22 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
-// � 3. ท่อรีเฟรชโทเค็น (Refresh Token)
+// 🔄 3. ท่อรีเฟรชโทเค็น (Refresh Token)
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	var req dto.RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 
 	res, err := h.authService.RefreshToken(r.Context(), req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
@@ -146,7 +146,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 // 🔓 4. ท่อออกจากระบบ (Logout) - ปิดเซสชันฝั่ง frontend
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	if userID, ok := middleware.GetUserIDFromContext(r.Context()); ok && userID != 0 {
@@ -165,17 +165,17 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// 👤 4. ท่อดึงข้อมูลผู้ใช้ปัจจุบัน (Get Current User) - ต้องมี Token ที่ถูกต้อง
+// 👤 5. ท่อดึงข้อมูลผู้ใช้ปัจจุบัน (Get Current User) - ต้องมี Token ที่ถูกต้อง
 func (h *AuthHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	// ดึง user_id จาก Context (ถูกใส่โดย RequireAuth middleware)
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		http.Error(w, "ไม่สามารถตรวจสอบตัวตนผู้ใช้ได้", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "ไม่สามารถตรวจสอบตัวตนผู้ใช้ได้")
 		return
 	}
 
@@ -183,12 +183,12 @@ func (h *AuthHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 	user, err := h.authService.GetUserByID(r.Context(), userID)
 	if err != nil {
 		fmt.Printf("❌ ERROR in GetUserByID: %v\n", err)
-		http.Error(w, "ไม่สามารถดึงข้อมูลผู้ใช้ได้: "+err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, "ไม่สามารถดึงข้อมูลผู้ใช้ได้: "+err.Error())
 		return
 	}
 	if user == nil {
 		fmt.Printf("❌ ERROR: User not found for ID: %d\n", uint(userID))
-		http.Error(w, "ไม่พบข้อมูลผู้ใช้งาน", http.StatusNotFound)
+		WriteError(w, http.StatusNotFound, "ไม่พบข้อมูลผู้ใช้งาน")
 		return
 	}
 
@@ -213,19 +213,19 @@ func (h *AuthHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) UpdateOwnUsername(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.UpdateUsernameRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 
@@ -239,16 +239,16 @@ func (h *AuthHandler) UpdateOwnUsername(w http.ResponseWriter, r *http.Request) 
 			Metadata:   map[string]interface{}{"field": "username", "reason": err.Error()},
 		})
 		if errors.Is(err, repository.ErrUsernameTaken) {
-			http.Error(w, err.Error(), http.StatusConflict)
+			WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
 		if err.Error() == "username is required" ||
 			err.Error() == "username length must be between 3 and 50 characters" ||
 			err.Error() == "username must contain only letters, numbers, and underscores" {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "username"}})
@@ -260,19 +260,19 @@ func (h *AuthHandler) UpdateOwnUsername(w http.ResponseWriter, r *http.Request) 
 
 func (h *AuthHandler) UpdateOwnEmail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.UpdateEmailRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 
@@ -284,7 +284,7 @@ func (h *AuthHandler) UpdateOwnEmail(w http.ResponseWriter, r *http.Request) {
 			Status:     "FAILURE",
 			Metadata:   map[string]interface{}{"field": "email", "reason": err.Error()},
 		})
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -298,18 +298,18 @@ func (h *AuthHandler) UpdateOwnEmail(w http.ResponseWriter, r *http.Request) {
 			Metadata:   map[string]interface{}{"field": "email", "reason": err.Error()},
 		})
 		if err.Error() == "email already in use" {
-			http.Error(w, err.Error(), http.StatusConflict)
+			WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
 		if err.Error() == "email is required" || err.Error() == "invalid user id" {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if err.Error() == "user not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			WriteError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "email"}})
@@ -321,19 +321,19 @@ func (h *AuthHandler) UpdateOwnEmail(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.ChangePasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 
@@ -345,7 +345,7 @@ func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) 
 			Status:     "FAILURE",
 			Metadata:   map[string]interface{}{"field": "password", "reason": err.Error()},
 		})
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -367,14 +367,14 @@ func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) 
 			err.Error() == "new password must contain at least 1 number" ||
 			err.Error() == "passwords do not match" ||
 			err.Error() == "invalid user id" {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if err.Error() == "user not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			WriteError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_PROFILE", TargetType: "user", TargetID: int64Pointer(int(userID)), Status: "SUCCESS", Metadata: map[string]interface{}{"field": "password"}})
@@ -386,18 +386,18 @@ func (h *AuthHandler) UpdateOwnPassword(w http.ResponseWriter, r *http.Request) 
 
 func (h *AuthHandler) UpdateOwnProfilePicture(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch && r.Method != http.MethodPut {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		http.Error(w, "รูปภาพขนาดใหญ่เกินไป (จำกัด 5MB)", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปภาพขนาดใหญ่เกินไป (จำกัด 5MB)")
 		return
 	}
 
@@ -409,28 +409,28 @@ func (h *AuthHandler) UpdateOwnProfilePicture(w http.ResponseWriter, r *http.Req
 		file, handler, err = r.FormFile("avatar")
 	}
 	if err != nil {
-		http.Error(w, "ไม่พบไฟล์รูปภาพโปรไฟล์", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "ไม่พบไฟล์รูปภาพโปรไฟล์")
 		return
 	}
 	defer file.Close()
 
 	uploadedURL, uploadErr := h.mediaService.UploadImage(r.Context(), handler)
 	if uploadErr != nil {
-		http.Error(w, "ไม่สามารถอัปโหลดรูปภาพได้: "+uploadErr.Error(), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "ไม่สามารถอัปโหลดรูปภาพได้: "+uploadErr.Error())
 		return
 	}
 
 	err = h.authService.UpdateProfilePicture(r.Context(), userID, uploadedURL)
 	if err != nil {
 		if err.Error() == "profile picture URL is required" || err.Error() == "invalid user id" {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if err.Error() == "user not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			WriteError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	recordAuditWithBackendActor(r, h.auditService, nil, "", service.AuditEvent{Action: "DELETE_ACCOUNT", TargetType: "user", TargetID: nil, Status: "SUCCESS", Metadata: map[string]interface{}{"deleted_user_id": userID}})
@@ -445,41 +445,41 @@ func (h *AuthHandler) UpdateOwnProfilePicture(w http.ResponseWriter, r *http.Req
 
 func (h *AuthHandler) DeleteOwnAccount(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.DeleteOwnAccountRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 
 	err := h.authService.DeleteOwnAccount(r.Context(), userID, req.CurrentPassword)
 	if err != nil {
 		if err.Error() == "current password is required" || err.Error() == "invalid user id" {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if err.Error() == "current password is incorrect" {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+			WriteError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
 		if err.Error() == "user not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			WriteError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		if err.Error() == "ต้องระงับบัญชีแทนการลบ เนื่องจากมีนิยายอยู่ในระบบ" {
-			http.Error(w, err.Error(), http.StatusConflict)
+			WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -492,13 +492,13 @@ func (h *AuthHandler) DeleteOwnAccount(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) SuspendOwnAccount(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -506,16 +506,24 @@ func (h *AuthHandler) SuspendOwnAccount(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if err.Error() == "account is already suspended" ||
 			err.Error() == "invalid user id" {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if err.Error() == "user not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			WriteError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	recordAudit(r, h.auditService, service.AuditEvent{
+		Action:     "SUSPEND_OWN_ACCOUNT",
+		TargetType: "user",
+		TargetID:   int64Pointer(int(userID)),
+		Status:     "SUCCESS",
+		Metadata:   map[string]interface{}{"reason": "Self-deactivated"},
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -523,3 +531,4 @@ func (h *AuthHandler) SuspendOwnAccount(w http.ResponseWriter, r *http.Request) 
 		"message": "account suspended successfully",
 	})
 }
+

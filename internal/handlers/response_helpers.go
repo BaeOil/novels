@@ -27,16 +27,40 @@ func RespondWithError(w http.ResponseWriter, statusCode int, message string, err
 	w.WriteHeader(statusCode)
 
 	response := dto.ErrorResponse{
-		Status:  statusCode,
-		Error:   err,
-		Message: message,
+		Error: dto.ErrorDetail{
+			Code:    errorCode(statusCode, err),
+			Message: message,
+		},
 	}
 	json.NewEncoder(w).Encode(response)
 }
 
+func errorCode(statusCode int, explicitCode string) string {
+	if explicitCode != "" {
+		return explicitCode
+	}
+
+	switch statusCode {
+	case http.StatusBadRequest:
+		return "BAD_REQUEST"
+	case http.StatusMethodNotAllowed:
+		return "METHOD_NOT_ALLOWED"
+	case http.StatusUnauthorized:
+		return "UNAUTHORIZED"
+	case http.StatusForbidden:
+		return "FORBIDDEN"
+	case http.StatusNotFound:
+		return "NOT_FOUND"
+	case http.StatusConflict:
+		return "CONFLICT"
+	default:
+		return "INTERNAL_ERROR"
+	}
+}
+
 // --- 2. ฟังก์ชันตัวเชื่อม (Adapters) เพื่อให้ Compile ผ่านทุกไฟล์ ---
 
-// RespondWithCreated แก้ปัญหาที่นายเจอใน get_handlers.go:222 
+// RespondWithCreated แก้ปัญหาที่นายเจอใน get_handlers.go:222
 // โดยรับ String (Message) และ Data (interface{}) ตามที่ Handler เรียกมา
 func RespondWithCreated(w http.ResponseWriter, message string, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")

@@ -9,8 +9,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/golang-jwt/jwt/v5"
 	"novel-be/internal/dto"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // สร้างประเภทข้อมูลพิเศษสำหรับใช้เป็น Key ใน Context เพื่อความปลอดภัยไม่ให้ชนกับอันอื่น
@@ -35,14 +36,15 @@ type UnauthorizedRecorder func(r *http.Request, reason string, attemptedRole str
 var unauthorizedRecorder UnauthorizedRecorder
 
 // SetUnauthorizedRecorder ให้ main.go เรียกตอน startup ครั้งเดียว เพื่อผูก audit service เข้ากับ middleware
-// เช่น middleware.SetUnauthorizedRecorder(func(r *http.Request, reason, role string, uid uint, hasUID bool) {
-//     var actor *uint
-//     if hasUID { actor = &uid }
-//     _ = auditService.RecordWithActor(r.Context(), actor, role, service.AuditEvent{
-//         Action: "UNAUTHORIZED_ACCESS", TargetType: "route", Status: "FAILURE",
-//         Metadata: map[string]interface{}{"path": r.URL.Path, "reason": reason},
-//     })
-// })
+//
+//	เช่น middleware.SetUnauthorizedRecorder(func(r *http.Request, reason, role string, uid uint, hasUID bool) {
+//	    var actor *uint
+//	    if hasUID { actor = &uid }
+//	    _ = auditService.RecordWithActor(r.Context(), actor, role, service.AuditEvent{
+//	        Action: "UNAUTHORIZED_ACCESS", TargetType: "route", Status: "FAILURE",
+//	        Metadata: map[string]interface{}{"path": r.URL.Path, "reason": reason},
+//	    })
+//	})
 func SetUnauthorizedRecorder(fn UnauthorizedRecorder) {
 	unauthorizedRecorder = fn
 }
@@ -62,6 +64,12 @@ func recordUnauthorized(r *http.Request, reason string, attemptedRole string) {
 		}()
 		unauthorizedRecorder(r, reason, attemptedRole, userID, hasUserID)
 	}()
+}
+
+func writeAuthError(w http.ResponseWriter, statusCode int, code, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: dto.ErrorDetail{Code: code, Message: message}})
 }
 
 func loadJWTSecret() []byte {
@@ -88,7 +96,7 @@ func RequireAuth(next http.Handler) http.Handler {
 		}
 		if tokenString == "" {
 			recordUnauthorized(r, "missing_token", "")
-			http.Error(w, "ไม่พบบัตรผ่าน (Token) กรุณาเข้าสู่ระบบค่ะ", http.StatusUnauthorized)
+			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "ไม่พบบัตรผ่าน (Token) กรุณาเข้าสู่ระบบค่ะ")
 			return
 		}
 
@@ -101,7 +109,7 @@ func RequireAuth(next http.Handler) http.Handler {
 
 		if err != nil || !token.Valid {
 			recordUnauthorized(r, "invalid_or_expired_token", "")
-			http.Error(w, "บัตรผ่านไม่ถูกต้อง หรือหมดอายุแล้ว", http.StatusUnauthorized)
+			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "บัตรผ่านไม่ถูกต้อง หรือหมดอายุแล้ว")
 			return
 		}
 
@@ -154,7 +162,7 @@ func RequireRole(requiredRole string, next http.Handler) http.Handler {
 		role, ok := GetRoleFromContext(r.Context())
 		if !ok || role != requiredRole {
 			recordUnauthorized(r, "role_mismatch", role)
-			http.Error(w, "Forbidden: คุณไม่มีสิทธิ์เข้าถึงเส้นทางนี้", http.StatusForbidden)
+			writeAuthError(w, http.StatusForbidden, "FORBIDDEN", "Forbidden: คุณไม่มีสิทธิ์เข้าถึงเส้นทางนี้")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -165,7 +173,7 @@ func RequireNotAdmin(next http.Handler) http.Handler {
 	return RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		role, ok := GetRoleFromContext(r.Context())
 		if ok && role == "admin" {
-			http.Error(w, "Forbidden: Admin ไม่สามารถทำการดำเนินการนี้ได้", http.StatusForbidden)
+			writeAuthError(w, http.StatusForbidden, "FORBIDDEN", "Forbidden: Admin ไม่สามารถทำการดำเนินการนี้ได้")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -182,7 +190,7 @@ func RequireAdminReadOnly(next http.Handler) http.Handler {
 			if method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(dto.ErrorResponse{Status: http.StatusForbidden, Error: "", Message: "Forbidden: Admin has read‑only access for this endpoint"})
+				json.NewEncoder(w).Encode(dto.ErrorResponse{Error: dto.ErrorDetail{Code: "FORBIDDEN", Message: "Forbidden: Admin has read-only access for this endpoint"}})
 				return
 			}
 		}

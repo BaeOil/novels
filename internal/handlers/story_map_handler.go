@@ -5,8 +5,6 @@ import (
 	"novel-be/internal/middleware"
 	"novel-be/internal/models"
 	"novel-be/internal/service"
-	"strconv"
-	"strings"
 )
 
 // helper ฟังก์ชันสำหรับตัดข้อความเนื้อหานิยายเอามาทำเป็นข้อความสั้นๆ ประจำฉาก (Truncate Content)
@@ -19,7 +17,7 @@ func truncateContent(content string, maxLen int) string {
 }
 
 // GetStoryTreeHandler สำหรับดึงโครงสร้าง Node และ Edge ของนิยายทั้งเรื่อง พร้อมคำนวณสถิติและระบบกันสปอยล์
-func GetStoryTreeHandler(sceneService service.SceneService, novelService service.NovelService, chapterService service.ChapterService, writerService service.WriterService) http.HandlerFunc {
+func GetStoryTreeHandler(sceneService service.SceneService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		novelID, err := extractIDFromPath(r.URL.Path, "/novels/")
 		if err != nil {
@@ -29,7 +27,6 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 
 		// 🔒 ตรวจสอบสิทธิ์: ถ้าเป็นการเรียกจากผู้ใช้ที่ login แล้ว ตรวจสอบเจ้าของหรือ admin
 		authUserID, ok := middleware.GetUserIDFromContext(r.Context())
-		userIDFromQuery, _ := strconv.Atoi(r.URL.Query().Get("user_id"))
 		isOwnerOrAdmin := false
 		novelIsPublished := false
 		var novelDetail interface{}
@@ -64,7 +61,7 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 			}
 		}
 
-		userID := userIDFromQuery
+		userID := storyTreeUserID(authUserID, ok)
 
 		tree, err := sceneService.GetStoryTree(novelID, userID)
 		if err != nil {
@@ -91,17 +88,9 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 		unlockedNodesMap := make(map[int]bool)
 
 		for _, rawNode := range tree.Nodes {
-			// 🟢 ดึงสถานะเผยแพร่จริงของฉากนี้เสมอ ไม่ว่าจะเป็น owner/admin หรือผู้อ่านทั่วไป
-			// (เดิมดึงเฉพาะตอน !isOwnerOrAdmin เพื่อกรองสปอยล์เท่านั้น ไม่เคยเก็บผลไว้ใช้กับ node เลย
-			// ทำให้ node.Status ไม่ถูก set เลยสักครั้ง — พอ frontend fallback ไปเช็ค node.status
-			// เจอค่าว่างเสมอ เลยขึ้น "ฉบับร่าง" ทุกฉากไม่ว่าจะเผยแพร่จริงหรือไม่ก็ตาม โดยเฉพาะตอน
-			// preview mode ที่ isOwnerOrAdmin เป็น true เสมอ ซึ่งไม่เคยเข้าบล็อกดึงสถานะนี้เลย)
-			sceneDetail, errS := sceneService.GetScene(rawNode.ID)
-			nodeStatus := "draft"
-			if errS == nil && strings.ToLower(sceneDetail.Status) == "published" {
-				if chapterDetail, errC := chapterService.GetChapterByID(sceneDetail.ChapterID); errC == nil && chapterDetail != nil && strings.ToLower(chapterDetail.Status) == "published" {
-					nodeStatus = "published"
-				}
+			nodeStatus := rawNode.Status
+			if nodeStatus == "" {
+				nodeStatus = "draft"
 			}
 
 			// หากผู้ใช้ไม่ใช่เจ้าของหรือ admin ให้กรองโหนดที่ไม่ได้เผยแพร่ (พฤติกรรมเดิมทุกประการ
@@ -213,4 +202,11 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 
 		WriteJSON(w, http.StatusOK, finalResponse)
 	}
+}
+
+func storyTreeUserID(authUserID uint, authenticated bool) int {
+	if !authenticated || authUserID == 0 {
+		return 0
+	}
+	return int(authUserID)
 }

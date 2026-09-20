@@ -718,13 +718,19 @@ func (s *sceneService) DeleteChoice(choiceID int) error {
 	return s.repo.DeleteChoice(choiceID)
 }
 
-func (s *sceneService) SyncSceneChoices(fromSceneID int, rawChoices []interface{}) error {
+func (s *sceneService) SyncSceneChoices(fromSceneID int, rawChoices []interface{}) (*models.ChoiceDiff, error) {
 	existingChoices, err := s.repo.GetChoicesBySceneID(fromSceneID)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	existingMap := make(map[int]models.Choice, len(existingChoices))
+	for _, ec := range existingChoices {
+		existingMap[ec.ChoiceID] = ec
 	}
 
 	incomingChoiceIDs := map[int]struct{}{}
+	diff := &models.ChoiceDiff{}
 
 	for _, raw := range rawChoices {
 		choiceMap, ok := raw.(map[string]interface{})
@@ -789,8 +795,19 @@ func (s *sceneService) SyncSceneChoices(fromSceneID int, rawChoices []interface{
 
 		if choice.ChoiceID > 0 {
 			incomingChoiceIDs[choice.ChoiceID] = struct{}{}
-			if err := s.UpdateChoice(choice); err != nil {
-				return err
+			// ตรวจสอบว่ามีการเปลี่ยนแปลงข้อมูลจริงหรือไม่ (label หรือ to_scene_id)
+			if oldChoice, exists := existingMap[choice.ChoiceID]; exists {
+				if oldChoice.Label != choice.Label || oldChoice.ToSceneID != choice.ToSceneID {
+					if err := s.UpdateChoice(choice); err != nil {
+						return nil, err
+					}
+					diff.UpdatedCount++
+				}
+			} else {
+				if err := s.UpdateChoice(choice); err != nil {
+					return nil, err
+				}
+				diff.UpdatedCount++
 			}
 			continue
 		}
@@ -801,19 +818,21 @@ func (s *sceneService) SyncSceneChoices(fromSceneID int, rawChoices []interface{
 		}
 
 		if _, err := s.CreateChoice(choice); err != nil {
-			return err
+			return nil, err
 		}
+		diff.CreatedCount++
 	}
 
 	for _, existing := range existingChoices {
 		if _, ok := incomingChoiceIDs[existing.ChoiceID]; !ok {
 			if err := s.DeleteChoice(existing.ChoiceID); err != nil {
-				return err
+				return nil, err
 			}
+			diff.DeletedCount++
 		}
 	}
 
-	return nil
+	return diff, nil
 }
 
 func (s *sceneService) Ping() error {

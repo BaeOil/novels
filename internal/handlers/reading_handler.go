@@ -226,7 +226,7 @@ func DeleteReadingHistoryBulkHandler(readingService service.ReadingService) http
 	}
 }
 
-func ProgressHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
+func ProgressHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService, sceneService service.SceneService, chapterService service.ChapterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodOptions:
@@ -234,7 +234,7 @@ func ProgressHandler(readingService service.ReadingService, novelService service
 		case http.MethodGet:
 			GetProgressHandler(readingService)(w, r)
 		case http.MethodPost:
-			SaveProgressHandler(readingService, novelService, writerService)(w, r)
+			SaveProgressHandler(readingService, novelService, writerService, sceneService, chapterService)(w, r)
 		case http.MethodDelete:
 			ResetProgressHandler(readingService)(w, r)
 		default:
@@ -343,7 +343,7 @@ func RestartStoryHandler(sceneService service.SceneService, readingService servi
 	}
 }
 
-func SaveProgressHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
+func SaveProgressHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService, sceneService service.SceneService, chapterService service.ChapterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SaveProgressRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -362,8 +362,50 @@ func SaveProgressHandler(readingService service.ReadingService, novelService ser
 			return
 		}
 
+		isOwnerOrAdmin := CheckIsOwnerOrAdmin(r, req.NovelID, novelService, writerService)
+		if !isOwnerOrAdmin {
+			if sceneService == nil || novelService == nil || chapterService == nil {
+				WriteError(w, http.StatusInternalServerError, "required services not initialized")
+				return
+			}
+
+			scene, err := sceneService.GetScene(req.CurrentSceneID)
+			if err != nil || scene.NovelID != req.NovelID {
+				WriteError(w, http.StatusNotFound, "scene not found")
+				return
+			}
+
+			chapter, err := chapterService.GetChapterByID(scene.ChapterID)
+			if err != nil || chapter == nil || chapter.NovelID != req.NovelID {
+				WriteError(w, http.StatusNotFound, "scene not found")
+				return
+			}
+
+			novelDetail, err := novelService.GetNovelDetail(req.NovelID)
+			if err != nil {
+				WriteError(w, http.StatusNotFound, "scene not found")
+				return
+			}
+
+			novelPtr, ok := novelDetail.(*models.Novel)
+			if !ok || novelPtr == nil {
+				WriteError(w, http.StatusInternalServerError, "failed to load novel details")
+				return
+			}
+
+			if !novelPtr.IsPublished || chapter.Status != "published" || scene.Status != "published" {
+				WriteError(w, http.StatusNotFound, "scene not found")
+				return
+			}
+		}
+
+		effectiveUserID := req.UserID
+		if ctxUserID, ok := middleware.GetUserIDFromContext(r.Context()); ok && ctxUserID > 0 {
+			effectiveUserID = int(ctxUserID)
+		}
+
 		if err := readingService.SaveProgress(models.ReadingProgress{
-			UserID:         req.UserID,
+			UserID:         effectiveUserID,
 			NovelID:        req.NovelID,
 			CurrentSceneID: req.CurrentSceneID,
 		}); err != nil {

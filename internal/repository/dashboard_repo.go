@@ -27,7 +27,7 @@ func (r *sqlDashboardRepository) GetSummary(ctx context.Context) (dto.DashboardS
 		SELECT
 			(SELECT COUNT(*) FROM users),
 			(SELECT COUNT(*) FROM novels WHERE is_published = TRUE),
-			(SELECT COUNT(DISTINCT user_id) FROM writers),
+			(SELECT COUNT(DISTINCT user_id) FROM writers WHERE status = 'approved'),
 			(
 				SELECT COUNT(DISTINCT w.user_id)
 				FROM writers w
@@ -139,8 +139,10 @@ func (r *sqlDashboardRepository) GetTrend(ctx context.Context, months int, timez
 			FROM users
 			GROUP BY 1
 		), novel_counts AS (
+			-- นับจากวันที่สร้างนิยาย ไม่ใช่วันที่เผยแพร่จริง เนื่องจากไม่มี published_at column
 			SELECT date_trunc('month', created_at AT TIME ZONE 'UTC' AT TIME ZONE $1) AS month_start, COUNT(*) AS total
 			FROM novels
+			WHERE is_published = TRUE
 			GROUP BY 1
 		)
 		SELECT

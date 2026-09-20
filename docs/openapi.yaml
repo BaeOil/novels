@@ -26,6 +26,50 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/v1/writer/novels/{novelId}/analytics/edges:
+    get:
+      summary: Get choice-edge analytics for a writer-owned novel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: novelId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Edge selection analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [from_scene_id, to_scene_id, choice_id, choice_label, selection_count, percentage]
+                  properties:
+                    from_scene_id:
+                      type: integer
+                    to_scene_id:
+                      type: integer
+                    choice_id:
+                      type: integer
+                    choice_label:
+                      type: string
+                    target_scene_title:
+                      type: string
+                    selection_count:
+                      type: integer
+                    percentage:
+                      type: number
+                      format: double
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/register:
     post:
       summary: Register new user
@@ -1365,6 +1409,214 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/admin/novels:
+    get:
+      summary: Admin list novels by moderation status
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [all, published, suspended]
+            default: all
+        - in: query
+          name: category_id
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated novels for admin moderation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminNovelListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/novels/{id}/moderation:
+    patch:
+      summary: Admin suspend or delete a novel
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [suspend, delete]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Novel moderation action completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/admin/reports:
+    get:
+      summary: Admin list reports and appeals
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [all, pending, resolved, rejected, appeal_pending]
+            default: all
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [all, report, appeal]
+            default: all
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated reports and appeals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/admin/reports/{id}/status:
+    patch:
+      summary: Admin update report or appeal status
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, reason]
+              properties:
+                status:
+                  type: string
+                  enum: [resolved, rejected]
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: Report status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/admin/novels/{id}/unban:
+    patch:
+      summary: Admin unban a novel
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Novel unbanned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1437,6 +1689,62 @@ components:
               type: string
               example: Invalid input payload
 
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    ReportListResponse:
+      type: object
+      required: [reports, page, limit, total]
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportResponse'
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+
+    ReportResponse:
+      type: object
+      required: [report_id, user_id, novel_id, reason, status, created_at, novel_cover, novel_synopsis, author_pen_name, author_user_id]
+      properties:
+        report_id:
+          type: integer
+        user_id:
+          type: integer
+        username:
+          type: string
+        novel_id:
+          type: integer
+        novel_title:
+          type: string
+        reason:
+          type: string
+        report_type:
+          type: string
+          enum: [report, appeal]
+        status:
+          type: string
+          enum: [pending, resolved, rejected, appeal_pending]
+        created_at:
+          type: string
+          format: date-time
+        novel_cover:
+          type: string
+        novel_synopsis:
+          type: string
+        author_pen_name:
+          type: string
+        author_user_id:
+          type: integer
+
     Book:
       type: object
       properties:
@@ -1484,6 +1792,7 @@ components:
           type: string
         status:
           type: string
+          enum: [draft, published, suspended]
         is_published:
           type: boolean
         is_completed:
@@ -1508,6 +1817,56 @@ components:
           type: integer
         bookshelf_count:
           type: integer
+
+    AdminNovelListResponse:
+      type: object
+      required: [novels, page, limit, total]
+      properties:
+        novels:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminNovel'
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+
+    AdminNovel:
+      type: object
+      required: [novel_id, title, status, is_published, is_completed, author_id]
+      properties:
+        novel_id:
+          type: integer
+        title:
+          type: string
+        captions:
+          type: string
+          nullable: true
+        introduction:
+          type: string
+          nullable: true
+        cover_image:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [published, suspended]
+        is_published:
+          type: boolean
+        is_completed:
+          type: boolean
+        author_id:
+          type: integer
+        author_name:
+          type: string
+        pen_name:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
 
     Chapter:
       type: object

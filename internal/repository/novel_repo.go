@@ -118,7 +118,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 		LEFT JOIN novel_categories nc ON n.novel_id = nc.novel_id
 		LEFT JOIN categories c ON nc.category_id = c.category_id
 		LEFT JOIN likes l ON n.novel_id = l.novel_id
-		WHERE " + publishedNovelScope("n", "w") + "
+		WHERE ` + publishedNovelScope("n", "w") + `
 		GROUP BY n.novel_id, w.writer_id
 		ORDER BY n.created_at DESC
 	`)

@@ -2,7 +2,13 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"novel-be/internal/models"
+)
+
+var (
+	ErrChapterHasStartScene      = errors.New("ไม่สามารถลบตอนที่มีฉากเริ่มต้นของเรื่องได้ กรุณาเปลี่ยนฉากเริ่มต้นก่อน")
+	ErrChapterHasIncomingChoices = errors.New("ไม่สามารถลบตอนนี้ได้ เนื่องจากมีทางเลือกจากตอนอื่นเชื่อมมายังฉากภายในตอนนี้ กรุณาแก้ไขหรือลบทางเลือกที่เกี่ยวข้องก่อน")
 )
 
 func GetChaptersByNovelID(db *sql.DB, novelID int) ([]models.Chapter, error) {
@@ -98,6 +104,37 @@ func DeleteChapter(db *sql.DB, chapterID int) error {
 		WHERE chapter_id = $1
 	`, chapterID).Scan(&novelID, &deletedEpisode); err != nil {
 		return err
+	}
+
+	// 1. ตรวจสอบว่า Chapter นี้มี Scene ที่เป็น Start Scene ของ Novel หรือไม่
+	var hasStartScene bool
+	if err = tx.QueryRow(`
+		SELECT EXISTS (
+			SELECT 1 FROM scenes
+			WHERE chapter_id = $1 AND type = 'start'
+		)
+	`, chapterID).Scan(&hasStartScene); err != nil {
+		return err
+	}
+	if hasStartScene {
+		return ErrChapterHasStartScene
+	}
+
+	// 2. ตรวจสอบว่า Scene ภายใน Chapter นี้มี Choice จาก Scene ภายนอก Chapter ชี้เข้ามาหรือไม่
+	var hasExternalIncomingChoices bool
+	if err = tx.QueryRow(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM choices c
+			JOIN scenes from_s ON c.from_scene_id = from_s.scene_id
+			JOIN scenes to_s ON c.to_scene_id = to_s.scene_id
+			WHERE from_s.chapter_id != $1 AND to_s.chapter_id = $1
+		)
+	`, chapterID).Scan(&hasExternalIncomingChoices); err != nil {
+		return err
+	}
+	if hasExternalIncomingChoices {
+		return ErrChapterHasIncomingChoices
 	}
 
 	if _, err = tx.Exec(`DELETE FROM chapters WHERE chapter_id = $1`, chapterID); err != nil {

@@ -136,7 +136,7 @@ func CreateSceneHandler(sceneService service.SceneService, notificationService s
 		}
 
 		if req.Choices != nil {
-			if err := sceneService.SyncSceneChoices(sceneID, req.Choices); err != nil {
+			if _, err := sceneService.SyncSceneChoices(sceneID, req.Choices); err != nil {
 				WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
@@ -240,11 +240,14 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 			return
 		}
 
+		var choicesDiff *models.ChoiceDiff
 		if req.Choices != nil {
-			if err := sceneService.SyncSceneChoices(sceneID, req.Choices); err != nil {
+			diff, err := sceneService.SyncSceneChoices(sceneID, req.Choices)
+			if err != nil {
 				WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
+			choicesDiff = diff
 		}
 		updateMeta := map[string]interface{}{"novel_id": scene.NovelID, "chapter_id": scene.ChapterID}
 		// เก็บ diff เฉพาะ field ที่เปลี่ยนจริง (title/type/status) เทียบ existingScene (ค่าก่อนแก้) กับ scene (ค่าหลังแก้)
@@ -260,6 +263,13 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 			updateMeta["old_status"] = existingScene.Status
 			updateMeta["new_status"] = scene.Status
 		}
+		if choicesDiff != nil && (choicesDiff.CreatedCount > 0 || choicesDiff.UpdatedCount > 0 || choicesDiff.DeletedCount > 0) {
+			updateMeta["choices_diff"] = map[string]interface{}{
+				"created_count": choicesDiff.CreatedCount,
+				"updated_count": choicesDiff.UpdatedCount,
+				"deleted_count": choicesDiff.DeletedCount,
+			}
+		}
 		if ch, err := chapterService.GetChapterByID(scene.ChapterID); err == nil && ch != nil {
 			updateMeta["chapter_title"] = ch.Title
 		}
@@ -268,7 +278,15 @@ func UpdateSceneHandler(sceneService service.SceneService, notificationService s
 				updateMeta["novel_title"] = n.Title
 			}
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "UPDATE_SCENE", TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: updateMeta})
+
+		action := "UPDATE_SCENE"
+		if strings.EqualFold(existingScene.Status, "draft") && strings.EqualFold(scene.Status, "published") {
+			action = "PUBLISH_SCENE"
+		} else if strings.EqualFold(existingScene.Status, "published") && strings.EqualFold(scene.Status, "draft") {
+			action = "UNPUBLISH_SCENE"
+		}
+
+		recordAudit(r, auditService, service.AuditEvent{Action: action, TargetType: "scene", TargetID: int64Pointer(sceneID), Status: "SUCCESS", Metadata: updateMeta})
 
 		responsePayload := map[string]any{
 			"message": "scene updated",

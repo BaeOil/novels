@@ -71,6 +71,7 @@ type SceneNode struct {
 }
 
 type SceneEdge struct {
+	ChoiceID                 int    `json:"choice_id"`
 	FromID                   int    `json:"from_id"`
 	ToID                     int    `json:"to_id"`
 	Label                    string `json:"label"`

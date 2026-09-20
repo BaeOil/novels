@@ -101,3 +101,12 @@ type AllScenesAnalyticsStats struct {
 	DropOffRate   float64 `json:"drop_off_rate"`
 }
 
+type EdgeAnalyticsStats struct {
+	FromSceneID    int     `json:"from_scene_id"`
+	ToSceneID      int     `json:"to_scene_id"`
+	ChoiceID       int     `json:"choice_id"`
+	ChoiceLabel    string  `json:"choice_label"`
+	TargetTitle    string  `json:"target_scene_title"`
+	SelectionCount int64   `json:"selection_count"`
+	Percentage     float64 `json:"percentage"`
+}

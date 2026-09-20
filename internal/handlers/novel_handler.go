@@ -3,11 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"novel-be/internal/dto"
 	"novel-be/internal/middleware"
 	"novel-be/internal/models"
 	"novel-be/internal/service"
@@ -75,6 +77,209 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 	}
 }
 
+func AdminNovelListHandler(novelService service.NovelService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		page, limit, err := parseAdminNovelPagination(r)
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		status := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
+		if status == "" {
+			status = "all"
+		}
+		if status != "all" && status != "published" && status != "suspended" {
+			WriteError(w, http.StatusBadRequest, "status must be all, published, or suspended")
+			return
+		}
+
+		categoryID := 0
+		if value := r.URL.Query().Get("category_id"); value != "" {
+			categoryID, err = strconv.Atoi(value)
+			if err != nil || categoryID <= 0 {
+				WriteError(w, http.StatusBadRequest, "invalid category_id")
+				return
+			}
+		}
+
+		novels, total, err := novelService.ListAdminNovels(r.Context(), r.URL.Query().Get("search"), status, categoryID, page, limit)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to get admin novels")
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(dto.AdminNovelListResponse{Novels: novels, Page: page, Limit: limit, Total: total})
+	}
+}
+
+func parseAdminNovelPagination(r *http.Request) (int, int, error) {
+	page := 1
+	limit := 20
+	if value := r.URL.Query().Get("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			return 0, 0, errors.New("invalid page")
+		}
+		page = parsed
+	}
+	if value := r.URL.Query().Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			return 0, 0, errors.New("limit must be between 1 and 100")
+		}
+		limit = parsed
+	}
+	return page, limit, nil
+}
+
+func AdminNovelModerationHandler(novelService service.NovelService, writerService service.WriterService, notificationService service.NotificationService, auditService service.AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		novelID, err := extractAdminNovelID(r.URL.Path, "/moderation")
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid novel id")
+			return
+		}
+
+		var req dto.AdminNovelModerationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		action := strings.ToLower(strings.TrimSpace(req.Action))
+		if action != "suspend" && action != "delete" {
+			WriteError(w, http.StatusBadRequest, "action must be suspend or delete")
+			return
+		}
+
+		novelDetail, err := novelService.GetNovelDetail(novelID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+		novel, ok := novelDetail.(*models.Novel)
+		if !ok || novel == nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+
+		metadata := map[string]interface{}{
+			"novel_id":        novelID,
+			"title":           novel.Title,
+			"author_id":       novel.AuthorID,
+			"previous_status": novel.Status,
+			"reason":          strings.TrimSpace(req.Reason),
+		}
+		authorName := ""
+		writer, writerErr := writerService.GetWriterByID(novel.AuthorID)
+		if writerErr == nil && writer != nil {
+			if writer.UserID > 0 {
+				metadata["author_user_id"] = writer.UserID
+			}
+			if strings.TrimSpace(writer.PenName) != "" {
+				authorName = strings.TrimSpace(writer.PenName)
+			} else if strings.TrimSpace(writer.Username) != "" {
+				authorName = strings.TrimSpace(writer.Username)
+			} else if strings.TrimSpace(writer.NameLastname) != "" {
+				authorName = strings.TrimSpace(writer.NameLastname)
+			}
+		}
+		if authorName == "" {
+			if strings.TrimSpace(novel.PenName) != "" {
+				authorName = strings.TrimSpace(novel.PenName)
+			} else if strings.TrimSpace(novel.AuthorName) != "" {
+				authorName = strings.TrimSpace(novel.AuthorName)
+			}
+		}
+		if authorName == "" {
+			authorName = fmt.Sprintf("นักเขียน #%d", novel.AuthorID)
+		}
+		metadata["author_name"] = authorName
+		if action == "suspend" {
+			if strings.TrimSpace(req.Reason) == "" {
+				WriteError(w, http.StatusBadRequest, "admin reason is required when suspending a novel")
+				return
+			}
+			if novel.Status != "published" {
+				WriteError(w, http.StatusConflict, "only published novels can be suspended")
+				return
+			}
+			if err := novelService.SuspendNovel(r.Context(), novelID); err != nil {
+				WriteError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			if writer != nil && writer.UserID > 0 {
+				referenceID := novelID
+				referenceType := "novel"
+				cover := novel.CoverImage
+				if _, notifyErr := notificationService.CreateNotification(writer.UserID, 0, "system", "นิยายถูกระงับการเผยแพร่", "นิยายเรื่อง '"+novel.Title+"' ถูกระงับโดยแอดมิน เนื่องจาก: "+strings.TrimSpace(req.Reason), coverPtrFromStringPtr(cover), &referenceID, &referenceType); notifyErr != nil {
+					log.Printf("CreateNotification for suspended novel failed: %v", notifyErr)
+				}
+			}
+			metadata["new_status"] = "suspended"
+			recordAudit(r, auditService, service.AuditEvent{Action: "SUSPEND_NOVEL", TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: metadata})
+			writeNovelActionResponse(w, "novel suspended")
+			return
+		}
+
+		if strings.TrimSpace(req.Reason) == "" {
+			WriteError(w, http.StatusBadRequest, "admin reason is required when deleting a novel")
+			return
+		}
+
+		if err := novelService.DeleteNovel(novelID); err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if writer != nil && writer.UserID > 0 {
+			referenceID := novelID
+			referenceType := "novel"
+			cover := novel.CoverImage
+			if _, notifyErr := notificationService.CreateNotification(writer.UserID, 0, "system", "นิยายถูกลบออกจากระบบ", "นิยายเรื่อง '"+novel.Title+"' ถูกลบโดยแอดมิน เนื่องจาก: "+strings.TrimSpace(req.Reason), coverPtrFromStringPtr(cover), &referenceID, &referenceType); notifyErr != nil {
+				log.Printf("CreateNotification for deleted novel failed: %v", notifyErr)
+			}
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_NOVEL", TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: metadata})
+		writeNovelActionResponse(w, "novel deleted")
+	}
+}
+
+func coverPtrFromStringPtr(value *string) *string {
+	if value == nil || *value == "" {
+		return nil
+	}
+	return value
+}
+
+func writeNovelActionResponse(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": message})
+}
+
+func extractAdminNovelID(path, suffix string) (int, error) {
+	trimmed := strings.TrimSuffix(strings.Trim(path, "/"), strings.Trim(suffix, "/"))
+	parts := strings.Split(strings.Trim(trimmed, "/"), "/")
+	if len(parts) != 4 || parts[0] != "api" || parts[1] != "admin" || parts[2] != "novels" {
+		return 0, errors.New("invalid path")
+	}
+	id, err := strconv.Atoi(parts[3])
+	if err != nil || id <= 0 {
+		return 0, errors.New("invalid novel id")
+	}
+	return id, nil
+}
+
 func DeleteNovelHandler(novelService service.NovelService, writerService service.WriterService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
@@ -121,7 +326,14 @@ func DeleteNovelHandler(novelService service.NovelService, writerService service
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_NOVEL", TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: map[string]interface{}{"title": novelPtr.Title, "status": novelPtr.Status, "author_id": novelPtr.AuthorID}})
+		authorName := strings.TrimSpace(writer.PenName)
+		if authorName == "" {
+			authorName = strings.TrimSpace(writer.Username)
+		}
+		if authorName == "" {
+			authorName = fmt.Sprintf("นักเขียน #%d", writer.WriterID)
+		}
+		recordAudit(r, auditService, service.AuditEvent{Action: "DELETE_NOVEL", TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: map[string]interface{}{"title": novelPtr.Title, "status": novelPtr.Status, "author_id": novelPtr.AuthorID, "author_name": authorName}})
 
 		WriteJSON(w, http.StatusOK, map[string]string{"message": "novel deleted"})
 	}
@@ -238,6 +450,10 @@ func UpdateNovelHandler(novelService service.NovelService, sceneService service.
 					finalIsPublished = false
 				}
 			}
+		}
+		if novelPtr.Status == "suspended" && finalIsPublished {
+			WriteError(w, http.StatusConflict, "suspended novels must be unbanned before publishing")
+			return
 		}
 
 		status := deriveNovelStatus(finalIsCompleted, finalIsPublished)
@@ -363,7 +579,7 @@ func novelAuditMetadata(oldNovel *models.Novel, newNovel models.Novel) map[strin
 }
 
 // UnbanNovelHandler allows an admin to unban a novel
-func UnbanNovelHandler(novelService service.NovelService) http.HandlerFunc {
+func UnbanNovelHandler(novelService service.NovelService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch {
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -386,11 +602,58 @@ func UnbanNovelHandler(novelService service.NovelService) http.HandlerFunc {
 			WriteError(w, http.StatusBadRequest, "invalid novel id")
 			return
 		}
+
+		// ดึงข้อมูลนิยายก่อน unban เพื่อนำมาเป็น metadata
+		var oldTitle string
+		var authorID int
+		var oldStatus string
+		nov, err := novelService.GetNovelDetail(novelID)
+		if err != nil || nov == nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+		n, ok := nov.(*models.Novel)
+		if !ok || n == nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+		oldTitle = n.Title
+		authorID = n.AuthorID
+		oldStatus = n.Status
+		if oldStatus != "suspended" {
+			WriteError(w, http.StatusConflict, "only suspended novels can be unbanned")
+			return
+		}
+
 		// Perform unban via service
 		if err := novelService.UnbanNovel(r.Context(), novelID); err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+
+		authorName := strings.TrimSpace(n.PenName)
+		if authorName == "" {
+			authorName = strings.TrimSpace(n.AuthorName)
+		}
+		if authorName == "" {
+			authorName = fmt.Sprintf("นักเขียน #%d", authorID)
+		}
+		metadata := map[string]interface{}{
+			"novel_id":        novelID,
+			"title":           oldTitle,
+			"author_id":       authorID,
+			"author_name":     authorName,
+			"previous_status": oldStatus,
+			"new_status":      "draft",
+		}
+		recordAudit(r, auditService, service.AuditEvent{
+			Action:     "UNSUSPEND_NOVEL",
+			TargetType: "novel",
+			TargetID:   int64Pointer(novelID),
+			Status:     "SUCCESS",
+			Metadata:   metadata,
+		})
+
 		WriteJSON(w, http.StatusOK, map[string]string{"message": "novel unbanned"})
 	}
 }

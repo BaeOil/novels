@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"novel-be/internal/middleware"
-	"novel-be/internal/models"
 	"novel-be/internal/service"
 )
 
@@ -38,44 +36,9 @@ func NovelAnalyticsHandler(
 			return
 		}
 
-		// ─── 2. ตรวจ Authorization ────────────────────────────────────────
-		// RequireAuth middleware ผ่านมาก่อนแล้ว ดังนั้น user_id และ role
-		// ต้องอยู่ใน context อยู่แล้ว — ถ้าไม่มีแสดงว่า middleware ผิดพลาด
-		userID, ok := middleware.GetUserIDFromContext(r.Context())
-		if !ok || userID == 0 {
-			RespondWithError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลสิทธิ์ผู้ใช้งาน", "missing user context")
+		if status, message := authorizeAnalyticsAccess(r, novelID, novelSvc, writerSvc); status != 0 {
+			RespondWithError(w, status, message, message)
 			return
-		}
-
-		role, _ := middleware.GetRoleFromContext(r.Context())
-
-		if role != "admin" {
-			// ตรวจว่าเป็น writer เจ้าของ novel
-			// ถ้าไม่ใช่ writer ที่ได้รับอนุมัติ หรือไม่ใช่เจ้าของ → 403
-			writer, err := writerSvc.GetWriterByUserID(int(userID))
-			if err != nil || writer == nil {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูสถิตินิยายนี้", "not a writer")
-				return
-			}
-
-			// โหลด novel เพื่อตรวจ author_id
-			novelDetail, err := novelSvc.GetNovelDetail(novelID)
-			if err != nil {
-				// novel ไม่มีในระบบ → 404
-				RespondWithError(w, http.StatusNotFound, "novel not found", err.Error())
-				return
-			}
-
-			novelPtr, ok := novelDetail.(*models.Novel)
-			if !ok || novelPtr == nil {
-				RespondWithError(w, http.StatusNotFound, "novel not found", "invalid novel detail")
-				return
-			}
-
-			if novelPtr.AuthorID != writer.WriterID {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่ใช่เจ้าของนิยายนี้", "not the owner")
-				return
-			}
 		}
 
 		// ─── 3. เรียก Analytics Service ───────────────────────────────────
@@ -120,38 +83,9 @@ func SceneAnalyticsHandler(
 			return
 		}
 
-		// ─── 2. ตรวจ Authorization ────────────────────────────────────────
-		userID, ok := middleware.GetUserIDFromContext(r.Context())
-		if !ok || userID == 0 {
-			RespondWithError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลสิทธิ์ผู้ใช้งาน", "missing user context")
+		if status, message := authorizeAnalyticsAccess(r, novelID, novelSvc, writerSvc); status != 0 {
+			RespondWithError(w, status, message, message)
 			return
-		}
-
-		role, _ := middleware.GetRoleFromContext(r.Context())
-
-		if role != "admin" {
-			writer, err := writerSvc.GetWriterByUserID(int(userID))
-			if err != nil || writer == nil {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูสถิตินิยายนี้", "not a writer")
-				return
-			}
-
-			novelDetail, err := novelSvc.GetNovelDetail(novelID)
-			if err != nil {
-				RespondWithError(w, http.StatusNotFound, "novel not found", err.Error())
-				return
-			}
-
-			novelPtr, ok := novelDetail.(*models.Novel)
-			if !ok || novelPtr == nil {
-				RespondWithError(w, http.StatusNotFound, "novel not found", "invalid novel detail")
-				return
-			}
-
-			if novelPtr.AuthorID != writer.WriterID {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่ใช่เจ้าของนิยายนี้", "not the owner")
-				return
-			}
 		}
 
 		// ─── 3. เรียก Analytics Service ───────────────────────────────────
@@ -196,38 +130,9 @@ func SceneChoiceAnalyticsHandler(
 			return
 		}
 
-		// ─── 2. ตรวจ Authorization ────────────────────────────────────────
-		userID, ok := middleware.GetUserIDFromContext(r.Context())
-		if !ok || userID == 0 {
-			RespondWithError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลสิทธิ์ผู้ใช้งาน", "missing user context")
+		if status, message := authorizeAnalyticsAccess(r, novelID, novelSvc, writerSvc); status != 0 {
+			RespondWithError(w, status, message, message)
 			return
-		}
-
-		role, _ := middleware.GetRoleFromContext(r.Context())
-
-		if role != "admin" {
-			writer, err := writerSvc.GetWriterByUserID(int(userID))
-			if err != nil || writer == nil {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูสถิตินิยายนี้", "not a writer")
-				return
-			}
-
-			novelDetail, err := novelSvc.GetNovelDetail(novelID)
-			if err != nil {
-				RespondWithError(w, http.StatusNotFound, "novel not found", err.Error())
-				return
-			}
-
-			novelPtr, ok := novelDetail.(*models.Novel)
-			if !ok || novelPtr == nil {
-				RespondWithError(w, http.StatusNotFound, "novel not found", "invalid novel detail")
-				return
-			}
-
-			if novelPtr.AuthorID != writer.WriterID {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่ใช่เจ้าของนิยายนี้", "not the owner")
-				return
-			}
 		}
 
 		// ─── 3. เรียก Analytics Service ───────────────────────────────────
@@ -257,32 +162,9 @@ func AllScenesAnalyticsHandler(analyticsSvc service.AnalyticsService, novelSvc s
 			RespondWithError(w, http.StatusBadRequest, "invalid novel_id", err.Error())
 			return
 		}
-		userID, ok := middleware.GetUserIDFromContext(r.Context())
-		if !ok || userID == 0 {
-			RespondWithError(w, http.StatusUnauthorized, "unauthorized", "missing user context")
+		if status, message := authorizeAnalyticsAccess(r, novelID, novelSvc, writerSvc); status != 0 {
+			RespondWithError(w, status, message, message)
 			return
-		}
-		role, _ := middleware.GetRoleFromContext(r.Context())
-		if role != "admin" {
-			writer, err := writerSvc.GetWriterByUserID(int(userID))
-			if err != nil || writer == nil {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่มีสิทธิ์ดูสถิตินิยายนี้", "not a writer")
-				return
-			}
-			novelDetail, err := novelSvc.GetNovelDetail(novelID)
-			if err != nil {
-				RespondWithError(w, http.StatusNotFound, "novel not found", err.Error())
-				return
-			}
-			novelPtr, ok := novelDetail.(*models.Novel)
-			if !ok || novelPtr == nil {
-				RespondWithError(w, http.StatusNotFound, "novel not found", "invalid novel detail")
-				return
-			}
-			if novelPtr.AuthorID != writer.WriterID {
-				RespondWithError(w, http.StatusForbidden, "forbidden: คุณไม่ใช่เจ้าของนิยายนี้", "not the owner")
-				return
-			}
 		}
 		stats, err := analyticsSvc.GetAllScenesAnalytics(novelID)
 		if err != nil {
@@ -293,6 +175,29 @@ func AllScenesAnalyticsHandler(analyticsSvc service.AnalyticsService, novelSvc s
 	}
 }
 
+func EdgeAnalyticsHandler(analyticsSvc service.AnalyticsService, novelSvc service.NovelService, writerSvc service.WriterService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			RespondWithError(w, http.StatusMethodNotAllowed, "method not allowed", "only GET is supported")
+			return
+		}
+		novelID, err := extractIDFromPath(r.URL.Path, "/api/v1/writer/novels/")
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, "invalid novel_id", err.Error())
+			return
+		}
+		if status, message := authorizeAnalyticsAccess(r, novelID, novelSvc, writerSvc); status != 0 {
+			RespondWithError(w, status, message, message)
+			return
+		}
+		stats, err := analyticsSvc.GetEdgeAnalytics(novelID)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, "เกิดข้อผิดพลาดในการดึงข้อมูลสถิติของเส้นทางเลือก", err.Error())
+			return
+		}
+		RespondWithJSON(w, http.StatusOK, stats)
+	}
+}
 
 // extractNovelAndSceneIDFromPath ถอด novelID และ sceneID จาก path เช่น /api/v1/writer/novels/1/analytics/scenes/5
 func extractNovelAndSceneIDFromPath(urlPath string) (int, int, error) {

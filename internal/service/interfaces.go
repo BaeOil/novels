@@ -9,6 +9,7 @@ import (
 
 type NovelService interface {
 	ListNovels() ([]models.Novel, error)
+	ListAdminNovels(ctx context.Context, search, status string, categoryID, page, limit int) ([]models.Novel, int, error)
 	GetNovelDetail(id int) (interface{}, error)
 	IncrementViews(novelID int) error
 	GetNovelsByAuthorID(authorID int) ([]models.Novel, error)
@@ -16,6 +17,7 @@ type NovelService interface {
 	UpdateNovel(models.Novel) error
 	UpdateNovelCover(id int, url string) error
 	DeleteNovel(id int) error
+	SuspendNovel(ctx context.Context, novelID int) error
 	UnbanNovel(ctx context.Context, novelID int) error
 }
 
@@ -26,7 +28,7 @@ type SceneService interface {
 	CreateScene(models.Scene) (int, error)
 	UpdateScene(models.Scene) error
 	DeleteScene(sceneID int) error
-	SyncSceneChoices(fromSceneID int, rawChoices []interface{}) error
+	SyncSceneChoices(fromSceneID int, rawChoices []interface{}) (*models.ChoiceDiff, error)
 	GetChoiceByID(int) (*models.Choice, error)
 	CreateChoice(models.Choice) (int, error)
 	UpdateChoice(models.Choice) error

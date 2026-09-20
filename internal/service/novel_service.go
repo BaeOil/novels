@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
+	"strings"
+
 	"novel-be/internal/models"
 	"novel-be/internal/repository"
-	"strings"
 )
 
 type novelService struct {
@@ -27,6 +28,10 @@ func (s *novelService) ListNovels() ([]models.Novel, error) {
 	}
 	// ไม่ต้องทำอะไรเพิ่มที่นี่ เพราะเราไปจัดการ URL ที่ Frontend (HomePage.jsx) แล้ว
 	return novels, nil
+}
+
+func (s *novelService) ListAdminNovels(ctx context.Context, search, status string, categoryID, page, limit int) ([]models.Novel, int, error) {
+	return s.repo.ListAdminNovels(ctx, strings.TrimSpace(search), strings.ToLower(strings.TrimSpace(status)), categoryID, page, limit)
 }
 
 // 🟢 ปรับเพื่อให้หน้ารายละเอียดโชว์รูปได้
@@ -58,9 +63,13 @@ func (s *novelService) DeleteNovel(id int) error {
 	return s.repo.DeleteNovel(id)
 }
 
+func (s *novelService) SuspendNovel(ctx context.Context, novelID int) error {
+	return s.repo.SuspendNovel(ctx, novelID)
+}
+
 // UnbanNovel allows admin to unban a novel, setting status to 'draft' and clearing ban flags.
 func (s *novelService) UnbanNovel(ctx context.Context, novelID int) error {
-	return s.repo.UnbanNovel(novelID)
+	return s.repo.UnbanNovel(ctx, novelID)
 }
 
 // 🟢 ฟังก์ชันช่วยเช็ค (ถ้าไฟล์อื่นเรียกใช้)

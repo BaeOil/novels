@@ -116,6 +116,10 @@ func resolveTargetName(liveName string, targetType string, metadata json.RawMess
 		fallbackKey = "chapter_title"
 	case "scene":
 		fallbackKey = "scene_title"
+	case "choice":
+		fallbackKey = "label"
+	case "writer":
+		fallbackKey = "pen_name"
 	default:
 		return ""
 	}
@@ -146,6 +150,7 @@ func (r *sqlAuditRepository) List(ctx context.Context, filter dto.AuditLogFilter
 				WHEN 'scene'    THEN (SELECT title    FROM scenes    WHERE scene_id   = al.target_id)
 				WHEN 'category' THEN (SELECT name     FROM categories WHERE category_id = al.target_id)
 				WHEN 'writer'   THEN (SELECT u2.username FROM writers w2 JOIN users u2 ON u2.user_id = w2.user_id WHERE w2.writer_id = al.target_id)
+				WHEN 'choice'   THEN (SELECT label    FROM choices   WHERE choice_id  = al.target_id)
 				WHEN 'report'   THEN CAST(al.target_id AS TEXT)
 				ELSE NULL
 			END AS target_name,
@@ -218,6 +223,7 @@ func (r *sqlAuditRepository) GetByID(ctx context.Context, id int64) (*models.Aud
 				WHEN 'scene'    THEN (SELECT title    FROM scenes    WHERE scene_id   = al.target_id)
 				WHEN 'category' THEN (SELECT name     FROM categories WHERE category_id = al.target_id)
 				WHEN 'writer'   THEN (SELECT u2.username FROM writers w2 JOIN users u2 ON u2.user_id = w2.user_id WHERE w2.writer_id = al.target_id)
+				WHEN 'choice'   THEN (SELECT label    FROM choices   WHERE choice_id  = al.target_id)
 				WHEN 'report'   THEN CAST(al.target_id AS TEXT)
 				ELSE NULL
 			END AS target_name,
@@ -389,15 +395,22 @@ func (r *sqlAuditRepository) GetMetadata(ctx context.Context) (dto.AuditLogMetad
 	defaultActions := []string{
 		"REGISTER", "LOGIN", "LOGIN_FAILED", "LOGOUT",
 		"UPDATE_PROFILE", "DELETE_ACCOUNT", "SUSPEND_USER", "UNSUSPEND_USER",
-		"CHANGE_ROLE", "DELETE_USER", "APPROVE_WRITER", "REJECT_WRITER",
+		"DELETE_USER", "APPROVE_WRITER", "REJECT_WRITER",
 		"CREATE_NOVEL", "UPDATE_NOVEL", "PUBLISH_NOVEL", "UNPUBLISH_NOVEL", "DELETE_NOVEL",
-		"CREATE_CHAPTER", "UPDATE_CHAPTER", "DELETE_CHAPTER",
-		"CREATE_SCENE", "UPDATE_SCENE", "DELETE_SCENE",
+		"CREATE_CHAPTER", "UPDATE_CHAPTER", "PUBLISH_CHAPTER", "UNPUBLISH_CHAPTER", "DELETE_CHAPTER",
+		"CREATE_SCENE", "UPDATE_SCENE", "PUBLISH_SCENE", "UNPUBLISH_SCENE", "DELETE_SCENE",
 		"CREATE_CHOICE", "UPDATE_CHOICE", "DELETE_CHOICE",
 		"CREATE_CATEGORY", "UPDATE_CATEGORY", "DELETE_CATEGORY",
 		"UPDATE_REPORT_STATUS",
-		"DEMOTE_USER",         // เพิ่ม: บันทึกจริงจาก admin_user_handler.go แต่ขาดจาก default list เดิม
+		"DEMOTE_USER",          // เพิ่ม: บันทึกจริงจาก admin_user_handler.go แต่ขาดจาก default list เดิม
+		"RESTORE_WRITER_ACCESS", // เพิ่ม: คืนสิทธิ์นักเขียน (RestoreUserWriterAccess)
 		"UNAUTHORIZED_ACCESS", // เพิ่ม: wire จริงจาก middleware แล้ว แต่ขาดจาก default list เดิม
+		"UNSUSPEND_NOVEL",
+		"SUSPEND_NOVEL",
+		"ADMIN_UPDATE_USERNAME",
+		"SUBMIT_REPORT",
+		"SUBMIT_APPEAL",
+		"SUSPEND_OWN_ACCOUNT",
 	}
 	defaultTargetTypes := []string{
 		"user", "novel", "chapter", "scene", "choice", "category", "writer", "report",

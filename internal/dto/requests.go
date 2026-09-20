@@ -1,5 +1,10 @@
 package dto
 
+type AdminNovelModerationRequest struct {
+	Action string `json:"action"`
+	Reason string `json:"reason"`
+}
+
 // Novel DTOs
 type CreateNovelDTO struct {
 	Title        string  `json:"title"`

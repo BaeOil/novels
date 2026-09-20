@@ -20,19 +20,6 @@ import (
 
 // sanitize เผื่ออีกชั้นตอนแอดมินอ่านข้อมูล เพราะข้อมูลเก่าที่ยังไม่ผ่านการ sanitize ตอนบันทึก
 // (ก่อนแก้ช่องโหว่นี้) อาจยังมี HTML อันตรายค้างอยู่ใน DB
-// writeJSONError ตอบ error เป็น JSON เสมอ ({"message": "..."})
-// เดิมทุก error path ในไฟล์นี้ใช้ http.Error() ตรงๆ ซึ่งเขียน body เป็น "plain text"
-// แต่ทั้ง WriterRegisterPage.jsx และ WriterRequestsPage.jsx ฝั่ง frontend ทำ
-// res.json().catch(() => null) แล้วอ่าน errData?.message เสมอ — พอ body เป็น
-// plain text (ไม่ใช่ JSON ที่ถูกต้อง) res.json() จะ throw แล้วโดน catch เป็น null
-// สุดท้าย errData?.message เป็น undefined ทุกครั้ง ข้อความ error ภาษาไทยที่เขียนไว้
-// ทั้งหมด (รวมถึง sentinel error ใหม่ 404/409 ที่เพิ่งเพิ่ม) จะไม่มีวันไปถึงผู้ใช้เลย
-// จะเห็นแค่ข้อความ fallback ทั่วไปอย่าง "ไม่สามารถอนุมัติคำขอได้" ตลอด
-func writeJSONError(w http.ResponseWriter, statusCode int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]string{"message": message})
-}
 
 var adminBioSanitizer = bluemonday.UGCPolicy()
 
@@ -64,13 +51,13 @@ func NewWriterHandler(s service.WriterService, ms service.MediaService, ns servi
 // ✍️ 1. ท่อยื่นคำขอเป็นนักเขียน -> POST /api/writers/apply
 func (h *WriterHandler) Apply(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token")
+		WriteError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token")
 		return
 	}
 
@@ -78,7 +65,7 @@ func (h *WriterHandler) Apply(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "multipart/form-data") {
 		if err := r.ParseMultipartForm(10 << 20); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "ไม่สามารถประมวลผลข้อมูลจากฟอร์มได้")
+			WriteError(w, http.StatusBadRequest, "ไม่สามารถประมวลผลข้อมูลจากฟอร์มได้")
 			return
 		}
 
@@ -97,21 +84,21 @@ func (h *WriterHandler) Apply(w http.ResponseWriter, r *http.Request) {
 
 		file, handler, err := r.FormFile("avatar")
 		if err != nil && err != http.ErrMissingFile {
-			writeJSONError(w, http.StatusBadRequest, "ไม่สามารถอ่านไฟล์รูปภาพได้")
+			WriteError(w, http.StatusBadRequest, "ไม่สามารถอ่านไฟล์รูปภาพได้")
 			return
 		}
 		if err == nil {
 			defer file.Close()
 			uploadedURL, uploadErr := h.mediaService.UploadImage(r.Context(), handler)
 			if uploadErr != nil {
-				writeJSONError(w, http.StatusBadRequest, "ไม่สามารถอัปโหลดรูปภาพได้: "+uploadErr.Error())
+				WriteError(w, http.StatusBadRequest, "ไม่สามารถอัปโหลดรูปภาพได้: "+uploadErr.Error())
 				return
 			}
 			req.AvatarURL = uploadedURL
 		}
 	} else {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
+			WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 			return
 		}
 	}
@@ -123,7 +110,7 @@ func (h *WriterHandler) Apply(w http.ResponseWriter, r *http.Request) {
 		} else if errors.Is(err, service.ErrAlreadyApply) {
 			statusCode = http.StatusBadRequest
 		}
-		writeJSONError(w, statusCode, err.Error())
+		WriteError(w, statusCode, err.Error())
 		return
 	}
 
@@ -134,7 +121,7 @@ func (h *WriterHandler) Apply(w http.ResponseWriter, r *http.Request) {
 // 👑 2. แอดมินดึงข้อมูลคำขอค้างตรวจสอบทั้งหมด -> GET /api/admin/writers/requests
 func (h *WriterHandler) GetPendingRequests(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -144,7 +131,7 @@ func (h *WriterHandler) GetPendingRequests(w http.ResponseWriter, r *http.Reques
 
 	requests, err := h.service.GetPendingRequests(r.Context(), status, page, limit)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -159,25 +146,25 @@ func (h *WriterHandler) GetPendingRequests(w http.ResponseWriter, r *http.Reques
 // ✅ 3. แอดมินกดยืนยันอนุมัตินักเขียน -> POST /api/admin/writers/approve
 func (h *WriterHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	adminID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || adminID == 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	writerIDStr := r.URL.Query().Get("writer_id")
 	if writerIDStr == "" {
-		writeJSONError(w, http.StatusBadRequest, "ขาดข้อมูลรหัสคำขอนักเขียน (writer_id)")
+		WriteError(w, http.StatusBadRequest, "ขาดข้อมูลรหัสคำขอนักเขียน (writer_id)")
 		return
 	}
 	writerID, _ := strconv.Atoi(writerIDStr)
 
 	if err := h.service.ApproveWriter(r.Context(), uint(writerID), adminID); err != nil {
-		writeJSONError(w, writerActionStatusCode(err), err.Error())
+		WriteError(w, writerActionStatusCode(err), err.Error())
 		return
 	}
 
@@ -194,13 +181,13 @@ func (h *WriterHandler) Approve(w http.ResponseWriter, r *http.Request) {
 
 func (h *WriterHandler) GetApplicationStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token")
+		WriteError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token")
 		return
 	}
 
@@ -211,7 +198,7 @@ func (h *WriterHandler) GetApplicationStatus(w http.ResponseWriter, r *http.Requ
 			json.NewEncoder(w).Encode(map[string]interface{}{"status": "none"})
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -276,26 +263,26 @@ func (h *WriterHandler) GetApplicationStatus(w http.ResponseWriter, r *http.Requ
 
 func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	adminID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || adminID == 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	writerIDStr := r.URL.Query().Get("writer_id")
 	if writerIDStr == "" {
-		writeJSONError(w, http.StatusBadRequest, "Missing writer_id")
+		WriteError(w, http.StatusBadRequest, "Missing writer_id")
 		return
 	}
 
 	var writerID uint
 	_, err := fmt.Sscanf(writerIDStr, "%d", &writerID)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "Invalid writer_id format")
+		WriteError(w, http.StatusBadRequest, "Invalid writer_id format")
 		return
 	}
 
@@ -303,13 +290,13 @@ func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {
 		RejectionReason string `json:"rejection_reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-		writeJSONError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
+		WriteError(w, http.StatusBadRequest, "รูปแบบข้อมูลไม่ถูกต้อง")
 		return
 	}
 
 	err = h.service.RejectWriter(r.Context(), writerID, adminID, req.RejectionReason)
 	if err != nil {
-		writeJSONError(w, writerActionStatusCode(err), "Failed to reject writer: "+err.Error())
+		WriteError(w, writerActionStatusCode(err), "Failed to reject writer: "+err.Error())
 		return
 	}
 
@@ -329,30 +316,30 @@ func (h *WriterHandler) Reject(w http.ResponseWriter, r *http.Request) {
 // ✏️ PUT /api/writers/me/profile - สำหรับนักเขียนอัปเดตข้อมูลโปรไฟล์ของตนเอง
 func (h *WriterHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
-		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || userID == 0 {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token")
+		WriteError(w, http.StatusUnauthorized, "unauthorized: ไม่พบข้อมูลผู้ใช้งานใน token")
 		return
 	}
 
 	writer, err := h.service.GetWriterByUserID(int(userID))
 	if err != nil || writer == nil {
-		writeJSONError(w, http.StatusForbidden, "forbidden: คุณยังไม่ใช่นักเขียนที่ได้รับการอนุมัติ")
+		WriteError(w, http.StatusForbidden, "forbidden: คุณยังไม่ใช่นักเขียนที่ได้รับการอนุมัติ")
 		return
 	}
 
 	var req dto.UpdateWriterProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.service.UpdateWriterProfile(r.Context(), writer.WriterID, req); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
