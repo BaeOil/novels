@@ -232,6 +232,13 @@ func (s *AuthService) DemoteUserToReader(ctx context.Context, userID uint, admin
 	return s.repo.DemoteUserToReader(ctx, userID, adminID)
 }
 
+func (s *AuthService) RestoreUserWriterAccess(ctx context.Context, userID uint, adminID uint) error {
+	if userID == adminID {
+		return fmt.Errorf("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
+	}
+	return s.repo.RestoreUserWriterAccess(ctx, userID, adminID)
+}
+
 func (s *AuthService) DeleteUser(ctx context.Context, userID uint, adminID uint) error {
 	if userID == adminID {
 		return fmt.Errorf("ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")

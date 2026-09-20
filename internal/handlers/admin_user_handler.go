@@ -88,7 +88,7 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 
 	adminID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || adminID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -112,7 +112,7 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 	}
 
 	if uint(userID) == adminID {
-		http.Error(w, "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้", http.StatusForbidden)
+		WriteError(w, http.StatusForbidden, "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
 		return
 	}
 
@@ -125,7 +125,7 @@ func (h *AdminUserHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Reque
 	err = h.authService.UpdateUserStatus(r.Context(), uint(userID), req.Status, reason, suspendedAt, adminID)
 	if err != nil {
 		if strings.Contains(err.Error(), "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้") {
-			http.Error(w, err.Error(), http.StatusForbidden)
+			WriteError(w, http.StatusForbidden, err.Error())
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -162,12 +162,12 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 
 	adminID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || adminID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	if uint(userID) == adminID {
-		http.Error(w, "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้", http.StatusForbidden)
+		WriteError(w, http.StatusForbidden, "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
 		return
 	}
 
@@ -175,7 +175,7 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 	err = h.authService.DemoteUserToReader(r.Context(), uint(userID), adminID)
 	if err != nil {
 		if strings.Contains(err.Error(), "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้") {
-			http.Error(w, err.Error(), http.StatusForbidden)
+			WriteError(w, http.StatusForbidden, err.Error())
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -189,6 +189,59 @@ func (h *AdminUserHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "ย้ายสถานะผู้ใช้เป็น reader สำเร็จแล้ว"})
+}
+
+func (h *AdminUserHandler) RestoreUserWriterAccess(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	pathID := strings.TrimPrefix(r.URL.Path, "/api/admin/users/")
+	pathID = strings.TrimSuffix(pathID, "/restore-writer")
+	userID, err := strconv.Atoi(pathID)
+	if err != nil || userID <= 0 {
+		http.Error(w, "รหัสผู้ใช้ไม่ถูกต้อง", http.StatusBadRequest)
+		return
+	}
+
+	adminID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok || adminID == 0 {
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if uint(userID) == adminID {
+		WriteError(w, http.StatusForbidden, "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
+		return
+	}
+
+	previous, _ := h.authService.GetUserForAdmin(r.Context(), uint(userID))
+	err = h.authService.RestoreUserWriterAccess(r.Context(), uint(userID), adminID)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserRoleNotReader) {
+			WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
+		if errors.Is(err, repository.ErrUserHasNoPriorRevokedWriterHistory) {
+			WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้") {
+			WriteError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	metadata := map[string]interface{}{"new_role": "writer"}
+	if previous != nil {
+		metadata["previous_role"] = previous.Role
+	}
+	recordAudit(r, h.auditService, service.AuditEvent{Action: "RESTORE_WRITER_ACCESS", TargetType: "user", TargetID: int64Pointer(userID), Status: "SUCCESS", Metadata: metadata})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "คืนสิทธิ์นักเขียนสำเร็จแล้ว"})
 }
 
 func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -206,12 +259,12 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	adminID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || adminID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	if uint(userID) == adminID {
-		http.Error(w, "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้", http.StatusForbidden)
+		WriteError(w, http.StatusForbidden, "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้")
 		return
 	}
 
@@ -237,7 +290,7 @@ func (h *AdminUserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	err = h.authService.DeleteUser(r.Context(), uint(userID), adminID)
 	if err != nil {
 		if strings.Contains(err.Error(), "ไม่สามารถดำเนินการกับบัญชีของตัวเองได้") {
-			http.Error(w, err.Error(), http.StatusForbidden)
+			WriteError(w, http.StatusForbidden, err.Error())
 			return
 		}
 		if errors.Is(err, errors.New("must not delete")) {
@@ -271,7 +324,7 @@ func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Re
 
 	adminID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok || adminID == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -279,6 +332,12 @@ func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Re
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "รูปแบบข้อมูลไม่ถูกต้อง", http.StatusBadRequest)
 		return
+	}
+
+	previous, _ := h.authService.GetUserForAdmin(r.Context(), uint(userID))
+	oldUsername := ""
+	if previous != nil {
+		oldUsername = previous.Username
 	}
 
 	err = h.authService.UpdateUsername(r.Context(), uint(userID), req.Username)
@@ -300,6 +359,19 @@ func (h *AdminUserHandler) AdminUpdateUsername(w http.ResponseWriter, r *http.Re
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	metadata := map[string]interface{}{
+		"field":        "username",
+		"old_username": oldUsername,
+		"new_username": req.Username,
+	}
+	recordAudit(r, h.auditService, service.AuditEvent{
+		Action:     "ADMIN_UPDATE_USERNAME",
+		TargetType: "user",
+		TargetID:   int64Pointer(userID),
+		Status:     "SUCCESS",
+		Metadata:   metadata,
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

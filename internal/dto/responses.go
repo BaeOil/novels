@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"novel-be/internal/models"
+)
 
 // Common response wrappers
 type SuccessResponse struct {
@@ -10,9 +14,19 @@ type SuccessResponse struct {
 }
 
 type ErrorResponse struct {
-	Status  int    `json:"status"`
-	Error   string `json:"error"`
-	Message string `json:"message,omitempty"`
+	Error ErrorDetail `json:"error"`
+}
+
+type ErrorDetail struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type AdminNovelListResponse struct {
+	Novels []models.Novel `json:"novels"`
+	Page   int            `json:"page"`
+	Limit  int            `json:"limit"`
+	Total  int            `json:"total"`
 }
 
 // Novel Response DTOs
@@ -114,6 +128,7 @@ type AdminUserListItemDTO struct {
 	SuspendedReason         *string                `json:"suspended_reason,omitempty"`
 	SuspendedAt             *time.Time             `json:"suspended_at,omitempty"`
 	WriterApplicationStatus *string                `json:"writer_application_status,omitempty"`
+	HasWriterHistory        bool                   `json:"had_writer_history"`
 	WriterID                *uint                  `json:"writer_id,omitempty"`
 	WriterDetails           *AdminWriterDetailsDTO `json:"writer_details,omitempty"`
 }
@@ -129,6 +144,7 @@ type AdminUserDetailDTO struct {
 	SuspendedReason         *string                `json:"suspended_reason,omitempty"`
 	SuspendedAt             *time.Time             `json:"suspended_at,omitempty"`
 	WriterApplicationStatus *string                `json:"writer_application_status,omitempty"`
+	HasWriterHistory        bool                   `json:"had_writer_history"`
 	WriterID                *uint                  `json:"writer_id,omitempty"`
 	WriterDetails           *AdminWriterDetailsDTO `json:"writer_details,omitempty"`
 }

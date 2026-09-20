@@ -10,6 +10,7 @@ import (
 
 type NovelRepository interface {
 	ListNovels() ([]models.Novel, error)
+	ListAdminNovels(ctx context.Context, search, status string, categoryID, page, limit int) ([]models.Novel, int, error)
 	GetNovelByID(id int) (*models.Novel, error)
 	IncrementViews(novelID int) error
 	GetNovelsByAuthorID(authorID int) ([]models.Novel, error)
@@ -17,7 +18,8 @@ type NovelRepository interface {
 	UpdateNovel(models.Novel) error
 	UpdateCoverImage(id int, url string) error
 	DeleteNovel(id int) error
-	UnbanNovel(id int) error
+	SuspendNovel(ctx context.Context, novelID int) error
+	UnbanNovel(ctx context.Context, id int) error
 }
 
 type SceneRepository interface {
@@ -105,6 +107,7 @@ type AuthRepository interface {
 	GetUserForAdmin(ctx context.Context, userID uint) (*dto.AdminUserDetailDTO, error)
 	UpdateUserStatus(ctx context.Context, userID uint, status, reason string, suspendedAt *time.Time, adminID uint) error
 	DemoteUserToReader(ctx context.Context, userID uint, adminID uint) error
+	RestoreUserWriterAccess(ctx context.Context, userID uint, adminID uint) error
 	DeleteUser(ctx context.Context, userID uint) error
 	HasWriterNovels(ctx context.Context, userID uint) (bool, error)
 	UpdateUsername(ctx context.Context, userID uint, username string) error

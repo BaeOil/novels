@@ -14,6 +14,8 @@ import (
 )
 
 var ErrUsernameTaken = errors.New("username already in use")
+var ErrUserRoleNotReader = errors.New("user role must be reader to restore writer access")
+var ErrUserHasNoPriorRevokedWriterHistory = errors.New("user has no prior revoked writer history")
 
 type sqlAuthRepository struct {
 	db *sql.DB
@@ -137,6 +139,9 @@ func (r *sqlAuthRepository) ListUsers(ctx context.Context, role, status, search 
 		SELECT u.user_id, u.username, u.email, u.pic_profile, u.role, COALESCE(u.status, 'active'), u.created_at,
 			u.suspended_reason, u.suspended_at,
 			w.status AS writer_application_status,
+			EXISTS(
+				SELECT 1 FROM writers w3 WHERE w3.user_id = u.user_id AND w3.status = 'revoked'
+			) AS had_writer_history,
 			COALESCE((SELECT json_agg(c.name) FROM writer_categories wc JOIN categories c ON c.category_id = wc.category_id WHERE wc.writer_id = w.writer_id), '[]'::json) AS genres_json,
 			w.name_lastname, w.pen_name, w.bio, w.contact_info, w.writer_id
 		FROM users u
@@ -178,11 +183,12 @@ func (r *sqlAuthRepository) ListUsers(ctx context.Context, role, status, search 
 		var suspendedReason sql.NullString
 		var suspendedAt sql.NullTime
 		var writerAppStatus sql.NullString
+		var hadWriterHistory bool
 		var nameLastname, penName, bio sql.NullString
 		var contactInfo sql.NullString
 		var genresJSON []byte
 		var writerID sql.NullInt64
-		err := rows.Scan(&item.ID, &item.Username, &item.Email, &picProfile, &item.Role, &item.Status, &createdAt, &suspendedReason, &suspendedAt, &writerAppStatus, &genresJSON, &nameLastname, &penName, &bio, &contactInfo, &writerID)
+		err := rows.Scan(&item.ID, &item.Username, &item.Email, &picProfile, &item.Role, &item.Status, &createdAt, &suspendedReason, &suspendedAt, &writerAppStatus, &hadWriterHistory, &genresJSON, &nameLastname, &penName, &bio, &contactInfo, &writerID)
 		if err != nil {
 			return nil, err
 		}
@@ -203,6 +209,7 @@ func (r *sqlAuthRepository) ListUsers(ctx context.Context, role, status, search 
 		} else {
 			item.WriterApplicationStatus = nil
 		}
+		item.HasWriterHistory = hadWriterHistory
 		if writerID.Valid {
 			wID := uint(writerID.Int64)
 			item.WriterID = &wID
@@ -265,6 +272,9 @@ func (r *sqlAuthRepository) GetUserForAdmin(ctx context.Context, userID uint) (*
 		SELECT u.user_id, u.username, u.email, u.pic_profile, u.role, COALESCE(u.status, 'active'), u.created_at,
 			u.suspended_reason, u.suspended_at,
 			w.status AS writer_application_status,
+			EXISTS(
+				SELECT 1 FROM writers w3 WHERE w3.user_id = u.user_id AND w3.status = 'revoked'
+			) AS had_writer_history,
 			COALESCE((SELECT json_agg(c.name) FROM writer_categories wc JOIN categories c ON c.category_id = wc.category_id WHERE wc.writer_id = w.writer_id), '[]'::json) AS genres_json,
 			w.name_lastname, w.pen_name, w.bio, w.contact_info, w.writer_id
 		FROM users u
@@ -277,11 +287,12 @@ func (r *sqlAuthRepository) GetUserForAdmin(ctx context.Context, userID uint) (*
 	var suspendedReason sql.NullString
 	var suspendedAt sql.NullTime
 	var writerAppStatus sql.NullString
+	var hadWriterHistory bool
 	var nameLastname, penName, bio sql.NullString
 	var contactInfo sql.NullString
 	var genresJSON []byte
 	var writerID sql.NullInt64
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&item.ID, &item.Username, &item.Email, &picProfile, &item.Role, &item.Status, &createdAt, &suspendedReason, &suspendedAt, &writerAppStatus, &genresJSON, &nameLastname, &penName, &bio, &contactInfo, &writerID)
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&item.ID, &item.Username, &item.Email, &picProfile, &item.Role, &item.Status, &createdAt, &suspendedReason, &suspendedAt, &writerAppStatus, &hadWriterHistory, &genresJSON, &nameLastname, &penName, &bio, &contactInfo, &writerID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -303,6 +314,7 @@ func (r *sqlAuthRepository) GetUserForAdmin(ctx context.Context, userID uint) (*
 		status := writerAppStatus.String
 		item.WriterApplicationStatus = &status
 	}
+	item.HasWriterHistory = hadWriterHistory
 	if writerID.Valid {
 		wID := uint(writerID.Int64)
 		item.WriterID = &wID
@@ -369,6 +381,9 @@ func (r *sqlAuthRepository) UpdateUserStatus(ctx context.Context, userID uint, s
 	return err
 }
 
+// Invariant: any user demotion from writer->reader must be centralized here.
+// Do not mutate users.role or writers.status in another admin flow; otherwise
+// query-time visibility and writer authorization will drift over time.
 func (r *sqlAuthRepository) DemoteUserToReader(ctx context.Context, userID uint, adminID uint) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -395,6 +410,51 @@ func (r *sqlAuthRepository) DemoteUserToReader(ctx context.Context, userID uint,
 		UPDATE writers
 		SET status = 'revoked', acted_by_admin_id = $1
 		WHERE user_id = $2 AND status = 'approved'`, adminID, userID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *sqlAuthRepository) RestoreUserWriterAccess(ctx context.Context, userID uint, adminID uint) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var role string
+	if err := tx.QueryRowContext(ctx, `SELECT role FROM users WHERE user_id = $1`, userID).Scan(&role); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+	if !strings.EqualFold(role, "reader") {
+		return ErrUserRoleNotReader
+	}
+
+	var revokedCount int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM writers WHERE user_id = $1 AND status = 'revoked'`, userID).Scan(&revokedCount); err != nil {
+		return err
+	}
+	if revokedCount == 0 {
+		return ErrUserHasNoPriorRevokedWriterHistory
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE writers
+		SET status = 'approved', approved_at = NOW(), acted_by_admin_id = $1, rejected_at = NULL, rejection_reason = NULL
+		WHERE user_id = $2 AND status = 'revoked'`, adminID, userID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE users
+		SET role = 'writer', last_action_by_admin_id = $1, updated_at = NOW()
+		WHERE user_id = $2 AND role = 'reader'`, adminID, userID)
 	if err != nil {
 		return err
 	}
@@ -517,6 +577,12 @@ func (r *sqlAuthRepository) UpdateProfilePicture(ctx context.Context, userID uin
 }
 
 func (r *sqlAuthRepository) SuspendUser(ctx context.Context, userID uint, reason string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	query := `
 		UPDATE users
 		SET status = 'suspended',
@@ -524,7 +590,7 @@ func (r *sqlAuthRepository) SuspendUser(ctx context.Context, userID uint, reason
 		    suspended_at = NOW(),
 		    updated_at = NOW()
 		WHERE user_id = $2`
-	res, err := r.db.ExecContext(ctx, query, normalizeSuspendReason(reason), userID)
+	res, err := tx.ExecContext(ctx, query, normalizeSuspendReason(reason), userID)
 	if err != nil {
 		return err
 	}
@@ -535,5 +601,6 @@ func (r *sqlAuthRepository) SuspendUser(ctx context.Context, userID uint, reason
 	if rows == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+
+	return tx.Commit()
 }

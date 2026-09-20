@@ -206,6 +206,8 @@ func RegisterRoutes(
 			adminUserHandler.UpdateUserStatus(w, r)
 		case strings.HasSuffix(r.URL.Path, "/demote"):
 			adminUserHandler.DemoteUser(w, r)
+		case strings.HasSuffix(r.URL.Path, "/restore-writer"):
+			adminUserHandler.RestoreUserWriterAccess(w, r)
 		case r.Method == http.MethodDelete:
 			adminUserHandler.DeleteUser(w, r)
 		default:
@@ -216,12 +218,27 @@ func RegisterRoutes(
 	mux.Handle("/api/admin/users/", adminUsersSubRouter)
 	mux.Handle("/admin/users/", adminUsersSubRouter)
 
+	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการนิยาย
+	mux.Handle("/api/admin/novels", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(handlers.AdminNovelListHandler(novel)))))
+	mux.Handle("/api/admin/novels/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/moderation") {
+			handlers.AdminNovelModerationHandler(novel, writer, notificationService, audit)(w, r)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/unban") {
+			handlers.UnbanNovelHandler(novel, audit)(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	}))))
+
 	// 👑 ท่อฝั่งแอดมิน: ระบบจัดการรายงานนิยาย
-	// GET /api/admin/reports -> ดึงรายการรีพอร์ตทั้งหมด
-	mux.Handle("/api/admin/reports", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.GetPendingReports))))
+	// GET /api/admin/reports -> ดึงรายการรีพอร์ตแบบ dynamic filter
+	mux.Handle("/api/admin/reports", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.GetReports))))
 
 	// PATCH /api/admin/reports/:id/status -> อัปเดตสถานะรีพอร์ต
 	mux.Handle("/api/admin/reports/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(reportHandler.UpdateReportStatus))))
+
 	mux.Handle("/api/admin/audit-logs", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(auditHandler.List))))
 	mux.Handle("/api/admin/audit-logs/", middleware.RequestLogger(middleware.RequireRole("admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subPath := strings.TrimPrefix(r.URL.Path, "/api/admin/audit-logs/")
