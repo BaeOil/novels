@@ -316,12 +316,15 @@ const Navbar = () => {
                                             setIsMenuOpen(false);
                                         }}
                                     >
-                                        Dashboard
+                                        แดชบอร์ด
                                     </Link>
                                 </li>
 
                                 {selectedNovel && (
                                     <>
+                                        <li className="nav-item nav-item-divider-container">
+                                            <span className="nav-menu-divider"></span>
+                                        </li>
                                         <li className="nav-item">
                                             <button 
                                                  className={`nav-menu-btn--pink ${location.pathname.includes("/chapters") ? "active" : ""}`} 
