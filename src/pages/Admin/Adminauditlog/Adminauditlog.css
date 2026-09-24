@@ -82,10 +82,62 @@
 }
 
 .admin-audit-export-group {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* เมนู dropdown ของปุ่ม "ส่งออก" ที่รวม CSV + Excel ไว้ในปุ่มเดียว */
+.admin-audit-export-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: transparent;
+}
+
+.admin-audit-export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 31;
+  min-width: 190px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-audit-export-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.admin-audit-export-menu-item:hover:not(:disabled) {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.admin-audit-export-menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Base button */
@@ -212,6 +264,71 @@
 
 .admin-audit-filter-item--date {
   grid-column: span 2;
+}
+
+/* ปุ่ม "ตัวกรองเพิ่มเติม" — เปิด/ปิดกลุ่มฟิลเตอร์ที่ใช้ไม่บ่อย */
+.admin-audit-filter-item--toggle {
+  justify-content: flex-end;
+}
+
+.admin-audit-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.admin-audit-advanced-toggle:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.admin-audit-advanced-toggle.is-open {
+  border-style: solid;
+  border-color: #ec4899;
+  background: #fdf2f8;
+  color: #be185d;
+}
+
+.admin-audit-advanced-toggle-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ec4899;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.admin-audit-advanced-toggle-chevron {
+  transition: transform 0.2s ease;
+}
+
+.admin-audit-advanced-toggle.is-open .admin-audit-advanced-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+/* Panel ตัวกรองขั้นสูง — คั่นด้วยเส้นบางๆ ให้รู้สึกว่าเป็นกลุ่มแยกจากฟิลเตอร์หลัก */
+.admin-audit-filter-grid--advanced {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #e2e8f0;
 }
 
 .admin-audit-filter-label {
@@ -987,6 +1104,26 @@
 
   .admin-audit-filter-grid.open {
     display: grid;
+  }
+
+  .admin-audit-filter-item--toggle {
+    justify-content: flex-start;
+  }
+
+  .admin-audit-advanced-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-audit-filter-grid--advanced {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-audit-export-menu {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    width: 100%;
   }
 
   .admin-audit-table-wrapper {

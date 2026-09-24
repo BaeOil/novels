@@ -307,7 +307,7 @@ const SummaryCard = ({ data, genreOptions }) => {
         { label: "นามปากกา", value: data.penName || "—" },
         { label: "แนะนำตัวนักเขียน", html: safeBio },
         { label: "ประเภทนิยายที่แต่ง", value: genreNames.length ? genreNames.join(", ") : "—" },
-        { label: "อีเมล", value: data.email || "—" },
+        { label: "อีเมลที่ติดต่อได้", value: data.email || "—" },
         { label: "ช่องทางติดต่อหลัก", value: data.mainContact || "—" },
         { label: "ช่องทางอื่นๆ", value: data.otherLinks || "—" },
     ];
@@ -521,7 +521,7 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
             if (!form.fullName.trim()) e.fullName = "กรุณากรอกชื่อ-นามสกุล";
             if (!form.penName.trim()) e.penName = "กรุณากรอกนามปากกา";
             if (!form.email.trim()) e.email = "กรุณากรอกอีเมล";
-            else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "รูปแบบอีเมลไม่ถูกต้อง";
+            else if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(form.email)) e.email = "กรุณากรอกอีเมลภาษาอังกฤษให้ถูกต้อง";
         }
         if (s === 2) {
             const plainBio = form.bio.replace(/<[^>]*>/g, "").trim();
@@ -731,8 +731,11 @@ const WriterRegisterPage = ({ onComplete, onBack }) => {
                                 <div className={`wr-input-wrap ${errors.email ? "wr-input-wrap--error" : ""}`}>
                                     <input id="email" className="wr-input" type="email"
                                         placeholder="กรอกอีเมล"
+                                        inputMode="email"
+                                        autoComplete="email"
+                                        pattern="[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
                                         value={form.email}
-                                        onChange={(e) => setField("email", e.target.value)} />
+                                        onChange={(e) => setField("email", e.target.value.replace(/[^A-Za-z0-9._%+@-]/g, ""))} />
                                 </div>
                                 {errors.email && <p className="wr-field__error" role="alert">{errors.email}</p>}
                             </div>

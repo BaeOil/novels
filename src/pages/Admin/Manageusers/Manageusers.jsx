@@ -54,7 +54,7 @@ const Manageusers = () => {
     setError(null);
     try {
       const headers = getAuthHeaders();
-      const res = await axios.get(`${API_BASE_URL}/api/admin/users`, { headers });
+      const res = await axios.get(`${API_BASE_URL}/api/admin/users?limit=1000`, { headers });
       const list = res.data?.users || res.data?.data || res.data;
       setUsers(Array.isArray(list) ? list : []);
     } catch (err) {

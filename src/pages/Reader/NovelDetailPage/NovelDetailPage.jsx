@@ -226,7 +226,7 @@ const NovelDetailPage = () => {
           headers["Authorization"] = `Bearer ${token}`;
         }
 
-        const query = userId > 0 ? `?user_id=${userId}` : "";
+        const query = userId > 0 && !isCurrentUserAdmin() ? `?user_id=${userId}` : "";
         const response = await fetch(`${API_BASE_URL}/novels/${id}${query}`, { headers });
         const payload = await response.json().catch(() => null);
 
@@ -853,42 +853,44 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
             <p className="novel-detail__synopsis">{novel.synopsis}</p>
             </div>
 
-            <div className="novel-detail__action-group">
-              <div className="novel-detail__primary-actions">
-                <ActionButtons
-                  isBookmarked={novel.isBookmarked}
-                  isLiked={novel.isLiked}
-                  readLabel={
-                    readLoading
-                      ? "กำลังเปิด..."
-                      : (nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"
-                  }
-                  readAriaLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
-                  onRead={handleRead}
-                  readDisabled={readLoading}
-                  bookmarkDisabled={bookmarkProcessing}
-                  likeDisabled={likeProcessing}
-                  bookmarkLabel={bookmarkProcessing ? "กำลังบันทึก..." : "เพิ่มเข้าชั้นหนังสือ"}
-                  likeLabel={likeProcessing ? "กำลังบันทึก..." : "ถูกใจ"}
-                  onBookmark={isPreview || isAdmin ? undefined : handleBookmark}
-                  onLike={isPreview || isAdmin ? undefined : handleLike}
-                  showBookmark={!isPreview && !isAdmin}
-                  showLike={!isPreview && !isAdmin}
-                />
-              </div>
-              {!isPreview && isLoggedIn && !isAdmin && (
-                <div className="novel-detail__secondary-actions">
-                  <button
-                    className="novel-detail__restart-button"
-                    type="button"
-                    onClick={handleRestartConfirmOpen}
-                    title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
-                  >
-                    ⭮ เริ่มอ่านใหม่
-                  </button>
+            {!isAdmin && (
+              <div className="novel-detail__action-group">
+                <div className="novel-detail__primary-actions">
+                  <ActionButtons
+                    isBookmarked={novel.isBookmarked}
+                    isLiked={novel.isLiked}
+                    readLabel={
+                      readLoading
+                        ? "กำลังเปิด..."
+                        : (nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"
+                    }
+                    readAriaLabel={(nextSceneId || novel.userProgress.discoveredChoices > 0) ? "อ่านต่อ" : "อ่านเลย"}
+                    onRead={handleRead}
+                    readDisabled={readLoading}
+                    bookmarkDisabled={bookmarkProcessing}
+                    likeDisabled={likeProcessing}
+                    bookmarkLabel={bookmarkProcessing ? "กำลังบันทึก..." : "เพิ่มเข้าชั้นหนังสือ"}
+                    likeLabel={likeProcessing ? "กำลังบันทึก..." : "ถูกใจ"}
+                    onBookmark={isPreview ? undefined : handleBookmark}
+                    onLike={isPreview ? undefined : handleLike}
+                    showBookmark={!isPreview}
+                    showLike={!isPreview}
+                  />
                 </div>
-              )}
-            </div>
+                {!isPreview && isLoggedIn && (
+                  <div className="novel-detail__secondary-actions">
+                    <button
+                      className="novel-detail__restart-button"
+                      type="button"
+                      onClick={handleRestartConfirmOpen}
+                      title="รีเซ็ตเส้นทางและความคืบหน้าการอ่านเพื่อเริ่มอ่านใหม่"
+                    >
+                      ⭮ เริ่มอ่านใหม่
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 🟢 แอดมินไม่มี "ความคืบหน้าการอ่าน" ส่วนตัว จึงสลับไปแสดงแผงจัดการแทน
                 ผู้อ่านที่ล็อกอินแล้วเห็นแถบความคืบหน้าตามเดิม

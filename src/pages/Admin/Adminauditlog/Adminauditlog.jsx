@@ -7,6 +7,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   FileText,
   Loader2,
   Inbox,
@@ -420,6 +421,11 @@ export default function Adminauditlog() {
 
   // Mobile Filter Drawer State
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  // ซ่อน/แสดงกลุ่มตัวกรองที่ใช้ไม่บ่อย (การกระทำแบบละเอียด, ประเภทเป้าหมาย, สถานะ)
+  // เพื่อลดความรกของแถบเครื่องมือ — ค่าเริ่มต้นเปิดอัตโนมัติถ้ามีการเลือกฟิลเตอร์กลุ่มนี้ไว้อยู่แล้ว (เช่น มาจาก URL หรือรีเฟรชหน้า)
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  // เปิด/ปิดเมนู dropdown ของปุ่ม "ส่งออก" ที่รวม CSV + Excel ไว้ในปุ่มเดียว
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Detail Modal States
   const [selectedLogId, setSelectedLogId] = useState(null);
@@ -440,6 +446,19 @@ export default function Adminauditlog() {
     dateFromFilter ||
     dateToFilter
   );
+
+  // นับจำนวนตัวกรอง "ขั้นสูง" (การกระทำ, ประเภทเป้าหมาย, สถานะ) ที่กำลังใช้งานอยู่
+  // ใช้โชว์เป็นตัวเลขบนปุ่ม "ตัวกรองเพิ่มเติม" เพื่อให้รู้ทันทีว่ามีฟิลเตอร์ซ่อนอยู่กี่ตัวโดยไม่ต้องกดเปิดดู
+  const advancedFilterCount = [actionFilter, targetTypeFilter, statusFilter].filter(Boolean).length;
+
+  // ถ้าหน้าโหลดมาพร้อมตัวกรองขั้นสูงที่ถูกตั้งค่าไว้แล้ว (เช่น รีเฟรชหน้าค้าง filter เดิม)
+  // ให้เปิด panel นี้ให้อัตโนมัติ ผู้ใช้จะได้ไม่งงว่าทำไมผลลัพธ์ถูกกรองอยู่ทั้งที่มองไม่เห็นตัวกรอง
+  useEffect(() => {
+    if (advancedFilterCount > 0) {
+      setShowAdvancedFilters(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // action กลุ่ม "security" (เข้า/ออกระบบ, สมัครสมาชิก, พยายามเข้าถึงโดยไม่มีสิทธิ์) — ใช้แยกออกจาก content activity
   const SECURITY_ACTIONS = new Set(["LOGIN", "LOGOUT", "LOGIN_FAILED", "UNAUTHORIZED_ACCESS", "REGISTER", "SUSPEND_OWN_ACCOUNT"]);
@@ -899,6 +918,7 @@ export default function Adminauditlog() {
     setDateFromFilter("");
     setDateToFilter("");
     setFilterValidationMsg("");
+    setShowAdvancedFilters(false);
     setPage(1);
   };
 
@@ -945,33 +965,64 @@ export default function Adminauditlog() {
             </svg>
           </div>
           <div className="admin-audit-header__actions">
+            {/* ปุ่ม "ส่งออก" เดียว รวม CSV + Excel ไว้เป็นเมนู dropdown
+                แทนที่จะโชว์ 2 ปุ่มแยกกันเต็มพื้นที่แถวบนสุด ลดความรกของ toolbar */}
             <div className="admin-audit-export-group">
-              {/* 1. ส่งออก CSV Button (Outline) */}
               <button
                 type="button"
                 className="admin-audit-btn admin-audit-btn--export"
-                onClick={handleExportCSV}
+                onClick={() => setIsExportMenuOpen((open) => !open)}
                 disabled={isExportingExcel || isExportingCSV || loading}
-                title="ดาวน์โหลดรายการ Log เป็นไฟล์ CSV"
+                aria-haspopup="true"
+                aria-expanded={isExportMenuOpen}
+                title="ส่งออกรายการ Log เป็นไฟล์"
               >
-                <Download size={15} className={isExportingCSV ? "spin" : ""} />
-                <span>{isExportingCSV ? "กำลังส่งออก CSV..." : "ส่งออก CSV"}</span>
+                <Download size={15} className={(isExportingCSV || isExportingExcel) ? "spin" : ""} />
+                <span>
+                  {isExportingCSV ? "กำลังส่งออก CSV..." : isExportingExcel ? "กำลังส่งออก Excel..." : "ส่งออก"}
+                </span>
               </button>
 
-              {/* 2. ส่งออก Excel Button (Outline, Equal Visual Weight) */}
-              <button
-                type="button"
-                className="admin-audit-btn admin-audit-btn--export"
-                onClick={handleExportExcel}
-                disabled={isExportingExcel || isExportingCSV || loading}
-                title="ดาวน์โหลดรายการ Log เป็นไฟล์ Excel (.xlsx) พร้อมจัดรูปแบบ"
-              >
-                <Download size={15} className={isExportingExcel ? "spin" : ""} />
-                <span>{isExportingExcel ? "กำลังส่งออก Excel..." : "ส่งออก Excel"}</span>
-              </button>
+              {isExportMenuOpen && (
+                <>
+                  {/* คลิกนอกเมนูเพื่อปิด */}
+                  <div
+                    className="admin-audit-export-menu-backdrop"
+                    onClick={() => setIsExportMenuOpen(false)}
+                  />
+                  <div className="admin-audit-export-menu" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="admin-audit-export-menu-item"
+                      onClick={() => {
+                        setIsExportMenuOpen(false);
+                        handleExportCSV();
+                      }}
+                      disabled={isExportingExcel || isExportingCSV || loading}
+                    >
+                      <FileText size={14} />
+                      <span>ไฟล์ CSV</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="admin-audit-export-menu-item"
+                      onClick={() => {
+                        setIsExportMenuOpen(false);
+                        handleExportExcel();
+                      }}
+                      disabled={isExportingExcel || isExportingCSV || loading}
+                    >
+                      <FileSpreadsheet size={14} />
+                      <span>ไฟล์ Excel (.xlsx)</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* 3. Refresh Button (Ghost / Light Neutral) */}
+            {/* Refresh Button (Ghost / Light Neutral) */}
             <button
               type="button"
               className="admin-audit-btn admin-audit-btn--refresh"
@@ -1047,31 +1098,9 @@ export default function Adminauditlog() {
           </div>
 
           <div className={`admin-audit-filter-grid ${isMobileFilterOpen ? "open" : ""}`}>
-            {/* 1. Action Filter */}
-            <div className="admin-audit-filter-item">
-              <label htmlFor="filter-action" className="admin-audit-filter-label">การกระทำ</label>
-              <select
-                id="filter-action"
-                className="admin-audit-select"
-                value={actionFilter}
-                onChange={handleActionChange}
-              >
-                <option value="">ทุกการกระทำ</option>
-                {ACTION_GROUPS.map((group) => (
-                  <optgroup key={group.label} label={group.label}>
-                    {group.keys
-                      .filter((actionKey) => ACTION_MAP[actionKey] && !ACTION_MAP[actionKey].hiddenInFilter)
-                      .map((actionKey) => (
-                        <option key={actionKey} value={actionKey}>
-                          {ACTION_MAP[actionKey].label}
-                        </option>
-                      ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
+            {/* ตัวกรองหลักที่ใช้บ่อยสุด แสดงตลอดเวลา: ผู้กระทำ + ช่วงวันที่ */}
 
-            {/* 2. Actor Filter (Debounced) */}
+            {/* 1. Actor Filter (Debounced) */}
             <div className="admin-audit-filter-item">
               <label htmlFor="filter-actor" className="admin-audit-filter-label">ผู้กระทำ (ชื่อผู้ใช้ / ID)</label>
               <input
@@ -1084,50 +1113,7 @@ export default function Adminauditlog() {
               />
             </div>
 
-            {/* 3. Target Type Filter */}
-            <div className="admin-audit-filter-item">
-              <label htmlFor="filter-target" className="admin-audit-filter-label">ประเภทเป้าหมาย</label>
-              <select
-                id="filter-target"
-                className="admin-audit-select"
-                value={targetTypeFilter}
-                onChange={handleTargetTypeChange}
-              >
-                <option value="">ทุกประเภท</option>
-                {Object.entries(TARGET_TYPE_MAP).map(([typeKey, label]) => (
-                  <option key={typeKey} value={typeKey}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 4. Status Filter */}
-            <div className="admin-audit-filter-item">
-              <label htmlFor="filter-status" className="admin-audit-filter-label">สถานะ</label>
-              <select
-                id="filter-status"
-                className="admin-audit-select"
-                value={statusFilter}
-                onChange={handleStatusChange}
-              >
-                <option value="">ทุกสถานะ</option>
-                {metadata.statuses && metadata.statuses.length > 0 ? (
-                  metadata.statuses.map((st) => (
-                    <option key={st} value={st}>
-                      {st === "SUCCESS" ? "สำเร็จ" : st === "FAILURE" ? "ไม่สำเร็จ" : st}
-                    </option>
-                  ))
-                ) : (
-                  <>
-                    <option value="SUCCESS">สำเร็จ</option>
-                    <option value="FAILURE">ไม่สำเร็จ</option>
-                  </>
-                )}
-              </select>
-            </div>
-
-            {/* 5. Date Range Filter */}
+            {/* 2. Date Range Filter */}
             <div className="admin-audit-filter-item admin-audit-filter-item--date">
               <label className="admin-audit-filter-label">ช่วงวันที่</label>
               <div className="admin-audit-date-range-group">
@@ -1148,7 +1134,99 @@ export default function Adminauditlog() {
                 />
               </div>
             </div>
+
+            {/* ปุ่มเปิด/ปิดตัวกรองที่ใช้ไม่บ่อย (การกระทำ, ประเภทเป้าหมาย, สถานะ)
+                วางแทนที่ตำแหน่งเดิมของฟิลเตอร์เหล่านี้ เพื่อลดจำนวนช่องที่เห็นพร้อมกันตลอดเวลา */}
+            <div className="admin-audit-filter-item admin-audit-filter-item--toggle">
+              <label className="admin-audit-filter-label">&nbsp;</label>
+              <button
+                type="button"
+                className={`admin-audit-advanced-toggle ${showAdvancedFilters ? "is-open" : ""}`}
+                onClick={() => setShowAdvancedFilters((open) => !open)}
+                aria-expanded={showAdvancedFilters}
+              >
+                <Filter size={14} />
+                <span>ตัวกรองเพิ่มเติม</span>
+                {advancedFilterCount > 0 && (
+                  <span className="admin-audit-advanced-toggle-count">{advancedFilterCount}</span>
+                )}
+                <ChevronDown size={14} className="admin-audit-advanced-toggle-chevron" />
+              </button>
+            </div>
           </div>
+
+          {/* กลุ่มตัวกรองขั้นสูง: การกระทำแบบละเอียด / ประเภทเป้าหมาย / สถานะ
+              ซ่อนไว้เป็นค่าเริ่มต้น กดปุ่ม "ตัวกรองเพิ่มเติม" ด้านบนเพื่อเปิด/ปิด */}
+          {showAdvancedFilters && (
+            <div className={`admin-audit-filter-grid admin-audit-filter-grid--advanced ${isMobileFilterOpen ? "open" : ""}`}>
+              {/* 3. Action Filter */}
+              <div className="admin-audit-filter-item">
+                <label htmlFor="filter-action" className="admin-audit-filter-label">การกระทำ</label>
+                <select
+                  id="filter-action"
+                  className="admin-audit-select"
+                  value={actionFilter}
+                  onChange={handleActionChange}
+                >
+                  <option value="">ทุกการกระทำ</option>
+                  {ACTION_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.keys
+                        .filter((actionKey) => ACTION_MAP[actionKey] && !ACTION_MAP[actionKey].hiddenInFilter)
+                        .map((actionKey) => (
+                          <option key={actionKey} value={actionKey}>
+                            {ACTION_MAP[actionKey].label}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
+              {/* 4. Target Type Filter */}
+              <div className="admin-audit-filter-item">
+                <label htmlFor="filter-target" className="admin-audit-filter-label">ประเภทเป้าหมาย</label>
+                <select
+                  id="filter-target"
+                  className="admin-audit-select"
+                  value={targetTypeFilter}
+                  onChange={handleTargetTypeChange}
+                >
+                  <option value="">ทุกประเภท</option>
+                  {Object.entries(TARGET_TYPE_MAP).map(([typeKey, label]) => (
+                    <option key={typeKey} value={typeKey}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 5. Status Filter */}
+              <div className="admin-audit-filter-item">
+                <label htmlFor="filter-status" className="admin-audit-filter-label">สถานะ</label>
+                <select
+                  id="filter-status"
+                  className="admin-audit-select"
+                  value={statusFilter}
+                  onChange={handleStatusChange}
+                >
+                  <option value="">ทุกสถานะ</option>
+                  {metadata.statuses && metadata.statuses.length > 0 ? (
+                    metadata.statuses.map((st) => (
+                      <option key={st} value={st}>
+                        {st === "SUCCESS" ? "สำเร็จ" : st === "FAILURE" ? "ไม่สำเร็จ" : st}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="SUCCESS">สำเร็จ</option>
+                      <option value="FAILURE">ไม่สำเร็จ</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Clear Filters Action Row */}
           {hasActiveFilters && (

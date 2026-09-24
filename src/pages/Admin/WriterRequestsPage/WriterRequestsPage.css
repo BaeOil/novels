@@ -357,6 +357,45 @@
   color: #78350f;
 }
 
+.wr-reapply-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.wr-reapply-changes__title {
+  color: #1d4ed8;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.wr-reapply-change {
+  padding-top: 9px;
+  border-top: 1px solid #e0ecff;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.wr-reapply-change__label {
+  margin-bottom: 3px;
+  color: #334155;
+  font-weight: 700;
+}
+
+.wr-reapply-change__values {
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.wr-reapply-change__values span {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
 .wr-row-num {
   font-weight: 800;
   color: #ff4081;

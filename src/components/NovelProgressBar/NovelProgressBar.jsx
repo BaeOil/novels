@@ -94,9 +94,9 @@ const NovelProgressBar = ({
   const effectiveIsAdmin = checkIsAdmin();
 
   useEffect(() => {
-    // 👁️ โหมดทดลองอ่านของนักเขียนเจ้าของนิยาย: ดึง "ทุกฉาก" (รวมฉบับร่างที่ยังไม่เผยแพร่)
-    // มาแสดงเป็นสารบัญ ไม่มีแนวคิดเรื่อง "อ่านล่าสุด" หรือความคืบหน้าใดๆ เพราะเป็นแค่การพรีวิว
-    if (isPreview) {
+    // โหมด preview แสดงทุกฉาก ส่วน admin แสดงเฉพาะฉากที่เผยแพร่แล้ว
+    // ทั้งสองโหมดเป็นสารบัญแบบ read-only จึงไม่ใช้ความคืบหน้าของผู้ใช้
+    if (isPreview || isAdmin) {
       if (!novelId) return;
 
       let isMounted = true;
@@ -106,11 +106,18 @@ const NovelProgressBar = ({
           const token = localStorage.getItem("token");
           const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-          const res = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree?preview=true`, { headers });
+          const query = isPreview ? "?preview=true" : "";
+          const res = await axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree${query}`, { headers });
           const treeData = res.data?.data || res.data;
           const rawNodes = treeData?.nodes || [];
 
-          const allNodes = rawNodes.map((node) => {
+          const allNodes = rawNodes.filter((node) => {
+            const isPublished =
+              typeof node.is_published === "boolean"
+                ? node.is_published
+                : String(node.status ?? node.Status ?? "").toLowerCase() === "published";
+            return isPreview || isPublished;
+          }).map((node) => {
             const isPublished =
               typeof node.is_published === "boolean"
                 ? node.is_published
@@ -282,7 +289,7 @@ const NovelProgressBar = ({
   // 👁️ โหมดทดลองอ่านของนักเขียนเจ้าของนิยาย: เรนเดอร์เป็นสารบัญของตัวเอง
   // เห็นทุกฉาก (ทั้งเผยแพร่แล้ว/ฉบับร่าง) กดเข้าอ่านจากตรงนี้ได้เลย
   // ไม่มีปุ่มบันทึกความคืบหน้า ไม่มี "อ่านล่าสุด" เพราะเป็นแค่การจำลองมุมมองนักอ่าน
-  if (isPreview) {
+  if (isPreview || effectiveIsAdmin) {
     if (loading) {
       return (
         <div className={`novel-timeline-card loading ${className}`}>
@@ -308,15 +315,21 @@ const NovelProgressBar = ({
 
     return (
       <div className={`novel-timeline-card ${className}`}>
-        <div className="preview-toc-banner">
-          👁️ สารบัญโหมดทดลองอ่าน — เห็นทุกฉากรวมฉบับร่าง ไม่มีการบันทึกความคืบหน้าใดๆ
-        </div>
+        {isPreview && (
+          <div className="preview-toc-banner">
+            👁️ สารบัญโหมดทดลองอ่าน — เห็นทุกฉากรวมฉบับร่าง ไม่มีการบันทึกความคืบหน้าใดๆ
+          </div>
+        )}
 
         <div className="timeline-list-section">
           <div className="timeline-header-flex">
             <div>
-              <h3 className="timeline-section-title">สารบัญทั้งหมด</h3>
-              <p className="timeline-section-subtitle">คลิกฉากใดก็ได้เพื่อทดลองอ่าน</p>
+              <h3 className="timeline-section-title">
+                {isAdmin ? "รายการตอนที่เผยแพร่แล้ว" : "สารบัญทั้งหมด"}
+              </h3>
+              <p className="timeline-section-subtitle">
+                {isAdmin ? "คลิกฉากเพื่อเปิดอ่านตรวจสอบเนื้อหา" : "คลิกฉากใดก็ได้เพื่อทดลองอ่าน"}
+              </p>
             </div>
             <span className="timeline-count-badge">{visitedNodes.length} ฉาก</span>
           </div>
@@ -344,7 +357,7 @@ const NovelProgressBar = ({
                   <span className="timeline-item-title">
                     {getSceneTitle(node)}
                     {node.type === "ending" && <span className="ending-inline-tag">🏆 ฉากจบ</span>}
-                    <span
+                    {isPreview && <span
                       className={`toc-status-badge ${
                         node.computedStatus === "published"
                           ? "toc-status-badge--published"
@@ -352,7 +365,7 @@ const NovelProgressBar = ({
                       }`}
                     >
                       {node.computedStatus === "published" ? "เผยแพร่แล้ว" : "ฉบับร่าง"}
-                    </span>
+                    </span>}
                   </span>
                 </div>
               </li>

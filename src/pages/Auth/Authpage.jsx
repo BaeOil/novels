@@ -145,9 +145,9 @@ const DecorPanel = () => (
 //  Sub: Login form
 // ══════════════════════════════════════════════════════════
 const LoginForm = ({ onSwitchToRegister }) => {
-  const [email,     setEmail]     = useState("");
+  const [email,     setEmail]     = useState(() => localStorage.getItem("remembered_login_email") || "");
   const [password,  setPassword]  = useState("");
-  const [remember,  setRemember]  = useState(false);
+  const [remember,  setRemember]  = useState(() => Boolean(localStorage.getItem("remembered_login_email")));
   const [errors,    setErrors]    = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -192,9 +192,15 @@ const LoginForm = ({ onSwitchToRegister }) => {
       console.log("📦 Login Response Data:", data);
 
       if (!res.ok) {
-        setErrors({ general: data.message || data.error || 'ไม่สามารถเข้าสู่ระบบได้' });
+        const message = data?.error?.message || data?.message || (typeof data?.error === "string" ? data.error : null);
+        setErrors({ general: message || 'ไม่สามารถเข้าสู่ระบบได้' });
         setIsLoading(false);
         return;
+      }
+      if (remember) {
+        localStorage.setItem("remembered_login_email", email.trim());
+      } else {
+        localStorage.removeItem("remembered_login_email");
       }
       if (data.token) {
         console.log("💾 Saving token to LocalStorage");
@@ -202,10 +208,6 @@ const LoginForm = ({ onSwitchToRegister }) => {
         localStorage.setItem('pw_len', password.length);
       }
 
-      if (data.refresh_token) {
-        console.log("💾 Saving refresh token to LocalStorage");
-        localStorage.setItem('refresh_token', data.refresh_token);
-      }
       if (data.refresh_token) {
         console.log("💾 Saving refresh token to LocalStorage");
         localStorage.setItem('refresh_token', data.refresh_token);
@@ -432,6 +434,9 @@ const RegisterForm = ({ onSwitchToLogin }) => {
   };
 
   const formatRegisterError = (msg) => {
+    if (msg && typeof msg === "object") {
+      msg = msg.message || msg.error || "";
+    }
     if (!msg) return 'เกิดข้อผิดพลาดในการสมัครสมาชิก กรุณาลองใหม่อีกครั้ง';
     const lower = msg.toLowerCase();
     if (lower.includes("username already") || lower.includes("ชื่อผู้ใช้ซ้ำ") || lower.includes("username taken")) {
@@ -586,8 +591,9 @@ const RegisterForm = ({ onSwitchToLogin }) => {
       console.log("📦 Response Data payload:", data);
 
       if (!res.ok) {
-        console.error(`❌ Register failed with status ${res.status}. Error Msg:`, data.message || data.error);
-        setErrors({ general: formatRegisterError(data.message || data.error) });
+        const errorMessage = data?.error?.message || data?.message || data?.error;
+        console.error(`❌ Register failed with status ${res.status}. Error Msg:`, errorMessage);
+        setErrors({ general: formatRegisterError(errorMessage) });
         setIsLoading(false);
         return;
       }

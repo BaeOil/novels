@@ -196,6 +196,25 @@ const RequestDetailModal = ({ isOpen, user, onCancel, onApprove, onReject }) => 
     genres: user.genres || contactInfo.genres || [],
   };
 
+  const previousApplication = user.previous_application;
+  const previousContactInfo = parseContactInfo(previousApplication?.contact_info);
+  const formatContactInfo = (info) => Object.entries(info || {})
+    .filter(([key, value]) => key !== 'genres' && value !== null && value !== undefined && String(value).trim() !== '')
+    .map(([key, value]) => `${contactKeyLabel(key)}: ${String(value)}`)
+    .join(' | ');
+  const currentContactSummary = formatContactInfo(contactInfo);
+  const previousContactSummary = formatContactInfo(previousContactInfo);
+  const currentGenres = (writerData.genres || []).map(String).sort().join(', ');
+  const previousGenres = (previousApplication?.genres || previousContactInfo.genres || []).map(String).sort().join(', ');
+  const changedFields = previousApplication ? [
+    ['ชื่อ - นามสกุล', previousApplication.name_lastname, writerData.fullName],
+    ['นามปากกา', previousApplication.pen_name, writerData.penName],
+    ['อีเมลที่ใช้สมัคร', previousApplication.email_writer, writerData.email],
+    ['แนะนำตัว', stripHtml(previousApplication.bio), writerData.bio],
+    ['ประเภทนิยายที่สนใจเขียน', previousGenres, currentGenres],
+    ['ช่องทางติดต่อ', previousContactSummary, currentContactSummary],
+  ].filter(([, previousValue, currentValue]) => String(previousValue || '').trim() !== String(currentValue || '').trim()) : [];
+
   const statusInfo = STATUS_INFO[user.status] || STATUS_INFO.pending;
   const isPending = user.status === 'pending' || !user.status;
 
@@ -226,6 +245,21 @@ const RequestDetailModal = ({ isOpen, user, onCancel, onApprove, onReject }) => 
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {changedFields.length > 0 && (
+            <div className="wr-reapply-changes">
+              <div className="wr-reapply-changes__title">สิ่งที่แก้ไขจากใบสมัครครั้งก่อน</div>
+              {changedFields.map(([label, previousValue, currentValue]) => (
+                <div className="wr-reapply-change" key={label}>
+                  <div className="wr-reapply-change__label">{label}</div>
+                  <div className="wr-reapply-change__values">
+                    <div><span>เดิม:</span> {String(previousValue || 'ไม่ได้ระบุ')}</div>
+                    <div><span>ปัจจุบัน:</span> {String(currentValue || 'ไม่ได้ระบุ')}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -425,12 +459,13 @@ const WriterRequestsPage = () => {
 
       // ถ้ากำลังค้นหาอยู่ ยังไม่มี search param ฝั่ง backend รองรับ
       // เลยขอมาเยอะๆ ครั้งเดียวแล้วกรอง/แบ่งหน้าเองฝั่ง client แทน (ยอมรับ trade-off นี้ไปก่อน)
-      if (term) {
+      if (term || filterTab === 'all') {
         params.set('limit', '1000');
       } else {
-        if (filterTab !== 'all') params.set('status', filterTab);
-        params.set('page', String(page));
-        params.set('limit', String(itemsPerPage));
+        params.set('status', filterTab);
+        // Backend ยังตอบกลับเป็น array ตรงๆ ไม่มี total/page metadata
+        // จึงโหลดรายการของสถานะนั้นครบก่อน แล้วแบ่งหน้าใน frontend
+        params.set('limit', '1000');
       }
 
       const res = await fetch(`${API_BASE_URL}/api/admin/writers/requests?${params.toString()}`, {

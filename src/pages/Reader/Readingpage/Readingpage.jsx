@@ -377,7 +377,7 @@ useEffect(() => {
           setCurrentSceneId(loadedSceneId);
           fetchSceneComments(loadedSceneId);
 
-          if (!isPreviewMode) {
+          if (!isPreviewMode && !isAdmin) {
             updateReadingProgress(novelId, loadedSceneId, resData.data.type);
           }
 
