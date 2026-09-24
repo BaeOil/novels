@@ -840,57 +840,57 @@ export default function AdminReportsDashboard() {
                                     {/* Desktop Table */}
                                     <div className="admin-table-responsive">
                                         <table className="admin-table">
-                                            <thead>
-                                                <tr>
-                                                    <th style={{ minWidth: "220px" }}>เรื่อง</th>
-                                                    <th style={{ minWidth: "130px" }}>ผู้เขียน</th>
-                                                    <th style={{ minWidth: "120px" }}>หมวดหมู่</th>
-                                                    <th style={{ minWidth: "90px" }}>สถานะ</th>
-                                                    <th style={{ minWidth: "130px" }}>วันที่เผยแพร่</th>
-                                                    <th style={{ minWidth: "240px", textAlign: "right" }}>การจัดการ</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {paginatedStories.map((story) => {
-                                                    const novelId = story.novel_id || story.id || story.NovelID;
-                                                    const title = story.title || story.Title || "ไม่มีชื่อเรื่อง";
-                                                    const cover = story.cover_image || story.CoverImage || "/default-cover.png";
-                                                    const authorName =
-                                                        story.pen_name ||
-                                                        story.PenName ||
-                                                        story.author_name ||
-                                                        story.AuthorName ||
-                                                        story.username ||
-                                                        "-";
-                                                    const statusInfo = getNovelStatusInfo(story);
-                                                    const catNames = getNovelCategoryNames(story);
-                                                    const dateStr = story.published_at || story.created_at || story.CreatedAt;
+                                             <thead>
+                                                 <tr>
+                                                     <th style={{ width: "22%" }}>เรื่อง</th>
+                                                     <th style={{ width: "14%" }}>ผู้เขียน</th>
+                                                     <th style={{ width: "11%" }}>หมวดหมู่</th>
+                                                     <th style={{ width: "9%" }}>สถานะ</th>
+                                                     <th style={{ width: "14%" }}>วันที่เผยแพร่</th>
+                                                     <th style={{ width: "30%", textAlign: "right" }}>การจัดการ</th>
+                                                 </tr>
+                                             </thead>
+                                             <tbody>
+                                                 {paginatedStories.map((story) => {
+                                                     const novelId = story.novel_id || story.id || story.NovelID;
+                                                     const title = story.title || story.Title || "ไม่มีชื่อเรื่อง";
+                                                     const cover = story.cover_image || story.CoverImage || "/default-cover.png";
+                                                     const authorName =
+                                                         story.pen_name ||
+                                                         story.PenName ||
+                                                         story.author_name ||
+                                                         story.AuthorName ||
+                                                         story.username ||
+                                                         "-";
+                                                     const statusInfo = getNovelStatusInfo(story);
+                                                     const catNames = getNovelCategoryNames(story);
+                                                     const dateStr = story.published_at || story.created_at || story.CreatedAt;
 
-                                                    return (
-                                                        <tr key={novelId} className="admin-table-row">
-                                                            {/* Story Title & Cover */}
-                                                            <td>
-                                                                <div className="admin-story-cell">
-                                                                    <img
-                                                                        src={cover}
-                                                                        alt={title}
-                                                                        className="admin-story-thumb"
-                                                                        onError={(e) => {
-                                                                            e.target.src = "https://placehold.co/80x110/f1f5f9/94a3b8?text=Story";
-                                                                        }}
-                                                                    />
-                                                                    <div className="admin-story-info">
-                                                                        <span className="admin-story-title" title={title}>
-                                                                            {title}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
+                                                     return (
+                                                         <tr key={novelId} className="admin-table-row">
+                                                             {/* Story Title & Cover */}
+                                                             <td>
+                                                                 <div className="admin-story-cell">
+                                                                     <img
+                                                                         src={cover}
+                                                                         alt={title}
+                                                                         className="admin-story-thumb"
+                                                                         onError={(e) => {
+                                                                             e.target.src = "https://placehold.co/80x110/f1f5f9/94a3b8?text=Story";
+                                                                         }}
+                                                                     />
+                                                                     <div className="admin-story-info">
+                                                                         <span className="admin-story-title" title={title}>
+                                                                             {title}
+                                                                         </span>
+                                                                     </div>
+                                                                 </div>
+                                                             </td>
 
-                                                            {/* Author */}
-                                                            <td>
-                                                                <span className="admin-text-medium">{authorName}</span>
-                                                            </td>
+                                                             {/* Author */}
+                                                             <td>
+                                                                 <span className="admin-text-medium" title={authorName}>{authorName}</span>
+                                                             </td>
 
                                                             {/* Categories (Deduplicated) */}
                                                             <td>
@@ -1352,13 +1352,13 @@ export default function AdminReportsDashboard() {
                                         <table className="admin-table">
                                             <thead>
                                                 <tr>
-                                                    <th style={{ minWidth: "220px" }}>เรื่องที่รายงาน</th>
-                                                    <th style={{ minWidth: "140px" }}>ผู้รายงาน</th>
-                                                    <th style={{ minWidth: "220px" }}>เหตุผล</th>
-                                                    <th style={{ minWidth: "130px" }}>วันที่รายงาน</th>
-                                                    <th style={{ minWidth: "100px" }}>สถานะ</th>
-                                                    <th style={{ minWidth: "120px", textAlign: "right" }}>การจัดการ</th>
-                                                </tr>
+                                                     <th style={{ width: "22%" }}>เรื่องที่รายงาน</th>
+                                                     <th style={{ width: "14%" }}>ผู้รายงาน</th>
+                                                     <th style={{ width: "19%" }}>เหตุผล</th>
+                                                     <th style={{ width: "13%" }}>วันที่รายงาน</th>
+                                                     <th style={{ width: "8%" }}>สถานะ</th>
+                                                     <th style={{ width: "24%", textAlign: "right" }}>การจัดการ</th>
+                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {paginatedReports.map((report) => {

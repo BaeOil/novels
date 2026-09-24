@@ -467,14 +467,17 @@
 
 .admin-audit-table-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   width: 100%;
 }
 
 .admin-audit-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
   font-size: 0.86rem;
+  min-width: 820px;
 }
 
 .admin-audit-table th {
@@ -482,15 +485,18 @@
   color: #475569;
   font-weight: 700;
   padding: 14px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1.5px solid #e2e8f0;
   white-space: nowrap;
+  font-size: 0.84rem;
+  letter-spacing: 0.01em;
 }
 
 .admin-audit-table td {
-  padding: 14px 16px;
+  padding: 13px 16px;
   border-bottom: 1px solid #f1f5f9;
   color: #334155;
   vertical-align: middle;
+  line-height: 1.45;
 }
 
 .admin-audit-row {
@@ -515,33 +521,48 @@
   font-size: 0.82rem;
   color: #64748b;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .admin-audit-actor {
   font-weight: 600;
   color: #1e293b;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
 .admin-audit-action-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 4px 10px;
   border-radius: 6px;
   font-size: 0.76rem;
   font-weight: 700;
   border: 1px solid;
   white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .admin-audit-target {
   font-weight: 600;
   color: #334155;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
 .admin-audit-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 9px;
   border-radius: 9999px;
   font-size: 0.76rem;
   font-weight: 600;
@@ -601,19 +622,39 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 20px;
+  padding: 56px 20px;
   text-align: center;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-.admin-audit-empty-state .empty-icon {
-  color: #cbd5e1;
-  margin-bottom: 12px;
+.admin-audit-empty-state .empty-icon,
+.admin-audit-empty-state svg {
+  color: #cbd5e1 !important;
+  width: 48px !important;
+  height: 48px !important;
+  margin-bottom: 12px !important;
+  background: none !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.admin-audit-empty-state .empty-icon::before,
+.admin-audit-empty-state .empty-icon::after,
+.admin-audit-empty-state::before,
+.admin-audit-empty-state::after {
+  display: none !important;
+  content: none !important;
 }
 
 .admin-audit-empty-state h3 {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  color: #475569;
+  color: #334155;
   margin: 0 0 6px 0;
 }
 
@@ -683,17 +724,23 @@
 .mobile-card-row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
   font-size: 0.84rem;
 }
 
 .mobile-card-label {
   color: #64748b;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .mobile-card-value {
   color: #0f172a;
   font-weight: 600;
+  word-break: break-word;
+  text-align: right;
+  max-width: 70%;
 }
 
 .mobile-card-footer {
@@ -967,6 +1014,7 @@
 .detail-value {
   color: #1e293b;
   font-weight: 500;
+  word-break: break-word;
 }
 
 .admin-audit-metadata-empty {

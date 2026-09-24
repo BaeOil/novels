@@ -385,7 +385,7 @@ const renderStatusBadge = (status) => {
 export default function Adminauditlog() {
   // Main Data States
   const [logs, setLogs] = useState([]);
-  // จุดที่แก้ noise: แยก security log (login/logout/สมัคร/เข้าถึงไม่มีสิทธิ์) ออกจาก content activity
+  const [allLogs, setAllLogs] = useState([]);
   const [logView, setLogView] = useState("all"); // "all" | "content" | "security"
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -434,9 +434,6 @@ export default function Adminauditlog() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
 
-  // คำนวณจำนวนหน้าทั้งหมด
-  const totalPages = Math.ceil(total / limit) || 1;
-
   // ตรวจสอบว่ามี Filter ที่กำลังใช้งานอยู่หรือไม่
   const hasActiveFilters = Boolean(
     actionFilter ||
@@ -461,22 +458,95 @@ export default function Adminauditlog() {
   }, []);
 
   // action กลุ่ม "security" (เข้า/ออกระบบ, สมัครสมาชิก, พยายามเข้าถึงโดยไม่มีสิทธิ์) — ใช้แยกออกจาก content activity
-  const SECURITY_ACTIONS = new Set(["LOGIN", "LOGOUT", "LOGIN_FAILED", "UNAUTHORIZED_ACCESS", "REGISTER", "SUSPEND_OWN_ACCOUNT"]);
+  const SECURITY_ACTIONS = useMemo(
+    () => new Set(["LOGIN", "LOGOUT", "LOGIN_FAILED", "UNAUTHORIZED_ACCESS", "REGISTER", "SUSPEND_OWN_ACCOUNT"]),
+    []
+  );
 
-  // กรอง logs ที่ได้จาก server อีกชั้นด้วย logView — client-side เท่านั้น
-  // ⚠️ กรองเฉพาะภายในหน้าที่โหลดมาแล้ว (ตาม limit ต่อหน้า) ไม่ใช่กรองทั้งระบบเหมือน filter อื่นที่ยิงไป backend จริง
-  // เพราะ backend ยังไม่รองรับกรองหลาย action พร้อมกันในคำขอเดียว (action_in)
+  // Helper: ดึงรายการ log ทั้งหมดตามตัวกรองปัจจุบันเพื่อใช้แยกแยะจำนวนและกรอง client-side แบบข้ามทุกหน้า
+  const fetchAllLogsForCurrentFilters = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return [];
+
+    let allItems = [];
+    let currentPage = 1;
+    let hasMore = true;
+
+    while (hasMore && allItems.length < 5000) {
+      const params = new URLSearchParams();
+      params.set("page", String(currentPage));
+      params.set("limit", "100");
+      if (actionFilter) params.set("action", actionFilter);
+      if (actorUserIdFilter) params.set("actor", actorUserIdFilter);
+      if (targetTypeFilter) params.set("target_type", targetTypeFilter);
+      if (statusFilter) params.set("status", statusFilter);
+      if (dateFromFilter) params.set("date_from", new Date(dateFromFilter).toISOString());
+      if (dateToFilter) params.set("date_to", new Date(dateToFilter).toISOString());
+
+      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => null);
+
+      if (!res || !res.ok) break;
+
+      const json = await res.json().catch(() => null);
+      const pageItems = json?.data?.items || [];
+      const totalItems = json?.data?.total || pageItems.length;
+
+      allItems = [...allItems, ...pageItems];
+      if (allItems.length >= totalItems || pageItems.length === 0) {
+        hasMore = false;
+      } else {
+        currentPage++;
+      }
+    }
+    return allItems;
+  }, [actionFilter, actorUserIdFilter, targetTypeFilter, statusFilter, dateFromFilter, dateToFilter]);
+
+  // คำนวณชุดข้อมูลเมื่อมีการสลับมุมมอง "ทั้งหมด" / "เนื้อหา" / "security"
+  const activeDataset = useMemo(() => {
+    const source = allLogs.length > 0 ? allLogs : logs;
+    if (logView === "content") {
+      return source.filter((l) => !SECURITY_ACTIONS.has(l.action));
+    }
+    if (logView === "security") {
+      return source.filter((l) => SECURITY_ACTIONS.has(l.action));
+    }
+    return null; // "all"
+  }, [logView, allLogs, logs, SECURITY_ACTIONS]);
+
+  const displayTotal = useMemo(() => {
+    if (logView === "all") return total;
+    return activeDataset ? activeDataset.length : 0;
+  }, [logView, total, activeDataset]);
+
+  const displayTotalPages = useMemo(() => {
+    return Math.ceil(displayTotal / limit) || 1;
+  }, [displayTotal, limit]);
+
   const visibleLogs = useMemo(() => {
     if (logView === "all") return logs;
-    return logs.filter((log) =>
-      logView === "content" ? !SECURITY_ACTIONS.has(log.action) : SECURITY_ACTIONS.has(log.action)
-    );
-  }, [logs, logView]);
+    if (!activeDataset) return [];
+    const start = (page - 1) * limit;
+    return activeDataset.slice(start, start + limit);
+  }, [logView, logs, activeDataset, page, limit]);
 
-  const securityCount = useMemo(
-    () => logs.filter((l) => SECURITY_ACTIONS.has(l.action)).length,
-    [logs]
-  );
+  const allCount = total || (allLogs.length > 0 ? allLogs.length : logs.length);
+
+  const contentCount = useMemo(() => {
+    const source = allLogs.length > 0 ? allLogs : logs;
+    return source.filter((l) => !SECURITY_ACTIONS.has(l.action)).length;
+  }, [allLogs, logs, SECURITY_ACTIONS]);
+
+  const securityCount = useMemo(() => {
+    const source = allLogs.length > 0 ? allLogs : logs;
+    return source.filter((l) => SECURITY_ACTIONS.has(l.action)).length;
+  }, [allLogs, logs, SECURITY_ACTIONS]);
+
+  const handleLogViewChange = (newView) => {
+    setLogView(newView);
+    setPage(1);
+  };
 
   // 🟢 Fetch List Audit Logs
   const fetchAuditLogs = useCallback(async (isSilent = false) => {
@@ -493,7 +563,6 @@ export default function Adminauditlog() {
       }
     }
 
-    // จุดที่ 4: ตรวจสอบ Token ว่างก่อนยิง API
     const token = localStorage.getItem("token");
     if (!token) {
       window.location.href = "/login-register";
@@ -508,9 +577,7 @@ export default function Adminauditlog() {
       params.set("limit", String(limit));
 
       if (actionFilter) params.set("action", actionFilter);
-      if (actorUserIdFilter) {
-        params.set("actor", actorUserIdFilter);
-      }
+      if (actorUserIdFilter) params.set("actor", actorUserIdFilter);
       if (targetTypeFilter) params.set("target_type", targetTypeFilter);
       if (statusFilter) params.set("status", statusFilter);
 
@@ -524,19 +591,15 @@ export default function Adminauditlog() {
       }
 
       const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      // Handle 401 Unauthorized
       if (res.status === 401) {
         localStorage.removeItem("token");
         window.location.href = "/login-register";
         return;
       }
 
-      // Handle 403 Forbidden
       if (res.status === 403) {
         setAccessDenied(true);
         setLoading(false);
@@ -558,15 +621,25 @@ export default function Adminauditlog() {
       }
 
       const data = resJson.data || {};
-      setLogs(data.items || []);
+      const pageItems = data.items || [];
+      setLogs(pageItems);
       setTotal(data.total || 0);
+
+      // ดึงชุดข้อมูลเต็มแบบ async เบื้องหลังเพื่อคำนวณสถิติจำนวนรวมและการกรองแยกมุมมองได้ครบทุกหน้า
+      fetchAllLogsForCurrentFilters().then((fetchedAll) => {
+        if (fetchedAll && fetchedAll.length > 0) {
+          setAllLogs(fetchedAll);
+        } else {
+          setAllLogs(pageItems);
+        }
+      });
     } catch (err) {
       console.error("Fetch audit logs error:", err);
       setError(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
     } finally {
       setLoading(false);
     }
-  }, [page, limit, actionFilter, actorUserIdFilter, targetTypeFilter, statusFilter, dateFromFilter, dateToFilter]);
+  }, [page, limit, actionFilter, actorUserIdFilter, targetTypeFilter, statusFilter, dateFromFilter, dateToFilter, fetchAllLogsForCurrentFilters]);
 
   // จุดที่ 6: Auto-refresh / Polling ทุก 30 วินาที
   useEffect(() => {
@@ -1046,29 +1119,29 @@ export default function Adminauditlog() {
             role="tab"
             aria-selected={logView === "all"}
             className={`admin-audit-view-btn ${logView === "all" ? "active" : ""}`}
-            onClick={() => setLogView("all")}
+            onClick={() => handleLogViewChange("all")}
           >
-            ทั้งหมด
+            ทั้งหมด {allCount > 0 && `(${allCount})`}
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={logView === "content"}
             className={`admin-audit-view-btn ${logView === "content" ? "active" : ""}`}
-            onClick={() => setLogView("content")}
+            onClick={() => handleLogViewChange("content")}
             title="ซ่อนรายการ เข้าสู่ระบบ / ออกจากระบบ / สมัครสมาชิก"
           >
-            เฉพาะกิจกรรมเนื้อหา
+            เฉพาะกิจกรรมเนื้อหา ({contentCount})
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={logView === "security"}
             className={`admin-audit-view-btn ${logView === "security" ? "active" : ""}`}
-            onClick={() => setLogView("security")}
+            onClick={() => handleLogViewChange("security")}
             title="ดูเฉพาะ เข้าสู่ระบบ / ออกจากระบบ / พยายามเข้าถึงโดยไม่มีสิทธิ์"
           >
-            เฉพาะ Security {securityCount > 0 && `(${securityCount})`}
+            เฉพาะ Security ({securityCount})
           </button>
         </div>
 
@@ -1274,13 +1347,13 @@ export default function Adminauditlog() {
             <table className="admin-audit-table">
               <thead>
                 <tr>
-                  <th style={{ width: "170px" }}>เวลา</th>
-                  <th style={{ width: "130px" }}>ผู้กระทำ</th>
-                  <th>การกระทำ</th>
-                  <th style={{ width: "150px" }}>เป้าหมาย</th>
-                  <th style={{ width: "110px" }}>สถานะ</th>
-                  <th style={{ width: "120px" }}>ไอพี</th>
-                  <th style={{ width: "110px", textAlign: "center" }}></th>
+                  <th style={{ width: "15%", minWidth: "130px" }}>เวลา</th>
+                  <th style={{ width: "18%", minWidth: "140px" }}>ผู้กระทำ</th>
+                  <th style={{ width: "18%", minWidth: "140px" }}>การกระทำ</th>
+                  <th style={{ width: "20%", minWidth: "150px" }}>เป้าหมาย</th>
+                  <th style={{ width: "11%", minWidth: "100px" }}>สถานะ</th>
+                  <th style={{ width: "10%", minWidth: "100px" }}>ไอพี</th>
+                  <th style={{ width: "8%", minWidth: "100px", textAlign: "center" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -1318,6 +1391,8 @@ export default function Adminauditlog() {
                       bg: "#f1f5f9",
                       border: "#cbd5e1",
                     };
+                    const actorNameText = renderActorName(log.actor_user_id, log.actor_role, log.actor_username);
+                    const targetNameText = renderTargetName(log.target_type, log.target_id, log.target_name);
 
                     return (
                       <tr
@@ -1337,8 +1412,8 @@ export default function Adminauditlog() {
 
                         {/* ผู้กระทำ */}
                         <td>
-                          <span className="admin-audit-actor">
-                            {renderActorName(log.actor_user_id, log.actor_role, log.actor_username)}
+                          <span className="admin-audit-actor" title={actorNameText}>
+                            {actorNameText}
                           </span>
                         </td>
 
@@ -1351,6 +1426,7 @@ export default function Adminauditlog() {
                               color: actionInfo.color,
                               borderColor: actionInfo.border,
                             }}
+                            title={actionInfo.label}
                           >
                             {actionInfo.label}
                           </span>
@@ -1358,8 +1434,8 @@ export default function Adminauditlog() {
 
                         {/* เป้าหมาย */}
                         <td>
-                          <span className="admin-audit-target">
-                            {renderTargetName(log.target_type, log.target_id, log.target_name)}
+                          <span className="admin-audit-target" title={targetNameText}>
+                            {targetNameText}
                           </span>
                         </td>
 
@@ -1476,7 +1552,10 @@ export default function Adminauditlog() {
           <div className="admin-audit-pagination">
             <div className="admin-audit-pagination__left">
               <span className="admin-audit-page-info">
-                หน้า <strong>{page}</strong> จาก <strong>{totalPages}</strong>
+                หน้า <strong>{page}</strong> จาก <strong>{displayTotalPages}</strong>
+                {/* <span style={{ fontSize: "0.82rem", color: "#64748b", marginLeft: "10px", fontWeight: 500 }}>
+                  (แสดง {displayTotal > 0 ? (page - 1) * limit + 1 : 0} - {Math.min(page * limit, displayTotal)} จากทั้งหมด {displayTotal} รายการ)
+                </span> */}
               </span>
 
               <div className="admin-audit-limit-selector">
@@ -1508,8 +1587,8 @@ export default function Adminauditlog() {
               <button
                 type="button"
                 className="btn-page-nav"
-                disabled={page >= totalPages || loading}
-                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={page >= displayTotalPages || loading}
+                onClick={() => setPage((prev) => Math.min(prev + 1, displayTotalPages))}
               >
                 <span>ถัดไป</span>
                 <ChevronRight size={16} />

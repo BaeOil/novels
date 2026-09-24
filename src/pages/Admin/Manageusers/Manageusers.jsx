@@ -376,10 +376,10 @@ const Manageusers = () => {
                         <div className="user-initial-avatar" style={user.pic_profile ? { display: "none" } : undefined}>
                           {user.username ? user.username.charAt(0).toUpperCase() : "U"}
                         </div>
-                        <span className="username-strong">{user.username}</span>
+                        <span className="username-strong" title={user.username}>{user.username}</span>
                         {isSelf && <span className="self-tag">คุณ</span>}
                       </td>
-                      <td>{user.email}</td>
+                      <td className="row-email-col" title={user.email}>{user.email}</td>
                       <td>
                         <span className={`role-badge role-${(user.role || 'reader').toLowerCase()}`}>
                           {roleLabel(user.role)}

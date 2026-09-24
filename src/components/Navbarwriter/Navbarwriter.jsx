@@ -637,28 +637,12 @@ const Navbarwriter = () => {
                                             setIsMenuOpen(false);
                                         }}
                                     >
-                                        Dashboard
+                                        แดชบอร์ด
                                     </Link>
                                 </li>
 
                                 {selectedNovel && (
                                     <>
-                                        <li className="nav-item">
-                                            <button
-                                                type="button"
-                                                className="selected-novel-btn"
-                                                onClick={() => {
-                                                    setIsMenuOpen(false);
-                                                    openNovelPopup(popupTarget);
-                                                }}
-                                                title="คลิกเพื่อเปลี่ยนนิยายที่กำลังแก้ไข"
-                                            >
-                                                <span className="selected-dot"></span>
-                                                <span className="selected-title">
-                                                    {selectedNovel.title || "ไม่ระบุชื่อนิยาย"}
-                                                </span>
-                                            </button>
-                                        </li>
                                         <li className="nav-item nav-item-divider-container">
                                             <span className="nav-menu-divider"></span>
                                         </li>
@@ -714,6 +698,24 @@ const Navbarwriter = () => {
 
                     {/* Right Menu */}
                     <div className="navbar__right">
+
+                        {/* ชิปชื่อนิยายที่กำลังแก้อยู่ (โหมดนักเขียน) — ด้านหน้ากระดิ่ง/โปรไฟล์ */}
+                        {isWriterMode && selectedNovel && (
+                            <button
+                                type="button"
+                                className="selected-novel-btn"
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    openNovelPopup(popupTarget);
+                                }}
+                                title="คลิกเพื่อเปลี่ยนนิยายที่กำลังแก้ไข"
+                            >
+                                <span className="selected-dot"></span>
+                                <span className="selected-title">
+                                    {selectedNovel.title || "ไม่ระบุชื่อนิยาย"}
+                                </span>
+                            </button>
+                        )}
 
                         {/* Search Zone */}
                         {!isWriterMode && (

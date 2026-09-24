@@ -11,7 +11,7 @@ import ReactFlow, {
   useEdgesState,
   MarkerType,
 } from "reactflow";
-import { ArrowLeft, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronUp, ChevronDown, Info, Palette, Flame, GitFork } from "lucide-react";
 import axios from "axios";
 import "reactflow/dist/style.css";
 import "./StatisticsGraph.css";
@@ -26,13 +26,13 @@ const NODE_VERTICAL_GAP = 250;
 const CANVAS_MARGIN = 80;
 
 const VISITOR_SHADES = {
-  HIGH: { bg: "#FCE7F3", border: "#EC4899", text: "#9D174D", label: "ผู้ชมสูง" },
-  MEDIUM: { bg: "#FFF1F2", border: "#FDA4AF", text: "#BE185D", label: "ผู้ชมปานกลาง" },
-  LOW: { bg: "#F8FAFC", border: "#E2E8F0", text: "#475569", label: "ผู้ชมน้อย" },
+  HIGH: { bg: "rgb(253, 203, 233)", border: "#CF8FA8", text: "#4A2635", label: "ผู้ชมมาก" },
+  MEDIUM: { bg: "#fadfea", border: "#E2B6C6", text: "#5C4650", label: "ผู้ชมปานกลาง" },
+  LOW: { bg: "rgb(253, 240, 245)", border: "#E8D5DE", text: "#5C4650", label: "ผู้ชมน้อย" },
 };
 
 // ---------------------------------------------------------------------------
-// Formatters and Safety Helpers
+// Formatters and Safety Helpers (Requirement 7)
 // ---------------------------------------------------------------------------
 const formatNumber = (val) => {
   if (val === null || val === undefined || val === "") return "-";
@@ -69,6 +69,29 @@ const stripHtml = (value) => {
   return value.replace(/<\/?[^>]+(>|$)/g, " ").replace(/\s+/g, " ").trim();
 };
 
+const getEndingTypeColor = (typeStr) => {
+  if (!typeStr || typeof typeStr !== "string") return "#64748b";
+  const cleanType = typeStr.trim().toLowerCase();
+  
+  if (cleanType.includes("true")) return "#10b981";
+  if (cleanType.includes("happy") || cleanType.includes("good")) return "#059669";
+  if (cleanType.includes("bad") || cleanType.includes("worst") || cleanType.includes("dead")) return "#ef4444";
+  if (cleanType.includes("normal") || cleanType.includes("neutral")) return "#3b82f6";
+  if (cleanType.includes("secret") || cleanType.includes("special") || cleanType.includes("hidden")) return "#8b5cf6";
+  if (cleanType.includes("alt") || cleanType.includes("other")) return "#d97706";
+
+  const palette = [
+    "#10b981", "#ef4444", "#3b82f6", "#8b5cf6", "#d97706",
+    "#06b6d4", "#ec4899", "#6366f1", "#14b8a6", "#eab308"
+  ];
+  let hash = 0;
+  for (let i = 0; i < cleanType.length; i++) {
+    hash = cleanType.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % palette.length;
+  return palette[index];
+};
+
 const getNodeId = (node) => normalizeId(node?.ID ?? node?.id ?? node?.SceneID ?? node?.scene_id);
 
 const getNodeType = (node) => {
@@ -85,7 +108,7 @@ const getNodeType = (node) => {
 const getNodeTitle = (node) => stripHtml(node?.Title || node?.title || node?.Label || node?.label || `ฉากที่ ${getNodeId(node)}`);
 const getNodeChapter = (node) => stripHtml(node?.ChapterTitle || node?.chapter_title || node?.chapter || node?.chapterName || node?.chapter_name || "");
 
-// 🟢 Custom Node Component
+// 🟢 Custom Node Component (Requirement 8 - Update drop-off labels)
 const AnalyticsNode = ({ data }) => {
   const isSelected = data.isSelected;
   const isEnding = data.isEnding;
@@ -101,7 +124,7 @@ const AnalyticsNode = ({ data }) => {
     color: shade.text,
     position: "relative",
     borderColor: isSelected ? "#2563eb" : (isMaxDrop ? "#ef4444" : (isHighExit ? "#f97316" : shade.border)),
-    borderWidth: isSelected ? "3px" : (isMaxDrop ? "3px" : "2px"),
+    borderWidth: isSelected ? "2px" : "1.5px",
   };
 
   const type = stripHtml(data.type || "").toLowerCase();
@@ -115,25 +138,30 @@ const AnalyticsNode = ({ data }) => {
       style={nodeStyle}
     >
       <Handle type="target" position={Position.Top} style={{ background: isSelected ? "#2563eb" : (isMaxDrop ? "#ef4444" : (isHighExit ? "#f97316" : shade.border)), width: 8, height: 8 }} />
-      
-      {/* Badge สัญลักษณ์ไฟสำหรับฉากที่มีอัตราออกสูงสุด */}
+
+      {/* Badge สัญลักษณ์ไฟทรงวงกลมสีแดงมุมขวาบน สำหรับฉากที่มีอัตราผู้ชมออกสูงสุด */}
       {isMaxDrop && (
         <div 
-          className="wsg-node-badge-fire"
-          title={`ฉากที่มีอัตราคนกดออกสูงสุด: ${formatPercentage(data.exitRate)}`}
+          className="wsg-node-badge-circle max-drop"
+          title={`ฉากที่มีอัตราผู้ชมออกสูงสุด: ${formatPercentage(data.exitRate)} - ฉากที่ต้องปรับปรุง`}
         >
-          <span>🔥</span>
-          <span className="wsg-node-badge-fire-pct">{formatPercentage(data.exitRate)}</span>
+          <Flame size={12} strokeWidth={2.5} color="#ffffff" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: "0.58rem", fontWeight: 800, lineHeight: 1, marginTop: "1px" }}>
+            {formatPercentage(data.exitRate)}
+          </span>
         </div>
       )}
 
-      {/* Badge สัญลักษณ์เตือนสำหรับฉากที่มีอัตราออกสูง (≥ 25%) แต่ไม่ใช่จุดสูงสุด */}
+      {/* Badge สัญลักษณ์เตือนทรงวงกลมสีส้มมุมขวาบน สำหรับฉากที่มีอัตราผู้ชมออกจากฉากสูง (≥ 25%) */}
       {isHighExit && (
         <div 
-          className="wsg-node-badge-warning"
-          title={`จุดที่มีอัตราออกจากฉากสูง (≥25%): ${formatPercentage(data.exitRate)}`}
+          className="wsg-node-badge-circle high-exit"
+          title={`จุดที่มีอัตราผู้ชมออกจากฉากสูง (≥25%): ${formatPercentage(data.exitRate)}`}
         >
-          ⚠️ อัตราออกสูง
+          <span style={{ fontSize: "0.65rem", lineHeight: 1 }}>⚠️</span>
+          <span style={{ fontSize: "0.58rem", fontWeight: 800, lineHeight: 1, marginTop: "1px" }}>
+            {formatPercentage(data.exitRate)}
+          </span>
         </div>
       )}
 
@@ -141,15 +169,16 @@ const AnalyticsNode = ({ data }) => {
         <span 
           className="wsg-node-label" 
           style={{ 
-            backgroundColor: isMaxDrop ? "#fee2e2" : (isHighExit ? "#ffedd5" : "rgba(0, 0, 0, 0.07)"), 
+            backgroundColor: isMaxDrop ? "#fee2e2" : (isHighExit ? "#ffedd5" : "rgba(0, 0, 0, 0.05)"), 
             color: isMaxDrop ? "#dc2626" : (isHighExit ? "#c2410c" : shade.text),
             fontWeight: 800
           }}
         >
           {typeIcon}{data.labelNum || "ฉาก"}
         </span>
+
         <div className="wsg-node-status-badge">
-          <span style={{ fontSize: "0.7rem", fontWeight: 600, opacity: 0.85 }}>
+          <span style={{ fontSize: "0.7rem", fontWeight: 600, color: shade.text, opacity: 0.85 }}>
             {shade.label}
           </span>
         </div>
@@ -234,11 +263,17 @@ function StatisticsGraph() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // 3 APIs States
+  // Analytics States
   const [overallAnalytics, setOverallAnalytics] = useState(null);
   const [sceneAnalytics, setSceneAnalytics] = useState(null);
   const [choiceAnalytics, setChoiceAnalytics] = useState(null);
   const [allScenesAnalytics, setAllScenesAnalytics] = useState([]);
+  
+  // Requirement 2: Edge Analytics State & Status
+  const [edgeAnalytics, setEdgeAnalytics] = useState([]);
+  const [isEdgeLoading, setIsEdgeLoading] = useState(true);
+  const [edgeError, setEdgeError] = useState(null);
+
   const [isSceneLoading, setIsSceneLoading] = useState(false);
   const [isChoiceLoading, setIsChoiceLoading] = useState(false);
   const [sceneError, setSceneError] = useState(null);
@@ -254,6 +289,7 @@ function StatisticsGraph() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("scene");
   const [highlightedChoiceId, setHighlightedChoiceId] = useState(null);
+  const [hasInteractedWithNode, setHasInteractedWithNode] = useState(false);
 
   // Legend Collapse State
   const [isLegendOpen, setIsLegendOpen] = useState(true);
@@ -266,7 +302,8 @@ function StatisticsGraph() {
     };
   }, []);
 
-  // Fetch Data (Story Tree + Overall Analytics + All Scenes Analytics)
+  // Fetch Data (Story Tree + Overall Analytics + All Scenes Analytics + Edge Analytics)
+  // Requirements 1, 2 & 5: Pass JWT token header to all requests & use Promise.allSettled
   const fetchData = useCallback(async () => {
     if (!novelId) return;
 
@@ -278,16 +315,19 @@ function StatisticsGraph() {
 
     setIsLoading(true);
     setError(null);
+    setIsEdgeLoading(true);
+    setEdgeError(null);
 
     try {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      // Send authorization header to all requests including story-tree
-      const [treeSettled, analyticsSettled, scenesAnalyticsSettled] = await Promise.allSettled([
+      // Requirement 1 & 2: Send token to all requests including story-tree and new edge analytics
+      const [treeSettled, analyticsSettled, scenesAnalyticsSettled, edgeAnalyticsSettled] = await Promise.allSettled([
         axios.get(`${API_BASE_URL}/novels/${novelId}/story-tree`, { headers, signal: controller.signal }),
         axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics`, { headers, signal: controller.signal }),
-        axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes`, { headers, signal: controller.signal })
+        axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/scenes`, { headers, signal: controller.signal }),
+        axios.get(`${API_BASE_URL}/api/v1/writer/novels/${novelId}/analytics/edges`, { headers, signal: controller.signal }),
       ]);
       
       // Process story tree
@@ -303,7 +343,7 @@ function StatisticsGraph() {
         }
       }
 
-      // Process overall analytics
+      // Process overall analytics (Requirement 5: Failure won't break tree)
       if (analyticsSettled.status === "fulfilled") {
         setOverallAnalytics(analyticsSettled.value.data?.data || analyticsSettled.value.data || null);
       } else {
@@ -320,6 +360,17 @@ function StatisticsGraph() {
           console.warn("Scenes analytics fetch warning:", scenesAnalyticsSettled.reason);
         }
       }
+
+      // Requirement 2 & 5: Process edge analytics (Failure won't break graph)
+      if (edgeAnalyticsSettled.status === "fulfilled") {
+        const edgeList = edgeAnalyticsSettled.value.data?.data || edgeAnalyticsSettled.value.data || [];
+        setEdgeAnalytics(Array.isArray(edgeList) ? edgeList : []);
+      } else {
+        if (!axios.isCancel(edgeAnalyticsSettled.reason)) {
+          console.warn("Edge analytics fetch warning:", edgeAnalyticsSettled.reason);
+          setEdgeError(getErrorMessage(edgeAnalyticsSettled.reason, "ไม่สามารถโหลดสถิติเส้นเชื่อมได้"));
+        }
+      }
     } catch (err) {
       if (!axios.isCancel(err)) {
         console.error("Error fetching analytics data:", err);
@@ -327,10 +378,11 @@ function StatisticsGraph() {
       }
     } finally {
       setIsLoading(false);
+      setIsEdgeLoading(false);
     }
   }, [novelId]);
 
-  // Fetch Scene Details (Scene Analytics + Choice Analytics)
+  // Requirement 1 & 6: Fetch Scene Details with JWT token & immediate state reset / cancellation
   const fetchSceneDetails = useCallback(async (sceneId) => {
     if (!novelId || !sceneId) return;
 
@@ -343,7 +395,7 @@ function StatisticsGraph() {
     const requestId = sceneRequestIdRef.current + 1;
     sceneRequestIdRef.current = requestId;
 
-    // Clear previous scene data immediately to prevent stale data display
+    // Requirement 6: Clear previous scene data immediately to prevent stale data display
     setSceneAnalytics(null);
     setChoiceAnalytics(null);
     setSceneError(null);
@@ -411,6 +463,7 @@ function StatisticsGraph() {
         sceneAbortRef.current.abort();
       }
       sceneRequestIdRef.current += 1;
+      // Requirement 6: Reset scene analytics state when scene selection is cleared
       setSceneAnalytics(null);
       setChoiceAnalytics(null);
       setSceneError(null);
@@ -534,7 +587,6 @@ function StatisticsGraph() {
   }, [uniqueNodes, allScenesAnalyticsMap, topDropOffMap, selectedSceneId, sceneAnalytics]);
 
   // Find the maximum exit rate across all non-ending nodes
-  // Used to accurately determine which scene(s) get the fire 🔥 badge consistently
   const maxExitRate = useMemo(() => {
     let max = 0;
     uniqueNodes.forEach((node) => {
@@ -549,30 +601,27 @@ function StatisticsGraph() {
     return max;
   }, [uniqueNodes, nodeAnalyticsMap]);
 
-  // Edge Selection Map from API
-  // Only indicates selection percentage if the source scene is currently selected and choice data is loaded
-  const edgeSelectionMap = useMemo(() => {
-    const selections = new Map();
+  // Requirement 3: Build edge analytics maps by choice_id and from_to
+  const edgeAnalyticsMap = useMemo(() => {
+    const byChoiceId = new Map();
+    const byFromTo = new Map();
 
-    rawEdges.forEach((edge) => {
-      const fromId = normalizeId(edge.FromID || edge.from_id || edge.from || edge.source || "");
-      if (!fromId) return;
-
-      const toId = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
-      const choiceLabel = edge.Label || edge.label || edge.choice_text || edge.text || "";
-      const isSourceSelected = fromId === selectedSceneId;
-      const realChoice = isSourceSelected && choiceAnalytics?.choices?.find(
-        c => normalizeId(c.choice_id) === normalizeId(edge.data?.ID || edge.data?.id) || c.label === choiceLabel
-      );
-
-      selections.set(`${fromId}->${toId}`, {
-        hasData: Boolean(realChoice && realChoice.percentage !== undefined && realChoice.percentage !== null),
-        percentage: realChoice ? Number(realChoice.percentage) : null,
+    if (Array.isArray(edgeAnalytics)) {
+      edgeAnalytics.forEach((item) => {
+        const cId = normalizeId(item.choice_id ?? item.ChoiceID ?? item.choiceId);
+        if (cId) {
+          byChoiceId.set(cId, item);
+        }
+        const fromId = normalizeId(item.from_scene_id ?? item.from_id ?? item.fromSceneId);
+        const toId = normalizeId(item.to_scene_id ?? item.to_id ?? item.toSceneId);
+        if (fromId && toId) {
+          byFromTo.set(`${fromId}->${toId}`, item);
+        }
       });
-    });
+    }
 
-    return selections;
-  }, [rawEdges, selectedSceneId, choiceAnalytics]);
+    return { byChoiceId, byFromTo };
+  }, [edgeAnalytics]);
 
   // Position Elements for ReactFlow
   const positionedElements = useMemo(() => {
@@ -727,7 +776,6 @@ function StatisticsGraph() {
       const isEnding = getNodeType(scene) === "ending";
       const exitRate = analytics.exitRate ?? 0;
 
-      // Consistently show fire 🔥 on all nodes that tie for maximum exit rate (if maxExitRate >= 25)
       const isMaxDrop = !isEnding && maxExitRate >= 25 && exitRate === maxExitRate;
 
       finalNodes.push({
@@ -750,28 +798,83 @@ function StatisticsGraph() {
       });
     });
 
+    // Requirements 2, 3 & 4: Process edges with choice_id matching and proper 0% / loading / error / missing state rules
     edgeList.forEach((edge) => {
       const src = edge.source;
       const tgt = edge.target;
-      const key = `${src}->${tgt}`;
-      const selection = edgeSelectionMap.get(key);
-      const hasData = selection?.hasData ?? false;
-      const pct = selection?.percentage;
+      const choiceName = edge.label || "";
+      const edgeChoiceId = normalizeId(
+        edge.data?.choice_id ??
+        edge.data?.ChoiceID ??
+        edge.data?.ChoiceId ??
+        edge.data?.ID ??
+        edge.data?.id ??
+        edge.choice_id ??
+        edge.ChoiceID
+      );
 
-      // ปรับเส้นเชื่อมของกราฟให้หนาขึ้นตามที่ร้องขอ
+      // Requirement 3: Match edge by choice_id first, fallback to from_id + to_id
+      let matchedEdge = null;
+      if (edgeChoiceId) {
+        matchedEdge = edgeAnalyticsMap.byChoiceId.get(edgeChoiceId);
+      }
+      if (!matchedEdge) {
+        matchedEdge = edgeAnalyticsMap.byFromTo.get(`${src}->${tgt}`);
+      }
+
+      // Incorporate choiceAnalytics if source scene is selected
+      if (selectedSceneId && src === selectedSceneId && choiceAnalytics?.choices) {
+        const realChoice = choiceAnalytics.choices.find(
+          (c) =>
+            (edgeChoiceId && normalizeId(c.choice_id) === edgeChoiceId) ||
+            c.label === choiceName
+        );
+        if (realChoice && realChoice.percentage !== undefined && realChoice.percentage !== null) {
+          matchedEdge = {
+            ...matchedEdge,
+            percentage: realChoice.percentage,
+            selection_count: realChoice.selection_count,
+          };
+        }
+      }
+
+      // Requirement 4: Edge percentage displays
+      let edgeLabelDisplay = choiceName;
       let strokeWidth = 2.5;
       let strokeColor = "#CBD5E1";
-      
-      if (hasData && pct !== null && pct !== undefined) {
-        if (pct >= 60) {
-          strokeWidth = 4.5;
-          strokeColor = "#10B981";
-        } else if (pct >= 30) {
-          strokeWidth = 3.5;
-          strokeColor = "#F59E0B";
+      let hasData = false;
+      let pctValue = null;
+
+      if (isEdgeLoading) {
+        // API loading -> display "-"
+        edgeLabelDisplay = choiceName ? `${choiceName} (-)` : "-";
+      } else if (edgeError) {
+        // API error -> display "ไม่มีข้อมูล"
+        edgeLabelDisplay = choiceName ? `${choiceName} (ไม่มีข้อมูล)` : "ไม่มีข้อมูล";
+      } else if (!matchedEdge) {
+        // No edge analytics -> display "-"
+        edgeLabelDisplay = choiceName ? `${choiceName} (-)` : "-";
+      } else {
+        // Matched edge exists
+        const pct = matchedEdge.percentage;
+        if (pct !== undefined && pct !== null && !isNaN(Number(pct))) {
+          hasData = true;
+          pctValue = Number(pct);
+          const formattedPct = formatPercentage(pctValue);
+          edgeLabelDisplay = choiceName ? `${choiceName} (${formattedPct})` : formattedPct;
+
+          if (pctValue >= 60) {
+            strokeWidth = 4.5;
+            strokeColor = "#10B981";
+          } else if (pctValue >= 30) {
+            strokeWidth = 3.5;
+            strokeColor = "#F59E0B";
+          } else {
+            strokeWidth = 2.5;
+            strokeColor = "#94A3B8";
+          }
         } else {
-          strokeWidth = 2.5;
-          strokeColor = "#94A3B8";
+          edgeLabelDisplay = choiceName ? `${choiceName} (-)` : "-";
         }
       }
 
@@ -783,17 +886,11 @@ function StatisticsGraph() {
         }
       }
 
-      const choiceName = edge.label || "";
-      let edgeLabel = choiceName;
-      if (hasData && pct !== null && pct !== undefined) {
-        edgeLabel = choiceName ? `${choiceName} (${formatPercentage(pct)})` : formatPercentage(pct);
-      }
-
       finalEdges.push({
         id: edge.id,
         source: src,
         target: tgt,
-        label: edgeLabel,
+        label: edgeLabelDisplay,
         type: "smoothstep",
         animated: false,
         style: {
@@ -804,12 +901,12 @@ function StatisticsGraph() {
           type: MarkerType.ArrowClosed,
           color: strokeColor,
         },
-        data: { pct: hasData ? pct : null, hasData },
+        data: { pct: pctValue, hasData, choiceId: edgeChoiceId },
       });
     });
 
     return { nodes: finalNodes, edges: finalEdges };
-  }, [uniqueNodes, rawEdges, selectedSceneId, chapterAndSceneDisplayMap, nodeAnalyticsMap, edgeSelectionMap, overallAnalytics, maxExitRate]);
+  }, [uniqueNodes, rawEdges, selectedSceneId, chapterAndSceneDisplayMap, nodeAnalyticsMap, edgeAnalyticsMap, overallAnalytics, maxExitRate, isEdgeLoading, edgeError, choiceAnalytics]);
 
   const [rfNodes, setRfNodes] = useNodesState([]);
   const [rfEdges, setRfEdges] = useEdgesState([]);
@@ -823,6 +920,7 @@ function StatisticsGraph() {
   }, [positionedElements, treeData, setRfNodes, setRfEdges]);
 
   const onNodeClick = useCallback((event, node) => {
+    setHasInteractedWithNode(true);
     setHighlightedChoiceId(null);
     setSelectedSceneId(prev => {
       const next = prev === node.id ? null : node.id;
@@ -840,7 +938,8 @@ function StatisticsGraph() {
 
   const onEdgeClick = useCallback((event, edge) => {
     event.stopPropagation();
-    setHighlightedChoiceId(normalizeId(edge.data?.ID ?? edge.data?.id) || edge.label || null);
+    setHasInteractedWithNode(true);
+    setHighlightedChoiceId(normalizeId(edge.data?.choiceId ?? edge.data?.ID ?? edge.data?.id) || edge.label || null);
     setSelectedSceneId(edge.source);
     setActiveTab("choice");
     setIsCollapsed(false);
@@ -867,6 +966,16 @@ function StatisticsGraph() {
 
   const onPreviousSceneClick = useCallback((sceneId) => {
     if (!sceneId) return;
+    setHasInteractedWithNode(true);
+    setActiveTab("scene");
+    setIsCollapsed(false);
+    setSelectedSceneId(sceneId);
+    focusNode(sceneId);
+  }, [focusNode]);
+
+  const onNextSceneClick = useCallback((sceneId) => {
+    if (!sceneId) return;
+    setHasInteractedWithNode(true);
     setActiveTab("scene");
     setIsCollapsed(false);
     setSelectedSceneId(sceneId);
@@ -877,6 +986,80 @@ function StatisticsGraph() {
     if (!sceneId) return;
     focusNode(sceneId);
   }, [focusNode]);
+
+  const nextScenesList = useMemo(() => {
+    if (!selectedSceneId) return [];
+
+    // 1. Direct from API payload sceneAnalytics if present
+    const apiNext = sceneAnalytics?.next_scenes || sceneAnalytics?.destination_scenes || sceneAnalytics?.nextScenes;
+    if (Array.isArray(apiNext) && apiNext.length > 0) {
+      return apiNext.map((item) => ({
+        sceneId: normalizeId(item.scene_id || item.target_scene_id || item.id),
+        title: item.title || item.target_scene_title || item.label || "",
+        choiceText: item.choice_label || item.choice_text || item.label || "",
+        transitionCount: item.transition_count ?? item.selection_count ?? item.count,
+        percentage: item.percentage,
+      }));
+    }
+
+    // 2. Derive from choiceAnalytics.choices if available
+    if (choiceAnalytics?.choices && choiceAnalytics.choices.length > 0) {
+      const list = [];
+      choiceAnalytics.choices.forEach((choice) => {
+        const targetId = normalizeId(choice.to_scene_id || choice.target_scene_id);
+        if (targetId) {
+          let title = choice.target_scene_title;
+          if (!title) {
+            const targetNode = uniqueNodes.find((n) => getNodeId(n) === targetId);
+            if (targetNode) title = getNodeTitle(targetNode);
+          }
+          list.push({
+            sceneId: targetId,
+            title: title || "ไม่มีชื่อฉาก",
+            choiceText: choice.label || "",
+            transitionCount: choice.selection_count,
+            percentage: choice.percentage,
+          });
+        }
+      });
+      if (list.length > 0) return list;
+    }
+
+    // 3. Fallback to rawEdges where source === selectedSceneId
+    if (rawEdges && rawEdges.length > 0) {
+      const list = [];
+      rawEdges.forEach((edge) => {
+        const src = normalizeId(edge.FromID || edge.from_id || edge.from || edge.source || "");
+        if (src === selectedSceneId) {
+          const tgt = normalizeId(edge.ToID || edge.to_id || edge.to || edge.target || "");
+          if (tgt) {
+            const targetNode = uniqueNodes.find((n) => getNodeId(n) === tgt);
+            const title = targetNode ? getNodeTitle(targetNode) : "ไม่มีชื่อฉาก";
+            const choiceText = edge.Label || edge.label || edge.choice_text || edge.text || "";
+            
+            const edgeChoiceId = normalizeId(
+              edge.data?.choice_id ?? edge.data?.ChoiceID ?? edge.data?.ID ?? edge.data?.id ?? edge.choice_id
+            );
+            let matched = null;
+            if (edgeChoiceId) matched = edgeAnalyticsMap.byChoiceId.get(edgeChoiceId);
+            if (!matched) matched = edgeAnalyticsMap.byFromTo.get(`${src}->${tgt}`);
+
+            list.push({
+              sceneId: tgt,
+              title,
+              choiceText,
+              transitionCount: matched?.selection_count ?? matched?.count,
+              percentage: matched?.percentage,
+            });
+          }
+        }
+      });
+      if (list.length > 0) return list;
+    }
+
+    return [];
+  }, [selectedSceneId, sceneAnalytics, choiceAnalytics, rawEdges, uniqueNodes, edgeAnalyticsMap]);
+
 
   const selectedSceneDetails = useMemo(() => {
     if (!selectedSceneId) return null;
@@ -917,10 +1100,12 @@ function StatisticsGraph() {
 
     const rawEndings = overallAnalytics?.ending_stats || [];
     const result = rawEndings.map((e) => {
-      const typeLabel = formatEndingTitle(e.ending_type);
+      const rawType = e.ending_type || "";
+      const typeLabel = formatEndingTitle(rawType);
       const titleLabel = e.ending_title ? `${e.ending_title} (${typeLabel})` : typeLabel;
       return {
         title: titleLabel,
+        endingType: rawType,
         count: e.count ?? 0,
         percentage: parseFloat(e.percentage !== undefined ? e.percentage : 0),
       };
@@ -980,7 +1165,7 @@ function StatisticsGraph() {
         </div>
       </header>
 
-      {/* 🟢 KPI Dashboard แสดงตัวเลขภาพรวม 5 การ์ด (รองรับ Responsive Scrollbar เมื่อจอล้น) */}
+      {/* 🟢 KPI Dashboard แสดงตัวเลขภาพรวม 5 การ์ด */}
       <section className="wsg-kpis-new-container">
         {/* การ์ด 1: ยอดวิวรวม */}
         <div className="wsg-kpi-card-large">
@@ -1037,8 +1222,7 @@ function StatisticsGraph() {
               </p>
             ) : (
               mappedEndings.map((ending, idx) => {
-                const colors = ["#10b981", "#f43f5e", "#d97706", "#3b82f6", "#8b5cf6"];
-                const color = colors[idx % colors.length];
+                const color = getEndingTypeColor(ending.endingType);
                 const isLast = idx === mappedEndings.length - 1;
                 return (
                   <div key={idx} className={`wsg-ending-row ${isLast ? "last" : ""}`}>
@@ -1055,10 +1239,13 @@ function StatisticsGraph() {
           </div>
         </div>
 
-        {/* การ์ด 5: ฉากคนหนีเยอะสุด */}
+        {/* Requirement 8: การ์ด 5 ฉากที่ผู้ชมที่คาดว่าออกเยอะสุด */}
         <div className="wsg-kpi-card-large wsg-kpi-card-dropoff">
           <div className="wsg-kpi-card-header">
-            <span className="wsg-kpi-label-new text-red">🔥 ฉากที่คนกดออกเยอะสุด</span>
+            <span className="wsg-kpi-label-new text-red">
+              <Flame size={15} strokeWidth={2.2} color="#ef4444" style={{ flexShrink: 0 }} />
+              <span>ฉากที่ผู้ชมที่คาดว่าออกเยอะสุด</span>
+            </span>
           </div>
           {(() => {
             const topDrop = overallAnalytics?.top_drop_off_scenes?.[0];
@@ -1070,22 +1257,22 @@ function StatisticsGraph() {
                     {displayLabel} - {topDrop.title}
                   </div>
                   <div className="wsg-dropoff-stats">
-                    อัตราคนหนี: <strong>{formatPercentage(topDrop.drop_off_rate)}</strong> ({formatNumber(topDrop.unique_readers)} คน / {formatNumber(topDrop.visit_count)} ครั้ง)
+                    อัตราผู้ชมที่คาดว่าออก: <strong>{formatPercentage(topDrop.drop_off_rate)}</strong> (ประมาณ)
                   </div>
                 </div>
               );
             }
-            return <div className="wsg-dropoff-empty">ไม่มีข้อมูลอัตราออกสูง</div>;
+            return <div className="wsg-dropoff-empty">ไม่มีข้อมูลผู้ชมที่คาดว่าออกสูง</div>;
           })()}
           <div className="wsg-dropoff-footnote">
-            "ฉากที่คนกดออกเยอะที่สุด" คือฉากที่มี Exit Rate สูงสุด
+            "ฉากที่ผู้ชมที่คาดว่าออกเยอะที่สุด" เป็นค่าประมาณจาก Exit Rate ของฉาก
           </div>
         </div>
       </section>
 
       {/* Main Content Area */}
       <div className="wsg-body">
-        {/* 🟢 Detail Sidebar ทางซ้าย (แสดงเมื่อคลิกเลือกโหนดฉากเท่านั้น) */}
+        {/* 🟢 Detail Sidebar ทางซ้าย */}
         {selectedSceneDetails && (
           <aside className={`wsg-sidebar ${isCollapsed ? "collapsed" : ""}`}>
             <div className="wsg-sidebar-tabs">
@@ -1140,7 +1327,7 @@ function StatisticsGraph() {
                       </span>
                     </div>
 
-                    {/* สถิติสรุปทั่วไป 4 กล่องย่อย */}
+                    {/* สถิติสรุปทั่วไป 4 กล่องย่อย (Requirement 8 - Update drop-off labels) */}
                     <div className="wsg-stats-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "24px" }}>
                       {/* ผู้เข้าชมไม่ซ้ำ */}
                       <div style={{ 
@@ -1205,7 +1392,7 @@ function StatisticsGraph() {
                         <span style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "2px" }}>ครั้ง</span>
                       </div>
 
-                      {/* Drop-off Rate */}
+                      {/* Drop-off Rate (Requirement 8) */}
                       <div style={{ 
                         padding: "12px 8px", 
                         backgroundColor: "#f8fafc", 
@@ -1218,15 +1405,15 @@ function StatisticsGraph() {
                         boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
                       }}>
                         <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#ef4444" }}>
-                          กดออกจากฉาก
+                          อัตราผู้ชมที่คาดว่าออก
                         </span>
                         <span style={{ fontSize: "1.3rem", fontWeight: 800, color: "#0f172a", marginTop: "6px" }}>
                           {formatPercentage(sceneAnalytics?.drop_off_rate)}
                         </span>
-                        <span style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "2px" }}>
+                        <span style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "2px", textAlign: "center" }}>
                           {sceneAnalytics && sceneAnalytics.unique_readers !== undefined && sceneAnalytics.drop_off_rate !== undefined
-                            ? `ผู้ชมที่คาดว่าออก: ~${Math.round((Number(sceneAnalytics.unique_readers) * Number(sceneAnalytics.drop_off_rate)) / 100).toLocaleString()} คน`
-                            : "ผู้ชมที่คาดว่าออก: -"}
+                            ? `คาดว่าออก ~${Math.round((Number(sceneAnalytics?.unique_readers ?? 0) * Number(sceneAnalytics?.drop_off_rate ?? 0)) / 100).toLocaleString()} คน`
+                            : "คาดว่าออก -"}
                         </span>
                       </div>
                     </div>
@@ -1289,16 +1476,19 @@ function StatisticsGraph() {
                   </div>
                 ) : (
                   <>
-                    <div className="wsg-scene-title-row" style={{ marginBottom: "16px" }}>
-                      <h3 className="wsg-scene-title-text" style={{ fontSize: "1rem", fontWeight: 800 }}>
-                        {selectedSceneDetails.label} - {selectedSceneDetails.title}
+                    <div style={{ marginBottom: "20px", textAlign: "left" }}>
+                      <h3 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0f172a", margin: "0 0 4px 0" }}>
+                        {selectedSceneDetails.label} {selectedSceneDetails.title}
                       </h3>
-                      <span className="wsg-scene-type-text">
-                        ประเภท: {selectedSceneDetails.sceneType}
+                      <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
+                        <span>ประเภท:</span>
+                        {getSceneTypeBadge(selectedSceneDetails.sceneType)}
                       </span>
                     </div>
 
-                    <h4 className="wsg-section-title" style={{ fontSize: "0.8rem", fontWeight: 800, color: "#334155" }}>สถิติปุ่มทางเลือกในฉากนี้</h4>
+                    <h4 className="wsg-section-title" style={{ fontSize: "0.85rem", fontWeight: 800, color: "#334155", margin: "0 0 12px 0", textAlign: "left" }}>
+                      สถิติปุ่มทางเลือกในฉากนี้
+                    </h4>
                     {choiceAnalytics?.choices && choiceAnalytics.choices.length > 0 ? (
                       <div className="wsg-choice-list" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         {(() => {
@@ -1320,17 +1510,19 @@ function StatisticsGraph() {
                                 onClick={() => hasTarget && onChoiceDestinationClick(targetSceneId)}
                                 className={`wsg-choice-row-container ${isTop ? "wsg-top-choice-row" : ""} ${isHighlighted ? "wsg-highlighted-choice-row" : ""}`} 
                                 style={{ 
-                                  padding: "10px", 
-                                  border: isTop ? "1.5px solid #d97706" : "1px solid #e2e8f0",
-                                  borderRadius: "8px",
+                                  padding: "12px 14px", 
+                                  backgroundColor: isTop ? "#fffdf0" : "#ffffff",
+                                  border: isTop ? "1.5px solid #d97706" : (isHighlighted ? "2px solid #db2777" : "1px solid #cbd5e1"),
+                                  borderRadius: "10px",
                                   width: "100%",
                                   textAlign: "left",
                                   cursor: hasTarget ? "pointer" : "default",
-                                  opacity: hasTarget ? 1 : 0.85
+                                  opacity: 1,
+                                  boxShadow: isTop ? "0 2px 8px rgba(217, 119, 6, 0.12)" : "0 1px 3px rgba(0,0,0,0.02)"
                                 }}
                               >
                                 <div className="wsg-choice-row-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                  <span style={{ fontWeight: 800, fontSize: "0.8rem", color: isTop ? "#92400e" : "#1e293b" }}>
+                                  <span style={{ fontWeight: 800, fontSize: "0.82rem", color: isTop ? "#92400e" : "#0f172a" }}>
                                     ปุ่ม: "{choice.label || "ไม่มีข้อความ"}"
                                   </span>
                                   {isTop && (
@@ -1339,23 +1531,23 @@ function StatisticsGraph() {
                                     </span>
                                   )}
                                 </div>
-                                <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "4px", fontWeight: 600, textAlign: "left" }}>
+                                <div style={{ fontSize: "0.74rem", color: "#475569", marginTop: "4px", fontWeight: 600, textAlign: "left" }}>
                                   {hasTarget ? (
-                                    <span>ไปยัง: {targetLabel} - {choice.target_scene_title || "ไม่มีชื่อฉาก"}</span>
+                                    <span>ไปยัง: <strong style={{ color: "#0f172a", fontWeight: 800 }}>{targetLabel}</strong> - {choice.target_scene_title || "ไม่มีชื่อฉาก"}</span>
                                   ) : (
                                     <span style={{ color: "#94a3b8" }}>ไปยัง: ยังไม่มีฉากปลายทาง</span>
                                   )}
                                 </div>
-                                <div className="wsg-choice-row-bottom" style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
-                                  <div className="wsg-choice-progress-wrap" style={{ flex: 1, height: "8px", backgroundColor: "#e2e8f0", borderRadius: "4px" }}>
+                                <div className="wsg-choice-row-bottom" style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+                                  <div className="wsg-choice-progress-wrap" style={{ flex: 1, height: "8px", backgroundColor: "#f1f5f9", borderRadius: "4px" }}>
                                     <div 
                                       className="wsg-choice-progress-bar" 
-                                      style={{ width: `${Math.min(100, Math.max(0, Number(choice.percentage ?? 0)))}%`, height: "100%", backgroundColor: isTop ? "#d97706" : "#475569", borderRadius: "4px" }} 
+                                      style={{ width: `${Math.min(100, Math.max(0, Number(choice.percentage ?? 0)))}%`, height: "100%", backgroundColor: isTop ? "#d97706" : "#db2777", borderRadius: "4px" }} 
                                     />
                                   </div>
-                                  <div style={{ fontSize: "0.72rem", fontWeight: 700, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                                    <span style={{ color: isTop ? "#d97706" : "inherit" }}>{formatPercentage(choice.percentage)}</span>
-                                    <span style={{ fontSize: "0.65rem", color: "#64748b" }}>กด {formatNumber(choice.selection_count)} ครั้ง</span>
+                                  <div style={{ fontSize: "0.74rem", fontWeight: 700, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                    <span style={{ color: isTop ? "#d97706" : "#db2777" }}>{formatPercentage(choice.percentage)}</span>
+                                    <span style={{ fontSize: "0.68rem", color: "#64748b" }}>กด {formatNumber(choice.selection_count)} ครั้ง</span>
                                   </div>
                                 </div>
                               </button>
@@ -1378,8 +1570,8 @@ function StatisticsGraph() {
 
         {/* 🟢 Canvas Area ทางขวา */}
         <div className="wsg-canvas-area">
-          {/* ข้อความแนะนำเมื่อยังไม่ได้เลือกโหนดฉาก */}
-          {!selectedSceneId && (
+          {/* ข้อความแนะนำเมื่อยังไม่ได้เลือกโหนดฉาก และยังไม่เคยคลิกเลือกโหนดมาก่อนในรอบการเข้าหน้านี้ */}
+          {!hasInteractedWithNode && !selectedSceneId && (
             <div className="wsg-canvas-hint-pill">
               <span className="wsg-canvas-hint-icon">💡</span>
               <span className="wsg-canvas-hint-text">คลิกเลือกโหนดฉากในแผนผังเพื่อดูสถิติและการตัดสินใจเชิงลึก</span>
@@ -1400,7 +1592,7 @@ function StatisticsGraph() {
           )}
 
           <div className="wsg-canvas-wrap">
-            {/* 🟢 Legend Overlay แบบ Dropdown ที่สามารถกดซ่อน/แสดงได้ */}
+            {/* 🟢 Legend Overlay แบบ Dropdown ที่สามารถกดซ่อน/แสดงได้ (แบ่ง 3 ส่วนชัดเจน) */}
             {(() => {
               const totalVis = overallAnalytics?.unique_readers ?? 0;
               const hMax = totalVis > 0 ? Math.round(totalVis * 0.66) : 1;
@@ -1415,57 +1607,97 @@ function StatisticsGraph() {
                     title={isLegendOpen ? "ซ่อนคำอธิบายสัญลักษณ์" : "แสดงคำอธิบายสัญลักษณ์"}
                   >
                     <div className="wsg-legend-header-title">
-                      <span className="wsg-legend-icon">ℹ️</span>
+                      <div className="wsg-legend-info-icon-wrap">
+                        <Info size={16} strokeWidth={2.5} color="#db2777" />
+                      </div>
                       <span>คำอธิบายสัญลักษณ์</span>
                     </div>
                     <span className="wsg-legend-toggle-icon">
-                      {isLegendOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                      {isLegendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </span>
                   </button>
 
                   {isLegendOpen && (
                     <div className="wsg-legend-body">
+                      {/* 1. สีโหนดฉาก */}
                       <div className="wsg-legend-overlay__section">
-                        <h4 className="wsg-legend-overlay__title">👥 ระดับสัดส่วนผู้ชมฉาก</h4>
-                        <div className="wsg-legend-overlay__row">
-                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#F472B6", border: "1px solid #ec4899" }} />
-                          <span>ผู้ชมสูง ({"≥"} {formatNumber(hMax)} คน)</span>
+                        <div className="wsg-legend-section-header">
+                          <Palette size={15} strokeWidth={2.2} color="#db2777" />
+                          <h4 className="wsg-legend-overlay__title">สีโหนดฉาก</h4>
                         </div>
                         <div className="wsg-legend-overlay__row">
-                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#F9A8D4", border: "1px solid #f472b6" }} />
-                          <span>ผู้ชมปานกลาง ({formatNumber(mMax)} - {formatNumber(hMax - 1)} คน)</span>
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-legend-color-box" style={{ backgroundColor: VISITOR_SHADES.HIGH.bg, border: `1.5px solid ${VISITOR_SHADES.HIGH.border}` }} />
+                            <span className="wsg-legend-label-text">ผู้ชมสูง</span>
+                          </div>
+                          <span className="wsg-legend-value-text">≥ {formatNumber(hMax)} คน</span>
                         </div>
                         <div className="wsg-legend-overlay__row">
-                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#FCE7F3", border: "1px solid #fbcfe8" }} />
-                          <span>ผู้ชมน้อย ({"<"} {formatNumber(mMax)} คน)</span>
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-legend-color-box" style={{ backgroundColor: VISITOR_SHADES.MEDIUM.bg, border: `1.5px solid ${VISITOR_SHADES.MEDIUM.border}` }} />
+                            <span className="wsg-legend-label-text">ปานกลาง</span>
+                          </div>
+                          <span className="wsg-legend-value-text">{formatNumber(mMax)}–{formatNumber(hMax - 1)} คน</span>
+                        </div>
+                        <div className="wsg-legend-overlay__row">
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-legend-color-box" style={{ backgroundColor: VISITOR_SHADES.LOW.bg, border: `1.5px solid ${VISITOR_SHADES.LOW.border}` }} />
+                            <span className="wsg-legend-label-text">ผู้ชมน้อย</span>
+                          </div>
+                          <span className="wsg-legend-value-text">&lt; {formatNumber(mMax)} คน</span>
                         </div>
                       </div>
 
+                      {/* 2. สัญลักษณ์แจ้งเตือน */}
                       <div className="wsg-legend-overlay__section">
-                        <h4 className="wsg-legend-overlay__title">⚠️ อัตราออกจากฉาก</h4>
-                        <div className="wsg-legend-overlay__row" style={{ color: "#ef4444", fontWeight: 700 }}>
-                          <span style={{ fontSize: "0.95rem" }}>🔥</span>
-                          <span>ฉากที่คนออกสูงสุด (Exit Rate สูงสุด)</span>
+                        <div className="wsg-legend-section-header">
+                          <Flame size={15} strokeWidth={2.2} color="#db2777" />
+                          <h4 className="wsg-legend-overlay__title">สัญลักษณ์แจ้งเตือน</h4>
                         </div>
-                        <div className="wsg-legend-overlay__row" style={{ color: "#c2410c", fontWeight: 600 }}>
-                          <span className="wsg-legend-color-box" style={{ backgroundColor: "#ffedd5", border: "1px solid #fdba74" }} />
-                          <span>อัตราออกสูง (Exit Rate {"≥"} 25%)</span>
+                        <div className="wsg-legend-overlay__row">
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-node-badge-circle max-drop" style={{ position: "static", width: 26, height: 26, boxShadow: "none", pointerEvents: "none" }}>
+                              <Flame size={11} strokeWidth={2.5} color="#ffffff" style={{ flexShrink: 0 }} />
+                            </span>
+                            <span className="wsg-legend-label-text">ออกสูงสุด (Exit Rate)</span>
+                          </div>
+                        </div>
+                        <div className="wsg-legend-overlay__row">
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-node-badge-circle high-exit" style={{ position: "static", width: 26, height: 26, boxShadow: "none", pointerEvents: "none" }}>
+                              <span style={{ fontSize: "0.55rem" }}>⚠️</span>
+                            </span>
+                            <span className="wsg-legend-label-text">ออกสูง ≥ 25%</span>
+                          </div>
                         </div>
                       </div>
 
+                      {/* 3. เส้นเชื่อมทางเลือก */}
                       <div className="wsg-legend-overlay__section">
-                        <h4 className="wsg-legend-overlay__title">➡️ ความนิยมของทางเลือก</h4>
-                        <div className="wsg-legend-overlay__row">
-                          <span className="wsg-legend-line" style={{ height: "4px", backgroundColor: "#10B981" }} />
-                          <span>นิยมสูง ({"≥"} 60%)</span>
+                        <div className="wsg-legend-section-header">
+                          <GitFork size={15} strokeWidth={2.2} color="#db2777" />
+                          <h4 className="wsg-legend-overlay__title">เส้นเชื่อมทางเลือก</h4>
                         </div>
                         <div className="wsg-legend-overlay__row">
-                          <span className="wsg-legend-line" style={{ height: "3px", backgroundColor: "#F5C84B" }} />
-                          <span>ทั่วไป (30% - 59%)</span>
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-legend-line" style={{ height: "4px", backgroundColor: "#10B981" }} />
+                            <span className="wsg-legend-label-text">นิยมสูง</span>
+                          </div>
+                          <span className="wsg-legend-value-text">≥ 60%</span>
                         </div>
                         <div className="wsg-legend-overlay__row">
-                          <span className="wsg-legend-line" style={{ height: "2px", backgroundColor: "#94A3B8" }} />
-                          <span>เลือกน้อย ({"<"} 30%)</span>
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-legend-line" style={{ height: "3.5px", backgroundColor: "#F59E0B" }} />
+                            <span className="wsg-legend-label-text">ปานกลาง</span>
+                          </div>
+                          <span className="wsg-legend-value-text">30%–59%</span>
+                        </div>
+                        <div className="wsg-legend-overlay__row">
+                          <div className="wsg-legend-row-left">
+                            <span className="wsg-legend-line" style={{ height: "3px", backgroundColor: "#94A3B8" }} />
+                            <span className="wsg-legend-label-text">เลือกน้อย</span>
+                          </div>
+                          <span className="wsg-legend-value-text">&lt; 30%</span>
                         </div>
                       </div>
                     </div>
@@ -1496,9 +1728,9 @@ function StatisticsGraph() {
                 <MiniMap 
                   nodeColor={(node) => {
                     if (node.data?.isMaxDrop) return "#ef4444";
-                    if (node.data?.visitors >= (node.data?.highMax || 1600)) return "#F472B6";
-                    if (node.data?.visitors >= (node.data?.midMax || 800)) return "#F9A8D4";
-                    return "#FCE7F3";
+                    if (node.data?.visitors >= (node.data?.highMax || 1600)) return VISITOR_SHADES.HIGH.border;
+                    if (node.data?.visitors >= (node.data?.midMax || 800)) return VISITOR_SHADES.MEDIUM.border;
+                    return VISITOR_SHADES.LOW.border;
                   }}
                   maskColor="rgba(250, 249, 246, 0.6)"
                 />
@@ -1512,4 +1744,3 @@ function StatisticsGraph() {
 }
 
 export default StatisticsGraph;
-

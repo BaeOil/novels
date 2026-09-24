@@ -179,7 +179,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
       <div className="wdb">
       <div className="wdb__header">
         <div>
-          <h1 className="wdb__title">Dashboard</h1>
+          <h1 className="wdb__title">แดชบอร์ด</h1>
           <p className="wdb__sub">ภาพรวมผลงานของคุณทั้งหมด</p>
         </div>
         <button className="wdb__create-btn" onClick={() => onNavigate("create-novel")} aria-label="สร้างนิยายเรื่องใหม่">
@@ -403,7 +403,7 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
   };
 
   return (
-    <article className="nvc">
+    <article className="nvc" onClick={onEdit}>
       {/* ── Cover Zone ── */}
       <div className="nvc__cover">
         {coverImage ? (
@@ -429,7 +429,7 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
         )}
 
         {/* ปุ่มลบ */}
-        <button className="nvc__cover-del" onClick={() => setShowConfirm(true)} title="ลบนิยาย">
+        <button className="nvc__cover-del" onClick={(e) => { e.stopPropagation(); setShowConfirm(true); }} title="ลบนิยาย">
           ✕
         </button>
       </div>
@@ -453,7 +453,7 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
         <div className="nvc__categories-row">
           {visibleCategories.length > 0 ? (
             visibleCategories.map((catName, idx) => (
-              <span key={idx} className="nvc__tag">#{catName}</span>
+              <span key={idx} className="nvc__tag">{catName}</span>
             ))
           ) : (
             <span style={{ fontSize: "10px", color: "#9ca3af", fontStyle: "italic" }}>#ไม่มีหมวดหมู่</span>
@@ -473,18 +473,18 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
             <button 
               type="button" 
               className="nvc__banned-appeal-btn" 
-              onClick={onEdit}
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
             >
               ยื่นคำขอปลดแบน <span>→</span>
             </button>
           </div>
         ) : (
           <div className="nvc__actions">
-            <button className="nvc__btn nvc__btn--edit" onClick={onEdit}>
+            <button className="nvc__btn nvc__btn--edit" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
               <Pencil size={13} strokeWidth={2.4} />
               <span>แก้ไข</span>
             </button>
-            <button className="nvc__btn nvc__btn--stats" onClick={onAnalytics}>
+            <button className="nvc__btn nvc__btn--stats" onClick={(e) => { e.stopPropagation(); onAnalytics(); }}>
               <BarChart2 size={14} strokeWidth={2.2} />
               <span>สถิติ</span>
             </button>
@@ -494,7 +494,7 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
 
       {/* Delete confirm overlay */}
       {showConfirm && (
-        <div className="nvc__confirm" style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "15px" }}>
+        <div className="nvc__confirm" onClick={(e) => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "15px" }}>
           {isPublishedNovel ? (
             <>
               <p className="nvc__confirm-text" style={{ color: "#DC2626", fontWeight: "bold", margin: 0 }}>

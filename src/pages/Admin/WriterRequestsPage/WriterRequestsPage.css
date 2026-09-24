@@ -250,13 +250,15 @@
   border-radius: 16px;
   border: 1px solid #ffe3ec;
   box-shadow: 0 4px 16px rgba(255, 105, 180, 0.06);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .wr-table {
   width: 100%;
+  min-width: 850px;
   border-collapse: collapse;
   text-align: left;
+  table-layout: fixed;
 }
 
 .wr-table th {
@@ -265,6 +267,7 @@
   font-size: 0.82rem;
   color: #ff4081;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .wr-table th.text-center,
@@ -292,6 +295,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .wr-user-avatar-small {
@@ -312,6 +317,11 @@
 .wr-username-text {
   font-weight: 700;
   color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+  display: inline-block;
 }
 
 .wr-reapply-badge {
