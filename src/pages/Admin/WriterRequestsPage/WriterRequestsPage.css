@@ -255,7 +255,7 @@
 
 .wr-table {
   width: 100%;
-  min-width: 850px;
+  min-width: 760px;
   border-collapse: collapse;
   text-align: left;
   table-layout: fixed;
@@ -263,8 +263,8 @@
 
 .wr-table th {
   background-color: #fff0f6;
-  padding: 14px 16px;
-  font-size: 0.82rem;
+  padding: 14px 12px;
+  font-size: 0.76rem;
   color: #ff4081;
   font-weight: 700;
   white-space: nowrap;
@@ -276,12 +276,22 @@
 }
 
 .wr-table td {
-  padding: 14px 16px;
+  padding: 12px 10px;
   border-bottom: 1px solid #fff0f6;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: #444444;
   vertical-align: middle;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
+
+.wr-table th:nth-child(1), .wr-table td:nth-child(1) { width: 7%; }
+.wr-table th:nth-child(2), .wr-table td:nth-child(2) { width: 18%; }
+.wr-table th:nth-child(3), .wr-table td:nth-child(3) { width: 15%; }
+.wr-table th:nth-child(4), .wr-table td:nth-child(4) { width: 22%; }
+.wr-table th:nth-child(5), .wr-table td:nth-child(5) { width: 12%; }
+.wr-table th:nth-child(6), .wr-table td:nth-child(6) { width: 26%; }
 
 .wr-table tr:last-child td {
   border-bottom: none;
@@ -294,7 +304,7 @@
 .wr-user-info-cell {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
 }
@@ -320,7 +330,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 180px;
+  max-width: 150px;
   display: inline-block;
 }
 
@@ -458,22 +468,26 @@
 /* Action Buttons */
 .wr-btn-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+  align-items: center;
 }
 
 .wr-btn-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 7px 12px;
+  padding: 7px 10px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 700;
   font-family: inherit;
   transition: background 0.2s, border-color 0.2s;
   border: 1.5px solid transparent;
+  white-space: nowrap;
 }
 
 .wr-btn-action--view {

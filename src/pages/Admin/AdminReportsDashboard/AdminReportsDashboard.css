@@ -338,11 +338,11 @@
 
 .admin-filter-card {
   background: #ffffff;
-  border: 1px solid #f1f5f9;
-  border-radius: 14px;
+  border: 1px solid #ffe3ec;
+  border-radius: 16px;
   padding: 16px 20px;
   margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 4px 16px rgba(255, 105, 180, 0.04);
 }
 
 .admin-filter-grid {
@@ -477,41 +477,42 @@
    ------------------------------------------------------------------------- */
 .admin-table-card {
   background: #ffffff;
-  border: 1px solid #f1f5f9;
-  border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  border: 1px solid #ffe3ec;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(255, 105, 180, 0.04);
   overflow: hidden;
 }
 
 .admin-table-responsive {
   width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 .admin-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   table-layout: fixed;
 }
 
 .admin-table th {
-  background-color: #f8fafc;
-  color: #475569;
-  font-weight: 600;
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 12px 10px;
-  border-bottom: 1px solid #e2e8f0;
+  background-color: #fff0f6;
+  color: #ff4081;
+  font-weight: 700;
+  font-size: 0.76rem;
+  padding: 14px 12px;
+  border-bottom: 1px solid #ffe3ec;
   white-space: nowrap;
 }
 
 .admin-table td {
   padding: 12px 10px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #fff0f6;
   vertical-align: middle;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .admin-table-row:hover {
@@ -704,11 +705,11 @@
    7. Action Buttons (Equal size, unified height, single-line text)
    ------------------------------------------------------------------------- */
 .admin-action-group {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
-  flex-wrap: nowrap; /* Strictly single-row */
+  gap: 8px;
+  flex-wrap: wrap;
   width: 100%;
 }
 
@@ -716,17 +717,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 500;
+  gap: 6px;
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: inherit;
-  border: 1px solid transparent;
-  white-space: nowrap; /* Strictly no 2-line wrapping */
+  border: 1.5px solid transparent;
+  white-space: nowrap;
   box-sizing: border-box;
   flex-shrink: 0;
 }
@@ -739,14 +740,14 @@
 /* View story */
 .admin-action-btn--view {
   background: #ffffff;
-  color: #2563eb;
-  border-color: #bfdbfe;
+  color: #ff4081;
+  border-color: #ffc2d7;
 }
 
 .admin-action-btn--view:hover:not(:disabled) {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: #fff0f6;
+  border-color: #ff69b4;
+  color: #d81b7a;
 }
 
 /* Suspend */
@@ -765,14 +766,14 @@
 /* Unsuspend */
 .admin-action-btn--unsuspend {
   background: #ffffff;
-  color: #16a34a;
-  border-color: #bbf7d0;
+  color: #0ca678;
+  border-color: #96f2d7;
 }
 
 .admin-action-btn--unsuspend:hover:not(:disabled) {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #15803d;
+  background: #e6fcf5;
+  border-color: #7ce4c2;
+  color: #09875a;
 }
 
 /* Delete */

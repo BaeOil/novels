@@ -28,7 +28,7 @@ const STAT_CARDS = [
   { key: "totalBookmarks", label: "จำนวนเพิ่มเข้าชั้น", icon: "📥", colorClass: "scard--green" },
 ];
 
-const isBannedNovel = (novel) => {
+const isSuspendedNovel = (novel) => {
   const status = (novel?.status || novel?.Status || "").toLowerCase();
   return status === "banned" || status === "suspended" || status === "ระงับ" || novel?.is_banned === true || novel?.isBanned === true;
 };
@@ -159,7 +159,7 @@ const WriterDashboardPage = ({ onNavigate, onSelectNovel }) => {
     return <LoadingScreen message="กำลังดึงข้อมูลแดชบอร์ดนักเขียน..." />;
   }
 
-  const suspendedNovels = novels.filter(isBannedNovel);
+  const suspendedNovels = novels.filter(isSuspendedNovel);
 
   const handleContinueSuspension = () => {
     if (suspendedNovels.length === 1) {
@@ -347,7 +347,7 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
 
   const title = novel.title || "";
   const coverImage = novel.cover_image || novel.coverImage;
-  const isBanned = novel.status === "banned";
+  const isSuspended = novel.status === "banned" || novel.status === "suspended";
   
   const statusInfo = getNovelStatusInfo(novel);
   const statusVariant = statusInfo.isCompleted ? "completed" : statusInfo.isPublished ? "published" : "draft";
@@ -417,8 +417,8 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
           />
         ) : null}
 
-        {/* 🟢 เช็กสถานะ Banned หากโดนระงับ ให้แสดง Badge สีแดง */}
-        {isBanned ? (
+        {/* 🟢 เช็กสถานะถูกระงับ ให้แสดง Badge สีแดง */}
+        {isSuspended ? (
           <span className="nvc__status" style={{ backgroundColor: "#ef4444", color: "#ffffff" }}>
             ⚠️ ถูกระงับการเผยแพร่
           </span>
@@ -460,7 +460,7 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
           )}
         </div>
 
-        {isBanned ? (
+        {isSuspended ? (
           <div className="nvc__banned-actions">
             <div 
               className="nvc__banned-reason-box" 
@@ -475,7 +475,7 @@ const NovelCard = ({ novel, onEdit, onTree, onAnalytics, onDelete }) => {
               className="nvc__banned-appeal-btn" 
               onClick={(e) => { e.stopPropagation(); onEdit(); }}
             >
-              ยื่นคำขอปลดแบน <span>→</span>
+              ยื่นคำขอปลดระงับ <span>→</span>
             </button>
           </div>
         ) : (

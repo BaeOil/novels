@@ -734,9 +734,9 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
     );
   }
 
-  // 🟢 หากนิยายถูกระงับ (banned) ให้แสดงหน้าแจ้งเตือนและซ่อนเนื้อหา
+  // 🟢 หากนิยายถูกระงับ ให้แสดงหน้าแจ้งเตือนและซ่อนเนื้อหา
   // ยกเว้นแอดมิน ซึ่งต้องเห็นเนื้อหาเต็มเพื่อตรวจสอบ/จัดการรายงานที่เกี่ยวข้อง
-  if (novel.status === "banned" && !isAdmin) {
+  if ((novel.status === "banned" || novel.status === "suspended") && !isAdmin) {
     return (
       <div className="novel-detail">
         <div className="novel-detail__container novel-detail__banned-screen">
@@ -772,7 +772,7 @@ const fetchFirstSceneAndNavigate = async (previewSuffix) => {
         </div>
       )}
 
-      {isAdmin && novel.status === "banned" && (
+      {isAdmin && (novel.status === "banned" || novel.status === "suspended") && (
         <div className="novel-detail__admin-banned-banner">
           <span>
             ⚠️ นิยายเรื่องนี้ถูกระงับการเผยแพร่อยู่ ผู้อ่านทั่วไปจะมองไม่เห็นหน้านี้ — คุณเห็นเพราะเข้าสู่ระบบในฐานะแอดมิน
