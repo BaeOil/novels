@@ -103,11 +103,12 @@ func StartReadingHandler(sceneService service.SceneService, novelService service
 
 func GetProgressHandler(readingService service.ReadingService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
-		if err != nil || userID == 0 {
-			WriteError(w, http.StatusBadRequest, "user_id is required")
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || ctxUserID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
+		userID := int(ctxUserID)
 
 		novelID, err := strconv.Atoi(r.URL.Query().Get("novel_id"))
 		if err != nil || novelID == 0 {
@@ -245,11 +246,12 @@ func ProgressHandler(readingService service.ReadingService, novelService service
 
 func ResetProgressHandler(readingService service.ReadingService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
-		if err != nil || userID == 0 {
-			WriteError(w, http.StatusBadRequest, "user_id is required")
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || ctxUserID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
+		userID := int(ctxUserID)
 
 		novelID, err := strconv.Atoi(r.URL.Query().Get("novel_id"))
 		if err != nil || novelID == 0 {
@@ -476,7 +478,13 @@ func RecordChoiceHistoryHandler(readingService service.ReadingService, sceneServ
 			return
 		}
 
-		if err := readingService.RecordChoiceHistory(models.ChoiceHistory{UserID: req.UserID, ChoiceID: req.ChoiceID}); err != nil {
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || ctxUserID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		if err := readingService.RecordChoiceHistory(models.ChoiceHistory{UserID: int(ctxUserID), ChoiceID: req.ChoiceID}); err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -485,7 +493,7 @@ func RecordChoiceHistoryHandler(readingService service.ReadingService, sceneServ
 	}
 }
 
-func RecordUserEndingHandler(readingService service.ReadingService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
+func RecordUserEndingHandler(readingService service.ReadingService, sceneService service.SceneService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type EndingRequest struct {
 			UserID  int `json:"user_id"`
@@ -499,8 +507,14 @@ func RecordUserEndingHandler(readingService service.ReadingService, novelService
 			return
 		}
 
-		if req.UserID == 0 || req.NovelID == 0 || req.SceneID == 0 {
-			WriteError(w, http.StatusBadRequest, "user_id, novel_id, and scene_id are required")
+		if req.NovelID == 0 || req.SceneID == 0 {
+			WriteError(w, http.StatusBadRequest, "novel_id and scene_id are required")
+			return
+		}
+
+		ctxUserID, ok := middleware.GetUserIDFromContext(r.Context())
+		if !ok || ctxUserID == 0 {
+			WriteError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
@@ -510,7 +524,34 @@ func RecordUserEndingHandler(readingService service.ReadingService, novelService
 			return
 		}
 
-		if err := readingService.RecordEnding(req.UserID, req.NovelID, req.SceneID); err != nil {
+		ending, err := sceneService.GetScene(req.SceneID)
+		if err != nil || ending.NovelID != req.NovelID || ending.Type != "ending" || ending.Status != "published" {
+			WriteError(w, http.StatusNotFound, "published ending not found")
+			return
+		}
+
+		novelDetail, err := novelService.GetNovelDetail(req.NovelID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+		novel, ok := novelDetail.(*models.Novel)
+		if !ok || novel == nil || !novel.IsPublished {
+			WriteError(w, http.StatusNotFound, "novel not found")
+			return
+		}
+
+		progress, err := readingService.GetProgress(int(ctxUserID), req.NovelID)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if progress == nil || progress.CurrentSceneID != req.SceneID {
+			WriteError(w, http.StatusForbidden, "ending has not been reached")
+			return
+		}
+
+		if err := readingService.RecordEnding(int(ctxUserID), req.NovelID, req.SceneID); err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

@@ -26,8 +26,8 @@ func (s *stubReportRepo) GetStatus(ctx context.Context, reportID int) (string, e
 	return "pending", nil
 }
 
-func (s *stubReportRepo) GetReportDetail(ctx context.Context, reportID int) (string, string, int, string, int, error) {
-	return "pending", "report", 1, "Test Novel", 7, nil
+func (s *stubReportRepo) GetReportDetail(ctx context.Context, reportID int) (string, string, int, string, int, string, bool, error) {
+	return "pending", "report", 1, "Test Novel", 7, "published", true, nil
 }
 
 func (s *stubReportRepo) UpdateReportStatus(ctx context.Context, reportID int, req dto.UpdateReportStatusRequest) error {
@@ -81,11 +81,11 @@ func TestReportService_GetReportDetailReturnsReportMetadata(t *testing.T) {
 	repo := &stubReportRepo{}
 	svc := &reportService{repo: repo}
 
-	status, reportType, novelID, title, authorID, err := svc.GetReportDetail(context.Background(), 3)
+	status, reportType, novelID, title, authorID, novelStatus, novelIsPublished, err := svc.GetReportDetail(context.Background(), 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if status != "pending" || reportType != "report" || novelID != 1 || title != "Test Novel" || authorID != 7 {
-		t.Fatalf("unexpected detail payload: status=%s type=%s novelID=%d title=%s authorID=%d", status, reportType, novelID, title, authorID)
+	if status != "pending" || reportType != "report" || novelID != 1 || title != "Test Novel" || authorID != 7 || novelStatus != "published" || !novelIsPublished {
+		t.Fatalf("unexpected detail payload: status=%s type=%s novelID=%d title=%s authorID=%d novelStatus=%s published=%v", status, reportType, novelID, title, authorID, novelStatus, novelIsPublished)
 	}
 }

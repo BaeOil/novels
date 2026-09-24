@@ -62,6 +62,12 @@ func GetStoryTreeHandler(sceneService service.SceneService, novelService service
 		}
 
 		userID := storyTreeUserID(authUserID, ok)
+		// Admin ตรวจสอบเนื้อหาได้ทุกฉากที่ endpoint อนุญาต แต่ไม่ควรใช้
+		// reading history ของบัญชี admin มาตัดสินว่าชื่อ/เนื้อหาฉากเปิดเผยหรือไม่
+		role, roleOK := middleware.GetRoleFromContext(r.Context())
+		if isOwnerOrAdmin && roleOK && role == "admin" {
+			userID = 0
+		}
 
 		tree, err := sceneService.GetStoryTree(novelID, userID)
 		if err != nil {

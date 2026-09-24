@@ -441,6 +441,15 @@ func (s *sceneService) ValidateNovelPublishability(novelID int) PublishValidatio
 			startSceneIDs = append(startSceneIDs, sID)
 		}
 	}
+	if len(startSceneIDs) == 0 {
+		addIssue(
+			"blocking",
+			"MISSING_START_SCENE",
+			"นิยายต้องมีฉากเริ่มต้นก่อนเผยแพร่",
+			nil,
+			nil,
+		)
+	}
 
 	if len(startSceneIDs) > 0 {
 		reachable := make(map[int]bool)
@@ -595,32 +604,9 @@ func (s *sceneService) wouldCreateCycle(fromSceneID, toSceneID int, edges []mode
 func (s *sceneService) CreateChoice(choice models.Choice) (int, error) {
 	choice.Label = strings.TrimSpace(choice.Label)
 
-	// 1. ดึงข้อมูลและเช็คการมีอยู่
-	fromScene, err := s.repo.GetSceneByID(choice.FromSceneID)
+	fromScene, _, err := s.validateChoiceEndpoints(choice.FromSceneID, choice.ToSceneID)
 	if err != nil {
-		return 0, errors.New("ต้นทาง (from_scene_id) ไม่มีอยู่ในระบบ")
-	}
-	toScene, err := s.repo.GetSceneByID(choice.ToSceneID)
-	if err != nil {
-		return 0, errors.New("ปลายทาง (to_scene_id) ไม่มีอยู่ในระบบ")
-	}
-
-	// 2. ดัก Logic ความถูกต้อง
-	if fromScene.NovelID != toScene.NovelID {
-		return 0, errors.New("ไม่สามารถเชื่อมโยงฉากข้ามเรื่องนิยายกันได้")
-	}
-	if choice.FromSceneID == choice.ToSceneID {
-		return 0, errors.New("ฉากต้นทางและปลายทางห้ามเป็นฉากเดียวกัน")
-	}
-
-	// เพิ่มเติม: ป้องกันการกดต่อจากฉากที่จบไปแล้ว
-	if fromScene.Type == "ending" {
-		return 0, errors.New("ฉากต้นทางเป็นฉากจบ ไม่สามารถสร้างทางเลือกต่อไปได้")
-	}
-
-	// ป้องกันการสร้างทางเลือกย้อนกลับไปที่จุดเริ่มต้นของเรื่อง
-	if toScene.Type == "start" {
-		return 0, errors.New("ไม่สามารถสร้างทางเลือกย้อนกลับไปที่จุดเริ่มต้นของเรื่องได้")
+		return 0, err
 	}
 
 	// เช็คการย้อนกลับ (Reverse Choice)
@@ -652,6 +638,30 @@ func (s *sceneService) CreateChoice(choice models.Choice) (int, error) {
 	return s.repo.CreateChoice(choice)
 }
 
+func (s *sceneService) validateChoiceEndpoints(fromSceneID, toSceneID int) (*models.Scene, *models.Scene, error) {
+	fromScene, err := s.repo.GetSceneByID(fromSceneID)
+	if err != nil {
+		return nil, nil, errors.New("ต้นทาง (from_scene_id) ไม่มีอยู่ในระบบ")
+	}
+	toScene, err := s.repo.GetSceneByID(toSceneID)
+	if err != nil {
+		return nil, nil, errors.New("ปลายทาง (to_scene_id) ไม่มีอยู่ในระบบ")
+	}
+	if fromScene.NovelID != toScene.NovelID {
+		return nil, nil, errors.New("ไม่สามารถเชื่อมโยงฉากข้ามเรื่องนิยายกันได้")
+	}
+	if fromSceneID == toSceneID {
+		return nil, nil, errors.New("ฉากต้นทางและปลายทางห้ามเป็นฉากเดียวกัน")
+	}
+	if fromScene.Type == "ending" {
+		return nil, nil, errors.New("ฉากต้นทางเป็นฉากจบ ไม่สามารถสร้างทางเลือกต่อไปได้")
+	}
+	if toScene.Type == "start" {
+		return nil, nil, errors.New("ไม่สามารถสร้างทางเลือกย้อนกลับไปที่จุดเริ่มต้นของเรื่องได้")
+	}
+	return fromScene, toScene, nil
+}
+
 func (s *sceneService) GetChoiceByID(choiceID int) (*models.Choice, error) {
 	return s.repo.GetChoiceByID(choiceID)
 }
@@ -666,36 +676,43 @@ func (s *sceneService) UpdateChoice(choice models.Choice) error {
 
 	if choice.FromSceneID == 0 {
 		choice.FromSceneID = existingChoice.FromSceneID
+	} else if choice.FromSceneID != existingChoice.FromSceneID {
+		return errors.New("ทางเลือกนี้ไม่ได้อยู่ในฉากต้นทางที่ระบุ")
 	}
 	if choice.ToSceneID == 0 {
 		choice.ToSceneID = existingChoice.ToSceneID
 	}
 
-	fromScene, err := s.repo.GetSceneByID(choice.FromSceneID)
+	fromScene, _, err := s.validateChoiceEndpoints(choice.FromSceneID, choice.ToSceneID)
 	if err != nil {
-		return errors.New("ต้นทาง (from_scene_id) ไม่มีอยู่ในระบบ")
-	}
-	toScene, err := s.repo.GetSceneByID(choice.ToSceneID)
-	if err != nil {
-		return errors.New("ปลายทาง (to_scene_id) ไม่มีอยู่ในระบบ")
+		return err
 	}
 
-	if fromScene.NovelID != toScene.NovelID {
-		return errors.New("ไม่สามารถเชื่อมโยงฉากข้ามเรื่องนิยายกันได้")
+	edges, err := s.repo.GetEdgesByNovelID(fromScene.NovelID)
+	if err != nil {
+		return fmt.Errorf("get edges for choice validation: %w", err)
 	}
-	if choice.FromSceneID == choice.ToSceneID {
-		return errors.New("ฉากต้นทางและปลายทางห้ามเป็นฉากเดียวกัน")
+	for _, edge := range edges {
+		if edge.ChoiceID != existingChoice.ChoiceID &&
+			edge.FromID == choice.FromSceneID &&
+			edge.ToID == choice.ToSceneID &&
+			edge.Label == choice.Label {
+			return errors.New("ทางเลือกนี้มีอยู่แล้ว")
+		}
+	}
+
+	reverseExists, err := s.repo.CheckChoiceExists(choice.ToSceneID, choice.FromSceneID, "")
+	if err != nil {
+		return fmt.Errorf("check reverse choice: %w", err)
+	}
+	if reverseExists {
+		return errors.New("ไม่สามารถสร้างทางเลือกย้อนกลับไปยังฉากต้นทางได้")
 	}
 
 	// ตรวจ DAG เฉพาะกรณีที่มีการเปลี่ยนต้นทางหรือปลายทาง
 	// ถ้าแก้แค่ Label ไม่จำเป็นต้อง DFS ใหม่
 	shouldValidateDAG := choice.FromSceneID != existingChoice.FromSceneID || choice.ToSceneID != existingChoice.ToSceneID
 	if shouldValidateDAG {
-		edges, err := s.repo.GetEdgesByNovelID(fromScene.NovelID)
-		if err != nil {
-			return fmt.Errorf("get edges for cycle validation: %w", err)
-		}
-
 		filteredEdges := make([]models.SceneEdge, 0, len(edges))
 		for _, edge := range edges {
 			if edge.FromID == existingChoice.FromSceneID &&
@@ -794,16 +811,13 @@ func (s *sceneService) SyncSceneChoices(fromSceneID int, rawChoices []interface{
 		}
 
 		if choice.ChoiceID > 0 {
+			oldChoice, exists := existingMap[choice.ChoiceID]
+			if !exists || oldChoice.FromSceneID != fromSceneID {
+				return nil, errors.New("ทางเลือกนี้ไม่ได้อยู่ในฉากต้นทางที่กำลังซิงก์")
+			}
 			incomingChoiceIDs[choice.ChoiceID] = struct{}{}
 			// ตรวจสอบว่ามีการเปลี่ยนแปลงข้อมูลจริงหรือไม่ (label หรือ to_scene_id)
-			if oldChoice, exists := existingMap[choice.ChoiceID]; exists {
-				if oldChoice.Label != choice.Label || oldChoice.ToSceneID != choice.ToSceneID {
-					if err := s.UpdateChoice(choice); err != nil {
-						return nil, err
-					}
-					diff.UpdatedCount++
-				}
-			} else {
+			if oldChoice.Label != choice.Label || oldChoice.ToSceneID != choice.ToSceneID {
 				if err := s.UpdateChoice(choice); err != nil {
 					return nil, err
 				}
@@ -945,6 +959,7 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 			ID:             rawNode.ID,
 			Type:           rawNode.Type,
 			IsUnlocked:     isNodeAccessible,
+			Status:         rawNode.Status,
 			ChapterTitle:   rawNode.ChapterTitle,
 			ChapterEpisode: rawNode.ChapterEpisode,
 			NodeX:          rawNode.NodeX,
@@ -968,22 +983,10 @@ func (s *sceneService) GetStoryTree(novelID int, userID int) (models.StoryTreeRe
 				node.Content = "ร่วมเลือกเส้นทางเพื่อดำเนินเนื้อเรื่องต่อไป..."
 			}
 
-			if rawNode.Type == "start" {
-				node.Status = "start"
-			} else if rawNode.Type == "ending" {
-				node.Status = "ending_unlocked"
-			} else {
-				node.Status = "unlocked"
-			}
 		} else {
 			node.Label = "🔒 ยังไม่ได้ปลดล็อก"
 			node.Title = "เนื้อเรื่องยังไม่เปิดเผย"
 			node.Content = "เดินเรื่องตามเงื่อนไขในฉากก่อนหน้าเพื่อเปิดเผยเส้นทางนี้"
-			if rawNode.Type == "ending" {
-				node.Status = "ending_locked"
-			} else {
-				node.Status = "locked"
-			}
 		}
 
 		secureNodes = append(secureNodes, node)

@@ -223,10 +223,20 @@ func DeleteChapterHandler(chapterService service.ChapterService, novelService se
 	}
 }
 
-func ReorderChaptersHandler(chapterService service.ChapterService) http.HandlerFunc {
+func ReorderChaptersHandler(chapterService service.ChapterService, novelService service.NovelService, writerService service.WriterService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
 			RespondWithError3(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		novelID, err := extractIDFromPath(r.URL.Path, "/novels/")
+		if err != nil {
+			RespondWithError3(w, http.StatusBadRequest, "invalid novel id")
+			return
+		}
+		if !CheckIsOwnerOrAdmin(r, novelID, novelService, writerService) {
+			RespondWithError3(w, http.StatusForbidden, "forbidden: you do not own this novel")
 			return
 		}
 
@@ -240,6 +250,29 @@ func ReorderChaptersHandler(chapterService service.ChapterService) http.HandlerF
 		if len(payload.Order) == 0 {
 			RespondWithError3(w, http.StatusBadRequest, "order empty")
 			return
+		}
+
+		seen := make(map[int]struct{}, len(payload.Order))
+		for _, chapterID := range payload.Order {
+			if chapterID <= 0 {
+				RespondWithError3(w, http.StatusBadRequest, "invalid chapter id")
+				return
+			}
+			if _, exists := seen[chapterID]; exists {
+				RespondWithError3(w, http.StatusBadRequest, "duplicate chapter id")
+				return
+			}
+			seen[chapterID] = struct{}{}
+
+			chapter, err := chapterService.GetChapterByID(chapterID)
+			if err != nil || chapter == nil {
+				RespondWithError3(w, http.StatusNotFound, "chapter not found")
+				return
+			}
+			if chapter.NovelID != novelID {
+				RespondWithError3(w, http.StatusBadRequest, "chapter does not belong to novel")
+				return
+			}
 		}
 
 		if err := chapterService.ReorderChapters(payload.Order); err != nil {

@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"bytes"
@@ -17,7 +17,9 @@ import (
 )
 
 type mockNovelService struct {
-	novel models.Novel
+	novel        models.Novel
+	createdNovel *models.Novel
+	updatedNovel *models.Novel
 }
 
 func (m *mockNovelService) ListNovels() ([]models.Novel, error) { return nil, nil }
@@ -29,15 +31,23 @@ func (m *mockNovelService) IncrementViews(int) error                { return nil
 func (m *mockNovelService) GetNovelsByAuthorID(int) ([]models.Novel, error) {
 	return nil, nil
 }
-func (m *mockNovelService) CreateNovel(models.Novel) (int, error)   { return 0, nil }
-func (m *mockNovelService) UpdateNovel(models.Novel) error          { return nil }
+func (m *mockNovelService) CreateNovel(novel models.Novel) (int, error) {
+	m.createdNovel = &novel
+	return 0, nil
+}
+func (m *mockNovelService) UpdateNovel(novel models.Novel) error {
+	m.updatedNovel = &novel
+	return nil
+}
 func (m *mockNovelService) UpdateNovelCover(int, string) error      { return nil }
 func (m *mockNovelService) DeleteNovel(int) error                   { return nil }
 func (m *mockNovelService) SuspendNovel(context.Context, int) error { return nil }
 func (m *mockNovelService) UnbanNovel(context.Context, int) error   { return nil }
 
 type mockSceneService struct {
-	scene models.SceneResponse
+	scene            models.SceneResponse
+	choice           *models.Choice
+	publicationCheck service.PublishValidationResult
 }
 
 func (m *mockSceneService) GetScene(int) (models.SceneResponse, error) { return m.scene, nil }
@@ -51,7 +61,7 @@ func (m *mockSceneService) DeleteScene(int) error                            { r
 func (m *mockSceneService) SyncSceneChoices(int, []interface{}) (*models.ChoiceDiff, error) {
 	return nil, nil
 }
-func (m *mockSceneService) GetChoiceByID(int) (*models.Choice, error) { return nil, nil }
+func (m *mockSceneService) GetChoiceByID(int) (*models.Choice, error) { return m.choice, nil }
 func (m *mockSceneService) CreateChoice(models.Choice) (int, error)   { return 0, nil }
 func (m *mockSceneService) UpdateChoice(models.Choice) error          { return nil }
 func (m *mockSceneService) DeleteChoice(int) error                    { return nil }
@@ -65,18 +75,22 @@ func (m *mockSceneService) ValidateStoryForPublish(int) service.PublishValidatio
 	return service.PublishValidationResult{}
 }
 func (m *mockSceneService) ValidateNovelPublishability(int) service.PublishValidationResult {
-	return service.PublishValidationResult{}
+	return m.publicationCheck
 }
 func (m *mockSceneService) UpdateScenePosition(int, *float64, *float64) error { return nil }
 func (m *mockSceneService) Ping() error                                       { return nil }
 
 type mockChapterService struct {
 	chapter   *models.Chapter
+	chapters  map[int]*models.Chapter
 	deleteErr error
 }
 
 func (m *mockChapterService) GetChaptersByNovelID(int) ([]models.Chapter, error) { return nil, nil }
-func (m *mockChapterService) GetChapterByID(int) (*models.Chapter, error) {
+func (m *mockChapterService) GetChapterByID(id int) (*models.Chapter, error) {
+	if m.chapters != nil {
+		return m.chapters[id], nil
+	}
 	return m.chapter, nil
 }
 func (m *mockChapterService) CreateChapter(models.Chapter) (int, error) { return 0, nil }
@@ -86,17 +100,34 @@ func (m *mockChapterService) ReorderChapters([]int) error               { return
 
 type mockReadingService struct {
 	savedProgress *models.ReadingProgress
+	progress      *models.ReadingProgress
+	progressUser  int
+	resetUser     int
+	choiceHistory *models.ChoiceHistory
+	ending        *models.SaveEndingRequest
 }
 
-func (m *mockReadingService) GetProgress(int, int) (*models.ReadingProgress, error) { return nil, nil }
+func (m *mockReadingService) GetProgress(userID, _ int) (*models.ReadingProgress, error) {
+	m.progressUser = userID
+	return m.progress, nil
+}
 func (m *mockReadingService) SaveProgress(progress models.ReadingProgress) error {
 	m.savedProgress = &progress
 	return nil
 }
-func (m *mockReadingService) ResetProgress(int, int) error                  { return nil }
+func (m *mockReadingService) ResetProgress(userID, _ int) error {
+	m.resetUser = userID
+	return nil
+}
 func (m *mockReadingService) GetReadingHistory(int) ([]models.Novel, error) { return nil, nil }
-func (m *mockReadingService) RecordChoiceHistory(models.ChoiceHistory) error { return nil }
-func (m *mockReadingService) RecordEnding(int, int, int) error              { return nil }
+func (m *mockReadingService) RecordChoiceHistory(history models.ChoiceHistory) error {
+	m.choiceHistory = &history
+	return nil
+}
+func (m *mockReadingService) RecordEnding(userID, novelID, sceneID int) error {
+	m.ending = &models.SaveEndingRequest{UserID: userID, NovelID: novelID, SceneID: sceneID}
+	return nil
+}
 func (m *mockReadingService) DeleteReadingHistoryByNovel(int, int) (bool, error) {
 	return true, nil
 }
@@ -107,8 +138,11 @@ type mockWriterService struct {
 }
 
 func (m *mockWriterService) GetWriterByID(int) (*models.Writer, error) { return m.writer, nil }
-func (m *mockWriterService) GetWriterByUserID(int) (*models.Writer, error) {
+func (m *mockWriterService) GetWriterByUserID(userID int) (*models.Writer, error) {
 	if m.writer == nil {
+		return nil, errors.New("not found")
+	}
+	if m.writer.UserID != userID {
 		return nil, errors.New("not found")
 	}
 	return m.writer, nil
@@ -116,7 +150,9 @@ func (m *mockWriterService) GetWriterByUserID(int) (*models.Writer, error) {
 func (m *mockWriterService) GetLatestWriterApplicationByUserID(int) (*models.Writer, error) {
 	return nil, nil
 }
-func (m *mockWriterService) ApplyForWriter(context.Context, uint, dto.WriterApplyRequest) error { return nil }
+func (m *mockWriterService) ApplyForWriter(context.Context, uint, dto.WriterApplyRequest) error {
+	return nil
+}
 func (m *mockWriterService) GetPendingRequests(context.Context, string, int, int) ([]dto.WriterRequestResponse, error) {
 	return nil, nil
 }

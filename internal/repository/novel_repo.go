@@ -14,7 +14,7 @@ func deriveNovelStateForResponse(dbStatus, latestBanReason string) (string, bool
 	normalizedStatus := strings.TrimSpace(strings.ToLower(dbStatus))
 	switch normalizedStatus {
 	case "banned":
-		return "banned", true, strings.TrimSpace(latestBanReason)
+		return "suspended", true, strings.TrimSpace(latestBanReason)
 	case "completed-published":
 		return "completed-published", false, ""
 	case "completed-draft":
@@ -57,15 +57,16 @@ func matchesPublishedScope(status string, isPublished bool, writerStatus string)
 }
 
 func matchesStatusFilter(status string, isPublished bool, writerStatus string, filter string) bool {
+	normalizedStatus := strings.TrimSpace(strings.ToLower(status))
 	switch strings.TrimSpace(strings.ToLower(filter)) {
 	case "all":
-		return true
+		return matchesStatusFilter(status, isPublished, writerStatus, "published") || matchesStatusFilter(status, isPublished, writerStatus, "suspended")
 	case "published":
 		return matchesPublishedScope(status, isPublished, writerStatus)
 	case "suspended":
-		return strings.TrimSpace(strings.ToLower(status)) == "suspended"
+		return normalizedStatus == "suspended" || normalizedStatus == "banned"
 	case "banned":
-		return strings.TrimSpace(strings.ToLower(status)) == "banned"
+		return normalizedStatus == "banned" || normalizedStatus == "suspended"
 	default:
 		return true
 	}
@@ -84,7 +85,7 @@ func GetNovels(db *sql.DB) ([]models.Novel, error) {
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
 				WHEN n.status = 'suspended' THEN 'suspended'
-				WHEN n.status = 'banned' THEN 'banned'
+				WHEN n.status = 'banned' THEN 'suspended'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
 				WHEN n.is_published THEN 'published'
@@ -189,10 +190,8 @@ func (r *postgresNovelRepository) ListAdminNovels(ctx context.Context, search, s
 		where = append(where, publishedNovelScope("n", "w"))
 	case "suspended":
 		where = append(where, "n.status = "+addArg("suspended"))
-	case "banned":
-		where = append(where, "n.status = "+addArg("banned"))
-	case "draft":
-		where = append(where, "n.is_published = FALSE AND n.status NOT IN ('suspended', 'banned')")
+	case "all", "":
+		where = append(where, "("+publishedNovelScope("n", "w")+" OR n.status = "+addArg("suspended")+")")
 	}
 	if search != "" {
 		placeholder := addArg("%" + search + "%")
@@ -281,7 +280,7 @@ func GetNovelByID(db *sql.DB, id int) (*models.Novel, error) {
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
 				WHEN n.status = 'suspended' THEN 'suspended'
-				WHEN n.status = 'banned' THEN 'banned'
+				WHEN n.status = 'banned' THEN 'suspended'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
 				WHEN n.is_published THEN 'published'
@@ -483,7 +482,7 @@ func GetNovelsByAuthorID(db *sql.DB, authorID int) ([]models.Novel, error) {
 			n.novel_id, n.title, n.captions, n.introduction, n.cover_image,
 			CASE
 				WHEN n.status = 'suspended' THEN 'suspended'
-				WHEN n.status = 'banned' THEN 'banned'
+				WHEN n.status = 'banned' THEN 'suspended'
 				WHEN n.is_completed AND n.is_published THEN 'completed-published'
 				WHEN n.is_completed THEN 'completed-draft'
 				WHEN n.is_published THEN 'published'

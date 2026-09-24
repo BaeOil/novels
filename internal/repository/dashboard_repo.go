@@ -33,7 +33,6 @@ func (r *sqlDashboardRepository) GetSummary(ctx context.Context) (dto.DashboardS
 				FROM writers w
 				JOIN audit_logs al ON al.actor_user_id = w.user_id
 				WHERE al.created_at >= NOW() - INTERVAL '30 days'
-				  AND al.actor_role = 'writer'
 				  AND w.status = 'approved'
 			)`).Scan(
 		&summary.TotalUsers,
@@ -139,7 +138,7 @@ func (r *sqlDashboardRepository) GetTrend(ctx context.Context, months int, timez
 			FROM users
 			GROUP BY 1
 		), novel_counts AS (
-			-- นับจากวันที่สร้างนิยาย ไม่ใช่วันที่เผยแพร่จริง เนื่องจากไม่มี published_at column
+			-- นับเฉพาะนิยายที่เผยแพร่แล้ว โดยใช้วันที่สร้างเนื่องจากยังไม่มี published_at
 			SELECT date_trunc('month', created_at AT TIME ZONE 'UTC' AT TIME ZONE $1) AS month_start, COUNT(*) AS total
 			FROM novels
 			WHERE is_published = TRUE

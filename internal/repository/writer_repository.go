@@ -269,8 +269,10 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 	limit = max(limit, 0)
 
 	query := `
-		SELECT w.writer_id, w.user_id, u.username, COALESCE(u.pic_profile, '') AS pic_profile,
-			w.name_lastname, w.pen_name, w.bio, COALESCE(w.avatar_url, '') AS avatar_url, w.email_writer, w.contact_info::text,
+		SELECT w.writer_id, w.user_id, COALESCE(u.username, '') AS username, COALESCE(u.pic_profile, '') AS pic_profile,
+			COALESCE(w.name_lastname, '') AS name_lastname, COALESCE(w.pen_name, '') AS pen_name,
+			COALESCE(w.bio, '') AS bio, COALESCE(w.avatar_url, '') AS avatar_url,
+			COALESCE(w.email_writer, '') AS email_writer, COALESCE(w.contact_info::text, '') AS contact_info,
 			COALESCE(
 				(SELECT json_agg(c.name)
 				 FROM writer_categories wc
@@ -292,10 +294,29 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 					AND w2.applied_at < w.applied_at
 				ORDER BY w2.rejected_at DESC, w2.applied_at DESC
 				LIMIT 1
-			) AS previous_rejection_reason
+			) AS previous_rejection_reason,
+			prev.name_lastname AS previous_name_lastname,
+			prev.pen_name AS previous_pen_name,
+			prev.bio AS previous_bio,
+			prev.email_writer AS previous_email_writer,
+			COALESCE(prev.contact_info::text, '') AS previous_contact_info,
+			prev.writer_id AS previous_writer_id,
+			COALESCE((SELECT json_agg(c2.name)
+				FROM writer_categories wc2
+				JOIN categories c2 ON c2.category_id = wc2.category_id
+				WHERE wc2.writer_id = prev.writer_id), '[]'::json) AS previous_genres_json
 		FROM writers w
 		LEFT JOIN users u ON u.user_id = w.user_id
 		LEFT JOIN users admin_u ON admin_u.user_id = w.acted_by_admin_id
+		LEFT JOIN LATERAL (
+			SELECT w2.*
+			FROM writers w2
+			WHERE w2.user_id = w.user_id
+				AND w2.status = 'rejected'
+				AND w2.applied_at < w.applied_at
+			ORDER BY w2.rejected_at DESC NULLS LAST, w2.applied_at DESC, w2.writer_id DESC
+			LIMIT 1
+		) prev ON true
 		WHERE 1=1`
 	args := []interface{}{}
 
@@ -333,6 +354,9 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 		var actedByAdminUsername sql.NullString
 		var rejectionReason sql.NullString
 		var previousRejectionReason sql.NullString
+		var previousNameLastname, previousPenName, previousBio, previousEmailWriter, previousContactInfo sql.NullString
+		var previousWriterID sql.NullInt64
+		var previousGenresJSON []byte
 		err := rows.Scan(
 			&resp.WriterID,
 			&resp.UserID,
@@ -354,6 +378,13 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 			&rejectionReason,
 			&resp.PreviousAttemptCount,
 			&previousRejectionReason,
+			&previousNameLastname,
+			&previousPenName,
+			&previousBio,
+			&previousEmailWriter,
+			&previousContactInfo,
+			&previousWriterID,
+			&previousGenresJSON,
 		)
 		if err != nil {
 			return nil, err
@@ -381,6 +412,22 @@ func (r *sqlWriterRepository) GetPendingRequests(ctx context.Context, status str
 		if previousRejectionReason.Valid {
 			prr := previousRejectionReason.String
 			resp.PreviousRejectionReason = &prr
+		}
+		if previousWriterID.Valid {
+			previousApplication := &dto.PreviousWriterApplication{
+				NameLastname: previousNameLastname.String,
+				PenName:      previousPenName.String,
+				Bio:          previousBio.String,
+				EmailWriter:  previousEmailWriter.String,
+				ContactInfo:  previousContactInfo.String,
+				Genres:       []string{},
+			}
+			if len(previousGenresJSON) > 0 && string(previousGenresJSON) != "null" {
+				if err := json.Unmarshal(previousGenresJSON, &previousApplication.Genres); err != nil {
+					return nil, err
+				}
+			}
+			resp.PreviousApplication = previousApplication
 		}
 		if len(genresJSON) > 0 && string(genresJSON) != "null" {
 			if err := json.Unmarshal(genresJSON, &resp.Genres); err != nil {

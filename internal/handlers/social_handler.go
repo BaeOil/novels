@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"novel-be/internal/middleware"
 	"novel-be/internal/models"
+	"novel-be/internal/repository"
 	"novel-be/internal/service"
 )
 
@@ -343,6 +345,10 @@ func AddFollowHandler(socialService service.SocialService, notificationService s
 
 		log.Printf("AddFollowHandler: received follow request follower=%d following=%d", req.FollowerID, req.FollowingID)
 		if err := socialService.AddFollow(models.Follow{FollowerID: req.FollowerID, FollowingID: req.FollowingID}); err != nil {
+			if errors.Is(err, repository.ErrSelfFollow) {
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -378,6 +384,10 @@ func FollowWriterHandler(socialService service.SocialService, notificationServic
 
 		log.Printf("FollowWriterHandler: user=%d follows writer=%d", userID, writerID)
 		if err := socialService.AddFollow(models.Follow{FollowerID: int(userID), FollowingID: writerID}); err != nil {
+			if errors.Is(err, repository.ErrSelfFollow) {
+				WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

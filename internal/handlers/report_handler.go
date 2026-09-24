@@ -151,7 +151,7 @@ func (h *ReportHandler) UpdateReportStatus(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	previousStatus, reportType, novelID, novelTitle, authorID, err := h.service.GetReportDetail(r.Context(), reportID)
+	previousStatus, reportType, novelID, novelTitle, authorID, novelStatus, novelIsPublished, err := h.service.GetReportDetail(r.Context(), reportID)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -166,7 +166,7 @@ func (h *ReportHandler) UpdateReportStatus(w http.ResponseWriter, r *http.Reques
 	}
 	reportMetadata := map[string]interface{}{"old_status": previousStatus, "new_status": req.Status, "report_type": reportType, "reason": req.Reason}
 	recordAudit(r, h.auditService, service.AuditEvent{Action: "UPDATE_REPORT_STATUS", TargetType: "report", TargetID: int64Pointer(reportID), Status: "SUCCESS", Metadata: reportMetadata})
-	if reportType == "report" && previousStatus == "pending" && req.Status == "resolved" {
+	if reportType == "report" && previousStatus == "pending" && req.Status == "resolved" && novelStatus == "published" && novelIsPublished {
 		recordAudit(r, h.auditService, service.AuditEvent{
 			Action:     "SUSPEND_NOVEL",
 			TargetType: "novel",

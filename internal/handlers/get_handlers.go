@@ -82,7 +82,10 @@ func GetNovelDetailHandler(novelService service.NovelService, sceneService servi
 		}
 
 		// ถ้ามี user_id มาให้ตรวจว่า user นี้กดไลค์นิยายเรื่องนี้หรือยัง
-		userID, _ := strconv.Atoi(r.URL.Query().Get("user_id"))
+		userID := 0
+		if ctxUserID, ok := middleware.GetUserIDFromContext(r.Context()); ok && ctxUserID > 0 {
+			userID = int(ctxUserID)
+		}
 		if userID > 0 {
 			liked, err := socialService.IsLikeExists(userID, id)
 			if err == nil {
@@ -120,7 +123,7 @@ func GetNovelDetailHandler(novelService service.NovelService, sceneService servi
 				}
 
 				// เงื่อนไขเปิดไฟโหนดเหมือนในหน้าผังกิ่งไม้
-				isNodeAccessible := rawNode.IsUnlocked || rawNode.ID == 1 || rawNode.Type == "start"
+				isNodeAccessible := rawNode.IsUnlocked || rawNode.Type == "start"
 				if isNodeAccessible {
 					visitedCount++
 					unlockedNodesMap[rawNode.ID] = true

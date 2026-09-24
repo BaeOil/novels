@@ -15,7 +15,7 @@ import (
 	"novel-be/internal/service"
 )
 
-func NovelsHandler(novelService service.NovelService, writerService service.WriterService, notificationService service.NotificationService, auditService service.AuditService) http.HandlerFunc {
+func NovelsHandler(novelService service.NovelService, sceneService service.SceneService, writerService service.WriterService, notificationService service.NotificationService, auditService service.AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -49,7 +49,7 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 			}
 
 			resolvedStatus, isPublished, isCompleted := resolveNovelStatus(req.Status, req.IsPublished, req.IsCompleted)
-			novelID, err := novelService.CreateNovel(models.Novel{
+			newNovel := models.Novel{
 				Title:        req.Title,
 				Captions:     req.Captions,
 				Introduction: req.Introduction,
@@ -59,13 +59,14 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 				IsCompleted:  isCompleted,
 				CategoryIDs:  req.CategoryIDs,
 				AuthorID:     writer.WriterID,
-			})
+			}
+			novelID, err := novelService.CreateNovel(newNovel)
 			if err != nil {
 				WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 			recordAudit(r, auditService, service.AuditEvent{Action: "CREATE_NOVEL", TargetType: "novel", TargetID: int64Pointer(novelID), Status: "SUCCESS", Metadata: map[string]interface{}{"title": req.Title, "status": resolvedStatus}})
-			if isPublished {
+			if isPublished && notificationService != nil {
 				if err := notificationService.NotifyNewNovelPublished(novelID); err != nil {
 					log.Printf("NotifyNewNovelPublished failed: %v", err)
 				}
@@ -75,6 +76,14 @@ func NovelsHandler(novelService service.NovelService, writerService service.Writ
 			WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 	}
+}
+
+func normalizeAdminNovelStatus(raw string) string {
+	status := strings.ToLower(strings.TrimSpace(raw))
+	if status == "" {
+		return "all"
+	}
+	return status
 }
 
 func AdminNovelListHandler(novelService service.NovelService) http.HandlerFunc {
@@ -90,10 +99,7 @@ func AdminNovelListHandler(novelService service.NovelService) http.HandlerFunc {
 			return
 		}
 
-		status := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
-		if status == "" {
-			status = "all"
-		}
+		status := normalizeAdminNovelStatus(r.URL.Query().Get("status"))
 		if status != "all" && status != "published" && status != "suspended" {
 			WriteError(w, http.StatusBadRequest, "status must be all, published, or suspended")
 			return

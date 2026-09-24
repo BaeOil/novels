@@ -34,6 +34,30 @@ func TestStatusSuspendedMatchesOnlySuspendedAndAllFilters(t *testing.T) {
 	}
 }
 
+func TestAllFilterIncludesOnlyPublishedAndSuspended(t *testing.T) {
+	if !matchesStatusFilter("published", true, "approved", "all") {
+		t.Fatal("published should appear in all filter")
+	}
+	if !matchesStatusFilter("suspended", true, "approved", "all") {
+		t.Fatal("suspended should appear in all filter")
+	}
+	if !matchesStatusFilter("banned", true, "approved", "all") {
+		t.Fatal("legacy banned data should still be treated as suspended in all filter")
+	}
+	if matchesStatusFilter("draft", false, "approved", "all") {
+		t.Fatal("draft must not appear in all filter")
+	}
+}
+
+func TestSuspendedAliasMatchesSuspendedFilter(t *testing.T) {
+	if !matchesStatusFilter("banned", true, "approved", "suspended") {
+		t.Fatal("legacy banned status must be treated as suspended when filtering suspended novels")
+	}
+	if matchesStatusFilter("banned", true, "approved", "published") {
+		t.Fatal("banned must not appear in published filter")
+	}
+}
+
 func TestBuildNovelWhereClauseHandlesEmptyFilters(t *testing.T) {
 	clause := buildNovelWhereClause(nil)
 	if clause != "" {

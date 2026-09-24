@@ -15,7 +15,7 @@ type ReportRepository interface {
 	CreateReport(ctx context.Context, report models.Report) error
 	GetReports(ctx context.Context, statusFilter string, reportType, search string, page, limit int) ([]dto.ReportResponse, int, error)
 	GetStatus(ctx context.Context, reportID int) (string, error)
-	GetReportDetail(ctx context.Context, reportID int) (status string, reportType string, novelID int, novelTitle string, authorID int, err error)
+	GetReportDetail(ctx context.Context, reportID int) (status string, reportType string, novelID int, novelTitle string, authorID int, novelStatus string, novelIsPublished bool, err error)
 	UpdateReportStatus(ctx context.Context, reportID int, req dto.UpdateReportStatusRequest) error
 	CreateAppeal(ctx context.Context, authorUserID int, appeal dto.CreateAppealRequest) error
 	HasPendingAppeal(ctx context.Context, authorUserID, novelID int) (bool, error)
@@ -29,24 +29,35 @@ func (r *sqlReportRepository) GetStatus(ctx context.Context, reportID int) (stri
 
 // GetReportDetail returns status, novel_id, and novel_title for a given reportID.
 // Used by the admin handler to build report audit metadata without an extra novelService dependency.
-func (r *sqlReportRepository) GetReportDetail(ctx context.Context, reportID int) (string, string, int, string, int, error) {
+func (r *sqlReportRepository) GetReportDetail(ctx context.Context, reportID int) (string, string, int, string, int, string, bool, error) {
 	var status string
 	var reportType string
 	var novelID int
 	var novelTitle string
 	var authorID int
+	var novelStatus string
+	var novelIsPublished bool
 	query := `
-		SELECT r.status, r.report_type, r.novel_id, n.title, n.author_id
+		SELECT r.status, r.report_type, r.novel_id, n.title, n.author_id, n.status, n.is_published
 		FROM reports r
 		JOIN novels n ON n.novel_id = r.novel_id
 		WHERE r.report_id = $1
 	`
-	err := r.db.QueryRowContext(ctx, query, reportID).Scan(&status, &reportType, &novelID, &novelTitle, &authorID)
-	return status, reportType, novelID, novelTitle, authorID, err
+	err := r.db.QueryRowContext(ctx, query, reportID).Scan(&status, &reportType, &novelID, &novelTitle, &authorID, &novelStatus, &novelIsPublished)
+	return status, reportType, novelID, novelTitle, authorID, novelStatus, novelIsPublished, err
 }
 
 type sqlReportRepository struct {
 	db *sql.DB
+}
+
+func shouldSuspendNovelForReport(novelStatus string, novelIsPublished bool) bool {
+	return novelStatus == "published" && novelIsPublished
+}
+
+func canResolvePendingReport(novelStatus string, novelIsPublished bool) bool {
+	return shouldSuspendNovelForReport(novelStatus, novelIsPublished) ||
+		(novelStatus == "suspended" && !novelIsPublished)
 }
 
 func NewReportRepository(db *sql.DB) ReportRepository {
@@ -270,8 +281,20 @@ func (r *sqlReportRepository) UpdateReportStatus(ctx context.Context, reportID i
 				return err
 			}
 		} else if currentReportStatus == "pending" {
-			if novelStatus != "published" || !novelIsPublished {
-				return errors.New("report approval requires published novel")
+			if !canResolvePendingReport(novelStatus, novelIsPublished) {
+				return errors.New("report approval requires published or suspended novel")
+			}
+			if !shouldSuspendNovelForReport(novelStatus, novelIsPublished) {
+				reporterMsg := "การรายงานนิยายเรื่อง '" + novelTitle + "' ของคุณได้รับการดำเนินการแล้ว เหตุผล: " + strings.TrimSpace(req.Reason)
+				_, err = tx.ExecContext(ctx,
+					`INSERT INTO notifications (user_id, type, reference_id, reference_type, message, is_read, created_at)
+					 VALUES ($1, 'system', $2, 'novel', $3, false, NOW())`,
+					reporterID, novelID, reporterMsg,
+				)
+				if err != nil {
+					return err
+				}
+				return tx.Commit()
 			}
 			_, err = tx.ExecContext(ctx,
 				`UPDATE novels SET status = 'suspended', is_published = false, updated_at = NOW() WHERE novel_id = $1`,

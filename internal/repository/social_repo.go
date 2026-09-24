@@ -3,9 +3,12 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"novel-be/internal/models"
 )
+
+var ErrSelfFollow = errors.New("cannot follow yourself")
 
 func AddLike(db *sql.DB, like models.Like) error {
 	_, err := db.Exec(`
@@ -207,16 +210,16 @@ func RemoveComment(db *sql.DB, commentID, userID int) error {
 
 func AddFollow(db *sql.DB, follow models.Follow) error {
 	// Normalize following ID: prefer exact writer_id match, otherwise try matching user_id
-	var resolvedWriterID int
+	var resolvedWriterID, targetUserID int
 	// try direct writer_id match first
 	err := db.QueryRow(`
-		SELECT writer_id FROM writers WHERE writer_id = $1 LIMIT 1
+		SELECT writer_id, user_id FROM writers WHERE writer_id = $1 LIMIT 1
 	`, follow.FollowingID).Scan(&resolvedWriterID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// try matching by user_id (must be approved writer)
 			err = db.QueryRow(`
-				SELECT writer_id FROM writers WHERE user_id = $1 AND status = 'approved' ORDER BY applied_at DESC LIMIT 1
+				SELECT writer_id, user_id FROM writers WHERE user_id = $1 AND status = 'approved' ORDER BY applied_at DESC LIMIT 1
 			`, follow.FollowingID).Scan(&resolvedWriterID)
 			if err != nil {
 				if err == sql.ErrNoRows {
@@ -227,6 +230,9 @@ func AddFollow(db *sql.DB, follow models.Follow) error {
 		} else {
 			return err
 		}
+	}
+	if follow.FollowerID == targetUserID {
+		return ErrSelfFollow
 	}
 
 	res, err := db.Exec(`

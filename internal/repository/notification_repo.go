@@ -83,6 +83,15 @@ func populateNotificationDisplayFields(db *sql.DB, n *models.Notification) {
 
 	if n.Type == "system" {
 		n.ActorName = "StoryVerse"
+		// Older notification rows predate the title column and only retain the
+		// message. Restore the known system titles when reading those rows.
+		if strings.Contains(n.Message, "ตอนนี้คุณสามารถสร้างนิยาย") {
+			title := "คุณได้รับการอนุมัติเป็นนักเขียนแล้ว"
+			n.Title = &title
+		} else if strings.Contains(n.Message, "ไม่ได้รับการอนุมัติ") {
+			title := "คำขอสมัครนักเขียนถูกปฏิเสธ"
+			n.Title = &title
+		}
 		return
 	}
 

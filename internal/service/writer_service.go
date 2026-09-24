@@ -8,6 +8,7 @@ import (
 	"novel-be/internal/dto"
 	"novel-be/internal/models"
 	"novel-be/internal/repository"
+	"regexp"
 	"strings"
 
 	"github.com/microcosm-cc/bluemonday" // go get github.com/microcosm-cc/bluemonday
@@ -64,6 +65,9 @@ var (
 func (s *writerService) ApplyForWriter(ctx context.Context, userID uint, req dto.WriterApplyRequest) error {
 	if req.PenName == "" || req.ContactRequired == "" {
 		return errors.New("กรุณากรอกข้อมูลนามปากกาและช่องทางติดต่อหลักที่จำเป็นค่ะ")
+	}
+	if !regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`).MatchString(strings.TrimSpace(req.EmailWriter)) {
+		return errors.New("กรุณากรอกอีเมลภาษาอังกฤษให้ถูกต้อง")
 	}
 
 	userRole, err := s.repo.GetUserRoleByUserID(int(userID))

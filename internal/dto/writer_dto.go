@@ -19,7 +19,7 @@ type WriterApplyRequest struct {
 type WriterRequestResponse struct {
 	WriterID             uint       `json:"writer_id"`
 	UserID               uint       `json:"user_id"`
-	Username             string     `json:"username"`    // ดึงมาจากตาราง users เอาไว้ให้แอดมินรู้ว่าเป็นใคร
+	Username             string     `json:"username"`              // ดึงมาจากตาราง users เอาไว้ให้แอดมินรู้ว่าเป็นใคร
 	PicProfile           string     `json:"pic_profile,omitempty"` // รูปโปรไฟล์บัญชีผู้ใช้ จากตาราง users (ใช้ระบุตัวตนในตาราง list)
 	NameLastname         string     `json:"name_lastname"`
 	PenName              string     `json:"pen_name"`
@@ -36,8 +36,18 @@ type WriterRequestResponse struct {
 	ActedByAdminUsername *string    `json:"acted_by_admin_username,omitempty"`
 	RejectionReason      *string    `json:"rejection_reason,omitempty"`
 	// เผื่อกรณีผู้ใช้คนนี้เคยสมัครมาก่อนแล้ว (ถูกปฏิเสธแล้วแก้ไขส่งใหม่) แอดมินจะได้เห็นบริบทว่าเคยมีปัญหาอะไรมาก่อน
-	PreviousAttemptCount    int     `json:"previous_attempt_count,omitempty"`
-	PreviousRejectionReason *string `json:"previous_rejection_reason,omitempty"`
+	PreviousAttemptCount    int                        `json:"previous_attempt_count,omitempty"`
+	PreviousRejectionReason *string                    `json:"previous_rejection_reason,omitempty"`
+	PreviousApplication     *PreviousWriterApplication `json:"previous_application,omitempty"`
+}
+
+type PreviousWriterApplication struct {
+	NameLastname string   `json:"name_lastname"`
+	PenName      string   `json:"pen_name"`
+	Bio          string   `json:"bio"`
+	EmailWriter  string   `json:"email_writer"`
+	ContactInfo  string   `json:"contact_info"`
+	Genres       []string `json:"genres"`
 }
 
 // UpdateWriterProfileRequest สำหรับรับข้อมูลอัปเดตโปรไฟล์นักเขียน

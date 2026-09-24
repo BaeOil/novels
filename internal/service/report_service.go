@@ -15,7 +15,7 @@ type ReportService interface {
 	CreateReport(ctx context.Context, userID int, req dto.CreateReportRequest) error
 	GetReports(ctx context.Context, statusFilter string, reportType, search string, page, limit int) ([]dto.ReportResponse, int, error)
 	GetReportStatus(ctx context.Context, reportID int) (string, error)
-	GetReportDetail(ctx context.Context, reportID int) (status string, reportType string, novelID int, novelTitle string, authorID int, err error)
+	GetReportDetail(ctx context.Context, reportID int) (status string, reportType string, novelID int, novelTitle string, authorID int, novelStatus string, novelIsPublished bool, err error)
 	UpdateReportStatus(ctx context.Context, reportID int, req dto.UpdateReportStatusRequest) error
 	CreateAppeal(ctx context.Context, userID int, req dto.CreateAppealRequest) error
 }
@@ -59,7 +59,7 @@ func (s *reportService) UpdateReportStatus(ctx context.Context, reportID int, re
 	if strings.TrimSpace(req.Reason) == "" {
 		return errors.New("admin reason is required")
 	}
-	currentStatus, reportType, _, _, _, err := s.repo.GetReportDetail(ctx, reportID)
+	currentStatus, reportType, _, _, _, _, _, err := s.repo.GetReportDetail(ctx, reportID)
 	if err != nil {
 		return err
 	}
@@ -93,6 +93,6 @@ func (s *reportService) GetReportStatus(ctx context.Context, reportID int) (stri
 	return s.repo.GetStatus(ctx, reportID)
 }
 
-func (s *reportService) GetReportDetail(ctx context.Context, reportID int) (string, string, int, string, int, error) {
+func (s *reportService) GetReportDetail(ctx context.Context, reportID int) (string, string, int, string, int, string, bool, error) {
 	return s.repo.GetReportDetail(ctx, reportID)
 }

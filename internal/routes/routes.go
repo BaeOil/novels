@@ -139,10 +139,10 @@ func RegisterRoutes(
 	// POST /novels ต้องมีการยืนยันสิทธิ์ ก่อนสร้างนิยาย
 	mux.Handle("/novels", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
-			middleware.RequireAuth(handlers.NovelsHandler(novel, writer, notificationService, audit)).ServeHTTP(w, r)
+			middleware.RequireAuth(handlers.NovelsHandler(novel, scene, writer, notificationService, audit)).ServeHTTP(w, r)
 			return
 		}
-		handlers.NovelsHandler(novel, writer, notificationService, audit)(w, r)
+		handlers.NovelsHandler(novel, scene, writer, notificationService, audit)(w, r)
 	})))
 
 	// 🚨 ท่อฝั่งคนอ่าน: ส่งรายงานนิยาย (บังคับล็อกอินถึงจะรายงานได้)
@@ -348,7 +348,7 @@ func RegisterRoutes(
 		http.NotFound(w, r)
 	}))))
 	mux.Handle("/choice-history", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordChoiceHistoryHandler(reading, scene, novel, writer, chapter))))
-	mux.Handle("/user-endings", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordUserEndingHandler(reading, novel, writer))))
+	mux.Handle("/user-endings", middleware.RequestLogger(middleware.RequireAuth(handlers.RecordUserEndingHandler(reading, scene, novel, writer))))
 	mux.Handle("/likes", middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
 			middleware.RequireAdminReadOnly(handlers.RemoveLikeHandler(social, notificationService)).ServeHTTP(w, r)
@@ -451,7 +451,7 @@ func novelSubRouter(novel service.NovelService, scene service.SceneService, chap
 
 		switch {
 		case r.Method == http.MethodPut && strings.HasSuffix(path, "/chapters/reorder"):
-			middleware.RequireAuth(http.HandlerFunc(handlers.ReorderChaptersHandler(chapter))).ServeHTTP(w, r)
+			middleware.RequireAuth(http.HandlerFunc(handlers.ReorderChaptersHandler(chapter, novel, writer))).ServeHTTP(w, r)
 			return
 		case r.Method == http.MethodGet && strings.HasSuffix(path, "/chapters"):
 			handlers.GetChaptersByNovelHandler(chapter, novel, writer)(w, r)
